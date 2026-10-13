@@ -72,9 +72,7 @@ static int enabled(void) { return !disabled; }
 static void ram_snapshot(void) {
     static int n;
     char path[64];
-    snprintf(path, sizeof path, "build/snap-%013llu.bin", (unsigned long long)SDL_GetTicks() + 1000000000000ull * 0 +
-             (unsigned long long)time(NULL) * 1000);
-    n++;
+    snprintf(path, sizeof path, "build/snap-%llu-%02d.bin", (unsigned long long)time(NULL), ++n);
     FILE *f = fopen(path, "wb");
     if (!f) {
         fprintf(stderr, "snapshot: cannot write %s\n", path);
