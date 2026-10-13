@@ -63,6 +63,8 @@ and traces (calls, memory, display lists) to compare the recompiled game against
 - `DATA.BIN` (737 MB) is 6657 files, encrypted with a per-read stream cipher keyed by the starting sector - the
   details are in `tools/databin.py`, which lists, decrypts and extracts them (`game/data/`). Content seen so far: PNGs,
   RIFF/WAVE (ATRAC3) audio, and the overlays.
+- Each overlay has a 0x40-byte Metrowerks header (`MWo3`: number, load address, text / data / bss sizes, the static
+  constructor table), then text and data; the constructors are code at the end of the data (`tools/modules.py`).
 - **The overlays are DATA.BIN files**, loaded verbatim at their region's base: tasks 63-74, subs 75-76, stages
   5542-5808 (in order), monsters 6095-6111 (in order). Each contains its own name; `tools/databin.py overlays` matches
   all 298 and writes them to `game/overlays/<name>.bin`.
@@ -72,6 +74,9 @@ and traces (calls, memory, display lists) to compare the recompiled game against
   Tasks and subs are loaded with constant file indices; monsters and stages with computed ones (not yet traced).
 - Other modules: the game loads `sceFont_Library` from a raw sector range on the disc (`sce_lbn0x11981_size0x59c0`) -
   Sony's, and HLE'd by PPSSPP. `SYSDIR/UPDATE/EBOOT.BIN` is the firmware updater (ignored).
+
+- **Functions**: 16959 in the EBOOT and the overlays, every instruction accounted for, checked against PPSSPP's own
+  scan; C++ exceptions are compiled in but never thrown. See [functions.md](functions.md).
 
 ## Open questions (answered by phase 2)
 
