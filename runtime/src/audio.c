@@ -57,6 +57,8 @@ static void dump(int ch, uint32_t addr) {
 
 /* A buffer to the host: scaled by the channel's volumes (0x8000 is full), mono made stereo */
 static void play(int ch, uint32_t addr, uint32_t vol_l, uint32_t vol_r) {
+    if (!addr)                      /* no buffer: silence (the game outputs that when it stops a sound) */
+        return;
     dump(ch, addr);
     if (!audio_on())
         return;
