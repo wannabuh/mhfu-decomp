@@ -7,6 +7,7 @@
  * Not yet: fog, mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
  * dithering. */
 #include "hle.h"
+#include "render.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -129,6 +130,12 @@ static uint32_t sample(float u, float v) {
         out |= (uint32_t)(a * (1 - ay) + b * ay + 0.5f) << ch;
     }
     return out;
+}
+
+void gpu_decode_texture(uint32_t *out, int w, int h) {
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+            out[y * w + x] = texel(x, y);
 }
 
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
@@ -567,6 +574,10 @@ static void shade(int x, int y, float z, uint32_t color, float u, float v) {
 }
 
 static void draw_sprite(const Vertex *a, const Vertex *b) {
+    if (render_on) {
+        render_sprite((const RVertex *)a, (const RVertex *)b);
+        return;
+    }
     float x0 = a->x, y0 = a->y, x1 = b->x, y1 = b->y, u0 = a->u, v0 = a->v, u1 = b->u, v1 = b->v;
     if (x1 < x0) { float t = x0; x0 = x1; x1 = t; t = u0; u0 = u1; u1 = t; }
     if (y1 < y0) { float t = y0; y0 = y1; y1 = t; t = v0; v0 = v1; v1 = t; }
@@ -594,6 +605,10 @@ static void raster_triangle(const Vertex *a, const Vertex *b, const Vertex *c, i
         int ccw = area < 0;
         if (ccw == (int)(reg[0x9B] & 1))
             return;
+    }
+    if (render_on) {
+        render_triangle((const RVertex *)a, (const RVertex *)b, (const RVertex *)c);
+        return;
     }
     float minx = fminf(a->x, fminf(b->x, c->x)), maxx = fmaxf(a->x, fmaxf(b->x, c->x));
     float miny = fminf(a->y, fminf(b->y, c->y)), maxy = fmaxf(a->y, fmaxf(b->y, c->y));
@@ -665,6 +680,8 @@ static void prim(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (render_on && count > 0)
+        render_prim_begin(reg);
     if (count > 0) {
         ClipVertex *v = malloc(sizeof *v * (size_t)count);
         int through = 0;

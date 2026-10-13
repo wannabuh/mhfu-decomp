@@ -1,6 +1,7 @@
 /* Presenting frames: in the window (window.c), and written out as PNGs (MHFU_DUMP=N: every Nth frame, to
  * build/frames/), to compare with PPSSPP's. */
 #include "hle.h"
+#include "render.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -117,12 +118,19 @@ void present_frame(void) {
     frame++;
     watch();
     uint32_t *pixels = window_pixels();
-    convert(pixels);
-    window_show(pixels);
+    int dump = dump_every && frame % (unsigned long)dump_every == 0;
+    if (render_on) {
+        if (dump)
+            render_readback(display_fb_addr, pixels);
+        render_flip(display_fb_addr);
+    } else {
+        convert(pixels);
+        window_show(pixels);
+    }
     if (!window_poll())
         exit(0);
     scripted_input(window_buttons());
-    if (dump_every && frame % (unsigned long)dump_every == 0) {
+    if (dump) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);
         write_png(path, pixels);

@@ -1,12 +1,17 @@
 /* The window and input (SDL3): each frame the game flips is shown, scaled to the window; the keyboard and any gamepad
  * are read into the PSP's buttons and analog stick. MHFU_HEADLESS=1 runs without a window (tests, scripted runs).
  *
+ * Drawing is the Vulkan renderer's (render.c), into this window or offscreen; with MHFU_RENDERER=soft, or without
+ * Vulkan, the software GE draws into VRAM and its frames are shown here through SDL's renderer.
+ *
  * Keyboard: arrows - D-pad; Z cross, X circle, A square, S triangle; Q L, W R; Enter START, Backspace SELECT;
  * I J K L - analog stick. Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
 #include "hle.h"
+#include "render.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern uint8_t ctrl_lx, ctrl_ly;
 
@@ -19,28 +24,40 @@ static SDL_Window *window;
 static SDL_Renderer *renderer;
 static SDL_Texture *texture;
 static SDL_Gamepad *pad;
-static int disabled = -1;
+static int disabled = 1;
 static uint32_t pixels[480 * 272];
 static uint32_t device_buttons;
 
-static int enabled(void) {
-    if (disabled < 0) {
-        disabled = getenv("MHFU_HEADLESS") != NULL;
-        if (!disabled) {
-            if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-                fprintf(stderr, "no window: %s\n", SDL_GetError());
-                disabled = 1;
-                return 0;
-            }
-            window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2, SDL_WINDOW_RESIZABLE);
-            renderer = SDL_CreateRenderer(window, NULL);
-            SDL_SetRenderLogicalPresentation(renderer, 480, 272, SDL_LOGICAL_PRESENTATION_LETTERBOX);
-            texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 480, 272);
-            SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
-        }
+void window_init(void) {
+    int headless = getenv("MHFU_HEADLESS") != NULL;
+    const char *r = getenv("MHFU_RENDERER");
+    int want_vulkan = !(r && !strcmp(r, "soft"));
+    disabled = headless;
+    if (!headless && !SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
+        fprintf(stderr, "no window: %s\n", SDL_GetError());
+        disabled = headless = 1;
     }
-    return !disabled;
+    if (want_vulkan) {
+        if (!headless)
+            window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2,
+                                      SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN);
+        if (render_init(window))
+            return;
+        fprintf(stderr, "renderer: no Vulkan, drawing in software\n");
+        if (window)
+            SDL_DestroyWindow(window);
+        window = NULL;
+    }
+    if (!headless) {
+        window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2, SDL_WINDOW_RESIZABLE);
+        renderer = SDL_CreateRenderer(window, NULL);
+        SDL_SetRenderLogicalPresentation(renderer, 480, 272, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+        texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, 480, 272);
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+    }
 }
+
+static int enabled(void) { return !disabled; }
 
 static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     const bool *k = SDL_GetKeyboardState(NULL);
@@ -110,7 +127,7 @@ int window_poll(void) {
 
 /* Show a frame: 480 x 272, ABGR8888 */
 void window_show(const uint32_t *frame) {
-    if (!enabled())
+    if (!enabled() || !renderer)
         return;
     SDL_UpdateTexture(texture, NULL, frame, 480 * 4);
     SDL_RenderClear(renderer);

@@ -2,7 +2,8 @@
 # needs game/analysis/functions.json first (tools/funcs.py).
 PY      := tools/.venv/bin/python
 CC      := clang
-CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Ibuild/gen
+CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Ibuild/gen -Ibuild/shaders
+GLSLC   := glslc
 GENFLAGS := $(CFLAGS) -w
 
 RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
@@ -22,19 +23,27 @@ build/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
 	@mkdir -p $(@D)
 	@$(CC) $(GENFLAGS) -c $< -o $@
 
-build/runtime/%.o: runtime/src/%.c runtime/src/runtime.h runtime/src/hle.h runtime/src/nids.inc runtime/include/recomp.h build/gen/.stamp
+SHADERS := $(patsubst runtime/shaders/%,build/shaders/%.inc,$(wildcard runtime/shaders/*.vert runtime/shaders/*.frag))
+
+# Shaders: SPIR-V as C arrays (ge.vert -> ge_vert[])
+build/shaders/%.inc: runtime/shaders/%
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -Wall -Wextra -c $< -o $@
+	$(GLSLC) --target-env=vulkan1.3 -O -mfmt=c $< -o $@.tmp
+	printf 'static const uint32_t %s[] = \n' $(subst .,_,$*) > $@ && cat $@.tmp >> $@ && printf ';\n' >> $@ && rm $@.tmp
+
+build/runtime/%.o: runtime/src/%.c runtime/src/runtime.h runtime/src/hle.h runtime/src/nids.inc runtime/include/recomp.h build/gen/.stamp $(SHADERS)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
 
 build/game.a: build/gen/.stamp
 	@$(MAKE) --no-print-directory $(GEN_OBJ)
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -lSDL3 -o $@
+	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -lSDL3 -lvulkan -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $^ -lm -lpng -lSDL3 -o $@
+	$(CC) $(CFLAGS) $^ -lm -lpng -lSDL3 -lvulkan -o $@
 
 clean:
 	rm -rf build

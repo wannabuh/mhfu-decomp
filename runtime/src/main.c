@@ -96,6 +96,7 @@ int main(int argc, char **argv) {
     threads_init();
     io_init(iso);
     ge_init();
+    window_init();
     hle_enabled = 1;
 
     /* The module's start: a thread at its entry, given the EBOOT's path as its argument */

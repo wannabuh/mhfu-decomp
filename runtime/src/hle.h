@@ -98,5 +98,6 @@ void gpu_command(uint32_t cmd, uint32_t addr);  /* the renderer: one command, it
 /* The display (system.c), and frames written out (present.c) */
 extern uint32_t display_fb_addr, display_fb_width, display_fb_format;
 void present_frame(void);
+void window_init(void);                         /* the window, and the renderer (window.c) */
 
 #endif
