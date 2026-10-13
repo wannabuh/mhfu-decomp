@@ -286,12 +286,12 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
         rgb[i] = sum[i] + spec[i];
         rgb[i] = rgb[i] < 0 ? 0 : rgb[i] > 1 ? 1 : rgb[i];
     }
+    /* alpha: the material's ambient alpha (or the vertex's), times the global ambient light's */
     float a = mat_amb_a * ((float)(reg[0x5D] & 255) / 255.0f);
-    (void)a;
     out->r = rgb[0] * 255.0f;
     out->g = rgb[1] * 255.0f;
     out->b = rgb[2] * 255.0f;
-    out->a = mat_amb_a * 255.0f;
+    out->a = a * 255.0f;
 }
 
 /* Decode vertex n and run it through the vertex stage up to clip space (through mode: straight to the screen, w 1) */
@@ -828,54 +828,98 @@ static uint64_t draw_key(const Draw *d) {
     return (uint64_t)d->vaddr << 32 ^ (uint64_t)d->reg[0x12] << 8 ^ d->data;
 }
 
-/* Match each draw of the latest frame to the previous frame's: the k-th with a key to the k-th with the same key */
+/* Where a draw is: its world matrix's translation, through its first bone's if it is skinned */
+static void draw_position(const Draw *d, float *p) {
+    if ((d->reg[0x12] >> 9) & 3) {
+        float t[3];
+        mul43(d->world, &d->bones[0][9], t);
+        memcpy(p, t, sizeof t);
+    } else {
+        memcpy(p, &d->world[9], 3 * sizeof(float));
+    }
+}
+
+#define MATCH_DISTANCE 40.0f        /* farther than this (game units) between frames: not the same thing moving */
+
+/* Match each draw of the latest frame to the previous frame's: among the previous draws with the same key (vertex
+ * address, format, type, count), the nearest not already taken - several copies of a model (a herd, dust) come in a
+ * different order from frame to frame - within MATCH_DISTANCE */
 static int *match(void) {
-    static int *m;
-    static int cap;
+    static int *m, cap;
+    static uint8_t *taken;
+    static int tcap;
     if (latest->n > cap) {
         cap = latest->n * 2;
         m = realloc(m, sizeof *m * (size_t)cap);
     }
-    /* a small open-addressing table: key -> the previous frame's draws with it, in order (chained by next[]) */
+    if (previous->n > tcap) {
+        tcap = previous->n * 2;
+        taken = realloc(taken, (size_t)tcap);
+    }
+    memset(taken, 0, (size_t)previous->n);
+    /* the previous frame's draws, sorted by key, to find a key's group by binary search */
+    static int *order;
+    static int ocap;
+    if (previous->n > ocap) {
+        ocap = previous->n * 2;
+        order = realloc(order, sizeof *order * (size_t)ocap);
+    }
     static uint64_t *keys;
-    static int *head, *next, *used_upto, hcap;
-    int need = 1;
-    while (need < previous->n * 2 + 16)
-        need <<= 1;
-    if (need > hcap) {
-        hcap = need;
-        keys = realloc(keys, sizeof *keys * (size_t)hcap);
-        head = realloc(head, sizeof *head * (size_t)hcap);
-        used_upto = realloc(used_upto, sizeof *used_upto * (size_t)hcap);
+    static int kcap;
+    if (previous->n > kcap) {
+        kcap = previous->n * 2;
+        keys = realloc(keys, sizeof *keys * (size_t)kcap);
     }
-    static int ncap;
-    if (previous->n > ncap) {
-        ncap = previous->n * 2;
-        next = realloc(next, sizeof *next * (size_t)ncap);
+    for (int i = 0; i < previous->n; i++) {
+        keys[i] = draw_key(&previous->draws[i]);
+        order[i] = i;
     }
-    for (int i = 0; i < hcap; i++)
-        head[i] = -1;
-    for (int i = previous->n - 1; i >= 0; i--) {
-        uint64_t k = draw_key(&previous->draws[i]);
-        int h = (int)((k * 0x9E3779B97F4A7C15ull) >> 40) & (hcap - 1);
-        while (head[h] >= 0 && keys[h] != k)
-            h = (h + 1) & (hcap - 1);
-        keys[h] = k;
-        next[i] = head[h];
-        head[h] = i;
-        used_upto[h] = head[h];
+    /* insertion sort is too slow for thousands: a simple bottom-up merge sort on order[] by keys[] */
+    static int *tmp;
+    static int tmpcap;
+    if (previous->n > tmpcap) {
+        tmpcap = previous->n * 2;
+        tmp = realloc(tmp, sizeof *tmp * (size_t)tmpcap);
+    }
+    for (int w = 1; w < previous->n; w *= 2) {
+        for (int lo = 0; lo < previous->n; lo += 2 * w) {
+            int mid = lo + w < previous->n ? lo + w : previous->n, hi = lo + 2 * w < previous->n ? lo + 2 * w : previous->n;
+            int i = lo, j = mid, k = lo;
+            while (i < mid && j < hi)
+                tmp[k++] = keys[order[i]] <= keys[order[j]] ? order[i++] : order[j++];
+            while (i < mid) tmp[k++] = order[i++];
+            while (j < hi) tmp[k++] = order[j++];
+        }
+        int *t = order; order = tmp; tmp = t;
     }
     for (int i = 0; i < latest->n; i++) {
-        uint64_t k = draw_key(&latest->draws[i]);
-        int h = (int)((k * 0x9E3779B97F4A7C15ull) >> 40) & (hcap - 1);
-        while (head[h] >= 0 && keys[h] != k)
-            h = (h + 1) & (hcap - 1);
-        if (head[h] < 0 || used_upto[h] < 0) {
-            m[i] = -1;
-        } else {
-            m[i] = used_upto[h];
-            used_upto[h] = next[used_upto[h]];
+        const Draw *d = &latest->draws[i];
+        uint64_t k = draw_key(d);
+        int lo = 0, hi = previous->n;
+        while (lo < hi) {
+            int mid = (lo + hi) / 2;
+            if (keys[order[mid]] < k) lo = mid + 1;
+            else hi = mid;
         }
+        float p[3];
+        draw_position(d, p);
+        int best = -1;
+        float best_d = MATCH_DISTANCE * MATCH_DISTANCE;
+        for (int j = lo; j < previous->n && keys[order[j]] == k; j++) {
+            int c = order[j];
+            if (taken[c])
+                continue;
+            float q[3];
+            draw_position(&previous->draws[c], q);
+            float dd = (p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]) + (p[2] - q[2]) * (p[2] - q[2]);
+            if (dd <= best_d) {
+                best_d = dd;
+                best = c;
+            }
+        }
+        m[i] = best;
+        if (best >= 0)
+            taken[best] = 1;
     }
     return m;
 }

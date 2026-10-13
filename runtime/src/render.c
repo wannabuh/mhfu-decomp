@@ -475,13 +475,32 @@ void render_prim_begin(const uint32_t *reg) {
             s.eq.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
             s.eq.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
             s.eq.alphaBlendOp = VK_BLEND_OP_ADD;
-            /* the fixed colours: Vulkan has one constant; fixed white / black are one and zero */
+            /* the fixed colours: Vulkan has one constant. Fixed white / black are one and zero; both fixed and adding up
+             * to white (a fade: x of the source, 1 - x of what is there) are the constant and one minus it */
             uint32_t fa = reg[0xE0] & 0xFFFFFF, fbx = reg[0xE1] & 0xFFFFFF;
             if (fs == 10 && fa == 0xFFFFFF) s.eq.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
             if (fs == 10 && fa == 0) s.eq.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
             if (fd == 10 && fbx == 0xFFFFFF) s.eq.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
             if (fd == 10 && fbx == 0) s.eq.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-            unpack_rgb(fs == 10 ? fa : fbx, s.blend_const);
+            int src_const = s.eq.srcColorBlendFactor == VK_BLEND_FACTOR_CONSTANT_COLOR;
+            int dst_const = s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_CONSTANT_COLOR;
+            if (src_const && dst_const) {
+                int complement = 1;
+                for (int ch = 0; ch < 24; ch += 8) {
+                    int a = (int)((fa >> ch) & 255), b = (int)((fbx >> ch) & 255);
+                    if (a + b < 254 || a + b > 256)
+                        complement = 0;
+                }
+                if (complement) {
+                    s.eq.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
+                } else {
+                    static int warned;
+                    if (!warned++)
+                        fprintf(stderr, "renderer: blending with two unrelated fixed colours (%06X, %06X): approximated\n",
+                                fa, fbx);
+                }
+            }
+            unpack_rgb(src_const ? fa : fbx, s.blend_const);
         }
     }
     int sx0 = reg[0xD4] & 0x3FF, sy0 = (reg[0xD4] >> 10) & 0x3FF;
