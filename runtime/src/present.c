@@ -13,16 +13,18 @@ static unsigned long frame;
  * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last */
 extern uint32_t ctrl_buttons;
 
-static void scripted_input(void) {
+/* The buttons held: the devices' (window_poll) and the script's */
+static void scripted_input(uint32_t device_buttons) {
     static const char *script;
     static int read;
     if (!read) {
         script = getenv("MHFU_INPUT");
         read = 1;
     }
+    ctrl_buttons = device_buttons;
     if (!script)
         return;
-    uint32_t buttons = ctrl_buttons;
+    uint32_t buttons = device_buttons;
     for (const char *p = script; *p;) {
         unsigned long first, last;
         unsigned int b;
@@ -51,6 +53,7 @@ static uint32_t pixel(uint32_t addr, int fmt) {
 }
 
 int window_poll(void);
+uint32_t window_buttons(void);
 void window_show(const uint32_t *frame);
 uint32_t *window_pixels(void);
 
@@ -93,7 +96,7 @@ void present_frame(void) {
     window_show(pixels);
     if (!window_poll())
         exit(0);
-    scripted_input();
+    scripted_input(window_buttons());
     if (dump_every && frame % (unsigned long)dump_every == 0) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);

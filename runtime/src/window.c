@@ -8,7 +8,6 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 
-extern uint32_t ctrl_buttons;
 extern uint8_t ctrl_lx, ctrl_ly;
 
 enum {
@@ -22,6 +21,7 @@ static SDL_Texture *texture;
 static SDL_Gamepad *pad;
 static int disabled = -1;
 static uint32_t pixels[480 * 272];
+static uint32_t device_buttons;
 
 static int enabled(void) {
     if (disabled < 0) {
@@ -102,7 +102,7 @@ int window_poll(void) {
     uint8_t lx = 128, ly = 128;
     uint32_t b = keyboard_buttons(&lx, &ly);
     b |= gamepad_buttons(&lx, &ly);
-    ctrl_buttons = b;
+    device_buttons = b;
     ctrl_lx = lx;
     ctrl_ly = ly;
     return 1;
@@ -119,3 +119,4 @@ void window_show(const uint32_t *frame) {
 }
 
 uint32_t *window_pixels(void) { return pixels; }
+uint32_t window_buttons(void) { return device_buttons; }

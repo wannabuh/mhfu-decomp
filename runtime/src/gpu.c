@@ -1,10 +1,14 @@
-/* A software implementation of the GE's drawing, into emulated VRAM: the reference for checking frames against PPSSPP
- * until the Vulkan renderer, and enough for the 2D the game starts with. So far: sprites (screen-aligned rectangles),
- * through mode, textured (the 16/32-bit, CLUT and swizzled formats) or not, the texture functions, alpha test,
- * blending, clear mode, and block transfers. Triangles, 3D transforms and depth are still to do. */
+/* A software implementation of the GE's drawing, into emulated VRAM: the reference for checking frames against PPSSPP,
+ * until the Vulkan renderer. The vertex stage (every vertex format; skinning; the world, view and projection matrices;
+ * the viewport and screen offset; through mode), near-plane clipping, triangles (lists, strips, fans) and sprites,
+ * perspective-correct texturing (the 16/32-bit, CLUT and swizzled formats; nearest texel), Gouraud or flat colour,
+ * the texture functions, alpha and depth tests, back-face culling, blending, clear mode, and block transfers.
+ * Not yet: lighting (unlit vertices take the material's ambient colour, as with lighting off), fog, texture
+ * filtering and mipmaps, the DXT formats, lines and points, stencil, logic ops, dithering. */
 #include "hle.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 static uint32_t reg[256];          /* the last value of each command */
@@ -108,58 +112,164 @@ static uint32_t texel(int u, int v) {
 
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
 
-typedef struct { float x, y, z, u, v; uint32_t color; } Vertex;
+/* A vertex after the vertex stage: screen position (pixels, framebuffer coordinates), depth (0-65535), 1/w for
+ * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel) */
+typedef struct { float x, y, z, rw, u, v, r, g, b, a; } Vertex;
+
+/* Before the viewport: clip-space position and the rest */
+typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a; } ClipVertex;
+
+static float world[12], view[12], proj[16], bones[8][12];
+static int world_i, view_i, proj_i, bone_i;
+
+static float ge_float(uint32_t data) {
+    uint32_t u = data << 8;
+    float f;
+    memcpy(&f, &u, 4);
+    return f;
+}
 
 static int align_up(int x, int a) { return (x + a - 1) & ~(a - 1); }
 
-/* Decode vertex i of the current vertex format at vaddr (indexed or not) */
-static void decode_vertex(uint32_t base, int index, Vertex *out) {
+typedef struct { int size, wo, to, co, no, po; } Layout;
+
+/* The vertex format's layout: weights, texture coordinates, colour, normal, position, each aligned to its size */
+static Layout layout(void) {
     uint32_t vt = reg[0x12];
     int tc = vt & 3, col = (vt >> 2) & 7, nrm = (vt >> 5) & 3, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
     int nweights = ((vt >> 14) & 7) + 1;
     static const int tsz[4] = {0, 1, 2, 4}, csz[8] = {0, 0, 0, 0, 2, 2, 2, 4}, psz[4] = {0, 1, 2, 4};
+    Layout l = {0};
     int off = 0, maxal = 1;
-    int wo = 0, to = 0, co = 0, no = 0, po = 0;
-    if (wt) { off = align_up(off, tsz[wt]); wo = off; off += tsz[wt] * nweights; maxal = tsz[wt] > maxal ? tsz[wt] : maxal; }
-    if (tc) { off = align_up(off, tsz[tc]); to = off; off += tsz[tc] * 2; maxal = tsz[tc] > maxal ? tsz[tc] : maxal; }
-    if (col) { off = align_up(off, csz[col]); co = off; off += csz[col]; maxal = csz[col] > maxal ? csz[col] : maxal; }
-    if (nrm) { off = align_up(off, psz[nrm]); no = off; off += psz[nrm] * 3; maxal = psz[nrm] > maxal ? psz[nrm] : maxal; }
-    if (pos) { off = align_up(off, psz[pos]); po = off; off += psz[pos] * 3; maxal = psz[pos] > maxal ? psz[pos] : maxal; }
-    (void)wo; (void)no;
-    int size = align_up(off, maxal);
-    uint32_t v = base + (uint32_t)(index * size);
-    int through = (vt >> 23) & 1;
+#define FIELD(present, sz, n, at) \
+    if (present) { off = align_up(off, sz); at = off; off += (sz) * (n); maxal = (sz) > maxal ? (sz) : maxal; }
+    FIELD(wt, tsz[wt], nweights, l.wo)
+    FIELD(tc, tsz[tc], 2, l.to)
+    FIELD(col, csz[col], 1, l.co)
+    FIELD(nrm, psz[nrm], 3, l.no)
+    FIELD(pos, psz[pos], 3, l.po)
+#undef FIELD
+    l.size = align_up(off, maxal);
+    return l;
+}
 
-    memset(out, 0, sizeof *out);
-    out->color = 0xFFFFFFFFu;
-    if (tc == 1) { out->u = LBU(v + to); out->v = LBU(v + to + 1); if (!through) { out->u /= 128.0f; out->v /= 128.0f; } }
-    else if (tc == 2) { out->u = LHU(v + to); out->v = LHU(v + to + 2); if (!through) { out->u /= 32768.0f; out->v /= 32768.0f; } }
-    else if (tc == 3) { uint32_t a = LW(v + to), b = LW(v + to + 4); memcpy(&out->u, &a, 4); memcpy(&out->v, &b, 4); }
-    if (col >= 4)
-        out->color = col == 7 ? LW(v + co) : to_rgba(LHU(v + co), col - 4);
-    if (pos == 1) { out->x = (int8_t)LBU(v + po); out->y = (int8_t)LBU(v + po + 1); out->z = (int8_t)LBU(v + po + 2); }
-    else if (pos == 2) {
-        out->x = (int16_t)LHU(v + po); out->y = (int16_t)LHU(v + po + 2);
-        out->z = through ? LHU(v + po + 4) : (int16_t)LHU(v + po + 4);
-    } else if (pos == 3) {
-        uint32_t a = LW(v + po), b = LW(v + po + 4), c3 = LW(v + po + 8);
-        memcpy(&out->x, &a, 4); memcpy(&out->y, &b, 4); memcpy(&out->z, &c3, 4);
+static float read_comp(uint32_t a, int fmt, int through, int is_pos) {
+    switch (fmt) {
+    case 1: return through ? (float)(int8_t)LBU(a) : (float)(int8_t)LBU(a) / (is_pos ? 127.0f : 128.0f);
+    case 2: return through ? (float)(int16_t)LHU(a) : (float)(int16_t)LHU(a) / (is_pos ? 32767.0f : 32768.0f);
+    case 3: { uint32_t u = LW(a); float f; memcpy(&f, &u, 4); return f; }
+    default: return 0.0f;
     }
 }
 
-static int vertex_size(void) {
-    /* the stride decode_vertex uses: decode two and difference their addresses would cost more; recompute */
+static void mul43(const float *m, const float *in, float *out) {
+    for (int i = 0; i < 3; i++)
+        out[i] = in[0] * m[i] + in[1] * m[3 + i] + in[2] * m[6 + i] + m[9 + i];
+}
+
+/* Decode vertex n and run it through the vertex stage up to clip space (through mode: straight to the screen, w 1) */
+static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *through_out) {
     uint32_t vt = reg[0x12];
-    int tc = vt & 3, col = (vt >> 2) & 7, nrm = (vt >> 5) & 3, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
+    int tc = vt & 3, col = (vt >> 2) & 7, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
     int nweights = ((vt >> 14) & 7) + 1;
-    static const int tsz[4] = {0, 1, 2, 4}, csz[8] = {0, 0, 0, 0, 2, 2, 2, 4}, psz[4] = {0, 1, 2, 4};
-    int off = 0, maxal = 1;
-    if (wt) { off = align_up(off, tsz[wt]) + tsz[wt] * nweights; maxal = tsz[wt] > maxal ? tsz[wt] : maxal; }
-    if (tc) { off = align_up(off, tsz[tc]) + tsz[tc] * 2; maxal = tsz[tc] > maxal ? tsz[tc] : maxal; }
-    if (col) { off = align_up(off, csz[col]) + csz[col]; maxal = csz[col] > maxal ? csz[col] : maxal; }
-    if (nrm) { off = align_up(off, psz[nrm]) + psz[nrm] * 3; maxal = psz[nrm] > maxal ? psz[nrm] : maxal; }
-    if (pos) { off = align_up(off, psz[pos]) + psz[pos] * 3; maxal = psz[pos] > maxal ? psz[pos] : maxal; }
-    return align_up(off, maxal);
+    int through = (vt >> 23) & 1;
+    uint32_t v = base + (uint32_t)(n * l->size);
+    *through_out = through;
+
+    float p[3];
+    if (through && pos == 2) {          /* screen x, y (signed), depth (unsigned) */
+        p[0] = (float)(int16_t)LHU(v + l->po);
+        p[1] = (float)(int16_t)LHU(v + l->po + 2);
+        p[2] = (float)LHU(v + l->po + 4);
+    } else {
+        static const int psz[4] = {0, 1, 2, 4};
+        for (int i = 0; i < 3; i++)
+            p[i] = read_comp(v + l->po + (uint32_t)(i * psz[pos]), pos, through, 1);
+    }
+
+    out->u = out->v = 0;
+    if (tc) {
+        static const int tsz[4] = {0, 1, 2, 4};
+        float u = tc == 3 ? read_comp(v + l->to, 3, 0, 0) : through ? (float)(tc == 1 ? LBU(v + l->to) : LHU(v + l->to))
+                  : (tc == 1 ? LBU(v + l->to) / 128.0f : LHU(v + l->to) / 32768.0f);
+        float vv = tc == 3 ? read_comp(v + l->to + 4, 3, 0, 0)
+                   : through ? (float)(tc == 1 ? LBU(v + l->to + 1) : LHU(v + l->to + 2))
+                   : (tc == 1 ? LBU(v + l->to + 1) / 128.0f : LHU(v + l->to + (uint32_t)tsz[tc]) / 32768.0f);
+        if (!through) {                 /* scaled, offset, then in texels */
+            u = u * ge_float(reg[0x48]) + ge_float(reg[0x4A]);
+            vv = vv * ge_float(reg[0x49]) + ge_float(reg[0x4B]);
+            u *= (float)(1 << (reg[0xB8] & 0xF));
+            vv *= (float)(1 << ((reg[0xB8] >> 8) & 0xF));
+        }
+        out->u = u;
+        out->v = vv;
+    }
+
+    uint32_t c;
+    if (col >= 4)
+        c = col == 7 ? LW(v + l->co) : to_rgba(LHU(v + l->co), col - 4);
+    else
+        c = (reg[0x55] & 0xFFFFFF) | ((reg[0x58] & 0xFF) << 24);     /* the material's ambient colour */
+    out->r = (float)(c & 255);
+    out->g = (float)((c >> 8) & 255);
+    out->b = (float)((c >> 16) & 255);
+    out->a = (float)(c >> 24);
+
+    if (through) {
+        out->cx = p[0];
+        out->cy = p[1];
+        out->cz = p[2];
+        out->cw = 1.0f;
+        return;
+    }
+    float m[3];
+    if (wt) {                           /* skinning: the weighted sum of the bones' transforms */
+        static const int tsz[4] = {0, 1, 2, 4};
+        float acc[3] = {0, 0, 0};
+        for (int b = 0; b < nweights; b++) {
+            float w = read_comp(v + l->wo + (uint32_t)(b * tsz[wt]), wt, 0, 0);
+            if (wt == 1) w = LBU(v + l->wo + (uint32_t)b) / 128.0f;
+            if (wt == 2) w = LHU(v + l->wo + (uint32_t)(b * 2)) / 32768.0f;
+            float t[3];
+            mul43(bones[b], p, t);
+            for (int i = 0; i < 3; i++)
+                acc[i] += t[i] * w;
+        }
+        memcpy(p, acc, sizeof p);
+    }
+    mul43(world, p, m);
+    float e[3];
+    mul43(view, m, e);
+    float in[4] = {e[0], e[1], e[2], 1.0f};
+    float clip[4];
+    for (int i = 0; i < 4; i++)
+        clip[i] = in[0] * proj[i] + in[1] * proj[4 + i] + in[2] * proj[8 + i] + in[3] * proj[12 + i];
+    out->cx = clip[0];
+    out->cy = clip[1];
+    out->cz = clip[2];
+    out->cw = clip[3];
+}
+
+/* Clip space to the screen: the perspective divide, the viewport, the screen offset */
+static void to_screen(const ClipVertex *c, int through, Vertex *s) {
+    if (through) {
+        s->x = c->cx;
+        s->y = c->cy;
+        s->z = c->cz;
+        s->rw = 1.0f;
+    } else {
+        float rw = 1.0f / c->cw;
+        s->x = c->cx * rw * ge_float(reg[0x42]) + ge_float(reg[0x45]) - (float)(reg[0x4C] & 0xFFFF) / 16.0f;
+        s->y = c->cy * rw * ge_float(reg[0x43]) + ge_float(reg[0x46]) - (float)(reg[0x4D] & 0xFFFF) / 16.0f;
+        s->z = c->cz * rw * ge_float(reg[0x44]) + ge_float(reg[0x47]);
+        s->rw = rw;
+    }
+    s->u = c->u;
+    s->v = c->v;
+    s->r = c->r;
+    s->g = c->g;
+    s->b = c->b;
+    s->a = c->a;
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */
@@ -263,70 +373,202 @@ static void scissor(int *x0, int *y0, int *x1, int *y1) {
 
 /* -- primitives --------------------------------------------------------------------------------------------------- */
 
+static uint32_t depth_addr(int x, int y) {
+    uint32_t base = 0x04000000u | ((reg[0x9E] & 0xFFFFF0) | ((reg[0x9F] & 0xFF0000) << 8)) % 0x200000u;
+    return base + (uint32_t)(y * (int)(reg[0x9F] & 0x7FC) + x) * 2;
+}
+
+static int depth_test(int x, int y, float z) {
+    if (!(reg[0x23] & 1))
+        return 1;
+    uint32_t d = LHU(depth_addr(x, y)), zi = z < 0 ? 0 : z > 65535 ? 65535 : (uint32_t)z;
+    switch (reg[0xDE] & 7) {
+    case 0: return 0;
+    case 1: return 1;
+    case 2: return zi == d;
+    case 3: return zi != d;
+    case 4: return zi < d;
+    case 5: return zi <= d;
+    case 6: return zi > d;
+    default: return zi >= d;
+    }
+}
+
+static void depth_write(int x, int y, float z) {
+    if ((reg[0x23] & 1) && !(reg[0xE7] & 1))
+        SH(depth_addr(x, y), z < 0 ? 0 : z > 65535 ? 65535 : (uint32_t)z);
+}
+
+static uint32_t pack(float r, float g, float b, float a) {
+    uint32_t ri = r < 0 ? 0 : r > 255 ? 255 : (uint32_t)r, gi = g < 0 ? 0 : g > 255 ? 255 : (uint32_t)g;
+    uint32_t bi = b < 0 ? 0 : b > 255 ? 255 : (uint32_t)b, ai = a < 0 ? 0 : a > 255 ? 255 : (uint32_t)a;
+    return (ai << 24) | (bi << 16) | (gi << 8) | ri;
+}
+
+/* One pixel of a primitive: texture, alpha test, depth, blend, write (or, in clear mode, the clear) */
+static void shade(int x, int y, float z, uint32_t color, float u, float v) {
+    if (reg[0xD3] & 1) {                /* clear mode: colour / alpha / depth as the flags say */
+        uint32_t mode = reg[0xD3] >> 8, old = fb_read(x, y), c = color;
+        if (!(mode & 1)) c = (c & 0xFF000000u) | (old & 0x00FFFFFFu);
+        if (!(mode & 2)) c = (c & 0x00FFFFFFu) | (old & 0xFF000000u);
+        if (mode & 3)
+            fb_write(x, y, c);
+        if (mode & 4)
+            SH(depth_addr(x, y), z < 0 ? 0 : z > 65535 ? 65535 : (uint32_t)z);
+        return;
+    }
+    uint32_t c = color;
+    if (reg[0x1E] & 1)
+        c = tex_function(c, texel((int)floorf(u), (int)floorf(v)));
+    if (!alpha_test(c) || !depth_test(x, y, z))
+        return;
+    depth_write(x, y, z);
+    fb_write(x, y, blend(c, fb_read(x, y)));
+}
+
 static void draw_sprite(const Vertex *a, const Vertex *b) {
-    int clear = reg[0xD3] & 1;
-    int textured = !clear && (reg[0x1E] & 1);
     float x0 = a->x, y0 = a->y, x1 = b->x, y1 = b->y, u0 = a->u, v0 = a->v, u1 = b->u, v1 = b->v;
     if (x1 < x0) { float t = x0; x0 = x1; x1 = t; t = u0; u0 = u1; u1 = t; }
     if (y1 < y0) { float t = y0; y0 = y1; y1 = t; t = v0; v0 = v1; v1 = t; }
-    int ox = (reg[0x4C] & 0xFFFF) >> 4, oy = (reg[0x4D] & 0xFFFF) >> 4;
-    int through = (reg[0x12] >> 23) & 1;
-    if (!through) {             /* not through: the vertices are not screen coordinates yet - approximate */
-        x0 -= (float)ox; x1 -= (float)ox; y0 -= (float)oy; y1 -= (float)oy;
-    }
     int ix0 = (int)x0, iy0 = (int)y0, ix1 = (int)x1, iy1 = (int)y1;
     scissor(&ix0, &iy0, &ix1, &iy1);
-    if (textured && !through) {
-        int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
-        u0 *= (float)w; u1 *= (float)w; v0 *= (float)h; v1 *= (float)h;
-    }
-    uint32_t color = b->color;          /* sprites take the second vertex's colour */
+    uint32_t color = pack(b->r, b->g, b->b, b->a);      /* sprites take the second vertex's colour and depth */
     for (int y = iy0; y < iy1; y++) {
         float fv = y1 > y0 ? v0 + (v1 - v0) * ((float)y + 0.5f - y0) / (y1 - y0) : v0;
         for (int x = ix0; x < ix1; x++) {
-            uint32_t c = color;
-            if (clear) {
-                uint32_t mode = reg[0xD3] >> 8, old = fb_read(x, y);
-                if (!(mode & 1)) c = (c & 0xFF000000u) | (old & 0x00FFFFFFu);
-                if (!(mode & 2)) c = (c & 0x00FFFFFFu) | (old & 0xFF000000u);
-                fb_write(x, y, c);
-                continue;
-            }
-            if (textured) {
-                float fu = x1 > x0 ? u0 + (u1 - u0) * ((float)x + 0.5f - x0) / (x1 - x0) : u0;
-                c = tex_function(c, texel((int)floorf(fu), (int)floorf(fv)));
-            }
-            if (!alpha_test(c))
-                continue;
-            fb_write(x, y, blend(c, fb_read(x, y)));
+            float fu = x1 > x0 ? u0 + (u1 - u0) * ((float)x + 0.5f - x0) / (x1 - x0) : u0;
+            shade(x, y, b->z, color, fu, fv);
         }
     }
+}
+
+static float edge(float ax, float ay, float bx, float by, float px, float py) {
+    return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+}
+
+static void raster_triangle(const Vertex *a, const Vertex *b, const Vertex *c, int through) {
+    float area = edge(a->x, a->y, b->x, b->y, c->x, c->y);
+    if (area == 0)
+        return;
+    if (!through && (reg[0x1D] & 1)) {          /* back-face culling: the front face's winding from FFACE */
+        int ccw = area < 0;
+        if (ccw == (int)(reg[0x9B] & 1))
+            return;
+    }
+    float minx = fminf(a->x, fminf(b->x, c->x)), maxx = fmaxf(a->x, fmaxf(b->x, c->x));
+    float miny = fminf(a->y, fminf(b->y, c->y)), maxy = fmaxf(a->y, fmaxf(b->y, c->y));
+    int x0 = (int)floorf(minx), y0 = (int)floorf(miny), x1 = (int)ceilf(maxx) + 1, y1 = (int)ceilf(maxy) + 1;
+    scissor(&x0, &y0, &x1, &y1);
+    int flat = !(reg[0x50] & 1);                /* flat shading: the last vertex's colour */
+    float inv = 1.0f / area;
+    for (int y = y0; y < y1; y++) {
+        float py = (float)y + 0.5f;
+        for (int x = x0; x < x1; x++) {
+            float px = (float)x + 0.5f;
+            float w0 = edge(b->x, b->y, c->x, c->y, px, py) * inv;
+            float w1 = edge(c->x, c->y, a->x, a->y, px, py) * inv;
+            float w2 = 1.0f - w0 - w1;
+            if (w0 < 0 || w1 < 0 || w2 < 0)
+                continue;
+            float z = w0 * a->z + w1 * b->z + w2 * c->z;
+            /* perspective-correct attributes: interpolate them over w, and 1 / w */
+            float pa = w0 * a->rw, pb = w1 * b->rw, pc = w2 * c->rw, ps = 1.0f / (pa + pb + pc);
+            pa *= ps; pb *= ps; pc *= ps;
+            float u = pa * a->u + pb * b->u + pc * c->u, v = pa * a->v + pb * b->v + pc * c->v;
+            uint32_t color = flat ? pack(c->r, c->g, c->b, c->a)
+                                  : pack(pa * a->r + pb * b->r + pc * c->r, pa * a->g + pb * b->g + pc * c->g,
+                                         pa * a->b + pb * b->b + pc * c->b, pa * a->a + pb * b->a + pc * c->a);
+            shade(x, y, z, color, u, v);
+        }
+    }
+}
+
+/* Clip a triangle against the near plane (w > a little) in clip space, then rasterize what is left */
+static void clip_triangle(const ClipVertex *v0, const ClipVertex *v1, const ClipVertex *v2, int through) {
+    if (through) {
+        Vertex s[3];
+        to_screen(v0, 1, &s[0]);
+        to_screen(v1, 1, &s[1]);
+        to_screen(v2, 1, &s[2]);
+        raster_triangle(&s[0], &s[1], &s[2], 1);
+        return;
+    }
+    const float near = 1e-4f;
+    ClipVertex in[3] = {*v0, *v1, *v2}, out[4];
+    int n = 0;
+    for (int i = 0; i < 3; i++) {
+        const ClipVertex *p = &in[i], *q = &in[(i + 1) % 3];
+        int pin = p->cw > near, qin = q->cw > near;
+        if (pin)
+            out[n++] = *p;
+        if (pin != qin) {
+            float t = (near - p->cw) / (q->cw - p->cw);
+            ClipVertex m;
+            float *mf = &m.cx;
+            const float *pf = &p->cx, *qf = &q->cx;
+            for (int k = 0; k < 10; k++)
+                mf[k] = pf[k] + (qf[k] - pf[k]) * t;
+            out[n++] = m;
+        }
+    }
+    if (n < 3)
+        return;
+    Vertex s[4];
+    for (int i = 0; i < n; i++)
+        to_screen(&out[i], 0, &s[i]);
+    for (int i = 1; i + 1 < n; i++)
+        raster_triangle(&s[0], &s[i], &s[i + 1], 0);
 }
 
 static void prim(uint32_t data) {
     int type = (data >> 16) & 7, count = data & 0xFFFF;
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
-    int size = vertex_size();
-    Vertex v[2];
-    if (type == 6) {
-        for (int i = 0; i + 1 < count; i += 2) {
-            for (int k = 0; k < 2; k++) {
-                int n = i + k;
-                if (idx == 1) n = LBU(iaddr + (uint32_t)n);
-                else if (idx == 2) n = LHU(iaddr + 2 * (uint32_t)n);
-                decode_vertex(vaddr, n, &v[k]);
-            }
-            draw_sprite(&v[0], &v[1]);
+    Layout l = layout();
+    if (count > 0) {
+        ClipVertex *v = malloc(sizeof *v * (size_t)count);
+        int through = 0;
+        for (int i = 0; i < count; i++) {
+            int n = i;
+            if (idx == 1) n = LBU(iaddr + (uint32_t)i);
+            else if (idx == 2) n = LHU(iaddr + 2 * (uint32_t)i);
+            vertex(vaddr, n, &l, &v[i], &through);
         }
-    } else {
-        unhandled_prims[type]++;
+        switch (type) {
+        case 3:                                     /* triangles */
+            for (int i = 0; i + 2 < count; i += 3)
+                clip_triangle(&v[i], &v[i + 1], &v[i + 2], through);
+            break;
+        case 4:                                     /* strip: alternate the winding to keep it */
+            for (int i = 0; i + 2 < count; i++)
+                if (i & 1)
+                    clip_triangle(&v[i + 1], &v[i], &v[i + 2], through);
+                else
+                    clip_triangle(&v[i], &v[i + 1], &v[i + 2], through);
+            break;
+        case 5:                                     /* fan */
+            for (int i = 1; i + 1 < count; i++)
+                clip_triangle(&v[0], &v[i], &v[i + 1], through);
+            break;
+        case 6:                                     /* sprites: pairs of corners */
+            for (int i = 0; i + 1 < count; i += 2) {
+                Vertex a, b;
+                to_screen(&v[i], through, &a);
+                to_screen(&v[i + 1], through, &b);
+                draw_sprite(&a, &b);
+            }
+            break;
+        default:
+            unhandled_prims[type]++;
+            break;
+        }
+        free(v);
     }
     /* the vertex (or index) address moves past what was drawn */
     if (idx)
         iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
     else
-        vaddr += (uint32_t)(count * size);
+        vaddr += (uint32_t)(count * l.size);
 }
 
 /* Block transfer: copy a rectangle of bytes between RAM / VRAM */
@@ -350,6 +592,14 @@ void gpu_command(uint32_t cmd, uint32_t addr) {
     case 0x01: vaddr = addr; break;
     case 0x02: iaddr = addr; break;
     case 0x04: prim(data); break;
+    case 0x2A: bone_i = (int)(data & 0x7F); break;
+    case 0x2B: if (bone_i < 96) bones[bone_i / 12][bone_i % 12] = ge_float(data); bone_i++; break;
+    case 0x3A: world_i = (int)(data & 0xF); break;
+    case 0x3B: if (world_i < 12) world[world_i] = ge_float(data); world_i++; break;
+    case 0x3C: view_i = (int)(data & 0xF); break;
+    case 0x3D: if (view_i < 12) view[view_i] = ge_float(data); view_i++; break;
+    case 0x3E: proj_i = (int)(data & 0xF); break;
+    case 0x3F: if (proj_i < 16) proj[proj_i] = ge_float(data); proj_i++; break;
     case 0xC4: clut_load(); break;
     case 0xEA: transfer(data); break;
     default: break;

@@ -1,7 +1,8 @@
 /* The rest of the system: display, controller, UMD, the utility dialogs (savedata, messages, keyboard, network),
- * and small libraries (language, clock, power, DMA, wireless). */
+ * and small libraries (language, clock, power, DMA, wireless). Savedata's work is in savedata.c. */
 #include "hle.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -71,10 +72,14 @@ static void dialog_init(Dialog *d, uint32_t params) {
     d->params = params;
 }
 
+/* Polling a dialog moves it along by itself as the PSP's does: from initialising to running, and from shutting down
+ * to none */
 static int dialog_status(Dialog *d) {
     int s = d->status;
     if (s == 4)
         d->status = 0;
+    else if (s == 1)
+        d->status = 2;
     return s;
 }
 
@@ -88,20 +93,15 @@ static void dialog_update(Dialog *d, void (*work)(Dialog *)) {
     }
 }
 
-#define SAVEDATA_ERROR_LOAD_NO_DATA 0x80110307u
+void savedata_run(uint32_t params);     /* savedata.c */
 
-/* Savedata: no saves yet - loading finds none, saving succeeds without writing. TODO: real saves (ms0:) */
-static void savedata_work(Dialog *d) {
-    uint32_t mode = LW(d->params + 0x30);
-    HLE_WARN("savedata mode %u: not implemented (no saved data)", mode);
-    SW(d->params + 0x1C, (mode == 0 || mode == 2 || mode == 4 || mode == 6) ? SAVEDATA_ERROR_LOAD_NO_DATA : 0);
-}
+static void savedata_work(Dialog *d) { savedata_run(d->params); }
 
 void hle_sceUtilitySavedataInitStart(Ctx *c) {
     dialog_init(&savedata, ARG0);
-    HLE_WARN("savedata: mode %u, game %.13s, save %.20s, file %.13s, buffer %08X size %X", LW(ARG0 + 0x30),
-             hle_string(c, ARG0 + 0x3C), hle_string(c, ARG0 + 0x4C), hle_string(c, ARG0 + 0x64), LW(ARG0 + 0x74),
-             LW(ARG0 + 0x78));
+    HLE_LOG("savedata: mode %u, game %.13s, save %.20s, file %.13s, buffer %08X size %X", LW(ARG0 + 0x30),
+            hle_string(c, ARG0 + 0x3C), hle_string(c, ARG0 + 0x4C), hle_string(c, ARG0 + 0x64), LW(ARG0 + 0x74),
+            LW(ARG0 + 0x78));
     RET(0);
 }
 
@@ -123,15 +123,16 @@ void hle_sceUtilitySavedataShutdownStart(Ctx *c) {
     RET(0);
 }
 
-/* Message dialogs: answered "yes" at once */
+/* Message dialogs: answered at once - "yes" if it asks yes or no (option 0x10), else just closed */
 static void msgdialog_work(Dialog *d) {
     SW(d->params + 0x1C, 0);
-    SW(d->params + 0x240, 1);
+    SW(d->params + 0x240, (LW(d->params + 0x23C) & 0x10) ? 1 : 0);
 }
 
 void hle_sceUtilityMsgDialogInitStart(Ctx *c) {
     dialog_init(&msgdialog, ARG0);
-    HLE_WARN("message dialog: %s", hle_string(c, ARG0 + 0x3C));
+    HLE_WARN("message dialog: size %X mode %u error %08X options %X text \"%s\"", LW(ARG0), LW(ARG0 + 0x34),
+             LW(ARG0 + 0x38), LW(ARG0 + 0x23C), hle_string(c, ARG0 + 0x3C));
     RET(0);
 }
 
@@ -147,7 +148,27 @@ void hle_sceUtilityMsgDialogShutdownStart(Ctx *c) {
     RET(0);
 }
 
-/* The on-screen keyboard: closed without changes */
+/* The on-screen keyboard: answered at once with MHFU_NAME (default "Hunter") - for now the only text the game asks
+ * for is the hunter's name. SceUtilityOskParams: the common part, the number of fields (0x30), the fields (0x34);
+ * SceUtilityOskData: ..., description (28), initial text (32), output length (36), output text (40, UTF-16),
+ * result (44: 0 unchanged, 1 cancelled, 2 changed), output limit (48) */
+static void osk_work(Dialog *d) {
+    const char *text = getenv("MHFU_NAME");
+    if (!text)
+        text = "Hunter";
+    uint32_t n = LW(d->params + 0x30), data = LW(d->params + 0x34);
+    for (uint32_t i = 0; i < n && i < 4; i++) {
+        uint32_t f = data + 52 * i, out = LW(f + 40), len = LW(f + 36), limit = LW(f + 48);
+        uint32_t max = len ? len : limit ? limit : 16;
+        uint32_t k = 0;
+        for (; text[k] && k + 1 < max; k++)
+            SH(out + 2 * k, (uint8_t)text[k]);
+        SH(out + 2 * k, 0);
+        SW(f + 44, 2);
+    }
+    SW(d->params + 0x1C, 0);
+}
+
 void hle_sceUtilityOskInitStart(Ctx *c) {
     dialog_init(&osk, ARG0);
     RET(0);
@@ -156,7 +177,7 @@ void hle_sceUtilityOskInitStart(Ctx *c) {
 void hle_sceUtilityOskGetStatus(Ctx *c) { RET(dialog_status(&osk)); }
 
 void hle_sceUtilityOskUpdate(Ctx *c) {
-    dialog_update(&osk, NULL);
+    dialog_update(&osk, osk_work);
     RET(0);
 }
 
