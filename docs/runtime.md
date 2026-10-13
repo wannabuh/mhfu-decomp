@@ -63,7 +63,8 @@ would mean finding and rescaling every system that counts ticks.
 texture, a copy of its vertex data) instead of drawn; in the scheduler's idle time the display replays the latest
 frame with each primitive's world, bone, view and projection matrices interpolated towards it from the previous
 frame's matching primitive (same vertex address, format, type and count - the k-th with the k-th), the moment shown
-trailing the game by a frame (about 33 ms). A camera cut turns the interpolation off for that frame. In the village
+trailing the game by a frame (about 33 ms). A camera cut - the camera moving over 600 units or turning
+over 60 degrees in a frame - turns the interpolation off for that frame. In the village
 98-100% of primitives match and 144 fps holds. What the game animates by rewriting vertices, and the 2D, move at 30.
 `MHFU_FPS_STATS=1` reports the rate and matching; `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
 

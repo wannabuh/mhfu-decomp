@@ -839,11 +839,44 @@ static void draw_position(const Draw *d, float *p) {
     }
 }
 
-#define MATCH_DISTANCE 40.0f        /* farther than this (game units) between frames: not the same thing moving */
+/* Farther than this between frames: not the same thing moving - 40 game units, and as the camera turns, things far
+ * from it sweep further: a fifth of their distance from it (11 degrees a frame) */
+#define MATCH_DISTANCE 40.0f
+#define MATCH_TURN 0.2f
 
-/* Match each draw of the latest frame to the previous frame's: among the previous draws with the same key (vertex
- * address, format, type, count), the nearest not already taken - several copies of a model (a herd, dust) come in a
- * different order from frame to frame - within MATCH_DISTANCE */
+/* How far a draw is from the camera: its position through the view matrix (the game may put the camera in the view
+ * matrix or in each world matrix) */
+static float camera_distance(const Draw *d, const float *p) {
+    float e[3];
+    mul43(d->view, p, e);
+    return sqrtf(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
+}
+
+static int cmp_key(const void *a, const void *b) {
+    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
+    return x < y ? -1 : x > y;
+}
+
+/* The latest frame's keys, sorted, to count a key's draws */
+static uint64_t *latest_keys;
+static int latest_n;
+
+static int latest_count(uint64_t k) {
+    int lo = 0, hi = latest_n;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (latest_keys[mid] < k) lo = mid + 1;
+        else hi = mid;
+    }
+    int n = 0;
+    while (lo + n < latest_n && latest_keys[lo + n] == k)
+        n++;
+    return n;
+}
+
+/* Match each draw of the latest frame to the previous frame's: the previous draw with the same key (vertex address,
+ * format, type, count) if there is one in each; among several - copies of a model (a herd, dust) come in a different
+ * order from frame to frame - the nearest not already taken, within MATCH_DISTANCE (and MATCH_TURN) */
 static int *match(void) {
     static int *m, cap;
     static uint8_t *taken;
@@ -892,6 +925,15 @@ static int *match(void) {
         }
         int *t = order; order = tmp; tmp = t;
     }
+    static int lcap;
+    if (latest->n > lcap) {
+        lcap = latest->n * 2;
+        latest_keys = realloc(latest_keys, sizeof *latest_keys * (size_t)lcap);
+    }
+    for (int i = 0; i < latest->n; i++)
+        latest_keys[i] = draw_key(&latest->draws[i]);
+    latest_n = latest->n;
+    qsort(latest_keys, (size_t)latest_n, sizeof *latest_keys, cmp_key);
     for (int i = 0; i < latest->n; i++) {
         const Draw *d = &latest->draws[i];
         uint64_t k = draw_key(d);
@@ -904,7 +946,15 @@ static int *match(void) {
         float p[3];
         draw_position(d, p);
         int best = -1;
-        float best_d = MATCH_DISTANCE * MATCH_DISTANCE;
+        if (lo < previous->n && keys[order[lo]] == k && (lo + 1 == previous->n || keys[order[lo + 1]] != k) &&
+            latest_count(k) == 1) {
+            m[i] = taken[order[lo]] ? -1 : order[lo];
+            if (m[i] >= 0)
+                taken[order[lo]] = 1;
+            continue;
+        }
+        float reach = MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p);
+        float best_d = reach * reach;
         for (int j = lo; j < previous->n && keys[order[j]] == k; j++) {
             int c = order[j];
             if (taken[c])
@@ -924,7 +974,17 @@ static int *match(void) {
     return m;
 }
 
-/* Has the camera jumped between the frames (a cut): its position moved far, or it turned a lot? */
+static unsigned long cuts, shown_frames;      /* for MHFU_FPS_STATS */
+static float cut_turn, cut_move;
+
+/* Where a view matrix's camera is: the point it takes to the origin, -R^T t */
+static void view_eye(const float *v, float *eye) {
+    for (int j = 0; j < 3; j++)
+        eye[j] = -(v[3 * j] * v[9] + v[3 * j + 1] * v[10] + v[3 * j + 2] * v[11]);
+}
+
+/* Has the camera jumped between the frames (a cut): it moved far, or turned more than any camera turns in a frame?
+ * (Its position is compared, not the view matrix's translation: that is -R eye, which swings with any turn.) */
 static int camera_cut(const Frame *a, const Frame *b) {
     const Draw *da = NULL, *db = NULL;
     for (int i = 0; i < a->n && !da; i++)
@@ -935,12 +995,22 @@ static int camera_cut(const Frame *a, const Frame *b) {
             db = &b->draws[i];
     if (!da || !db)
         return 0;
-    float turn = 0, move = 0;
+    /* the angle between the rotations: trace(Ra^T Rb) = 1 + 2 cos(angle) */
+    float tr = 0;
     for (int i = 0; i < 9; i++)
-        turn += fabsf(da->view[i] - db->view[i]);
-    for (int i = 9; i < 12; i++)
-        move += fabsf(da->view[i] - db->view[i]);
-    return turn > 0.6f || move > 200.0f;
+        tr += da->view[i] * db->view[i];
+    float ea[3], eb[3];
+    view_eye(da->view, ea);
+    view_eye(db->view, eb);
+    float move = sqrtf((ea[0] - eb[0]) * (ea[0] - eb[0]) + (ea[1] - eb[1]) * (ea[1] - eb[1]) +
+                       (ea[2] - eb[2]) * (ea[2] - eb[2]));
+    int cut = tr < 1.0f + 2.0f * 0.5f || move > 600.0f;     /* over 60 degrees, or 600 units */
+    if (cut) {
+        cuts++;
+        cut_turn = tr;
+        cut_move = move;
+    }
+    return cut;
 }
 
 static unsigned long matched, unmatched;
@@ -958,6 +1028,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(svw, view, sizeof svw);
     memcpy(sp, proj, sizeof sp);
     memcpy(sb, bones, sizeof sb);
+    shown_frames++;
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
     int *m = interpolate ? match() : NULL;
     recording = 0;
@@ -983,6 +1054,10 @@ void gpu_match_stats(unsigned long *m, unsigned long *u) {
     *m = matched;
     *u = unmatched;
     matched = unmatched = 0;
+    if (cuts)
+        fprintf(stderr, "  %lu of %lu frames shown were camera cuts; the last turned %.0f degrees, moved %.0f\n", cuts,
+                shown_frames, acosf(fmaxf(-1, fminf(1, (cut_turn - 1) / 2))) * 57.29578f, cut_move);
+    cuts = shown_frames = 0;
 }
 
 static void prim(uint32_t data) {
