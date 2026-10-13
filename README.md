@@ -23,6 +23,8 @@ Status: phase 1 (repository and tools). See [docs/plan.md](docs/plan.md).
 tools/setup.sh                      # a Python environment with the tools' modules (tools/.venv)
 tools/extract_iso.sh path/to/mhfu.iso   # extracts to game/ and checks it is ULUS10391
 tools/dump_modules.sh path/to/mhfu.iso  # decrypted EBOOT and PRXs to game/decrypted/ (via PPSSPP, offscreen)
+tools/.venv/bin/python tools/databin.py overlays   # the 298 code overlays from DATA.BIN to game/overlays/
+tools/.venv/bin/python tools/databin.py extract    # (optional) all 6657 DATA.BIN files to game/data/
 ```
 
 ## Licence
