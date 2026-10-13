@@ -66,6 +66,21 @@ void window_init(void) {
 
 static int enabled(void) { return !disabled; }
 
+/* F9: the game's RAM to build/snap-<n>.bin - for finding the game's variables by comparing snapshots */
+static void ram_snapshot(void) {
+    static int n;
+    char path[64];
+    snprintf(path, sizeof path, "build/snap-%02d.bin", ++n);
+    FILE *f = fopen(path, "wb");
+    if (!f) {
+        fprintf(stderr, "snapshot: cannot write %s\n", path);
+        return;
+    }
+    fwrite(MEM(0x08800000u), 1, 0x01800000u, f);
+    fclose(f);
+    fprintf(stderr, "snapshot %d saved (%s)\n", n, path);
+}
+
 static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     const bool *k = SDL_GetKeyboardState(NULL);
     uint32_t b = 0;
@@ -124,6 +139,8 @@ int window_poll(void) {
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_EVENT_QUIT)
             return 0;
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
+            ram_snapshot();
         if (e.type == SDL_EVENT_GAMEPAD_ADDED && !pad)
             pad = SDL_OpenGamepad(e.gdevice.which);
         if (e.type == SDL_EVENT_GAMEPAD_REMOVED && pad && SDL_GetGamepadID(pad) == e.gdevice.which) {

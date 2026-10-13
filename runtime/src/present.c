@@ -15,8 +15,10 @@ static int dump_every = -1;
 static unsigned long frame;
 
 /* Scripted input, for running unattended: MHFU_INPUT="first-last:buttons,..." holds the buttons (PSP button bits, in
- * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last */
+ * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last; and the analog
+ * stick, pushed fully: 0x10000 up, 0x20000 down, 0x40000 left, 0x80000 right */
 extern uint32_t ctrl_buttons;
+extern uint8_t ctrl_lx, ctrl_ly;
 
 /* The buttons held: the devices' (window_poll) and the script's */
 static void scripted_input(uint32_t device_buttons) {
@@ -42,7 +44,11 @@ static void scripted_input(uint32_t device_buttons) {
         if (*p == ',')
             p++;
     }
-    ctrl_buttons = buttons;
+    if (buttons & 0xF0000) {
+        ctrl_ly = (buttons & 0x10000) ? 0 : (buttons & 0x20000) ? 255 : 128;
+        ctrl_lx = (buttons & 0x40000) ? 0 : (buttons & 0x80000) ? 255 : 128;
+    }
+    ctrl_buttons = buttons & 0xFFFF;
 }
 
 static uint32_t pixel(uint32_t addr, int fmt) {
@@ -180,6 +186,30 @@ uint64_t present_pump(void) {
     return next_display;
 }
 
+/* MHFU_SNAPSHOT="frame,frame,...": RAM at those game frames, to build/ram-<frame>.bin (finding variables by diffing) */
+static void snapshots(void) {
+    static const char *list;
+    static int read;
+    if (!read) {
+        list = getenv("MHFU_SNAPSHOT");
+        read = 1;
+    }
+    for (const char *p = list; p && *p;) {
+        char *end;
+        unsigned long f = strtoul(p, &end, 10);
+        if (f == frame) {
+            char path[64];
+            snprintf(path, sizeof path, "build/ram-%06lu.bin", frame);
+            FILE *out = fopen(path, "wb");
+            if (out) {
+                fwrite(MEM(0x08800000u), 1, 0x01800000u, out);
+                fclose(out);
+            }
+        }
+        p = *end ? end + 1 : end;
+    }
+}
+
 void present_frame(void) {
     if (dump_every < 0) {
         const char *e = getenv("MHFU_DUMP");
@@ -189,6 +219,7 @@ void present_frame(void) {
     }
     frame++;
     watch();
+    snapshots();
     uint32_t *pixels = window_pixels();
     int dump = dump_every && frame % (unsigned long)dump_every == 0;
     if (display_fps()) {
