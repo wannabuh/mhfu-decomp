@@ -31,10 +31,10 @@ build/game.a: build/gen/.stamp
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -o $@
+	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $^ -lm -o $@
+	$(CC) $(CFLAGS) $^ -lm -lpng -o $@
 
 clean:
 	rm -rf build

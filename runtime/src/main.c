@@ -5,8 +5,14 @@
  * MHFU_TRACE=1 also traces every kernel call. */
 #include "hle.h"
 
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+
+static void on_signal(int sig) {
+    (void)sig;
+    exit(0);        /* run the atexit handlers (statistics) */
+}
 
 static uint8_t *read_file(const char *path, size_t *size) {
     FILE *f = fopen(path, "rb");
@@ -79,6 +85,8 @@ int main(int argc, char **argv) {
     }
     if (getenv("MHFU_TRACE"))
         hle_trace = 1;
+    signal(SIGTERM, on_signal);
+    signal(SIGINT, on_signal);
 
     rt_mem_init();
     uint32_t entry, gp;

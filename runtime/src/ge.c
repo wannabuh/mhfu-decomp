@@ -1,8 +1,8 @@
 /* The GE (graphics engine): display lists queued by the game, walked as the hardware would - jumps, calls, returns,
- * the stall address, FINISH and SIGNAL raising the game's callbacks. Nothing is drawn yet: the renderer will take the
- * commands this walks. */
+ * the stall address, FINISH and SIGNAL raising the game's callbacks - each command going to the renderer (gpu.c). */
 #include "hle.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #define MAX_LISTS 64
@@ -21,7 +21,25 @@ static uint32_t next_id = 0x35000000u;     /* as the PSP numbers them */
 static struct { int used; uint32_t signal_func, signal_arg, finish_func, finish_arg; } callbacks[MAX_CALLBACKS];
 static uint32_t edram_translation = 0x400;
 
-void ge_init(void) {}
+static unsigned long cmd_count[256], prim_count[8];
+static int ge_stats;
+
+static void print_stats(void) {
+    fprintf(stderr, "GE commands:");
+    for (int i = 0; i < 256; i++)
+        if (cmd_count[i])
+            fprintf(stderr, " %02X:%lu", i, cmd_count[i]);
+    fprintf(stderr, "\nGE primitives:");
+    for (int i = 0; i < 8; i++)
+        fprintf(stderr, " %d:%lu", i, prim_count[i]);
+    fprintf(stderr, "\n");
+}
+
+void ge_init(void) {
+    ge_stats = getenv("MHFU_GESTATS") != NULL;
+    if (ge_stats)
+        atexit(print_stats);
+}
 
 static uint32_t relative(GeList *l, uint32_t addr) {
     return (((l->base & 0x0F000000u) | addr) + l->offset) & 0x0FFFFFFFu;
@@ -44,6 +62,9 @@ static void run_list(GeList *l) {
         uint32_t cmd = LW(l->pc), op = cmd >> 24, data = cmd & 0xFFFFFF;
         uint32_t at = l->pc;
         l->pc += 4;
+        cmd_count[op]++;
+        if (op == 0x04)
+            prim_count[(data >> 16) & 7]++;
         switch (op) {
         case 0x08:                                  /* JUMP */
             l->pc = relative(l, data & 0xFFFFFC);
@@ -86,6 +107,7 @@ static void run_list(GeList *l) {
         default:
             break;
         }
+        gpu_command(cmd, relative(l, data));
     }
 }
 

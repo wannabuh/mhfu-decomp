@@ -19,6 +19,7 @@ void hle_sceDisplaySetFrameBuf(Ctx *c) {
     }
     HLE_LOG("sceDisplaySetFrameBuf(%08X, %u, %u, %u)", ARG0, ARG1, ARG2, ARG3);
     RET(0);
+    present_frame();
 }
 
 /* -- controller ---------------------------------------------------------------------------------------------------- */

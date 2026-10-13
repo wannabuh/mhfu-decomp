@@ -15,7 +15,10 @@ for the rest, in the order it is needed to boot.
 - **Kernel** (`thread.c`, `kernel.c`): threads as coroutines with the kernel's scheduling, sleep / wakeup, delays,
   semaphores, event flags, VTimers, the vblank interrupt; object UIDs; the user memory partition; modules.
 - **I/O** (`io.c`): the disc read from the ISO image (ISO 9660), raw sectors included.
-- **GE** (`ge.c`): display lists walked (jumps, calls, stalls, FINISH / SIGNAL callbacks), not drawn.
+- **GE** (`ge.c`): display lists walked (jumps, calls, stalls, FINISH / SIGNAL callbacks), each command to the
+  renderer. `gpu.c` draws in software into emulated VRAM: sprites (textured or not, all but the DXT formats), the
+  texture functions, alpha test, blending, clear mode, block transfers. No triangles or 3D yet.
+- **Frames** (`present.c`): written as PNGs (`MHFU_DUMP=N`: every Nth frame, to `build/frames/`); no window yet.
 - **Audio** (`audio.c`): output channels timed as the hardware plays them (silent); the SAS mixes silence.
 - **System** (`system.c`): display, controller, UMD, utility dialogs (savedata: no saves yet), clock and the rest.
 
@@ -25,8 +28,8 @@ for the rest, in the order it is needed to boot.
 PPSSPP's call for call - the same threads, the user heap at `0x09D66000`, DATA.BIN's header read, the font module
 loaded from raw disc sectors - and reaches the game's main loop: each frame a VTimer, `user_main` woken, display lists
 queued, the controller read, the framebuffer flipped, sleep until the next vblank. The sound engine starts (it prints
-its banner). Nothing is drawn yet (the GE lists are walked, not rendered), nothing is heard, and fonts (`sceFont`) and
-savedata are stubs.
+its banner). The first screen - the language selection, its background art and menu - is drawn correctly a second
+in. Nothing is heard, there is no input yet, and fonts (`sceFont`) and savedata are stubs.
 
 ## Threads
 

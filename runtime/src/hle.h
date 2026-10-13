@@ -92,5 +92,10 @@ void io_init(const char *iso_path);
 /* GE (ge.c) */
 void ge_init(void);
 void ge_process(void);                          /* run the queued display lists as far as they go */
+void gpu_command(uint32_t cmd, uint32_t addr);  /* the renderer: one command, its data as an address */
+
+/* The display (system.c), and frames written out (present.c) */
+extern uint32_t display_fb_addr, display_fb_width, display_fb_format;
+void present_frame(void);
 
 #endif
