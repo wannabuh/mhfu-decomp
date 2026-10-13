@@ -1,5 +1,5 @@
-/* Presenting frames. For now: written out as PNGs (MHFU_DUMP=N: every Nth frame, to build/frames/), to compare with
- * PPSSPP's. The window comes with the Vulkan renderer. */
+/* Presenting frames: in the window (window.c), and written out as PNGs (MHFU_DUMP=N: every Nth frame, to
+ * build/frames/), to compare with PPSSPP's. */
 #include "hle.h"
 
 #include <png.h>
@@ -22,7 +22,7 @@ static void scripted_input(void) {
     }
     if (!script)
         return;
-    uint32_t buttons = 0;
+    uint32_t buttons = ctrl_buttons;
     for (const char *p = script; *p;) {
         unsigned long first, last;
         unsigned int b;
@@ -50,7 +50,20 @@ static uint32_t pixel(uint32_t addr, int fmt) {
     return 0xFF000000u | (b << 16) | (g << 8) | r;
 }
 
-static void write_png(const char *path) {
+int window_poll(void);
+void window_show(const uint32_t *frame);
+uint32_t *window_pixels(void);
+
+/* The displayed framebuffer as ABGR8888, 480 x 272 */
+static void convert(uint32_t *out) {
+    int bpp = display_fb_format == 3 ? 4 : 2;
+    for (int y = 0; y < 272; y++)
+        for (int x = 0; x < 480; x++)
+            out[y * 480 + x] = pixel(display_fb_addr + (uint32_t)((y * (int)display_fb_width + x) * bpp),
+                                     (int)display_fb_format);
+}
+
+static void write_png(const char *path, const uint32_t *frame) {
     FILE *f = fopen(path, "wb");
     if (!f)
         return;
@@ -60,13 +73,8 @@ static void write_png(const char *path) {
     png_set_IHDR(png, info, 480, 272, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
                  PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
-    static uint32_t row[480];
-    int bpp = display_fb_format == 3 ? 4 : 2;
-    for (int y = 0; y < 272; y++) {
-        for (int x = 0; x < 480; x++)
-            row[x] = pixel(display_fb_addr + (uint32_t)((y * (int)display_fb_width + x) * bpp), (int)display_fb_format);
-        png_write_row(png, (png_bytep)row);
-    }
+    for (int y = 0; y < 272; y++)
+        png_write_row(png, (png_bytep)(frame + y * 480));
     png_write_end(png, NULL);
     png_destroy_write_struct(&png, &info);
     fclose(f);
@@ -80,10 +88,15 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    uint32_t *pixels = window_pixels();
+    convert(pixels);
+    window_show(pixels);
+    if (!window_poll())
+        exit(0);
     scripted_input();
     if (dump_every && frame % (unsigned long)dump_every == 0) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);
-        write_png(path);
+        write_png(path, pixels);
     }
 }
