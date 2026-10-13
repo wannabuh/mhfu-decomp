@@ -78,6 +78,10 @@ and traces (calls, memory, display lists) to compare the recompiled game against
 - **Functions**: 16959 in the EBOOT and the overlays, every instruction accounted for, checked against PPSSPP's own
   scan; C++ exceptions are compiled in but never thrown. See [functions.md](functions.md).
 
+- **Recompiler v0** (`recomp/recomp.py`): all 16959 functions translate - 1.36 million lines of C in 312 files,
+  compiling with no errors (clang `-O2`: 31 s on 12 cores, 23 MB of objects). VFPU instructions other than branches
+  go to the runtime for now.
+
 ## Open questions (answered by phase 2)
 
 - ~~How do the main program and the overlays call each other?~~ Both directly (EBOOT -> `game_task`, monsters ->

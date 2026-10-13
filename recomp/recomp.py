@@ -1,0 +1,410 @@
+#!/usr/bin/env python3
+"""Translate the game's code to C: every function found by tools/funcs.py becomes a C function on the CPU state.
+
+Output (default build/gen/): <module>[_<n>].c with the functions (the EBOOT split into several files), funcs.h with
+their prototypes, and tables.c with each module's function table (for dispatch by address) and the imports.
+
+Control flow: a function's instructions are emitted in address order, each with a label if anything jumps to it.
+A branch evaluates its condition, runs its delay slot, then jumps (a branch-likely runs the delay slot only when it
+branches). Calls are direct within a module and into the EBOOT, through rt_call into overlay regions and through
+pointers, and through hle_call to the imports. A jump out of the function is a tail call. Jump tables become switches.
+VFPU instructions, except its branches, go to the runtime (vfpu_exec).
+"""
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools"))
+
+import rabbitizer  # noqa: E402
+
+rabbitizer.config.pseudos_enablePseudos = False
+
+import modules  # noqa: E402
+
+ROOT = modules.ROOT
+
+
+def R(n):
+    return "0" if n == 0 else f"c->r[{n}]"
+
+
+def S(n):
+    return "0" if n == 0 else f"(int32_t)c->r[{n}]"
+
+
+def F(n):
+    return f"c->f[{n}].f"
+
+
+def FU(n):
+    return f"c->f[{n}].u"
+
+
+def hx(v):
+    return f"0x{v & 0xFFFFFFFF:X}u"
+
+
+class Unsupported(Exception):
+    pass
+
+
+class Translator:
+    def __init__(self, mods, functions):
+        self.mods = mods
+        self.by_name = {m.name: m for m in mods}
+        self.main = mods[0]
+        self.functions = functions                       # module name -> [function dicts]
+        self.starts = {n: {f["start"] for f in fs} for n, fs in functions.items()}
+
+    def fname(self, mod, addr):
+        return f"f_{mod.name}_{addr:08X}"
+
+    # -- calls -------------------------------------------------------------------------------------------------
+    def call(self, mod, target):
+        """C for a call to target from mod."""
+        if mod.in_text(target):
+            if target not in self.starts[mod.name]:
+                raise Unsupported(f"call to {target:#x}, not a function start in {mod.name}")
+            return f"{self.fname(mod, target)}(c);"
+        if self.main.in_text(target):
+            if target not in self.starts["EBOOT"]:
+                raise Unsupported(f"call to {target:#x}, not a function start in the EBOOT")
+            return f"{self.fname(self.main, target)}(c);"
+        if target in self.main.imports:
+            return f"hle_call(c, {hx(target)});"
+        return f"rt_call(c, {hx(target)});"
+
+    # -- one instruction (not control flow) --------------------------------------------------------------------
+    def op(self, mod, a):
+        i = mod.ins(a)
+        n = i.uniqueId.name
+        w = i.getRaw()
+        rs, rt, rd = (w >> 21) & 31, (w >> 16) & 31, (w >> 11) & 31
+        sa = (w >> 6) & 31
+        uimm = w & 0xFFFF
+        simm = uimm - 0x10000 if uimm & 0x8000 else uimm
+        fs, ft, fd = (w >> 11) & 31, (w >> 16) & 31, (w >> 6) & 31
+        ea = f"({R(rs)} + {hx(simm)})"
+
+        def setr(dst, expr):
+            return "" if dst == 0 else f"{R(dst)} = {expr};"
+
+        if n.startswith("r4000allegrex_v") or n in ("r4000allegrex_lv_q", "r4000allegrex_lv_s", "r4000allegrex_sv_q",
+                                                     "r4000allegrex_sv_s", "r4000allegrex_mtv", "r4000allegrex_mfv",
+                                                     "r4000allegrex_mtvc", "r4000allegrex_mfvc", "r4000allegrex_lvl_q",
+                                                     "r4000allegrex_lvr_q", "r4000allegrex_svl_q",
+                                                     "r4000allegrex_svr_q", "r4000allegrex_vpfxs",
+                                                     "r4000allegrex_vpfxt", "r4000allegrex_vpfxd"):
+            return f"vfpu_exec(c, {hx(w)}, {hx(a)});"
+        T = {
+            # integer
+            "cpu_nop": lambda: "",
+            "cpu_sll": lambda: setr(rd, f"{R(rt)} << {sa}"),
+            "cpu_srl": lambda: setr(rd, f"{R(rt)} >> {sa}"),
+            "r4000allegrex_srl": lambda: setr(rd, f"{R(rt)} >> {sa}"),
+            "r4000allegrex_rotr": lambda: setr(rd, f"rt_rotr({R(rt)}, {sa})"),
+            "cpu_sra": lambda: setr(rd, f"(uint32_t)({S(rt)} >> {sa})"),
+            "cpu_sllv": lambda: setr(rd, f"{R(rt)} << ({R(rs)} & 31)"),
+            "cpu_srlv": lambda: setr(rd, f"{R(rt)} >> ({R(rs)} & 31)"),
+            "r4000allegrex_srlv": lambda: setr(rd, f"{R(rt)} >> ({R(rs)} & 31)"),
+            "r4000allegrex_rotrv": lambda: setr(rd, f"rt_rotr({R(rt)}, {R(rs)})"),
+            "cpu_srav": lambda: setr(rd, f"(uint32_t)({S(rt)} >> ({R(rs)} & 31))"),
+            "cpu_add": lambda: setr(rd, f"{R(rs)} + {R(rt)}"),
+            "cpu_addu": lambda: setr(rd, f"{R(rs)} + {R(rt)}"),
+            "cpu_sub": lambda: setr(rd, f"{R(rs)} - {R(rt)}"),
+            "cpu_subu": lambda: setr(rd, f"{R(rs)} - {R(rt)}"),
+            "cpu_and": lambda: setr(rd, f"{R(rs)} & {R(rt)}"),
+            "cpu_or": lambda: setr(rd, f"{R(rs)} | {R(rt)}"),
+            "cpu_xor": lambda: setr(rd, f"{R(rs)} ^ {R(rt)}"),
+            "cpu_nor": lambda: setr(rd, f"~({R(rs)} | {R(rt)})"),
+            "cpu_slt": lambda: setr(rd, f"{S(rs)} < {S(rt)}"),
+            "cpu_sltu": lambda: setr(rd, f"{R(rs)} < {R(rt)}"),
+            "cpu_movz": lambda: "" if rd == 0 else f"if ({R(rt)} == 0) {R(rd)} = {R(rs)};",
+            "cpu_movn": lambda: "" if rd == 0 else f"if ({R(rt)} != 0) {R(rd)} = {R(rs)};",
+            "cpu_addi": lambda: setr(rt, f"{R(rs)} + {hx(simm)}"),
+            "cpu_addiu": lambda: setr(rt, f"{R(rs)} + {hx(simm)}"),
+            "cpu_slti": lambda: setr(rt, f"{S(rs)} < {simm}"),
+            "cpu_sltiu": lambda: setr(rt, f"{R(rs)} < {hx(simm)}"),
+            "cpu_andi": lambda: setr(rt, f"{R(rs)} & {hx(uimm)}"),
+            "cpu_ori": lambda: setr(rt, f"{R(rs)} | {hx(uimm)}"),
+            "cpu_xori": lambda: setr(rt, f"{R(rs)} ^ {hx(uimm)}"),
+            "cpu_lui": lambda: setr(rt, hx(uimm << 16)),
+            "cpu_mfhi": lambda: setr(rd, "c->hi"),
+            "cpu_mflo": lambda: setr(rd, "c->lo"),
+            "cpu_mthi": lambda: f"c->hi = {R(rs)};",
+            "cpu_mtlo": lambda: f"c->lo = {R(rs)};",
+            "cpu_mult": lambda: f"{{ int64_t p = (int64_t){S(rs)} * {S(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)(p >> 32); }}",
+            "cpu_multu": lambda: f"{{ uint64_t p = (uint64_t){R(rs)} * {R(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)(p >> 32); }}",
+            "cpu_div": lambda: f"rt_div(c, {S(rs)}, {S(rt)});",
+            "cpu_divu": lambda: f"rt_divu(c, {R(rs)}, {R(rt)});",
+            "r4000allegrex_madd": lambda: f"{{ int64_t p = (int64_t)(((uint64_t)c->hi << 32) | c->lo) + (int64_t){S(rs)} * {S(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)((uint64_t)p >> 32); }}",
+            "r4000allegrex_maddu": lambda: f"{{ uint64_t p = (((uint64_t)c->hi << 32) | c->lo) + (uint64_t){R(rs)} * {R(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)(p >> 32); }}",
+            "r4000allegrex_msub": lambda: f"{{ int64_t p = (int64_t)(((uint64_t)c->hi << 32) | c->lo) - (int64_t){S(rs)} * {S(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)((uint64_t)p >> 32); }}",
+            "r4000allegrex_msubu": lambda: f"{{ uint64_t p = (((uint64_t)c->hi << 32) | c->lo) - (uint64_t){R(rs)} * {R(rt)}; c->lo = (uint32_t)p; c->hi = (uint32_t)(p >> 32); }}",
+            "r4000allegrex_clz": lambda: setr(rd, f"rt_clz({R(rs)})"),
+            "r4000allegrex_clo": lambda: setr(rd, f"rt_clz(~{R(rs)})"),
+            "r4000allegrex_max": lambda: setr(rd, f"{S(rs)} > {S(rt)} ? {R(rs)} : {R(rt)}"),
+            "r4000allegrex_min": lambda: setr(rd, f"{S(rs)} < {S(rt)} ? {R(rs)} : {R(rt)}"),
+            "r4000allegrex_seb": lambda: setr(rd, f"(uint32_t)(int32_t)(int8_t){R(rt)}"),
+            "r4000allegrex_seh": lambda: setr(rd, f"(uint32_t)(int32_t)(int16_t){R(rt)}"),
+            "r4000allegrex_wsbh": lambda: setr(rd, f"((({R(rt)}) & 0xFF00FF00u) >> 8) | ((({R(rt)}) & 0x00FF00FFu) << 8)"),
+            "r4000allegrex_wsbw": lambda: setr(rd, f"__builtin_bswap32({R(rt)})"),
+            "r4000allegrex_bitrev": lambda: setr(rd, f"rt_bitrev({R(rt)})"),
+            "r4000allegrex_ext": lambda: setr(rt, f"({R(rs)} >> {sa}) & {hx((1 << (rd + 1)) - 1 if rd < 31 else 0xFFFFFFFF)}"),
+            "r4000allegrex_ins": lambda: (lambda pos, size: setr(rt, f"({R(rt)} & ~{hx(((1 << size) - 1) << pos)}) | (({R(rs)} << {pos}) & {hx(((1 << size) - 1) << pos)})"))(sa, rd - sa + 1),
+            # memory
+            "cpu_lb": lambda: setr(rt, f"(uint32_t)(int32_t)LB({ea})"),
+            "cpu_lbu": lambda: setr(rt, f"LBU({ea})"),
+            "cpu_lh": lambda: setr(rt, f"(uint32_t)(int32_t)LH({ea})"),
+            "cpu_lhu": lambda: setr(rt, f"LHU({ea})"),
+            "cpu_lw": lambda: setr(rt, f"LW({ea})"),
+            "cpu_ll": lambda: setr(rt, f"LW({ea})"),
+            "cpu_lwl": lambda: setr(rt, f"rt_lwl(c, {ea}, {R(rt)})"),
+            "cpu_lwr": lambda: setr(rt, f"rt_lwr(c, {ea}, {R(rt)})"),
+            "cpu_sb": lambda: f"SB({ea}, {R(rt)});",
+            "cpu_sh": lambda: f"SH({ea}, {R(rt)});",
+            "cpu_sw": lambda: f"SW({ea}, {R(rt)});",
+            "cpu_sc": lambda: f"SW({ea}, {R(rt)});" + ("" if rt == 0 else f" {R(rt)} = 1;"),
+            "cpu_swl": lambda: f"rt_swl(c, {ea}, {R(rt)});",
+            "cpu_swr": lambda: f"rt_swr(c, {ea}, {R(rt)});",
+            "cpu_lwc1": lambda: f"{FU(ft)} = LW({ea});",
+            "cpu_swc1": lambda: f"SW({ea}, {FU(ft)});",
+            "cpu_sync": lambda: "",
+            "cpu_cache": lambda: "",
+            "cpu_break": lambda: f"rt_break(c, {hx(a)});",
+            # FPU
+            "cpu_add_s": lambda: f"{F(fd)} = {F(fs)} + {F(ft)};",
+            "cpu_sub_s": lambda: f"{F(fd)} = {F(fs)} - {F(ft)};",
+            "cpu_mul_s": lambda: f"{F(fd)} = {F(fs)} * {F(ft)};",
+            "cpu_div_s": lambda: f"{F(fd)} = {F(fs)} / {F(ft)};",
+            "cpu_sqrt_s": lambda: f"{F(fd)} = __builtin_sqrtf({F(fs)});",
+            "cpu_abs_s": lambda: f"{FU(fd)} = {FU(fs)} & 0x7FFFFFFFu;",
+            "cpu_neg_s": lambda: f"{FU(fd)} = {FU(fs)} ^ 0x80000000u;",
+            "cpu_mov_s": lambda: f"{FU(fd)} = {FU(fs)};",
+            "cpu_cvt_s_w": lambda: f"{F(fd)} = (float)c->f[{fs}].i;",
+            "cpu_cvt_w_s": lambda: f"{FU(fd)} = rt_trunc_w(__builtin_rintf({F(fs)}));",
+            "cpu_trunc_w_s": lambda: f"{FU(fd)} = rt_trunc_w({F(fs)});",
+            "cpu_round_w_s": lambda: f"{FU(fd)} = rt_trunc_w(__builtin_rintf({F(fs)}));",
+            "cpu_ceil_w_s": lambda: f"{FU(fd)} = rt_trunc_w(__builtin_ceilf({F(fs)}));",
+            "cpu_floor_w_s": lambda: f"{FU(fd)} = rt_trunc_w(__builtin_floorf({F(fs)}));",
+            "cpu_c_f_s": lambda: "c->fpcond = 0;",
+            "cpu_c_un_s": lambda: f"c->fpcond = {F(fs)} != {F(fs)} || {F(ft)} != {F(ft)};",
+            "cpu_c_eq_s": lambda: f"c->fpcond = {F(fs)} == {F(ft)};",
+            "cpu_c_ueq_s": lambda: f"c->fpcond = !({F(fs)} < {F(ft)} || {F(fs)} > {F(ft)});",
+            "cpu_c_olt_s": lambda: f"c->fpcond = {F(fs)} < {F(ft)};",
+            "cpu_c_ult_s": lambda: f"c->fpcond = !({F(fs)} >= {F(ft)});",
+            "cpu_c_ole_s": lambda: f"c->fpcond = {F(fs)} <= {F(ft)};",
+            "cpu_c_ule_s": lambda: f"c->fpcond = !({F(fs)} > {F(ft)});",
+            "cpu_c_sf_s": lambda: "c->fpcond = 0;",
+            "cpu_c_ngle_s": lambda: f"c->fpcond = {F(fs)} != {F(fs)} || {F(ft)} != {F(ft)};",
+            "cpu_c_seq_s": lambda: f"c->fpcond = {F(fs)} == {F(ft)};",
+            "cpu_c_ngl_s": lambda: f"c->fpcond = !({F(fs)} < {F(ft)} || {F(fs)} > {F(ft)});",
+            "cpu_c_lt_s": lambda: f"c->fpcond = {F(fs)} < {F(ft)};",
+            "cpu_c_nge_s": lambda: f"c->fpcond = !({F(fs)} >= {F(ft)});",
+            "cpu_c_le_s": lambda: f"c->fpcond = {F(fs)} <= {F(ft)};",
+            "cpu_c_ngt_s": lambda: f"c->fpcond = !({F(fs)} > {F(ft)});",
+            "cpu_mfc1": lambda: setr(rt, FU(fs)),
+            "cpu_mtc1": lambda: f"{FU(fs)} = {R(rt)};",
+            "cpu_cfc1": lambda: setr(rt, f"rt_cfc1(c, {fs})"),
+            "cpu_ctc1": lambda: f"rt_ctc1(c, {fs}, {R(rt)});",
+        }
+        if n not in T:
+            raise Unsupported(f"{n} at {a:#x}")
+        return T[n]()
+
+    # -- branches ----------------------------------------------------------------------------------------------
+    def branch_cond(self, mod, a):
+        i = mod.ins(a)
+        n = i.uniqueId.name
+        w = i.getRaw()
+        rs, rt = (w >> 21) & 31, (w >> 16) & 31
+        conds = {
+            "cpu_beq": f"{R(rs)} == {R(rt)}", "cpu_beql": f"{R(rs)} == {R(rt)}",
+            "cpu_bne": f"{R(rs)} != {R(rt)}", "cpu_bnel": f"{R(rs)} != {R(rt)}",
+            "cpu_blez": f"{S(rs)} <= 0", "cpu_blezl": f"{S(rs)} <= 0",
+            "cpu_bgtz": f"{S(rs)} > 0", "cpu_bgtzl": f"{S(rs)} > 0",
+            "cpu_bltz": f"{S(rs)} < 0", "cpu_bltzl": f"{S(rs)} < 0",
+            "cpu_bgez": f"{S(rs)} >= 0", "cpu_bgezl": f"{S(rs)} >= 0",
+            "cpu_bc1t": "c->fpcond", "cpu_bc1tl": "c->fpcond",
+            "cpu_bc1f": "!c->fpcond", "cpu_bc1fl": "!c->fpcond",
+            "r4000allegrex_bvt": f"(c->vfpu_ctrl[VFPU_CTRL_CC] >> {(w >> 18) & 7}) & 1",
+            "r4000allegrex_bvtl": f"(c->vfpu_ctrl[VFPU_CTRL_CC] >> {(w >> 18) & 7}) & 1",
+            "r4000allegrex_bvf": f"!((c->vfpu_ctrl[VFPU_CTRL_CC] >> {(w >> 18) & 7}) & 1)",
+            "r4000allegrex_bvfl": f"!((c->vfpu_ctrl[VFPU_CTRL_CC] >> {(w >> 18) & 7}) & 1)",
+        }
+        if n not in conds:
+            raise Unsupported(f"branch {n} at {a:#x}")
+        return conds[n]
+
+    def function(self, mod, f):
+        """C for one function."""
+        start, end = f["start"], f["end"]
+        tables = {jr: targets for jr, _t, targets in f.get("tables", [])}
+        unresolved = set(f.get("unresolved", [])) | {jr for jr, _t, _ts in f.get("fptables", [])}
+        starts = self.starts[mod.name]
+
+        def inside(t):
+            return start <= t < end and (t == start or t not in starts)
+
+        def goto(t):
+            return f"goto L_{t:08X};"
+
+        # labels: everything a branch, intra-function j or jump table reaches
+        labels = set()
+        for a in range(start, end, 4):
+            i = mod.ins(a)
+            if i.isBranch() and not i.doesLink():
+                t = i.getBranchVramGeneric()
+                if inside(t):
+                    labels.add(t)
+            elif i.isJumpWithAddress() and not i.doesLink():
+                t = i.getInstrIndexAsVram()
+                if inside(t):
+                    labels.add(t)
+            elif a in tables:
+                labels.update(t for t in tables[a] if inside(t))
+
+        out = [f"void {self.fname(mod, start)}(Ctx *c) {{"]
+        emit = out.append
+        a = start
+        while a < end:
+            if a in labels:
+                emit(f"L_{a:08X}:;")
+            i = mod.ins(a)
+            delay_pc = a + 4
+            if i.hasDelaySlot():
+                delay = self.op(mod, delay_pc) if delay_pc < end else ""
+                if delay_pc < end and mod.ins(delay_pc).hasDelaySlot():
+                    raise Unsupported(f"control transfer in a delay slot at {delay_pc:#x}")
+                body = self.transfer(mod, a, delay, inside, goto, tables, unresolved)
+                emit(f"    /* {a:08X} */ {body}")
+                if delay_pc in labels:      # something branches to the delay slot itself
+                    emit(f"    goto L_{a + 8:08X};")
+                    emit(f"L_{delay_pc:08X}:;")
+                    emit(f"    /* {delay_pc:08X} */ {delay}")
+                    labels.add(a + 8)
+                a += 8
+                continue
+            code = self.op(mod, a)
+            if code:
+                emit(f"    /* {a:08X} */ {code}")
+            a += 4
+        if end in labels:
+            emit(f"L_{end:08X}:;")
+        # falling off the end: into the next function (a walk that ran into another start), or nowhere
+        if end in starts:
+            emit(f"    {self.call(mod, end)} return;")
+        else:
+            emit(f"    rt_unreachable(c, {hx(end)});")
+        emit("}")
+        return "\n".join(out)
+
+    def transfer(self, mod, a, delay, inside, goto, tables, unresolved):
+        i = mod.ins(a)
+        w = i.getRaw()
+        rs, rd = (w >> 21) & 31, (w >> 11) & 31
+
+        def tail(t):
+            return f"{{ {self.call(mod, t)} return; }}"
+
+        if i.isBranch():
+            if i.doesLink():
+                raise Unsupported(f"branch-and-link at {a:#x}")
+            t = i.getBranchVramGeneric()
+            dest = goto(t) if inside(t) else tail(t)
+            if i.isUnconditionalBranch():
+                return f"{delay} {dest}"
+            cond = self.branch_cond(mod, a)
+            if i.isBranchLikely():
+                return f"if ({cond}) {{ {delay} {dest} }}"
+            return f"{{ int t = {cond}; {delay} if (t) {dest} }}"
+        if i.isJumpWithAddress():
+            t = i.getInstrIndexAsVram()
+            if i.doesLink():
+                return f"c->r[31] = {hx(a + 8)}; {delay} {self.call(mod, t)}"
+            return f"{delay} " + (goto(t) if inside(t) else tail(t))
+        n = i.uniqueId.name
+        if n == "cpu_jalr":
+            return (f"{{ uint32_t t = {R(rs)}; " + ("" if rd == 0 else f"{R(rd)} = {hx(a + 8)}; ") +
+                    f"{delay} rt_call(c, t); }}")
+        if n == "cpu_jr":
+            if rs == 31:
+                return f"{delay} return;"
+            if a in tables:
+                cases = " ".join(f"case {hx(t)}: {goto(t) if inside(t) else tail(t)}"
+                                 for t in sorted(set(tables[a])))
+                return (f"{{ uint32_t t = {R(rs)}; {delay} switch (t) {{ {cases} "
+                        f"default: rt_bad_jump(c, t, {hx(a)}); return; }} }}")
+            return f"{{ uint32_t t = {R(rs)}; {delay} rt_call(c, t); return; }}"
+        raise Unsupported(f"{n} at {a:#x}")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--functions", default=os.path.join(ROOT, "game/analysis/functions.json"))
+    ap.add_argument("-o", "--out", default=os.path.join(ROOT, "build/gen"))
+    ap.add_argument("--max-lines", type=int, default=60000, help="split a module's C files at about this many lines")
+    ap.add_argument("modules", nargs="*", help="only these modules (default: all)")
+    args = ap.parse_args()
+
+    mods = modules.load()
+    with open(args.functions) as f:
+        result = json.load(f)
+    tr = Translator(mods, {n: r["functions"] for n, r in result.items()})
+    os.makedirs(args.out, exist_ok=True)
+    errors = 0
+    protos = []
+    files = 0
+    for m in mods:
+        if args.modules and m.name not in args.modules:
+            continue
+        chunks, lines = [[]], 0
+        for f in tr.functions[m.name]:
+            protos.append(f"void {tr.fname(m, f['start'])}(Ctx *c);")
+            try:
+                code = tr.function(m, f)
+            except Unsupported as e:
+                errors += 1
+                print(f"{m.name} {f['start']:#x}: {e}", file=sys.stderr)
+                code = f"void {tr.fname(m, f['start'])}(Ctx *c) {{ rt_unreachable(c, {hx(f['start'])}); }}"
+            n = code.count("\n") + 1
+            if lines + n > args.max_lines and chunks[-1]:
+                chunks.append([])
+                lines = 0
+            chunks[-1].append(code)
+            lines += n
+        for k, chunk in enumerate(chunks):
+            name = m.name if len(chunks) == 1 else f"{m.name}_{k}"
+            with open(os.path.join(args.out, name + ".c"), "w") as out:
+                out.write(f"/* Generated by recomp/recomp.py from {m.name}: do not edit. */\n")
+                out.write('#include "recomp.h"\n#include "funcs.h"\n\n')
+                out.write("\n\n".join(chunk) + "\n")
+            files += 1
+    with open(os.path.join(args.out, "funcs.h"), "w") as out:
+        out.write("/* Generated by recomp/recomp.py: do not edit. */\n#pragma once\n#include \"recomp.h\"\n\n")
+        out.write("\n".join(protos) + "\n")
+    with open(os.path.join(args.out, "tables.c"), "w") as out:
+        out.write("/* Generated by recomp/recomp.py: do not edit. */\n#include \"funcs.h\"\n\n")
+        entries = []
+        for m in mods:
+            if args.modules and m.name not in args.modules:
+                continue
+            fs = tr.functions[m.name]
+            out.write(f"static const RecompEntry funcs_{m.name}[] = {{\n")
+            out.write("".join(f"    {{{hx(f['start'])}, {tr.fname(m, f['start'])}}},\n" for f in fs))
+            out.write("};\n")
+            entries.append(f"    {{\"{m.name}\", {m.region}, {m.number}, {hx(m.base)}, funcs_{m.name}, {len(fs)}}},")
+        out.write("\nconst RecompModule recomp_modules[] = {\n" + "\n".join(entries) + "\n};\n")
+        out.write(f"const int recomp_nmodules = {len(entries)};\n\n")
+        imps = sorted(mods[0].imports.items())
+        out.write("const RecompImport recomp_imports[] = {\n")
+        out.write("".join(f"    {{{hx(a)}, \"{lib}\", {hx(nid)}}},\n" for a, (lib, nid) in imps))
+        out.write(f"}};\nconst int recomp_nimports = {len(imps)};\n")
+    print(f"{files} C files, {len(protos)} functions, {errors} not translated", file=sys.stderr)
+    return 1 if errors else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

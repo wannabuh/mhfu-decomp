@@ -36,6 +36,7 @@ class Module:
         self.data_end = data_end      # end of the initialised data that follows the text
         self.imports = {}             # stub address -> (library, nid); the EBOOT's only
         self.ctors = []               # static constructors (overlays)
+        self.number = 0               # the overlay number in its header
         self._ins = {}
 
     def __repr__(self):
@@ -106,7 +107,7 @@ def load(eboot=EBOOT, overlays=OVERLAYS):
         stem = name[:-len(".ovl")]
         with open(os.path.join(overlays, stem + ".bin"), "rb") as f:
             data = f.read()
-        magic, _num, load_addr, text_size, data_size, _bss, ctor0, ctor1 = struct.unpack_from("<4s7I", data, 0)
+        magic, num, load_addr, text_size, data_size, _bss, ctor0, ctor1 = struct.unpack_from("<4s7I", data, 0)
         if magic != b"MWo3" or load_addr != ovl_base or 0x40 + text_size + data_size != len(data):
             raise ValueError(f"{stem}: unexpected overlay header")
         text = (ovl_base + 0x40, ovl_base + 0x40 + text_size)
@@ -114,5 +115,6 @@ def load(eboot=EBOOT, overlays=OVERLAYS):
         ranges = [text] + ([(min(ctors), ctor0)] if ctors else [])
         m = Module(stem, region_of[ovl_base], ovl_base, data, ranges, text[1] + data_size)
         m.ctors = ctors
+        m.number = num
         mods.append(m)
     return mods
