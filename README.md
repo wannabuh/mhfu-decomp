@@ -7,7 +7,7 @@ PSP - with a Vulkan renderer, graphical enhancements, a higher frame rate and na
 **This repository contains no game code or data.** You need your own copy of the game (an ISO of ULUS10391); every
 tool here reads it from your disk, and nothing extracted from it is ever committed.
 
-Status: phase 4 (the recompiled game boots into its main loop; nothing drawn yet). See [docs/plan.md](docs/plan.md).
+Status: phase 5 (the recompiled game runs into Pokke Village, drawn in software; no sound or lighting yet). See [docs/plan.md](docs/plan.md).
 
 ## Layout
 
@@ -30,7 +30,8 @@ tools/.venv/bin/python tools/databin.py extract    # (optional) all 6657 DATA.BI
 tools/.venv/bin/python tools/funcs.py              # every function, to game/analysis/functions.json
 tools/.venv/bin/python recomp/recomp.py            # the functions as C, to build/gen/
 make -j$(nproc)                                    # compile them and the runtime (build/)
-build/mhfu path/to/mhfu.iso                        # run it (not much to see yet)
+build/mhfu path/to/mhfu.iso                        # run it: arrows, Z = cross, X = circle, A = square,
+                                                   # S = triangle, Q / W = L / R, Enter = START
 tools/.venv/bin/python tools/difftest.py           # check recompiled functions against PPSSPP
 ```
 

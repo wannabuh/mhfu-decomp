@@ -30,10 +30,13 @@ PPSSPP's call for call - the same threads, the user heap at `0x09D66000`, DATA.B
 loaded from raw disc sectors - and reaches the game's main loop: each frame a VTimer, `user_main` woken, display lists
 queued, the controller read, the framebuffer flipped, sleep until the next vblank. The sound engine starts (it prints
 its banner). With scripted input (`MHFU_INPUT`) it goes through the language selection, the Memory Stick check, the
-ESRB and Dolby screens, the title screen and into character creation - all drawn correctly, text included (sceFont,
-with the PSP's PGF fonts). The intro movie is skipped (no MPEG yet), nothing is heard, savedata finds no saves, and
-triangles are not drawn.
+ESRB and Dolby screens, the title screen, character creation (name, appearance, saving to a slot) and into Pokke
+Village - the opening fly-over, then the hunter's house, in 3D. Movies end at once (no MPEG decoding yet), nothing is
+heard, there is no lighting, and the system's own dialogs (save messages) are answered without being shown.
 - **Fonts** (`font.c`): sceFont over PGF fonts (PPSSPP's compatible ones, found in its assets, or `MHFU_FONTS`).
+- **Savedata** (`savedata.c`): plain files in `~/.local/share/mhfu-recomp/SAVEDATA` (or `MHFU_SAVEDIR`).
+- **Callbacks**: run on their thread at its ...CB waits; the Memory Stick's insert callback hears "inserted".
+- **Debugging**: `MHFU_WATCH=addr,...` logs memory words as they change, each frame.
 
 ## Threads
 

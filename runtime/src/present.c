@@ -83,6 +83,30 @@ static void write_png(const char *path, const uint32_t *frame) {
     fclose(f);
 }
 
+/* MHFU_WATCH="addr,addr,...": log each watched word (hex addresses) when it changes, checked every frame */
+static void watch(void) {
+    static uint32_t addrs[16], last[16];
+    static int n = -1;
+    if (n < 0) {
+        n = 0;
+        const char *e = getenv("MHFU_WATCH");
+        while (e && *e && n < 16) {
+            char *end;
+            addrs[n] = (uint32_t)strtoul(e, &end, 16);
+            last[n] = LW(addrs[n]);
+            n++;
+            e = *end ? end + 1 : end;
+        }
+    }
+    for (int i = 0; i < n; i++) {
+        uint32_t v = LW(addrs[i]);
+        if (v != last[i]) {
+            fprintf(stderr, "watch frame %lu: [%08X] %08X -> %08X\n", frame, addrs[i], last[i], v);
+            last[i] = v;
+        }
+    }
+}
+
 void present_frame(void) {
     if (dump_every < 0) {
         const char *e = getenv("MHFU_DUMP");
@@ -91,6 +115,7 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    watch();
     uint32_t *pixels = window_pixels();
     convert(pixels);
     window_show(pixels);

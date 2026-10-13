@@ -79,7 +79,8 @@ void hle_after_call(Ctx *c);                    /* after every HLE call: due int
 void interrupt_call(uint32_t handler, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t t0, uint32_t t1,
                     uint32_t t2);
 uint32_t kernel_gp(void);
-void thread_delay_until(uint64_t us);           /* block the current thread until then */
+void thread_delay_until(uint64_t us);
+void callback_notify(uint32_t uid, uint32_t arg);  /* a kernel callback, to run on its thread''s next ...CB wait */           /* block the current thread until then */
 
 /* Interrupts other modules raise (ge.c, display) */
 void intr_register(int intr, int sub, uint32_t handler, uint32_t arg);

@@ -51,11 +51,18 @@ typedef struct {
     uint32_t attr, bits;
 } EventFlag;
 
-typedef struct {
+typedef struct Callback {
     uint32_t uid;
     char name[32];
     uint32_t func, arg;
+    struct Thread *owner;              /* callbacks run on the thread that created them */
+    int count;                         /* notifications pending */
+    uint32_t notify_arg;
+    struct Callback *next;
 } Callback;
+
+static Callback *callbacks;
+static void run_callbacks(void);
 
 typedef struct {
     uint32_t uid;
@@ -499,7 +506,11 @@ void hle_sceKernelDelayThread(Ctx *c) {
     RET(0);
 }
 
-void hle_sceKernelDelayThreadCB(Ctx *c) { hle_sceKernelDelayThread(c); }
+void hle_sceKernelDelayThreadCB(Ctx *c) {
+    run_callbacks();
+    hle_sceKernelDelayThread(c);
+    run_callbacks();
+}
 
 void thread_delay_until(uint64_t us) {
     if (in_interrupt || !current || us <= time_us())
@@ -520,7 +531,11 @@ void hle_sceKernelSleepThread(Ctx *c) {
     RET(wait_current(WAIT_SLEEP, 0, 0));
 }
 
-void hle_sceKernelSleepThreadCB(Ctx *c) { hle_sceKernelSleepThread(c); }
+void hle_sceKernelSleepThreadCB(Ctx *c) {
+    run_callbacks();
+    hle_sceKernelSleepThread(c);
+    run_callbacks();
+}
 
 void hle_sceKernelWakeupThread(Ctx *c) {
     Thread *t = find_thread(ARG0);
@@ -662,7 +677,11 @@ static void wait_sema(Ctx *c) {
 }
 
 void hle_sceKernelWaitSema(Ctx *c) { wait_sema(c); }
-void hle_sceKernelWaitSemaCB(Ctx *c) { wait_sema(c); }
+void hle_sceKernelWaitSemaCB(Ctx *c) {
+    run_callbacks();
+    wait_sema(c);
+    run_callbacks();
+}
 
 void hle_sceKernelPollSema(Ctx *c) {
     Sema *s = kobj_get(ARG0, OBJ_SEMA);
@@ -767,7 +786,11 @@ static void wait_evf(Ctx *c) {
 }
 
 void hle_sceKernelWaitEventFlag(Ctx *c) { wait_evf(c); }
-void hle_sceKernelWaitEventFlagCB(Ctx *c) { wait_evf(c); }
+void hle_sceKernelWaitEventFlagCB(Ctx *c) {
+    run_callbacks();
+    wait_evf(c);
+    run_callbacks();
+}
 
 void hle_sceKernelPollEventFlag(Ctx *c) {
     EventFlag *e = kobj_get(ARG0, OBJ_EVENTFLAG);
@@ -785,15 +808,50 @@ void hle_sceKernelPollEventFlag(Ctx *c) {
     }
 }
 
-/* -- HLE: callbacks (registered; the events that would call them - exit, power - never come) ---------------------- */
+/* -- HLE: callbacks --------------------------------------------------------------------------------------------- */
+
+/* Callbacks are notified by the system (the Memory Stick being inserted, say) and run on the thread that created
+ * them, when it waits in one of the kernel's ...CB calls: func(notifications, argument, common argument). */
 
 void hle_sceKernelCreateCallback(Ctx *c) {
     Callback *cb = calloc(1, sizeof *cb);
     snprintf(cb->name, sizeof cb->name, "%s", hle_string(c, ARG0));
     cb->func = ARG1;
     cb->arg = ARG2;
+    cb->owner = current;
     cb->uid = kobj_new(OBJ_CALLBACK, cb);
+    cb->next = callbacks;
+    callbacks = cb;
     RET(cb->uid);
+}
+
+void callback_notify(uint32_t uid, uint32_t arg) {
+    Callback *cb = kobj_get(uid, OBJ_CALLBACK);
+    if (!cb)
+        return;
+    cb->count++;
+    cb->notify_arg = arg;
+}
+
+/* Run the current thread's pending callbacks, on its own context (saved around them) */
+static void run_callbacks(void) {
+    if (in_interrupt || !current)
+        return;
+    for (Callback *cb = callbacks; cb; cb = cb->next) {
+        if (cb->owner != current || !cb->count)
+            continue;
+        int n = cb->count;
+        cb->count = 0;
+        Ctx *c = &current->ctx;
+        Ctx saved = *c;
+        c->r[4] = (uint32_t)n;
+        c->r[5] = cb->notify_arg;
+        c->r[6] = cb->arg;
+        c->r[29] -= 0x40;
+        c->r[31] = THREAD_RETURN;
+        rt_call(c, cb->func);
+        *c = saved;
+    }
 }
 
 /* -- HLE: time and virtual timers --------------------------------------------------------------------------------- */

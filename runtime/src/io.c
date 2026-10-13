@@ -201,9 +201,32 @@ void hle_sceIoGetstat(Ctx *c) {
     RET(0);
 }
 
+/* (device, command, in, in size, out, out size). The Memory Stick: always there, with plenty of room */
 void hle_sceIoDevctl(Ctx *c) {
-    uint32_t cmd = ARG1;
+    uint32_t cmd = ARG1, in = ARG2, out = ARG4;
     HLE_LOG("sceIoDevctl(%s, %08X)", hle_string(c, ARG0), cmd);
+    switch (cmd) {
+    case 0x02415821:            /* register an insert / eject callback: it hears "inserted" at once */
+        if (in)
+            callback_notify(LW(in), 1);
+        break;
+    case 0x02025806:            /* is a Memory Stick inserted */
+        if (out)
+            SW(out, 1);
+        break;
+    case 0x02425818:            /* free space: a pointer to {clusters, free clusters, sectors / cluster ... } */
+        if (in) {
+            uint32_t p = LW(in);
+            SW(p, 0x10000);         /* clusters */
+            SW(p + 4, 0x8000);      /* free clusters */
+            SW(p + 8, 0x8000);
+            SW(p + 12, 0x200);      /* sector size */
+            SW(p + 16, 0x40);       /* sectors per cluster */
+        }
+        break;
+    default:
+        break;
+    }
     RET(0);
 }
 
