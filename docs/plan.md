@@ -75,7 +75,8 @@ and traces (calls, memory, display lists) to compare the recompiled game against
 
 ## Open questions (answered by phase 2)
 
-- How do the main program and the overlays call each other - direct `jal`s into a region (the recompiled caller then
-  dispatching on the resident overlay), function pointer tables like the stage entries at `0x089CBAE0`, or both?
+- ~~How do the main program and the overlays call each other?~~ Both directly (EBOOT -> `game_task`, monsters ->
+  `game_task`, `game_task` -> specific monsters...) and through function pointers; calls into overlay regions will
+  dispatch at runtime on the resident overlay. See [overlays.md](overlays.md).
 - How much of the game is in Sony's libraries (statically linked, recognisable) versus Capcom's code?
 - How many threads, and how do they synchronise (the runtime must schedule them as the PSP kernel does)?
