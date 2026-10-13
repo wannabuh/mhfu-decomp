@@ -69,6 +69,11 @@ ATRAC3, MPEG (cutscenes), and the GE's drawing. PPSSPP's HLE is the reference fo
 
 ## Checking against PPSSPP
 
+`tools/vfputest.py` checks the VFPU on its own: the game's VFPU instructions (each with its prefixes), run as small
+programs - load all 128 registers from random values, run, store them back - in PPSSPP and in the runtime
+(`build/vfputest`), compared register by register. All agree but `vasin`, within 0.1% (PPSSPP reproduces the
+hardware's approximation).
+
 `tools/difftest.py` runs the game in PPSSPPHeadless (interpreter, software renderer - the only configuration in which
 its debugger's breakpoints are hit and the game keeps getting vblanks), catches real calls to functions not yet tested,
 records the state at entry and at return, runs the recompiled function from the entry state (`build/difftest`) and

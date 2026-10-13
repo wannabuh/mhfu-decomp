@@ -536,7 +536,7 @@ static void tfm(Ctx *c, uint32_t op, int n) {    /* matrix (vs) times vector (vt
     for (int i = 0; i < n; i++) {
         float sum = 0.0f;
         for (int k = 0; k < n; k++)
-            sum += s[k * 4 + i] * t[k];
+            sum += s[i * 4 + k] * t[k];
         d[i] = sum;
     }
     write_vec(c, d, n, VD(op));

@@ -45,6 +45,7 @@ class Debugger:
         self.buf = buf.split(b"\r\n\r\n", 1)[1]
         self.events = []
         self.ticket = 0
+        self.partial = b""
 
     def _send(self, text):
         data = text.encode()
@@ -60,31 +61,42 @@ class Debugger:
             (int.from_bytes(data, "little") ^ int.from_bytes((mask * (n // 4 + 1))[:n], "little")).to_bytes(n, "little")
         self.sock.sendall(hdr + mask + masked)
 
-    def _need(self, k):
-        while len(self.buf) < k:
-            chunk = self.sock.recv(1 << 22)
-            if not chunk:
-                raise ConnectionError("debugger closed the connection")
-            self.buf += chunk
+    def _frame(self):
+        """A complete frame from the buffer (fin, opcode, payload), consumed - or None if not all here yet"""
+        if len(self.buf) < 2:
+            return None
+        b0, b1 = self.buf[0], self.buf[1]
+        n, off = b1 & 0x7F, 2
+        if n == 126:
+            if len(self.buf) < 4:
+                return None
+            n, off = struct.unpack(">H", self.buf[2:4])[0], 4
+        elif n == 127:
+            if len(self.buf) < 10:
+                return None
+            n, off = struct.unpack(">Q", self.buf[2:10])[0], 10
+        if len(self.buf) < off + n:
+            return None
+        payload, self.buf = self.buf[off:off + n], self.buf[off + n:]
+        return b0 & 0x80, b0 & 0x0F, payload
 
     def _recv(self):
-        msg = b""
+        """The next message. Frames are only consumed whole, and fragments kept, so a read timing out (in
+        wait_event) loses nothing."""
         while True:
-            self._need(2)
-            b0, b1 = self.buf[0], self.buf[1]
-            n, off = b1 & 0x7F, 2
-            if n == 126:
-                self._need(4)
-                n, off = struct.unpack(">H", self.buf[2:4])[0], 4
-            elif n == 127:
-                self._need(10)
-                n, off = struct.unpack(">Q", self.buf[2:10])[0], 10
-            self._need(off + n)
-            payload, self.buf = self.buf[off:off + n], self.buf[off + n:]
-            if b0 & 0x0F == 0x9:        # ping: answer it
+            f = self._frame()
+            if f is None:
+                chunk = self.sock.recv(1 << 22)
+                if not chunk:
+                    raise ConnectionError("debugger closed the connection")
+                self.buf += chunk
                 continue
-            msg += payload
-            if b0 & 0x80:
+            fin, opcode, payload = f
+            if opcode in (0x8, 0x9, 0xA):       # close / ping / pong
+                continue
+            self.partial += payload
+            if fin:
+                msg, self.partial = self.partial, b""
                 return json.loads(msg)
 
     def request(self, event, **args):
