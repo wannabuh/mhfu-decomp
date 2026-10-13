@@ -111,8 +111,13 @@ CHECKED_GPRS = [2] + list(range(16, 24)) + [28, 29, 30, 31]
 CHECKED_FPRS = [0] + list(range(20, 32))
 
 
-def compare(pp_after, native):
-    """What differs, of what a caller can see, between PPSSPP's state after the function and the recompiled code's."""
+DEAD_STACK = 0x10000       # how far below the entry stack pointer to ignore
+
+
+def compare(pp_after, native, entry_sp):
+    """What differs, of what a caller can see, between PPSSPP's state after the function and the recompiled code's.
+    The stack below the stack pointer at entry is dead once the function returns: the function's own frame, and its
+    callees' - which differ where PPSSPP replaced a library function with native code."""
     diffs = []
     names = ["zero", "at", "v0", "v1", "a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
              "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"]
@@ -125,8 +130,10 @@ def compare(pp_after, native):
     for name, a, b, base in (("scratchpad", pp_after.scratch, native.scratch, SCRATCH),
                              ("RAM", pp_after.ram, native.ram, RAM)):
         if a != b:
-            offs = [i for i in range(0, len(a), 4) if a[i:i + 4] != b[i:i + 4]]
-            diffs.append(f"{name} {' '.join(ranges(offs, base))}")
+            offs = [i for i in range(0, len(a), 4) if a[i:i + 4] != b[i:i + 4]
+                    and not entry_sp - DEAD_STACK <= base + i < entry_sp]
+            if offs:
+                diffs.append(f"{name} {' '.join(ranges(offs, base))}")
     return diffs
 
 
@@ -242,7 +249,7 @@ def main():
                     elif native.status:
                         verdict = "skip: " + native.message
                     else:
-                        d = compare(after, native)
+                        d = compare(after, native, sp)
                         verdict = "pass" if not d else "fail: " + "; ".join(d)
                 if verdict.startswith("fail") and prev.startswith("fail"):
                     verdict += " (retry " + str(prev.count("retry") + 1) + ")"

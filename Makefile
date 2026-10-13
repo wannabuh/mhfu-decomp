@@ -5,10 +5,10 @@ CC      := clang
 CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Ibuild/gen
 GENFLAGS := $(CFLAGS) -w
 
-RUNTIME_SRC := $(wildcard runtime/src/*.c)
+RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
 
-all: build/difftest
+all: build/mhfu build/difftest
 
 # Generate the C (one stamp for the whole set of files), then compile each file
 build/gen/.stamp: recomp/recomp.py tools/modules.py game/analysis/functions.json
@@ -22,7 +22,7 @@ build/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
 	@mkdir -p $(@D)
 	@$(CC) $(GENFLAGS) -c $< -o $@
 
-build/runtime/%.o: runtime/src/%.c runtime/src/runtime.h runtime/include/recomp.h build/gen/.stamp
+build/runtime/%.o: runtime/src/%.c runtime/src/runtime.h runtime/src/hle.h runtime/src/nids.inc runtime/include/recomp.h build/gen/.stamp
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -Wall -Wextra -c $< -o $@
 
@@ -32,6 +32,9 @@ build/game.a: build/gen/.stamp
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
 	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -o $@
+
+build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
+	$(CC) $(CFLAGS) $^ -lm -o $@
 
 clean:
 	rm -rf build

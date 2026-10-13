@@ -84,6 +84,8 @@ and traces (calls, memory, display lists) to compare the recompiled game against
 - **Differential testing against PPSSPP** (`tools/difftest.py`): real calls caught in PPSSPP, the recompiled function
   run from the same state, what a caller can see compared. The first sessions: every function that ran without
   reaching an import passed. See [runtime.md](runtime.md).
+- **Booting** (`build/mhfu <game.iso>`): the recompiled game boots through the kernel, I/O and audio HLE into its
+  main loop, call for call as in PPSSPP. Next: drawing (the GE), then fonts, savedata, sound.
 
 ## Open questions (answered by phase 2)
 

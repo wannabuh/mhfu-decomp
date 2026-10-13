@@ -1,0 +1,229 @@
+/* The rest of the system: display, controller, UMD, the utility dialogs (savedata, messages, keyboard, network),
+ * and small libraries (language, clock, power, DMA, wireless). */
+#include "hle.h"
+
+#include <string.h>
+#include <time.h>
+
+/* -- display ------------------------------------------------------------------------------------------------------ */
+
+uint32_t display_fb_addr, display_fb_width, display_fb_format;     /* for presenting the frame */
+
+void hle_sceDisplaySetMode(Ctx *c) { RET(0); }
+
+void hle_sceDisplaySetFrameBuf(Ctx *c) {
+    if (ARG0) {
+        display_fb_addr = ARG0;
+        display_fb_width = ARG1;
+        display_fb_format = ARG2;
+    }
+    HLE_LOG("sceDisplaySetFrameBuf(%08X, %u, %u, %u)", ARG0, ARG1, ARG2, ARG3);
+    RET(0);
+}
+
+/* -- controller ---------------------------------------------------------------------------------------------------- */
+
+static uint32_t ctrl_cycle, ctrl_mode;
+uint32_t ctrl_buttons;                       /* set by the frontend */
+uint8_t ctrl_lx = 128, ctrl_ly = 128;
+
+void hle_sceCtrlSetSamplingCycle(Ctx *c) {
+    RET(ctrl_cycle);
+    ctrl_cycle = ARG0;
+}
+
+void hle_sceCtrlSetSamplingMode(Ctx *c) {
+    RET(ctrl_mode);
+    ctrl_mode = ARG0;
+}
+
+/* (SceCtrlData *, count): timestamp, buttons, lx, ly, 6 reserved bytes */
+void hle_sceCtrlReadBufferPositive(Ctx *c) {
+    uint32_t n = ARG1 ? ARG1 : 1;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t p = ARG0 + 16 * i;
+        SW(p, (uint32_t)time_us());
+        SW(p + 4, ctrl_buttons);
+        SB(p + 8, ctrl_lx);
+        SB(p + 9, ctrl_ly);
+        for (int k = 10; k < 16; k++)
+            SB(p + (uint32_t)k, 0);
+    }
+    RET(n);
+}
+
+/* -- UMD ---------------------------------------------------------------------------------------------------------- */
+
+void hle_sceUmdActivate(Ctx *c) { RET(0); }
+void hle_sceUmdGetErrorStat(Ctx *c) { RET(0); }
+void hle_sceUmdGetDriveStat(Ctx *c) { RET(0x32); }       /* present, ready, readable */
+
+/* -- utility dialogs ---------------------------------------------------------------------------------------------- */
+
+/* Status: 0 none, 1 initialising, 2 running, 3 finished, 4 shutting down. The dialog's result goes in its common
+ * parameters at 0x1C. */
+typedef struct { int status; uint32_t params; } Dialog;
+static Dialog savedata, msgdialog, osk, netconf;
+
+static void dialog_init(Dialog *d, uint32_t params) {
+    d->status = 1;
+    d->params = params;
+}
+
+static int dialog_status(Dialog *d) {
+    int s = d->status;
+    if (s == 4)
+        d->status = 0;
+    return s;
+}
+
+static void dialog_update(Dialog *d, void (*work)(Dialog *)) {
+    if (d->status == 1) {
+        d->status = 2;
+    } else if (d->status == 2) {
+        if (work)
+            work(d);
+        d->status = 3;
+    }
+}
+
+#define SAVEDATA_ERROR_LOAD_NO_DATA 0x80110307u
+
+/* Savedata: no saves yet - loading finds none, saving succeeds without writing. TODO: real saves (ms0:) */
+static void savedata_work(Dialog *d) {
+    uint32_t mode = LW(d->params + 0x30);
+    HLE_WARN("savedata mode %u: not implemented (no saved data)", mode);
+    SW(d->params + 0x1C, (mode == 0 || mode == 2 || mode == 4 || mode == 6) ? SAVEDATA_ERROR_LOAD_NO_DATA : 0);
+}
+
+void hle_sceUtilitySavedataInitStart(Ctx *c) {
+    dialog_init(&savedata, ARG0);
+    RET(0);
+}
+
+void hle_sceUtilitySavedataGetStatus(Ctx *c) { RET(dialog_status(&savedata)); }
+
+void hle_sceUtilitySavedataUpdate(Ctx *c) {
+    dialog_update(&savedata, savedata_work);
+    RET(0);
+}
+
+void hle_sceUtilitySavedataShutdownStart(Ctx *c) {
+    savedata.status = 4;
+    RET(0);
+}
+
+/* Message dialogs: answered "yes" at once */
+static void msgdialog_work(Dialog *d) {
+    SW(d->params + 0x1C, 0);
+    SW(d->params + 0x240, 1);
+}
+
+void hle_sceUtilityMsgDialogInitStart(Ctx *c) {
+    dialog_init(&msgdialog, ARG0);
+    HLE_WARN("message dialog: %s", hle_string(c, ARG0 + 0x3C));
+    RET(0);
+}
+
+void hle_sceUtilityMsgDialogGetStatus(Ctx *c) { RET(dialog_status(&msgdialog)); }
+
+void hle_sceUtilityMsgDialogUpdate(Ctx *c) {
+    dialog_update(&msgdialog, msgdialog_work);
+    RET(0);
+}
+
+void hle_sceUtilityMsgDialogShutdownStart(Ctx *c) {
+    msgdialog.status = 4;
+    RET(0);
+}
+
+/* The on-screen keyboard: closed without changes */
+void hle_sceUtilityOskInitStart(Ctx *c) {
+    dialog_init(&osk, ARG0);
+    RET(0);
+}
+
+void hle_sceUtilityOskGetStatus(Ctx *c) { RET(dialog_status(&osk)); }
+
+void hle_sceUtilityOskUpdate(Ctx *c) {
+    dialog_update(&osk, NULL);
+    RET(0);
+}
+
+void hle_sceUtilityOskShutdownStart(Ctx *c) {
+    osk.status = 4;
+    RET(0);
+}
+
+/* Network configuration: cancelled - there is no network */
+static void netconf_work(Dialog *d) { SW(d->params + 0x1C, 1); }
+
+void hle_sceUtilityNetconfInitStart(Ctx *c) {
+    dialog_init(&netconf, ARG0);
+    RET(0);
+}
+
+void hle_sceUtilityNetconfGetStatus(Ctx *c) { RET(dialog_status(&netconf)); }
+
+void hle_sceUtilityNetconfUpdate(Ctx *c) {
+    dialog_update(&netconf, netconf_work);
+    RET(0);
+}
+
+void hle_sceUtilityNetconfShutdownStart(Ctx *c) {
+    netconf.status = 4;
+    RET(0);
+}
+
+void hle_sceUtilityLoadModule(Ctx *c) { RET(0); }
+void hle_sceUtilityUnloadModule(Ctx *c) { RET(0); }
+
+/* System settings: English, X to confirm (as a US PSP), 24-hour clock, UTC */
+void hle_sceUtilityGetSystemParamInt(Ctx *c) {
+    uint32_t v;
+    switch (ARG0) {
+    case 8: v = 1; break;           /* language: English */
+    case 9: v = 1; break;           /* confirm button: X */
+    default: v = 0; break;
+    }
+    SW(ARG1, v);
+    RET(0);
+}
+
+/* -- small libraries ---------------------------------------------------------------------------------------------- */
+
+void hle_sceImposeSetLanguageMode(Ctx *c) { RET(0); }
+void hle_scePowerRegisterCallback(Ctx *c) { RET(0); }
+
+void hle_sceRtcGetCurrentClockLocalTime(Ctx *c) {   /* ScePspDateTime: year, month, day, hour, minute, second (u16), us (u32) */
+    time_t now = time(NULL);
+    struct tm tm;
+    localtime_r(&now, &tm);
+    SH(ARG0, tm.tm_year + 1900);
+    SH(ARG0 + 2, tm.tm_mon + 1);
+    SH(ARG0 + 4, tm.tm_mday);
+    SH(ARG0 + 6, tm.tm_hour);
+    SH(ARG0 + 8, tm.tm_min);
+    SH(ARG0 + 10, tm.tm_sec);
+    SW(ARG0 + 12, 0);
+    RET(0);
+}
+
+void hle_sceOpenPSIDGetOpenPSID(Ctx *c) {
+    for (int i = 0; i < 16; i++)
+        SB(ARG0 + (uint32_t)i, 0x10 + i);
+    RET(0);
+}
+
+void hle_sceDmacMemcpy(Ctx *c) {
+    memmove(PTR(ARG0), PTR(ARG1), ARG2);
+    RET(0);
+}
+
+void hle_sceWlanGetSwitchState(Ctx *c) { RET(0); }
+
+void hle_sceWlanGetEtherAddr(Ctx *c) {
+    for (int i = 0; i < 6; i++)
+        SB(ARG0 + (uint32_t)i, 0x10 + i);
+    RET(0);
+}

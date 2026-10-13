@@ -12,8 +12,23 @@ for the rest, in the order it is needed to boot.
   no need to hook the game's loader.
 - **CPU helpers** (`cpu.c`): unaligned loads and stores, FPU control.
 - **VFPU** (`vfpu.c`): the 45 operations the game uses, one function per instruction, prefixes included.
+- **Kernel** (`thread.c`, `kernel.c`): threads as coroutines with the kernel's scheduling, sleep / wakeup, delays,
+  semaphores, event flags, VTimers, the vblank interrupt; object UIDs; the user memory partition; modules.
+- **I/O** (`io.c`): the disc read from the ISO image (ISO 9660), raw sectors included.
+- **GE** (`ge.c`): display lists walked (jumps, calls, stalls, FINISH / SIGNAL callbacks), not drawn.
+- **Audio** (`audio.c`): output channels timed as the hardware plays them (silent); the SAS mixes silence.
+- **System** (`system.c`): display, controller, UMD, utility dialogs (savedata: no saves yet), clock and the rest.
 
-## Threads (next)
+## Booting (where it is)
+
+`build/mhfu <game.iso>` loads the EBOOT, starts its module as the kernel would and runs the threads. The boot follows
+PPSSPP's call for call - the same threads, the user heap at `0x09D66000`, DATA.BIN's header read, the font module
+loaded from raw disc sectors - and reaches the game's main loop: each frame a VTimer, `user_main` woken, display lists
+queued, the controller read, the framebuffer flipped, sleep until the next vblank. The sound engine starts (it prints
+its banner). Nothing is drawn yet (the GE lists are walked, not rendered), nothing is heard, and fonts (`sceFont`) and
+savedata are stubs.
+
+## Threads
 
 The game runs ten threads (`user_main`, `fakeRofsLoader` - the DATA.BIN reader -, `sha1Thread`, `transferThread`, the
 sound driver's four...) synchronised with sleep / wakeup, semaphores, event flags and delays. `user_main` runs a frame
@@ -32,7 +47,7 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
 
 ## HLE
 
-The 272 imports (34 libraries; `recomp_imports` in the generated tables) dispatched by NID: the kernel (threads,
+`hle_table.c` dispatches the 272 imports (34 libraries; `recomp_imports` in the generated tables) dispatched by NID: the kernel (threads,
 semaphores, event flags, memory blocks, callbacks), file I/O against the extracted disc (`game/`), display, controller,
 power and UMD, then GE (to the renderer), audio (SAS, ATRAC3) and savedata. PPSSPP's HLE is the reference for their
 behaviour - and `tools/difftest.py`, which runs functions in PPSSPP and the recompiled code from the same state, checks

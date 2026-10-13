@@ -18,6 +18,9 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 EBOOT = os.path.join(ROOT, "game/decrypted/EBOOT.elf")
 OVERLAYS = os.path.join(ROOT, "game/overlays")
 
+# The EBOOT's static constructor table (see load)
+EBOOT_CTORS = (0x089BAB70, 0x089BAB8C)
+
 # Overlay regions: index -> (name, base); region 0 is the EBOOT
 REGIONS = {0: "main", 1: "task", 2: "sub", 3: "em", 4: "stage"}
 
@@ -96,8 +99,13 @@ def load(eboot=EBOOT, overlays=OVERLAYS):
         seg = next(s for s in elf.iter_segments() if s["p_type"] == "PT_LOAD")
         base, data = seg["p_vaddr"], seg.data()
         text = elf.get_section_by_name(".text")
-        main = Module("EBOOT", 0, base, data, [(text["sh_addr"], text["sh_addr"] + text["sh_size"])],
-                      base + seg["p_filesz"])
+        # The EBOOT's static constructors are code in its .data, just before their table, as in the overlays; the
+        # table's bounds are the arguments its startup code (0x0890DF34) passes to the constructor loop
+        table, table_end = EBOOT_CTORS
+        ctors = [struct.unpack_from("<I", data, a - base)[0] for a in range(table, table_end, 4)]
+        main = Module("EBOOT", 0, base, data, [(text["sh_addr"], text["sh_addr"] + text["sh_size"]),
+                                               (min(ctors), table)], base + seg["p_filesz"])
+        main.ctors = ctors
         main.imports = _imports(elf, base, data)
         main.entry = elf["e_entry"]
     mods = [main]
