@@ -69,7 +69,8 @@ typedef struct {
     char name[32];
     int running;
     uint64_t base;                     /* host time it started from (minus its accumulated time) */
-    uint64_t schedule;                 /* its time at which the handler runs (0: none) */
+    uint64_t schedule;                 /* its time at which the handler runs (0: at once) */
+    int armed;                         /* a handler is set and has a time to run */
     uint32_t handler, common;
 } VTimer;
 
@@ -160,16 +161,23 @@ static void process_events(void) {
         }
         for (int i = 0; i < MAX_VTIMERS; i++) {
             VTimer *v = vtimers[i];
-            if (!v || !v->running || !v->schedule || !v->handler)
+            if (!v || !v->running || !v->armed || !v->handler)
                 continue;
             uint64_t vt = now - v->base;
             if (vt < v->schedule)
                 continue;
+            /* handler(uid, &scheduled time, &actual time, common): the times are 64-bit, passed by pointer (in a
+             * scratch area below the interrupt stack) */
             uint64_t sched = v->schedule;
-            interrupt_call(v->handler, v->uid, 0, (uint32_t)sched, (uint32_t)(sched >> 32), (uint32_t)vt,
-                           (uint32_t)(vt >> 32), v->common);
-            uint32_t next = intr_ctx.r[2];
-            v->schedule = next ? sched + next : 0;
+            uint32_t args = intr_stack_top + 0x20;
+            SW(args, (uint32_t)sched);
+            SW(args + 4, (uint32_t)(sched >> 32));
+            SW(args + 8, (uint32_t)vt);
+            SW(args + 12, (uint32_t)(vt >> 32));
+            interrupt_call(v->handler, v->uid, args, args + 8, v->common, 0, 0, 0);
+            uint32_t next = intr_ctx.r[2];          /* the time to the next run, or 0 to stop */
+            v->schedule = sched + next;
+            v->armed = next != 0;
         }
     }
     for (Thread *t = threads; t; t = t->next)
@@ -184,7 +192,7 @@ static uint64_t next_event(void) {
             next = t->wait_until;
     for (int i = 0; i < MAX_VTIMERS; i++) {
         VTimer *v = vtimers[i];
-        if (v && v->running && v->schedule && v->handler && v->base + v->schedule < next)
+        if (v && v->running && v->armed && v->handler && v->base + v->schedule < next)
             next = v->base + v->schedule;
     }
     return next;
@@ -919,5 +927,6 @@ void hle_sceKernelSetVTimerHandlerWide(Ctx *c) {
     v->schedule = ARG2 | ((uint64_t)ARG3 << 32);
     v->handler = ARG4;
     v->common = ARG5;
+    v->armed = ARG4 != 0;
     RET(0);
 }

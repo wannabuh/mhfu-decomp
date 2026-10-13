@@ -13,7 +13,8 @@ for the rest, in the order it is needed to boot.
 - **CPU helpers** (`cpu.c`): unaligned loads and stores, FPU control.
 - **VFPU** (`vfpu.c`): the 45 operations the game uses, one function per instruction, prefixes included.
 - **Kernel** (`thread.c`, `kernel.c`): threads as coroutines with the kernel's scheduling, sleep / wakeup, delays,
-  semaphores, event flags, VTimers, the vblank interrupt; object UIDs; the user memory partition; modules.
+  semaphores, event flags, VTimers (handlers get the times by pointer; a schedule of 0 fires at once - the sound
+  engine's tick), the vblank interrupt; object UIDs; the user memory partition; modules.
 - **I/O** (`io.c`): the disc read from the ISO image (ISO 9660), raw sectors included.
 - **GE** (`ge.c`): display lists walked (jumps, calls, stalls, FINISH / SIGNAL callbacks), each command to the
   renderer. `gpu.c` draws in software into emulated VRAM: sprites (textured or not, all but the DXT formats), the
@@ -27,7 +28,8 @@ for the rest, in the order it is needed to boot.
   Input can be scripted (`MHFU_INPUT="first-last:buttons,..."`, frames and PSP button bits in hex).
 - **Audio** (`audio.c`, `atrac.c`): output channels timed as the hardware plays them, heard through SDL (one stream
   per channel); ATRAC3 / ATRAC3+ decoded with FFmpeg - the game's music, which matches FFmpeg's own decoding of the
-  same files. The SAS synthesiser mixes silence (the game has not been seen using it). `MHFU_MUTE=1` silences;
+  same files. Sound effects through the SAS synthesiser: VAG ADPCM voices with pitch, SPU-style ADSR envelopes and
+  volumes (no reverb yet). `MHFU_MUTE=1` silences;
   `MHFU_AUDIO_DUMP=1` writes each channel's output to `build/audio-ch<N>.raw`.
 - **System** (`system.c`): display, controller, UMD, utility dialogs (savedata: no saves yet), clock and the rest.
 
