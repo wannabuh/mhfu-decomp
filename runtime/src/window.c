@@ -19,6 +19,7 @@
 #include <SDL3/SDL.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 extern uint8_t ctrl_lx, ctrl_ly;
 
@@ -66,11 +67,14 @@ void window_init(void) {
 
 static int enabled(void) { return !disabled; }
 
-/* F9: the game's RAM to build/snap-<n>.bin - for finding the game's variables by comparing snapshots */
+/* F9: the game's RAM to build/snap-<time>.bin - for finding the game's variables by comparing snapshots (named by
+ * the time, so runs never overwrite each other's) */
 static void ram_snapshot(void) {
     static int n;
     char path[64];
-    snprintf(path, sizeof path, "build/snap-%02d.bin", ++n);
+    snprintf(path, sizeof path, "build/snap-%013llu.bin", (unsigned long long)SDL_GetTicks() + 1000000000000ull * 0 +
+             (unsigned long long)time(NULL) * 1000);
+    n++;
     FILE *f = fopen(path, "wb");
     if (!f) {
         fprintf(stderr, "snapshot: cannot write %s\n", path);
