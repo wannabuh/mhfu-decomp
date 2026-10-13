@@ -30,10 +30,23 @@ tools/.venv/bin/python tools/databin.py extract    # (optional) all 6657 DATA.BI
 tools/.venv/bin/python tools/funcs.py              # every function, to game/analysis/functions.json
 tools/.venv/bin/python recomp/recomp.py            # the functions as C, to build/gen/
 make -j$(nproc)                                    # compile them and the runtime (build/)
-build/mhfu path/to/mhfu.iso                        # run it: arrows, Z = cross, X = circle, A = square,
-                                                   # S = triangle, Q / W = L / R, Enter = START
+build/mhfu path/to/mhfu.iso                        # run it (controls below)
 tools/.venv/bin/python tools/difftest.py           # check recompiled functions against PPSSPP
 ```
+
+## Controls
+
+| Key | Does (PSP button) | Key | Does (PSP button) |
+|-----|-------------------|-----|-------------------|
+| W A S D | move (analog stick) | Shift | sprint (R) |
+| Space | dodge / roll (×) | F | interact (○) |
+| Left mouse | primary attack (△) | Right mouse | secondary attack (○) |
+| Middle mouse / E | special attack (△ + ○) | Q | use item / sheathe (□) |
+| Tab | reset camera (L) | Esc | menu (START) |
+| Arrows | D-pad: menus, camera | Enter / Backspace | confirm / back in menus (× / ○) |
+| C | SELECT | | |
+
+A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
 
 ## Licence
 

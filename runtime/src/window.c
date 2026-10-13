@@ -4,8 +4,15 @@
  * Drawing is the Vulkan renderer's (render.c), into this window or offscreen; with MHFU_RENDERER=soft, or without
  * Vulkan, the software GE draws into VRAM and its frames are shown here through SDL's renderer.
  *
- * Keyboard: arrows - D-pad; Z cross, X circle, A square, S triangle; Q L, W R; Enter START, Backspace SELECT;
- * I J K L - analog stick. Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
+ * Keyboard and mouse, laid out for playing on a PC (the PSP buttons they press, with MHFU's default controls):
+ *   W A S D      move (the analog stick)          Shift        sprint (R)
+ *   Space        dodge / roll (cross)             F            interact (circle)
+ *   left mouse   primary attack (triangle)        right mouse  secondary attack (circle)
+ *   middle / E   special attack (triangle + circle)   Q        use item / sheathe (square)
+ *   Tab          reset the camera (L)             Esc          menu (START)
+ *   arrows       D-pad (menus, camera)            Enter / Backspace   confirm / back in menus (cross / circle)
+ *   C            SELECT
+ * Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
 #include "hle.h"
 #include "render.h"
 
@@ -63,16 +70,24 @@ static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     const bool *k = SDL_GetKeyboardState(NULL);
     uint32_t b = 0;
     static const struct { SDL_Scancode key; uint32_t button; } map[] = {
+        {SDL_SCANCODE_SPACE, PSP_CROSS}, {SDL_SCANCODE_F, PSP_CIRCLE}, {SDL_SCANCODE_Q, PSP_SQUARE},
+        {SDL_SCANCODE_E, PSP_TRIANGLE | PSP_CIRCLE}, {SDL_SCANCODE_LSHIFT, PSP_R}, {SDL_SCANCODE_RSHIFT, PSP_R},
+        {SDL_SCANCODE_TAB, PSP_L}, {SDL_SCANCODE_ESCAPE, PSP_START}, {SDL_SCANCODE_C, PSP_SELECT},
         {SDL_SCANCODE_UP, PSP_UP}, {SDL_SCANCODE_DOWN, PSP_DOWN}, {SDL_SCANCODE_LEFT, PSP_LEFT},
-        {SDL_SCANCODE_RIGHT, PSP_RIGHT}, {SDL_SCANCODE_Z, PSP_CROSS}, {SDL_SCANCODE_X, PSP_CIRCLE},
-        {SDL_SCANCODE_A, PSP_SQUARE}, {SDL_SCANCODE_S, PSP_TRIANGLE}, {SDL_SCANCODE_Q, PSP_L}, {SDL_SCANCODE_W, PSP_R},
-        {SDL_SCANCODE_RETURN, PSP_START}, {SDL_SCANCODE_BACKSPACE, PSP_SELECT},
+        {SDL_SCANCODE_RIGHT, PSP_RIGHT}, {SDL_SCANCODE_RETURN, PSP_CROSS}, {SDL_SCANCODE_BACKSPACE, PSP_CIRCLE},
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (k[map[i].key])
             b |= map[i].button;
-    int x = 128 + (k[SDL_SCANCODE_L] ? 127 : 0) - (k[SDL_SCANCODE_J] ? 128 : 0);
-    int y = 128 + (k[SDL_SCANCODE_K] ? 127 : 0) - (k[SDL_SCANCODE_I] ? 128 : 0);
+    SDL_MouseButtonFlags m = SDL_GetMouseState(NULL, NULL);
+    if (m & SDL_BUTTON_LMASK)
+        b |= PSP_TRIANGLE;
+    if (m & SDL_BUTTON_RMASK)
+        b |= PSP_CIRCLE;
+    if (m & SDL_BUTTON_MMASK)
+        b |= PSP_TRIANGLE | PSP_CIRCLE;
+    int x = 128 + (k[SDL_SCANCODE_D] ? 127 : 0) - (k[SDL_SCANCODE_A] ? 128 : 0);
+    int y = 128 + (k[SDL_SCANCODE_S] ? 127 : 0) - (k[SDL_SCANCODE_W] ? 128 : 0);
     *lx = (uint8_t)x;
     *ly = (uint8_t)y;
     return b;
