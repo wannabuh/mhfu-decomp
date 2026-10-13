@@ -29,6 +29,8 @@ tools/.venv/bin/python tools/databin.py overlays   # the 298 code overlays from 
 tools/.venv/bin/python tools/databin.py extract    # (optional) all 6657 DATA.BIN files to game/data/
 tools/.venv/bin/python tools/funcs.py              # every function, to game/analysis/functions.json
 tools/.venv/bin/python recomp/recomp.py            # the functions as C, to build/gen/
+make -j$(nproc)                                    # compile them and the runtime (build/)
+tools/.venv/bin/python tools/difftest.py           # check recompiled functions against PPSSPP
 ```
 
 ## Licence

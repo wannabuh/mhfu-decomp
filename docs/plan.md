@@ -80,7 +80,10 @@ and traces (calls, memory, display lists) to compare the recompiled game against
 
 - **Recompiler v0** (`recomp/recomp.py`): all 16959 functions translate - 1.36 million lines of C in 312 files,
   compiling with no errors (clang `-O2`: 31 s on 12 cores, 23 MB of objects). VFPU instructions other than branches
-  go to the runtime for now.
+  go to the runtime (`runtime/src/vfpu.c`, one function per operation).
+- **Differential testing against PPSSPP** (`tools/difftest.py`): real calls caught in PPSSPP, the recompiled function
+  run from the same state, what a caller can see compared. The first sessions: every function that ran without
+  reaching an import passed. See [runtime.md](runtime.md).
 
 ## Open questions (answered by phase 2)
 
