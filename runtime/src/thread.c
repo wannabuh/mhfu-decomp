@@ -109,7 +109,8 @@ static void sleep_until(uint64_t us) {
 }
 
 #define VBLANK_US_NUM 1001000u        /* 59.94 Hz: a vblank every 1001000 / 60 us */
-#define VBLANK_US_DEN 60u
+static unsigned vblank_den = 60;      /* MHFU_VBLANK_HZ (an experiment): vblanks a second, times 1.001 */
+#define VBLANK_US_DEN vblank_den
 
 uint32_t kernel_gp(void) { return module_gp; }
 
@@ -378,6 +379,8 @@ static void dump_threads(void) {
 }
 
 void threads_init(void) {
+    if (getenv("MHFU_VBLANK_HZ"))
+        vblank_den = (unsigned)atoi(getenv("MHFU_VBLANK_HZ"));
     if (getenv("MHFU_THREADS")) {
         atexit(dump_threads);
         at_quick_exit(dump_threads);

@@ -47,7 +47,17 @@ heard, there is no lighting, and the system's own dialogs (save messages) are an
 - **Savedata** (`savedata.c`): plain files in `~/.local/share/mhfu-recomp/SAVEDATA` (or `MHFU_SAVEDIR`).
 - **Callbacks**: run on their thread at its ...CB waits; the Memory Stick's insert callback hears "inserted".
 - **Debugging**: `MHFU_WATCH=addr,...` logs memory words as they change, each frame; `MHFU_THREADS=1`
-  lists the threads and what they wait on at exit.
+  lists the threads and what they wait on at exit; `MHFU_VBLANK_HZ=120` doubles the vblank rate (an experiment:
+  the game then ticks at 60 a second, and runs twice as fast - see "Frame rate" below).
+
+## Frame rate
+
+The game ticks at 30 a second: its vblank handler (`0x08859188`) wakes `user_main` every second vblank
+(`if (++count < 2) return`), and it counts time in ticks - nothing reads a clock. Doubling the tick rate
+(`MHFU_VBLANK_HZ=120`) runs everything twice as fast: the splash screens last the same number of ticks. 30.0 and 60.0
+appear ~1500 times in its code and data, 1/30 ten times: no central time step. So higher frame rates come from
+interpolation - the game's frames recorded, frames in between drawn with their matrices interpolated - and a native 60
+would mean finding and rescaling every system that counts ticks.
 
 ## Threads
 
