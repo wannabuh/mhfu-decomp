@@ -47,11 +47,10 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
 
 ## HLE
 
-`hle_table.c` dispatches the 272 imports (34 libraries; `recomp_imports` in the generated tables) dispatched by NID: the kernel (threads,
-semaphores, event flags, memory blocks, callbacks), file I/O against the extracted disc (`game/`), display, controller,
-power and UMD, then GE (to the renderer), audio (SAS, ATRAC3) and savedata. PPSSPP's HLE is the reference for their
-behaviour - and `tools/difftest.py`, which runs functions in PPSSPP and the recompiled code from the same state, checks
-the results.
+`hle_table.c` dispatches the 272 imports (34 libraries; `nids.inc` names them) by NID to `hle_<name>`; one not
+implemented logs its first call and returns 0. Still to do: fonts (`sceFont`, PGF), savedata, the SAS's voices and
+ATRAC3, MPEG (cutscenes), and the GE's drawing. PPSSPP's HLE is the reference for their behaviour - and
+`tools/difftest.py`, which runs functions in PPSSPP and the recompiled code from the same state, checks the results.
 
 ## Checking against PPSSPP
 
