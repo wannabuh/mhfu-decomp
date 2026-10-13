@@ -8,7 +8,7 @@
  * address is a render target's samples that render target. Frames are submitted and waited for at each flip.
  *
  * Not yet: the framebuffers' contents in VRAM for the CPU (nothing reads them back but frame dumps), block transfers
- * into framebuffers, fog, stencil, logic ops, mipmaps, the blend factors the hardware lacks (doubled alphas). */
+ * into framebuffers, stencil, logic ops, mipmaps, the blend factors the hardware lacks (doubled alphas). */
 #include "render.h"
 
 #include "hle.h"
@@ -31,7 +31,7 @@ int render_on;
 #define VERTEX_BYTES (64u << 20)
 #define STAGING_BYTES (64u << 20)
 
-typedef struct { float x, y, z, w, u, v; uint32_t color; } GpuVertex;
+typedef struct { float x, y, z, w, u, v; uint32_t color; float fog; } GpuVertex;
 
 typedef struct {
     uint32_t addr;                  /* VRAM address, mirror bits off */
@@ -55,7 +55,7 @@ typedef struct {
     Target *target;
     uint32_t tex_slot;
     float tex_w, tex_h;
-    uint32_t flags, alpha_test, env_color;
+    uint32_t flags, alpha_test, env_color, fog_color;
     VkBool32 blend;
     VkColorBlendEquationEXT eq;
     float blend_const[4];
@@ -95,13 +95,14 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
-    VkVertexInputAttributeDescription attrs[3] = {
+    VkVertexInputAttributeDescription attrs[4] = {
         {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
         {1, 0, VK_FORMAT_R32G32_SFLOAT, 16},
         {2, 0, VK_FORMAT_R8G8B8A8_UNORM, 24},
+        {3, 0, VK_FORMAT_R32_SFLOAT, 28},
     };
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
-                                               ge ? 1u : 0u, &bind, ge ? 3u : 0u, attrs};
+                                               ge ? 1u : 0u, &bind, ge ? 4u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
                                                  VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
@@ -168,7 +169,7 @@ int render_init(void *sdl_window) {
     dai.pSetLayouts = &present_set_layout;
     vkAllocateDescriptorSets(vk.device, &dai, &present_set);
 
-    VkPushConstantRange pr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 24};
+    VkPushConstantRange pr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 28};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
@@ -427,7 +428,9 @@ void render_prim_begin(const uint32_t *reg) {
         s.tex_h = (float)h;
     }
     s.flags = (reg[0xC9] & 7) | (((reg[0xC9] >> 8) & 1) << 3) | (((reg[0xC9] >> 16) & 1) << 4) |
-              (!clear && (reg[0x22] & 1) ? 32u : 0u) | (clear ? 64u : 0u);
+              (!clear && (reg[0x22] & 1) ? 32u : 0u) | (clear ? 64u : 0u) |
+              (!clear && (reg[0x1F] & 1) && !((reg[0x12] >> 23) & 1) ? 128u : 0u);
+    s.fog_color = reg[0xCF];
     s.alpha_test = reg[0xDB];
     s.env_color = reg[0xCA];
     if (clear) {
@@ -498,8 +501,8 @@ static void flush(void) {
         vk.SetColorWriteMask(cmd, 0, 1, &s->write_mask);
     if (!last_valid || memcmp(s->blend_const, last.blend_const, sizeof s->blend_const))
         vkCmdSetBlendConstants(cmd, s->blend_const);
-    struct { float w, h; uint32_t slot, flags, alpha, env; } pc = {s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1,
-        s->tex_slot, s->flags, s->alpha_test, s->env_color};
+    struct { float w, h; uint32_t slot, flags, alpha, env, fog; } pc = {s->tex_w ? s->tex_w : 1,
+        s->tex_h ? s->tex_h : 1, s->tex_slot, s->flags, s->alpha_test, s->env_color, s->fog_color};
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     last = *s;
@@ -525,6 +528,7 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     uint32_t r = v->r < 0 ? 0 : v->r > 255 ? 255 : (uint32_t)v->r, gg = v->g < 0 ? 0 : v->g > 255 ? 255 : (uint32_t)v->g;
     uint32_t b = v->b < 0 ? 0 : v->b > 255 ? 255 : (uint32_t)v->b, a = v->a < 0 ? 0 : v->a > 255 ? 255 : (uint32_t)v->a;
     g->color = r | gg << 8 | b << 16 | a << 24;
+    g->fog = v->fog;
     vertex_used += sizeof(GpuVertex);
 }
 

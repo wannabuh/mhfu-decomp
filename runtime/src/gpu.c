@@ -4,7 +4,7 @@
  * perspective-correct texturing (the 16/32-bit, CLUT and swizzled formats; nearest texel), Gouraud or flat colour,
  * the texture functions, alpha and depth tests, back-face culling, blending, clear mode, and block transfers.
  * Lighting (four lights: directional, point, spot; ambient, diffuse, powered diffuse, specular), bilinear filtering.
- * Not yet: fog, mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
+ * Fog. Not yet: mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
  * dithering. */
 #include "hle.h"
 #include "render.h"
@@ -141,11 +141,11 @@ void gpu_decode_texture(uint32_t *out, int w, int h) {
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
 
 /* A vertex after the vertex stage: screen position (pixels, framebuffer coordinates), depth (0-65535), 1/w for
- * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel) */
-typedef struct { float x, y, z, rw, u, v, r, g, b, a; } Vertex;
+ * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel), fog (1 none, 0 all fog) */
+typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog; } Vertex;
 
 /* Before the viewport: clip-space position and the rest */
-typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a; } ClipVertex;
+typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog; } ClipVertex;
 
 static float world[12], view[12], proj[16], bones[8][12];
 static int world_i, view_i, proj_i, bone_i;
@@ -347,6 +347,7 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         out->cy = p[1];
         out->cz = p[2];
         out->cw = 1.0f;
+        out->fog = 1.0f;
         return;
     }
     /* the normal, for lighting */
@@ -387,6 +388,9 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
     }
     float e[3];
     mul43(view, m, e);
+    /* fog: (end + view-space depth) * slope, 1 for none and 0 for all fog */
+    float fog = (ge_float(reg[0xCD]) + e[2]) * ge_float(reg[0xCE]);
+    out->fog = fog != fog ? 1.0f : fog < 0 ? 0 : fog > 1 ? 1 : fog;
     float in[4] = {e[0], e[1], e[2], 1.0f};
     float clip[4];
     for (int i = 0; i < 4; i++)
@@ -417,6 +421,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
     s->g = c->g;
     s->b = c->b;
     s->a = c->a;
+    s->fog = c->fog;
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */
@@ -553,7 +558,16 @@ static uint32_t pack(float r, float g, float b, float a) {
 }
 
 /* One pixel of a primitive: texture, alpha test, depth, blend, write (or, in clear mode, the clear) */
-static void shade(int x, int y, float z, uint32_t color, float u, float v) {
+static uint32_t apply_fog(uint32_t c, float fog) {
+    uint32_t f = reg[0xCF], out = c & 0xFF000000u;
+    for (int ch = 0; ch < 24; ch += 8) {
+        float v = (float)((c >> ch) & 255) * fog + (float)((f >> ch) & 255) * (1 - fog);
+        out |= (uint32_t)(v + 0.5f) << ch;
+    }
+    return out;
+}
+
+static void shade(int x, int y, float z, uint32_t color, float u, float v, float fog) {
     if (reg[0xD3] & 1) {                /* clear mode: colour / alpha / depth as the flags say */
         uint32_t mode = reg[0xD3] >> 8, old = fb_read(x, y), c = color;
         if (!(mode & 1)) c = (c & 0xFF000000u) | (old & 0x00FFFFFFu);
@@ -567,6 +581,8 @@ static void shade(int x, int y, float z, uint32_t color, float u, float v) {
     uint32_t c = color;
     if (reg[0x1E] & 1)
         c = tex_function(c, sample(u, v));
+    if ((reg[0x1F] & 1) && fog < 1)
+        c = apply_fog(c, fog);
     if (!alpha_test(c) || !depth_test(x, y, z))
         return;
     depth_write(x, y, z);
@@ -588,7 +604,7 @@ static void draw_sprite(const Vertex *a, const Vertex *b) {
         float fv = y1 > y0 ? v0 + (v1 - v0) * ((float)y + 0.5f - y0) / (y1 - y0) : v0;
         for (int x = ix0; x < ix1; x++) {
             float fu = x1 > x0 ? u0 + (u1 - u0) * ((float)x + 0.5f - x0) / (x1 - x0) : u0;
-            shade(x, y, b->z, color, fu, fv);
+            shade(x, y, b->z, color, fu, fv, 1.0f);
         }
     }
 }
@@ -633,7 +649,7 @@ static void raster_triangle(const Vertex *a, const Vertex *b, const Vertex *c, i
             uint32_t color = flat ? pack(c->r, c->g, c->b, c->a)
                                   : pack(pa * a->r + pb * b->r + pc * c->r, pa * a->g + pb * b->g + pc * c->g,
                                          pa * a->b + pb * b->b + pc * c->b, pa * a->a + pb * b->a + pc * c->a);
-            shade(x, y, z, color, u, v);
+            shade(x, y, z, color, u, v, pa * a->fog + pb * b->fog + pc * c->fog);
         }
     }
 }
@@ -661,7 +677,7 @@ static void clip_triangle(const ClipVertex *v0, const ClipVertex *v1, const Clip
             ClipVertex m;
             float *mf = &m.cx;
             const float *pf = &p->cx, *qf = &q->cx;
-            for (int k = 0; k < 10; k++)
+            for (int k = 0; k < 11; k++)
                 mf[k] = pf[k] + (qf[k] - pf[k]) * t;
             out[n++] = m;
         }
