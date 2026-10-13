@@ -3,8 +3,9 @@
  * the viewport and screen offset; through mode), near-plane clipping, triangles (lists, strips, fans) and sprites,
  * perspective-correct texturing (the 16/32-bit, CLUT and swizzled formats; nearest texel), Gouraud or flat colour,
  * the texture functions, alpha and depth tests, back-face culling, blending, clear mode, and block transfers.
- * Not yet: lighting (unlit vertices take the material's ambient colour, as with lighting off), fog, texture
- * filtering and mipmaps, the DXT formats, lines and points, stencil, logic ops, dithering. */
+ * Lighting (four lights: directional, point, spot; ambient, diffuse, powered diffuse, specular), bilinear filtering.
+ * Not yet: fog, mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
+ * dithering. */
 #include "hle.h"
 
 #include <math.h>
@@ -110,6 +111,26 @@ static uint32_t texel(int u, int v) {
     }
 }
 
+/* Sample the texture at (u, v) in texels: bilinear when the filter (0xC6: minification in bits 0-2, magnification in
+ * bit 8) says linear, else the nearest texel. Level 0 only. */
+static uint32_t sample(float u, float v) {
+    uint32_t f = reg[0xC6];
+    int linear = ((f >> 8) & 1) || (f & 1);
+    if (!linear)
+        return texel((int)floorf(u), (int)floorf(v));
+    float fu = u - 0.5f, fv = v - 0.5f;
+    int x0 = (int)floorf(fu), y0 = (int)floorf(fv);
+    float ax = fu - (float)x0, ay = fv - (float)y0;
+    uint32_t c00 = texel(x0, y0), c10 = texel(x0 + 1, y0), c01 = texel(x0, y0 + 1), c11 = texel(x0 + 1, y0 + 1);
+    uint32_t out = 0;
+    for (int ch = 0; ch < 32; ch += 8) {
+        float a = (float)((c00 >> ch) & 255) * (1 - ax) + (float)((c10 >> ch) & 255) * ax;
+        float b = (float)((c01 >> ch) & 255) * (1 - ax) + (float)((c11 >> ch) & 255) * ax;
+        out |= (uint32_t)(a * (1 - ay) + b * ay + 0.5f) << ch;
+    }
+    return out;
+}
+
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
 
 /* A vertex after the vertex stage: screen position (pixels, framebuffer coordinates), depth (0-65535), 1/w for
@@ -167,6 +188,105 @@ static void mul43(const float *m, const float *in, float *out) {
         out[i] = in[0] * m[i] + in[1] * m[3 + i] + in[2] * m[6 + i] + m[9 + i];
 }
 
+static void mul33(const float *m, const float *in, float *out) {
+    for (int i = 0; i < 3; i++)
+        out[i] = in[0] * m[i] + in[1] * m[3 + i] + in[2] * m[6 + i];
+}
+
+static void unpack(uint32_t c, float *f) {
+    f[0] = (float)(c & 255) / 255.0f;
+    f[1] = (float)((c >> 8) & 255) / 255.0f;
+    f[2] = (float)((c >> 16) & 255) / 255.0f;
+}
+
+/* The GE's lighting of one vertex: emissive, plus the global ambient light on the material's ambient colour, plus each
+ * enabled light's ambient, diffuse and specular terms (attenuated with distance for point and spot lights, cut to the
+ * cone for spots). The material's ambient / diffuse / specular colours are the vertex's own where the material mode
+ * (0x53) says. Positions and normals in world space. */
+static void light(const float *pos, const float *normal, uint32_t vcol, int has_vcol, ClipVertex *out) {
+    float n[3] = {normal[0], normal[1], normal[2]};
+    float len = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+    if (len > 0)
+        for (int i = 0; i < 3; i++)
+            n[i] /= len;
+    uint32_t mode = has_vcol ? reg[0x53] : 0;
+    float mat_amb[3], mat_dif[3], mat_spe[3], emi[3], glob[3], vc[3];
+    unpack(vcol, vc);
+    unpack(reg[0x55], mat_amb);
+    unpack(reg[0x56], mat_dif);
+    unpack(reg[0x57], mat_spe);
+    unpack(reg[0x54], emi);
+    unpack(reg[0x5C], glob);
+    float mat_amb_a = (float)(reg[0x58] & 255) / 255.0f;
+    if (mode & 1) { memcpy(mat_amb, vc, sizeof vc); mat_amb_a = (float)(vcol >> 24) / 255.0f; }
+    if (mode & 2) memcpy(mat_dif, vc, sizeof vc);
+    if (mode & 4) memcpy(mat_spe, vc, sizeof vc);
+    float spow = ge_float(reg[0x5B]);
+    float sum[3], spec[3] = {0, 0, 0};
+    for (int i = 0; i < 3; i++)
+        sum[i] = emi[i] + glob[i] * mat_amb[i];
+    for (int k = 0; k < 4; k++) {
+        if (!(reg[0x18 + k] & 1))
+            continue;
+        uint32_t lt = reg[0x5F + k];
+        int comp = lt & 3, type = (lt >> 8) & 3;
+        float lp[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])};
+        float L[3], att = 1.0f;
+        if (type == 0) {
+            memcpy(L, lp, sizeof L);
+        } else {
+            for (int i = 0; i < 3; i++)
+                L[i] = lp[i] - pos[i];
+        }
+        float d = sqrtf(L[0] * L[0] + L[1] * L[1] + L[2] * L[2]);
+        if (d > 0)
+            for (int i = 0; i < 3; i++)
+                L[i] /= d;
+        if (type != 0) {
+            float ka = ge_float(reg[0x7B + 3 * k]), kb = ge_float(reg[0x7C + 3 * k]), kc = ge_float(reg[0x7D + 3 * k]);
+            float den = ka + kb * d + kc * d * d;
+            att = den > 0 ? 1.0f / den : 1.0f;
+            if (att > 1.0f) att = 1.0f;
+        }
+        if (type == 2) {                /* spot: the cone around the light's direction */
+            float dir[3] = {ge_float(reg[0x6F + 3 * k]), ge_float(reg[0x70 + 3 * k]), ge_float(reg[0x71 + 3 * k])};
+            float dl = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+            float cosang = dl > 0 ? -(L[0] * dir[0] + L[1] * dir[1] + L[2] * dir[2]) / dl : 0;
+            float cutoff = ge_float(reg[0x8B + k]), exponent = ge_float(reg[0x87 + k]);
+            att *= cosang >= cutoff ? powf(cosang > 0 ? cosang : 0, exponent) : 0.0f;
+        }
+        float la[3], ld[3], ls[3];
+        unpack(reg[0x8F + 3 * k], la);
+        unpack(reg[0x90 + 3 * k], ld);
+        unpack(reg[0x91 + 3 * k], ls);
+        float dot = n[0] * L[0] + n[1] * L[1] + n[2] * L[2];
+        if (dot < 0) dot = 0;
+        if (comp == 2)
+            dot = powf(dot, spow);
+        for (int i = 0; i < 3; i++)
+            sum[i] += (la[i] * mat_amb[i] + ld[i] * mat_dif[i] * dot) * att;
+        if (comp == 1 && dot > 0) {     /* specular: the half vector with the viewer straight ahead */
+            float h[3] = {L[0], L[1], L[2] + 1.0f};
+            float hl = sqrtf(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
+            float sd = hl > 0 ? (n[0] * h[0] + n[1] * h[1] + n[2] * h[2]) / hl : 0;
+            float sp = sd > 0 ? powf(sd, spow) : 0;
+            for (int i = 0; i < 3; i++)
+                spec[i] += ls[i] * mat_spe[i] * sp * att;
+        }
+    }
+    float rgb[3];
+    for (int i = 0; i < 3; i++) {
+        rgb[i] = sum[i] + spec[i];
+        rgb[i] = rgb[i] < 0 ? 0 : rgb[i] > 1 ? 1 : rgb[i];
+    }
+    float a = mat_amb_a * ((float)(reg[0x5D] & 255) / 255.0f);
+    (void)a;
+    out->r = rgb[0] * 255.0f;
+    out->g = rgb[1] * 255.0f;
+    out->b = rgb[2] * 255.0f;
+    out->a = mat_amb_a * 255.0f;
+}
+
 /* Decode vertex n and run it through the vertex stage up to clip space (through mode: straight to the screen, w 1) */
 static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *through_out) {
     uint32_t vt = reg[0x12];
@@ -222,22 +342,42 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         out->cw = 1.0f;
         return;
     }
+    /* the normal, for lighting */
+    int nrm = (vt >> 5) & 3;
+    float nr[3] = {0, 0, 1};
+    if (nrm) {
+        static const int nsz[4] = {0, 1, 2, 4};
+        for (int i = 0; i < 3; i++)
+            nr[i] = read_comp(v + l->no + (uint32_t)(i * nsz[nrm]), nrm, 0, 1);
+        if (reg[0x51] & 1)
+            for (int i = 0; i < 3; i++)
+                nr[i] = -nr[i];
+    }
     float m[3];
     if (wt) {                           /* skinning: the weighted sum of the bones' transforms */
         static const int tsz[4] = {0, 1, 2, 4};
-        float acc[3] = {0, 0, 0};
+        float acc[3] = {0, 0, 0}, nacc[3] = {0, 0, 0};
         for (int b = 0; b < nweights; b++) {
             float w = read_comp(v + l->wo + (uint32_t)(b * tsz[wt]), wt, 0, 0);
             if (wt == 1) w = LBU(v + l->wo + (uint32_t)b) / 128.0f;
             if (wt == 2) w = LHU(v + l->wo + (uint32_t)(b * 2)) / 32768.0f;
-            float t[3];
+            float t[3], tn[3];
             mul43(bones[b], p, t);
-            for (int i = 0; i < 3; i++)
+            mul33(bones[b], nr, tn);
+            for (int i = 0; i < 3; i++) {
                 acc[i] += t[i] * w;
+                nacc[i] += tn[i] * w;
+            }
         }
         memcpy(p, acc, sizeof p);
+        memcpy(nr, nacc, sizeof nr);
     }
     mul43(world, p, m);
+    if (reg[0x17] & 1) {                /* lighting, in world space */
+        float wn[3];
+        mul33(world, nr, wn);
+        light(m, wn, col >= 4 ? c : 0xFFFFFFFFu, col >= 4, out);
+    }
     float e[3];
     mul43(view, m, e);
     float in[4] = {e[0], e[1], e[2], 1.0f};
@@ -419,7 +559,7 @@ static void shade(int x, int y, float z, uint32_t color, float u, float v) {
     }
     uint32_t c = color;
     if (reg[0x1E] & 1)
-        c = tex_function(c, texel((int)floorf(u), (int)floorf(v)));
+        c = tex_function(c, sample(u, v));
     if (!alpha_test(c) || !depth_test(x, y, z))
         return;
     depth_write(x, y, z);
