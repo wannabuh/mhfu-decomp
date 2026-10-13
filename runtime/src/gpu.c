@@ -691,11 +691,269 @@ static void clip_triangle(const ClipVertex *v0, const ClipVertex *v1, const Clip
         raster_triangle(&s[0], &s[i], &s[i + 1], 0);
 }
 
+static void prim(uint32_t data);
+
+/* -- frames, recorded for interpolation --------------------------------------------------------------------------
+ *
+ * With the Vulkan renderer at a frame rate of its own (MHFU_FPS), the game's primitives are recorded rather than drawn:
+ * the GE's registers, the matrices, the texture (resolved and uploaded now) and a copy of the vertex and index data.
+ * A frame ends at the game's flip. The display then draws frames from the last two recorded, replaying each primitive
+ * through the same vertex stage - its data copied back into a scratch area of PSP memory the game does not use (the
+ * kernel's) - with its matrices interpolated between the two frames. */
+
+typedef struct {
+    uint32_t reg[256];
+    float world[12], view[12], proj[16], bones[8][12];
+    uint32_t data;                  /* the PRIM command's */
+    uint32_t vaddr;                 /* where the vertices were, to match primitives between frames */
+    uint32_t vbytes, ibytes;        /* the copies' sizes */
+    size_t vcopy, icopy;            /* their offsets in the frame's data */
+    uint32_t tex_slot;
+    int tex_w, tex_h;
+} Draw;
+
+typedef struct {
+    Draw *draws;
+    int n, cap;
+    uint8_t *bytes;
+    size_t used, size;
+    uint32_t display_addr;
+    uint64_t time;                  /* when the game finished it */
+} Frame;
+
+static int recording;               /* primitives are recorded, not drawn */
+static Frame frames[3];             /* recording, latest, previous */
+static Frame *rec = &frames[0], *latest = &frames[1], *previous = &frames[2];
+#define SCRATCH_VERTICES 0x08000000u
+#define SCRATCH_INDICES  0x08600000u
+
+static size_t keep(Frame *f, const void *p, size_t n) {
+    if (f->used + n > f->size) {
+        f->size = (f->used + n) * 2;
+        f->bytes = realloc(f->bytes, f->size);
+    }
+    memcpy(f->bytes + f->used, p, n);
+    size_t at = f->used;
+    f->used += (n + 15) & ~(size_t)15;
+    return at;
+}
+
+static void record(uint32_t data, const Layout *l) {
+    int count = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
+    if (rec->n == rec->cap) {
+        rec->cap = rec->cap ? rec->cap * 2 : 1024;
+        rec->draws = realloc(rec->draws, sizeof *rec->draws * (size_t)rec->cap);
+    }
+    Draw *d = &rec->draws[rec->n++];
+    memcpy(d->reg, reg, sizeof reg);
+    memcpy(d->world, world, sizeof world);
+    memcpy(d->view, view, sizeof view);
+    memcpy(d->proj, proj, sizeof proj);
+    memcpy(d->bones, bones, sizeof bones);
+    d->data = data;
+    d->vaddr = vaddr;
+    int nverts = count;
+    d->ibytes = 0;
+    if (idx) {
+        d->ibytes = (uint32_t)(count * (idx == 1 ? 1 : 2));
+        nverts = 0;
+        for (int i = 0; i < count; i++) {
+            int n = idx == 1 ? LBU(iaddr + (uint32_t)i) : LHU(iaddr + 2 * (uint32_t)i);
+            if (n + 1 > nverts)
+                nverts = n + 1;
+        }
+        d->icopy = keep(rec, PTR(iaddr), d->ibytes);
+    }
+    d->vbytes = (uint32_t)(nverts * l->size);
+    d->vcopy = keep(rec, PTR(vaddr), d->vbytes);
+    d->tex_slot = 0xFFFFFFFFu;
+    if (!(reg[0xD3] & 1) && (reg[0x1E] & 1))
+        d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
+}
+
+/* The time between the last two recorded frames (the game's frame time, normally 1/30 s) */
+uint64_t gpu_frame_period(void) {
+    return latest->time > previous->time ? latest->time - previous->time : 33333;
+}
+
+uint64_t gpu_last_frame_time(void) { return latest->time; }
+
+/* Interpolation between frames: on (with Vulkan) when MHFU_FPS is set */
+void gpu_record(int on) { recording = on; }
+
+/* The game's frame is done: it becomes the latest, the latest the previous */
+void gpu_frame_end(uint32_t display_addr, uint64_t time) {
+    Frame *old = previous;
+    previous = latest;
+    latest = rec;
+    rec = old;
+    rec->n = 0;
+    rec->used = 0;
+    latest->display_addr = display_addr;
+    latest->time = time;
+}
+
+static void lerp(float *out, const float *a, const float *b, int n, float t) {
+    for (int i = 0; i < n; i++)
+        out[i] = a[i] + (b[i] - a[i]) * t;
+}
+
+/* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
+static void replay(const Draw *d, const Draw *prev, float t) {
+    memcpy(reg, d->reg, sizeof reg);
+    if (prev) {
+        lerp(world, prev->world, d->world, 12, t);
+        lerp(view, prev->view, d->view, 12, t);
+        lerp(proj, prev->proj, d->proj, 16, t);
+        lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 8 * 12, t);
+    } else {
+        memcpy(world, d->world, sizeof world);
+        memcpy(view, d->view, sizeof view);
+        memcpy(proj, d->proj, sizeof proj);
+        memcpy(bones, d->bones, sizeof bones);
+    }
+    const Frame *f = latest;
+    memcpy(PTR(SCRATCH_VERTICES), f->bytes + d->vcopy, d->vbytes);
+    if (d->ibytes)
+        memcpy(PTR(SCRATCH_INDICES), f->bytes + d->icopy, d->ibytes);
+    vaddr = SCRATCH_VERTICES;
+    iaddr = SCRATCH_INDICES;
+    render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
+    prim(d->data);
+    render_override_texture(0xFFFFFFFEu, 0, 0);
+}
+
+/* A primitive's identity across frames: where its vertices are, their format, the primitive type and count */
+static uint64_t draw_key(const Draw *d) {
+    return (uint64_t)d->vaddr << 32 ^ (uint64_t)d->reg[0x12] << 8 ^ d->data;
+}
+
+/* Match each draw of the latest frame to the previous frame's: the k-th with a key to the k-th with the same key */
+static int *match(void) {
+    static int *m;
+    static int cap;
+    if (latest->n > cap) {
+        cap = latest->n * 2;
+        m = realloc(m, sizeof *m * (size_t)cap);
+    }
+    /* a small open-addressing table: key -> the previous frame's draws with it, in order (chained by next[]) */
+    static uint64_t *keys;
+    static int *head, *next, *used_upto, hcap;
+    int need = 1;
+    while (need < previous->n * 2 + 16)
+        need <<= 1;
+    if (need > hcap) {
+        hcap = need;
+        keys = realloc(keys, sizeof *keys * (size_t)hcap);
+        head = realloc(head, sizeof *head * (size_t)hcap);
+        used_upto = realloc(used_upto, sizeof *used_upto * (size_t)hcap);
+    }
+    static int ncap;
+    if (previous->n > ncap) {
+        ncap = previous->n * 2;
+        next = realloc(next, sizeof *next * (size_t)ncap);
+    }
+    for (int i = 0; i < hcap; i++)
+        head[i] = -1;
+    for (int i = previous->n - 1; i >= 0; i--) {
+        uint64_t k = draw_key(&previous->draws[i]);
+        int h = (int)((k * 0x9E3779B97F4A7C15ull) >> 40) & (hcap - 1);
+        while (head[h] >= 0 && keys[h] != k)
+            h = (h + 1) & (hcap - 1);
+        keys[h] = k;
+        next[i] = head[h];
+        head[h] = i;
+        used_upto[h] = head[h];
+    }
+    for (int i = 0; i < latest->n; i++) {
+        uint64_t k = draw_key(&latest->draws[i]);
+        int h = (int)((k * 0x9E3779B97F4A7C15ull) >> 40) & (hcap - 1);
+        while (head[h] >= 0 && keys[h] != k)
+            h = (h + 1) & (hcap - 1);
+        if (head[h] < 0 || used_upto[h] < 0) {
+            m[i] = -1;
+        } else {
+            m[i] = used_upto[h];
+            used_upto[h] = next[used_upto[h]];
+        }
+    }
+    return m;
+}
+
+/* Has the camera jumped between the frames (a cut): its position moved far, or it turned a lot? */
+static int camera_cut(const Frame *a, const Frame *b) {
+    const Draw *da = NULL, *db = NULL;
+    for (int i = 0; i < a->n && !da; i++)
+        if (!((a->draws[i].reg[0x12] >> 23) & 1))
+            da = &a->draws[i];
+    for (int i = 0; i < b->n && !db; i++)
+        if (!((b->draws[i].reg[0x12] >> 23) & 1))
+            db = &b->draws[i];
+    if (!da || !db)
+        return 0;
+    float turn = 0, move = 0;
+    for (int i = 0; i < 9; i++)
+        turn += fabsf(da->view[i] - db->view[i]);
+    for (int i = 9; i < 12; i++)
+        move += fabsf(da->view[i] - db->view[i]);
+    return turn > 0.6f || move > 200.0f;
+}
+
+static unsigned long matched, unmatched;
+
+/* Draw a frame t of the way (0-1) from the previous recorded frame to the latest; returns its display address, 0 if
+ * there is none */
+uint32_t gpu_render_frame(float t) {
+    if (!latest->n)
+        return 0;
+    uint32_t saved[256];
+    memcpy(saved, reg, sizeof reg);
+    uint32_t sv = vaddr, si = iaddr;
+    float sw[12], svw[12], sp[16], sb[8][12];
+    memcpy(sw, world, sizeof sw);
+    memcpy(svw, view, sizeof svw);
+    memcpy(sp, proj, sizeof sp);
+    memcpy(sb, bones, sizeof sb);
+    int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
+    int *m = interpolate ? match() : NULL;
+    recording = 0;
+    for (int i = 0; i < latest->n; i++) {
+        const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
+        if (m)
+            prev ? matched++ : unmatched++;
+        replay(&latest->draws[i], prev, t);
+    }
+    recording = 1;
+    memcpy(reg, saved, sizeof reg);
+    vaddr = sv;
+    iaddr = si;
+    memcpy(world, sw, sizeof sw);
+    memcpy(view, svw, sizeof svw);
+    memcpy(proj, sp, sizeof sp);
+    memcpy(bones, sb, sizeof sb);
+    return latest->display_addr;
+}
+
+/* How much the last frames' primitives matched (for MHFU_FPS_STATS) */
+void gpu_match_stats(unsigned long *m, unsigned long *u) {
+    *m = matched;
+    *u = unmatched;
+    matched = unmatched = 0;
+}
+
 static void prim(uint32_t data) {
     int type = (data >> 16) & 7, count = data & 0xFFFF;
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (recording && count > 0) {
+        record(data, &l);
+        if (idx)
+            iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
+        else
+            vaddr += (uint32_t)(count * l.size);
+        return;
+    }
     if (render_on && count > 0)
         render_prim_begin(reg);
     if (count > 0) {

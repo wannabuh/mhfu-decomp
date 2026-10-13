@@ -1,5 +1,9 @@
 /* Presenting frames: in the window (window.c), and written out as PNGs (MHFU_DUMP=N: every Nth frame, to
- * build/frames/), to compare with PPSSPP's. */
+ * build/frames/), to compare with PPSSPP's.
+ *
+ * MHFU_FPS=N (with the Vulkan renderer) shows N frames a second, whatever the game's 30: the game's frames are
+ * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
+ * idle time (present_pump). */
 #include "hle.h"
 #include "render.h"
 
@@ -108,6 +112,74 @@ static void watch(void) {
     }
 }
 
+static int fps = -1;                /* the display's frame rate; 0: the game's own frames */
+static uint64_t next_display;
+
+static int display_fps(void) {
+    if (fps < 0) {
+        const char *e = getenv("MHFU_FPS");
+        fps = e && render_on ? atoi(e) : 0;
+        if (fps < 0 || fps > 1000)
+            fps = 0;
+        if (fps) {
+            gpu_record(1);
+            fprintf(stderr, "display: %d frames a second, interpolated\n", fps);
+        }
+    }
+    return fps;
+}
+
+/* Draw and show a frame if one is due; returns when the next is (or ~0 with no frame rate of its own) */
+uint64_t present_pump(void) {
+    if (!display_fps())
+        return ~(uint64_t)0;
+    uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
+    if (now < next_display)
+        return next_display;
+    /* the moment shown trails the game by one frame: t runs from 0, as a frame lands, towards 1 */
+    uint64_t since = now - gpu_last_frame_time(), period = gpu_frame_period();
+    float t = period ? (float)since / (float)period : 1.0f;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    uint32_t addr = gpu_render_frame(t);
+    static long dump_at = -1;
+    if (dump_at < 0)
+        dump_at = getenv("MHFU_DUMP_AT") ? atol(getenv("MHFU_DUMP_AT")) : 0;
+    /* MHFU_DUMP_AT=N: at the game's frame N, the frames between it and the one before at t = 0, 1/4 ... 1, for checking
+     * the interpolation */
+    static int dumped;
+    if (addr && dump_at && (long)frame >= dump_at && !dumped) {
+        dumped = 1;
+        mkdir("build/frames", 0755);
+        for (int k = 0; k <= 4; k++) {
+            char path[64];
+            gpu_render_frame((float)k / 4);
+            render_readback(addr, window_pixels());
+            snprintf(path, sizeof path, "build/frames/g%06lu-t%03d.png", frame, k * 25);
+            write_png(path, window_pixels());
+        }
+        gpu_render_frame(t);
+    }
+    if (addr)
+        render_flip(addr);
+    static uint64_t stats_at;
+    static unsigned long shown;
+    shown++;
+    if (getenv("MHFU_FPS_STATS") && now - stats_at > 5000000) {
+        unsigned long m, u;
+        gpu_match_stats(&m, &u);
+        fprintf(stderr, "display: %.1f frames a second, %.0f%% of primitives matched\n",
+                (double)shown * 1e6 / (double)(now - stats_at), m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
+        stats_at = now;
+        shown = 0;
+    }
+    if (!window_poll())
+        exit(0);
+    next_display += interval;
+    if (next_display < now)
+        next_display = now + interval;
+    return next_display;
+}
+
 void present_frame(void) {
     if (dump_every < 0) {
         const char *e = getenv("MHFU_DUMP");
@@ -119,7 +191,11 @@ void present_frame(void) {
     watch();
     uint32_t *pixels = window_pixels();
     int dump = dump_every && frame % (unsigned long)dump_every == 0;
-    if (render_on) {
+    if (display_fps()) {
+        gpu_frame_end(display_fb_addr, time_us());
+        if (dump && gpu_render_frame(1.0f))
+            render_readback(display_fb_addr, pixels);
+    } else if (render_on) {
         if (dump)
             render_readback(display_fb_addr, pixels);
         render_flip(display_fb_addr);

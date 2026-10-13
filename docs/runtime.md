@@ -59,6 +59,14 @@ appear ~1500 times in its code and data, 1/30 ten times: no central time step. S
 interpolation - the game's frames recorded, frames in between drawn with their matrices interpolated - and a native 60
 would mean finding and rescaling every system that counts ticks.
 
+`MHFU_FPS=N` (Vulkan) shows N frames a second: each primitive of the game's frame is recorded (registers, matrices,
+texture, a copy of its vertex data) instead of drawn; in the scheduler's idle time the display replays the latest
+frame with each primitive's world, bone, view and projection matrices interpolated towards it from the previous
+frame's matching primitive (same vertex address, format, type and count - the k-th with the k-th), the moment shown
+trailing the game by a frame (about 33 ms). A camera cut turns the interpolation off for that frame. In the village
+98-100% of primitives match and 144 fps holds. What the game animates by rewriting vertices, and the 2D, move at 30.
+`MHFU_FPS_STATS=1` reports the rate and matching; `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
+
 ## Threads
 
 The game runs ten threads (`user_main`, `fakeRofsLoader` - the DATA.BIN reader -, `sha1Thread`, `transferThread`, the

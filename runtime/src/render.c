@@ -414,6 +414,19 @@ static void unpack_rgb(uint32_t c, float *f) {
     f[3] = 1.0f;
 }
 
+static uint32_t override_slot = 0xFFFFFFFEu;
+static int override_w, override_h;
+
+void render_override_texture(uint32_t slot, int w, int h) {
+    override_slot = slot;
+    override_w = w;
+    override_h = h;
+}
+
+uint32_t render_texture(const uint32_t *reg, int *w, int *h) {
+    return texture_slot(reg, w, h);
+}
+
 void render_prim_begin(const uint32_t *reg) {
     DrawState s;
     memset(&s, 0, sizeof s);
@@ -423,7 +436,13 @@ void render_prim_begin(const uint32_t *reg) {
     s.tex_slot = 0xFFFFFFFFu;
     if (!clear && (reg[0x1E] & 1)) {
         int w, h;
-        s.tex_slot = texture_slot(reg, &w, &h);
+        if (override_slot != 0xFFFFFFFEu) {
+            s.tex_slot = override_slot;
+            w = override_w;
+            h = override_h;
+        } else {
+            s.tex_slot = texture_slot(reg, &w, &h);
+        }
         s.tex_w = (float)w;
         s.tex_h = (float)h;
     }

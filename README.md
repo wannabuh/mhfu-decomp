@@ -48,6 +48,12 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 
 A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
 
+## Settings
+
+Environment variables, for now: `MHFU_FPS=60` (or 120, 144...: frame rate, the frames between the game's 30
+interpolated), `MHFU_SCALE=4` (internal resolution, times the PSP's), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the
+on-screen keyboard gives), `MHFU_SAVEDIR=...`, `MHFU_RENDERER=soft`.
+
 ## Licence
 
 GPL-2.0-or-later (see `LICENSE`): the runtime reuses code from [PPSSPP](https://github.com/hrydgard/ppsspp),

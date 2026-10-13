@@ -296,7 +296,8 @@ void scheduler_run(void) {
         process_events();
         Thread *t = highest_ready();
         if (!t) {
-            sleep_until(next_event());
+            uint64_t next = next_event(), display = present_pump();
+            sleep_until(display < next ? display : next);
             continue;
         }
         current = t;

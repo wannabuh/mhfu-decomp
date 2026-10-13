@@ -25,4 +25,17 @@ void render_readback(uint32_t addr, uint32_t *pixels);
 /* gpu.c, for textures: decode the current texture (level 0) into w x h ABGR8888 */
 void gpu_decode_texture(uint32_t *out, int w, int h);
 
+/* Frames recorded for interpolation (gpu.c) */
+void gpu_record(int on);
+void gpu_frame_end(uint32_t display_addr, uint64_t time);
+uint32_t gpu_render_frame(float t);
+void gpu_match_stats(unsigned long *matched, unsigned long *unmatched);
+uint64_t gpu_frame_period(void);
+uint64_t gpu_last_frame_time(void);
+
+/* The texture for the GE's state (made or updated now): its slot and size; and a slot to use instead of finding one,
+ * for replaying (0xFFFFFFFE: none) */
+uint32_t render_texture(const uint32_t *regs, int *w, int *h);
+void render_override_texture(uint32_t slot, int w, int h);
+
 #endif
