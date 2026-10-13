@@ -85,8 +85,9 @@ and traces (calls, memory, display lists) to compare the recompiled game against
   run from the same state, what a caller can see compared. The first sessions: every function that ran without
   reaching an import passed. See [runtime.md](runtime.md).
 - **Booting** (`build/mhfu <game.iso>`): the recompiled game boots through the kernel, I/O and audio HLE into its
-  main loop, call for call as in PPSSPP, and draws its first screen (language selection) with a software GE. Next:
-  input, fonts, savedata, triangles / 3D, sound - and the Vulkan renderer.
+  main loop, call for call as in PPSSPP, and - with scripted input - goes through the boot screens and the title
+  screen into character creation, drawn by a software GE. Next: savedata, triangles / 3D, a window and input, sound,
+  MPEG - and the Vulkan renderer.
 
 ## Open questions (answered by phase 2)
 

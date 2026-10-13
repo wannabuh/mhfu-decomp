@@ -9,6 +9,35 @@
 static int dump_every = -1;
 static unsigned long frame;
 
+/* Scripted input, for running unattended: MHFU_INPUT="first-last:buttons,..." holds the buttons (PSP button bits, in
+ * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last */
+extern uint32_t ctrl_buttons;
+
+static void scripted_input(void) {
+    static const char *script;
+    static int read;
+    if (!read) {
+        script = getenv("MHFU_INPUT");
+        read = 1;
+    }
+    if (!script)
+        return;
+    uint32_t buttons = 0;
+    for (const char *p = script; *p;) {
+        unsigned long first, last;
+        unsigned int b;
+        int n = 0;
+        if (sscanf(p, "%lu-%lu:%x%n", &first, &last, &b, &n) != 3)
+            break;
+        if (frame >= first && frame <= last)
+            buttons |= b;
+        p += n;
+        if (*p == ',')
+            p++;
+    }
+    ctrl_buttons = buttons;
+}
+
 static uint32_t pixel(uint32_t addr, int fmt) {
     if (fmt == 3)
         return LW(addr) | 0xFF000000u;
@@ -51,6 +80,7 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    scripted_input();
     if (dump_every && frame % (unsigned long)dump_every == 0) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);

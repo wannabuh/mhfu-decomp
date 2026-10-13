@@ -99,10 +99,19 @@ static void savedata_work(Dialog *d) {
 
 void hle_sceUtilitySavedataInitStart(Ctx *c) {
     dialog_init(&savedata, ARG0);
+    HLE_WARN("savedata: mode %u, game %.13s, save %.20s, file %.13s, buffer %08X size %X", LW(ARG0 + 0x30),
+             hle_string(c, ARG0 + 0x3C), hle_string(c, ARG0 + 0x4C), hle_string(c, ARG0 + 0x64), LW(ARG0 + 0x74),
+             LW(ARG0 + 0x78));
     RET(0);
 }
 
-void hle_sceUtilitySavedataGetStatus(Ctx *c) { RET(dialog_status(&savedata)); }
+/* The savedata utility works in the background: its status advances as the game polls it */
+void hle_sceUtilitySavedataGetStatus(Ctx *c) {
+    int s = dialog_status(&savedata);
+    if (s == 1 || s == 2)
+        dialog_update(&savedata, savedata_work);
+    RET(s);
+}
 
 void hle_sceUtilitySavedataUpdate(Ctx *c) {
     dialog_update(&savedata, savedata_work);

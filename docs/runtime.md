@@ -19,6 +19,7 @@ for the rest, in the order it is needed to boot.
   renderer. `gpu.c` draws in software into emulated VRAM: sprites (textured or not, all but the DXT formats), the
   texture functions, alpha test, blending, clear mode, block transfers. No triangles or 3D yet.
 - **Frames** (`present.c`): written as PNGs (`MHFU_DUMP=N`: every Nth frame, to `build/frames/`); no window yet.
+  Input can be scripted (`MHFU_INPUT="first-last:buttons,..."`, frames and PSP button bits in hex).
 - **Audio** (`audio.c`): output channels timed as the hardware plays them (silent); the SAS mixes silence.
 - **System** (`system.c`): display, controller, UMD, utility dialogs (savedata: no saves yet), clock and the rest.
 
@@ -28,8 +29,11 @@ for the rest, in the order it is needed to boot.
 PPSSPP's call for call - the same threads, the user heap at `0x09D66000`, DATA.BIN's header read, the font module
 loaded from raw disc sectors - and reaches the game's main loop: each frame a VTimer, `user_main` woken, display lists
 queued, the controller read, the framebuffer flipped, sleep until the next vblank. The sound engine starts (it prints
-its banner). The first screen - the language selection, its background art and menu - is drawn correctly a second
-in. Nothing is heard, there is no input yet, and fonts (`sceFont`) and savedata are stubs.
+its banner). With scripted input (`MHFU_INPUT`) it goes through the language selection, the Memory Stick check, the
+ESRB and Dolby screens, the title screen and into character creation - all drawn correctly, text included (sceFont,
+with the PSP's PGF fonts). The intro movie is skipped (no MPEG yet), nothing is heard, savedata finds no saves, and
+triangles are not drawn.
+- **Fonts** (`font.c`): sceFont over PGF fonts (PPSSPP's compatible ones, found in its assets, or `MHFU_FONTS`).
 
 ## Threads
 
