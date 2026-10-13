@@ -35,6 +35,23 @@ static SDL_Gamepad *pad;
 static int disabled = 1;
 static uint32_t pixels[480 * 272];
 static uint32_t device_buttons;
+static int mouse_captured;
+static float mouse_dx, mouse_dy;         /* motion since the game last took it */
+
+/* The mouse drives the camera while it is captured: from the start, toggled with F10, released when the window loses
+ * focus (and taken again when it is clicked) */
+static void capture_mouse(int on) {
+    if (!window)
+        return;
+    mouse_captured = on;
+    SDL_SetWindowRelativeMouseMode(window, on);
+}
+
+void window_mouse(float *dx, float *dy) {
+    *dx = mouse_dx;
+    *dy = mouse_dy;
+    mouse_dx = mouse_dy = 0;
+}
 
 void window_init(void) {
     int headless = getenv("MHFU_HEADLESS") != NULL;
@@ -49,8 +66,10 @@ void window_init(void) {
         if (!headless)
             window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2,
                                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN);
-        if (render_init(window))
+        if (render_init(window)) {
+            capture_mouse(1);
             return;
+        }
         fprintf(stderr, "renderer: no Vulkan, drawing in software\n");
         if (window)
             SDL_DestroyWindow(window);
@@ -96,7 +115,7 @@ static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (k[map[i].key])
             b |= map[i].button;
-    SDL_MouseButtonFlags m = SDL_GetMouseState(NULL, NULL);
+    SDL_MouseButtonFlags m = mouse_captured ? SDL_GetMouseState(NULL, NULL) : 0;
     if (m & SDL_BUTTON_LMASK)
         b |= PSP_TRIANGLE;
     if (m & SDL_BUTTON_RMASK)
@@ -143,6 +162,16 @@ int window_poll(void) {
             return 0;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
             ram_snapshot();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F10 && !e.key.repeat)
+            capture_mouse(!mouse_captured);
+        if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
+            capture_mouse(0);
+        if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
+            capture_mouse(1);
+        if (e.type == SDL_EVENT_MOUSE_MOTION && mouse_captured) {
+            mouse_dx += e.motion.xrel;
+            mouse_dy += e.motion.yrel;
+        }
         if (e.type == SDL_EVENT_GAMEPAD_ADDED && !pad)
             pad = SDL_OpenGamepad(e.gdevice.which);
         if (e.type == SDL_EVENT_GAMEPAD_REMOVED && pad && SDL_GetGamepadID(pad) == e.gdevice.which) {

@@ -65,6 +65,7 @@ static uint32_t pixel(uint32_t addr, int fmt) {
 
 int window_poll(void);
 uint32_t window_buttons(void);
+void camera_update(void);
 void window_show(const uint32_t *frame);
 uint32_t *window_pixels(void);
 
@@ -237,6 +238,7 @@ void present_frame(void) {
     if (!window_poll())
         exit(0);
     scripted_input(window_buttons());
+    camera_update();
     if (dump) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);
