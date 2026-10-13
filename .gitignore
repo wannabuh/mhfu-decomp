@@ -1,0 +1,15 @@
+# Game data never goes in the repository: bring your own copy of the game.
+*.iso
+*.ISO
+*.cso
+/game/
+/extracted/
+
+# Build output and local environments
+/build/
+/tools/.venv/
+__pycache__/
+*.pyc
+
+# Ghidra project (local; it contains the game's code)
+/ghidra/

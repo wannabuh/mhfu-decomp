@@ -1,0 +1,3 @@
+# The tools' Python modules (installed into tools/.venv by tools/setup.sh)
+rabbitizer        # MIPS instruction decoding, Allegrex and VFPU included
+pyelftools        # reading the decrypted EBOOT (ELF / PRX)
