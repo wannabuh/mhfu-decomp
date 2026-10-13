@@ -359,7 +359,21 @@ uint32_t thread_create_main(Ctx *proto, uint32_t entry, uint32_t prio, uint32_t 
     return t->uid;
 }
 
+/* MHFU_THREADS=1: at exit, each thread's state and what it waits on */
+static void dump_threads(void) {
+    static const char *waits[] = {"", "sleep", "delay", "semaphore", "event flag", "thread end"};
+    for (Thread *t = threads; t; t = t->next)
+        fprintf(stderr, "thread %-24s prio %3u %s%s %08X pc~ra %08X\n", t->name, t->prio,
+                t->status == TS_WAITING ? "waiting: " : t->status == TS_READY ? "ready" :
+                t->status == TS_RUNNING ? "running" : "dormant", t->status == TS_WAITING ? waits[t->wait_type] : "",
+                t->wait_uid, t->ctx.r[31]);
+}
+
 void threads_init(void) {
+    if (getenv("MHFU_THREADS")) {
+        atexit(dump_threads);
+        at_quick_exit(dump_threads);
+    }
     intr_stack_top = kmem_alloc(0x4000, 1, 0x100, 0) + 0x4000 - 0x40;
     next_vblank = VBLANK_US_NUM / VBLANK_US_DEN;
     time_us();

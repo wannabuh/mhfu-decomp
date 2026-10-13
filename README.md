@@ -7,7 +7,7 @@ PSP - with a Vulkan renderer, graphical enhancements, a higher frame rate and na
 **This repository contains no game code or data.** You need your own copy of the game (an ISO of ULUS10391); every
 tool here reads it from your disk, and nothing extracted from it is ever committed.
 
-Status: phase 5 (the recompiled game runs into Pokke Village at full speed on a Vulkan renderer; no sound yet). See [docs/plan.md](docs/plan.md).
+Status: phase 5 (the recompiled game is playable into Pokke Village: Vulkan renderer, music, PC controls). See [docs/plan.md](docs/plan.md).
 
 ## Layout
 

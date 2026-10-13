@@ -25,7 +25,10 @@ for the rest, in the order it is needed to boot.
   `MHFU_VK_VALIDATE=1` turns on the validation layer.
 - **Frames** (`present.c`): written as PNGs (`MHFU_DUMP=N`: every Nth frame, to `build/frames/`); no window yet.
   Input can be scripted (`MHFU_INPUT="first-last:buttons,..."`, frames and PSP button bits in hex).
-- **Audio** (`audio.c`): output channels timed as the hardware plays them (silent); the SAS mixes silence.
+- **Audio** (`audio.c`, `atrac.c`): output channels timed as the hardware plays them, heard through SDL (one stream
+  per channel); ATRAC3 / ATRAC3+ decoded with FFmpeg - the game's music, which matches FFmpeg's own decoding of the
+  same files. The SAS synthesiser mixes silence (the game has not been seen using it). `MHFU_MUTE=1` silences;
+  `MHFU_AUDIO_DUMP=1` writes each channel's output to `build/audio-ch<N>.raw`.
 - **System** (`system.c`): display, controller, UMD, utility dialogs (savedata: no saves yet), clock and the rest.
 
 ## Booting (where it is)
@@ -41,7 +44,8 @@ heard, there is no lighting, and the system's own dialogs (save messages) are an
 - **Fonts** (`font.c`): sceFont over PGF fonts (PPSSPP's compatible ones, found in its assets, or `MHFU_FONTS`).
 - **Savedata** (`savedata.c`): plain files in `~/.local/share/mhfu-recomp/SAVEDATA` (or `MHFU_SAVEDIR`).
 - **Callbacks**: run on their thread at its ...CB waits; the Memory Stick's insert callback hears "inserted".
-- **Debugging**: `MHFU_WATCH=addr,...` logs memory words as they change, each frame.
+- **Debugging**: `MHFU_WATCH=addr,...` logs memory words as they change, each frame; `MHFU_THREADS=1`
+  lists the threads and what they wait on at exit.
 
 ## Threads
 

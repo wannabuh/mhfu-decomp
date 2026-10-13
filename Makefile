@@ -40,10 +40,10 @@ build/game.a: build/gen/.stamp
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -lSDL3 -lvulkan -o $@
+	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -lSDL3 -lvulkan -lavcodec -lavutil -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $^ -lm -lpng -lSDL3 -lvulkan -o $@
+	$(CC) $(CFLAGS) $^ -lm -lpng -lSDL3 -lvulkan -lavcodec -lavutil -o $@
 
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm
