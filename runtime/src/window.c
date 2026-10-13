@@ -6,7 +6,7 @@
  *
  * Keyboard and mouse, laid out for playing on a PC (the PSP buttons they press, with MHFU's default controls):
  *   W A S D      move (the analog stick)          Shift        sprint (R)
- *   Space        dodge / roll (cross)             F            interact (circle)
+ *   Space        dodge / roll (cross)             F            interact: talk, gather, carve (cross)
  *   left mouse   primary attack (triangle)        right mouse  secondary attack (circle)
  *   middle / E   special attack (triangle + circle)   Q        use item / sheathe (square)
  *   Tab          reset the camera (L)             Esc          menu (START)
@@ -70,7 +70,7 @@ static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     const bool *k = SDL_GetKeyboardState(NULL);
     uint32_t b = 0;
     static const struct { SDL_Scancode key; uint32_t button; } map[] = {
-        {SDL_SCANCODE_SPACE, PSP_CROSS}, {SDL_SCANCODE_F, PSP_CIRCLE}, {SDL_SCANCODE_Q, PSP_SQUARE},
+        {SDL_SCANCODE_SPACE, PSP_CROSS}, {SDL_SCANCODE_F, PSP_CROSS}, {SDL_SCANCODE_Q, PSP_SQUARE},
         {SDL_SCANCODE_E, PSP_TRIANGLE | PSP_CIRCLE}, {SDL_SCANCODE_LSHIFT, PSP_R}, {SDL_SCANCODE_RSHIFT, PSP_R},
         {SDL_SCANCODE_TAB, PSP_L}, {SDL_SCANCODE_ESCAPE, PSP_START}, {SDL_SCANCODE_C, PSP_SELECT},
         {SDL_SCANCODE_UP, PSP_UP}, {SDL_SCANCODE_DOWN, PSP_DOWN}, {SDL_SCANCODE_LEFT, PSP_LEFT},

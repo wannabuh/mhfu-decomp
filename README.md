@@ -39,7 +39,7 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 | Key | Does (PSP button) | Key | Does (PSP button) |
 |-----|-------------------|-----|-------------------|
 | W A S D | move (analog stick) | Shift | sprint (R) |
-| Space | dodge / roll (×) | F | interact (○) |
+| Space | dodge / roll (×) | F | interact: talk, gather, carve (×) |
 | Left mouse | primary attack (△) | Right mouse | secondary attack (○) |
 | Middle mouse / E | special attack (△ + ○) | Q | use item / sheathe (□) |
 | Tab | reset camera (L) | Esc | menu (START) |
