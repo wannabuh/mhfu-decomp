@@ -102,7 +102,7 @@ static size_t corners_cap;
  * resolution, blurred, multiplied into the picture (MHFU_AO=0: none; MHFU_AO_STRENGTH, MHFU_AO_RADIUS) */
 #define AO_FADE 6000.0f                 /* gone by this far */
 static int ao_on = -1;
-static float ao_strength = 1.0f, ao_radius = 60.0f;
+static float ao_strength = 2.0f, ao_radius = 120.0f;
 static VkImg ao_img[2];
 static VkPipeline ao_pipeline, ao_blur_pipeline, ao_apply_pipeline;
 static VkPipelineLayout ao_layout;

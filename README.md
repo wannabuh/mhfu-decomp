@@ -70,7 +70,7 @@ PSP's; by default as many lines as the screen has: 6 at 1440p), `MHFU_MUTE=1`, `
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_SHADOWS=0`, `MHFU_SUN_SHADING=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`, `MHFU_POINT_SHADOWS=0`,
 `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, lighting by the pixel, lights
 from the game's fires and their shadows, ambient occlusion: all on otherwise), `MHFU_POINT_GAIN=1` (the fires' lights'
-strength), `MHFU_AO_STRENGTH=1`, `MHFU_AO_RADIUS=60` (the ambient occlusion's strength, and how far it looks, in the
+strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's strength, and how far it looks, in the
 game's units), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
 
