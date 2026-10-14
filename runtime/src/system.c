@@ -226,8 +226,10 @@ void hle_sceUtilityGetSystemParamInt(Ctx *c) {
 void hle_sceImposeSetLanguageMode(Ctx *c) { RET(0); }
 void hle_scePowerRegisterCallback(Ctx *c) { RET(0); }
 
+uint64_t epoch_now_us(void);
+
 void hle_sceRtcGetCurrentClockLocalTime(Ctx *c) {   /* ScePspDateTime: year, month, day, hour, minute, second (u16), us (u32) */
-    time_t now = time(NULL);
+    time_t now = (time_t)(epoch_now_us() / 1000000u);
     struct tm tm;
     localtime_r(&now, &tm);
     SH(ARG0, tm.tm_year + 1900);

@@ -34,8 +34,130 @@ static int skip_intro(void) {
     return skip;
 }
 
+/* Recording and replaying the input (MHFU_RECORD=file, MHFU_REPLAY=file): the game's clock being virtual (thread.c), a
+ * run is the same for the same input, so replaying a recording - as fast as it goes, nothing shown or heard - brings
+ * the game back to where it ended, and play carries on from there (recorded too, with MHFU_RECORD: a recording can be
+ * extended). A file: "mhfu-replay 1", "epoch <us>" (the date and time the run started), then a line for each frame whose
+ * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
+ * and "end <frame>". A save changed since, or a runtime that runs the game differently, can make a replay go astray. */
+typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
+static Input *replay;
+static size_t replay_n, replay_at;
+static unsigned long replay_end;
+static int replay_loaded;
+static uint64_t replay_epoch_us;
+
+static void load_replay(void) {
+    if (replay_loaded)
+        return;
+    replay_loaded = 1;
+    const char *path = getenv("MHFU_REPLAY");
+    if (!path)
+        return;
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        fprintf(stderr, "cannot read the replay %s\n", path);
+        return;
+    }
+    char line[256];
+    size_t cap = 0;
+    while (fgets(line, sizeof line, f)) {
+        Input in;
+        unsigned long long e;
+        if (sscanf(line, "epoch %llu", &e) == 1)
+            replay_epoch_us = e;
+        else if (sscanf(line, "end %lu", &replay_end) == 1)
+            ;
+        else if (sscanf(line, "%lu %x %d %d %g %g", &in.frame, &in.buttons, &in.lx, &in.ly, &in.mx, &in.my) == 6) {
+            if (replay_n == cap) {
+                cap = cap ? cap * 2 : 1024;
+                replay = realloc(replay, cap * sizeof *replay);
+            }
+            replay[replay_n++] = in;
+        }
+    }
+    fclose(f);
+    if (!replay_end && replay_n)
+        replay_end = replay[replay_n - 1].frame;
+    fprintf(stderr, "replaying %s: %lu frames\n", path, replay_end);
+}
+
+/* thread.c: the date and time the replayed run started (0 if none) */
+uint64_t replay_epoch(void) {
+    load_replay();
+    return replay_epoch_us;
+}
+
+static int replaying(void) {
+    load_replay();
+    return replay_end && frame < replay_end;
+}
+
 int fast_forward(void) {
-    return skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME;
+    return (skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME) || replaying();
+}
+
+/* This frame's input, from the replay while there is one */
+static void replay_input(float *mx, float *my) {
+    if (!replaying())
+        return;
+    static Input held = {0, 0, 128, 128, 0, 0};
+    *mx = *my = 0;
+    while (replay_at < replay_n && replay[replay_at].frame <= frame) {
+        held = replay[replay_at];
+        if (held.frame == frame) {
+            *mx = held.mx;
+            *my = held.my;
+        }
+        replay_at++;
+    }
+    ctrl_buttons = held.buttons;
+    ctrl_lx = (uint8_t)held.lx;
+    ctrl_ly = (uint8_t)held.ly;
+    if (frame + 1 == replay_end)
+        fprintf(stderr, "replay done: over to you\n");
+}
+
+static FILE *record;
+static unsigned long recorded_frame;
+
+static void end_record(void) {
+    if (record) {
+        fprintf(record, "end %lu\n", recorded_frame);
+        fclose(record);
+        record = NULL;
+    }
+}
+
+uint64_t run_epoch_us(void);
+
+static void record_input(float mx, float my) {
+    static int opened;
+    static uint32_t last_b = ~0u;
+    static int last_x = -1, last_y = -1;
+    if (!opened) {
+        opened = 1;
+        const char *path = getenv("MHFU_RECORD");
+        if (path) {
+            record = fopen(path, "w");
+            if (!record)
+                fprintf(stderr, "cannot write the recording %s\n", path);
+            else {
+                fprintf(record, "mhfu-replay 1\nepoch %llu\n", (unsigned long long)run_epoch_us());
+                atexit(end_record);
+            }
+        }
+    }
+    if (!record)
+        return;
+    recorded_frame = frame;
+    if (ctrl_buttons != last_b || ctrl_lx != last_x || ctrl_ly != last_y || mx != 0 || my != 0) {
+        fprintf(record, "%lu %x %d %d %.9g %.9g\n", frame, ctrl_buttons, ctrl_lx, ctrl_ly, mx, my);
+        fflush(record);
+        last_b = ctrl_buttons;
+        last_x = ctrl_lx;
+        last_y = ctrl_ly;
+    }
 }
 
 /* The buttons held: the devices' (window_poll) and the script's */
@@ -83,7 +205,9 @@ static uint32_t pixel(uint32_t addr, int fmt) {
 
 int window_poll(void);
 uint32_t window_buttons(void);
-void camera_update(void);
+void window_stick(uint8_t *lx, uint8_t *ly);
+void window_mouse(float *dx, float *dy);
+void camera_update(float dx, float dy);
 void window_show(const uint32_t *frame);
 uint32_t *window_pixels(void);
 
@@ -258,10 +382,16 @@ void present_frame(void) {
     }
     if (!window_poll())
         exit(0);
+    /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's */
+    window_stick(&ctrl_lx, &ctrl_ly);
+    float mx, my;
+    window_mouse(&mx, &my);
     scripted_input(window_buttons());
     if (skip_intro() && frame >= LANGUAGE_FRAME && frame < LANGUAGE_FRAME + 5)
         ctrl_buttons |= 0x4000;
-    camera_update();
+    replay_input(&mx, &my);
+    record_input(mx, my);
+    camera_update(mx, my);
     if (dump) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);

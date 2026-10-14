@@ -89,25 +89,65 @@ static VTimer *vtimers[MAX_VTIMERS];
 
 /* -- time --------------------------------------------------------------------------------------------------------- */
 
-static uint64_t boot_ns;
-static uint64_t warp_us;            /* time skipped while fast-forwarding (present.c) */
+/* The game's clock: virtual, so that a run is the same every time for the same input (MHFU_RECORD / MHFU_REPLAY). It
+ * stands still while the game runs and moves only when every thread waits - to what they wait for (a vblank, a timer, a
+ * timeout), when the wall clock gets there; fast-forwarding, at once. A slow host slows the game rather than making it
+ * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
+static uint64_t now_us;
+static uint64_t wall_base;          /* the wall clock (us) when the game's clock was 0, for pacing */
+static uint64_t epoch_us;           /* the date and time (us since 1970) when the game's clock was 0 */
 int fast_forward(void);
 
-uint64_t time_us(void) {
+static uint64_t wall_us(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    uint64_t ns = (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
-    if (!boot_ns)
-        boot_ns = ns;
-    return (ns - boot_ns) / 1000 + warp_us;
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000;
 }
 
-static void sleep_until(uint64_t us) {
-    uint64_t now = time_us();
-    if (us > now) {
-        struct timespec ts = {(time_t)((us - now) / 1000000), (long)((us - now) % 1000000) * 1000};
-        nanosleep(&ts, NULL);
+uint64_t time_us(void) {
+    return now_us;
+}
+
+uint64_t time_read_us(void) {
+    return ++now_us;
+}
+
+/* The date and time, for the game's real-time clock: from the run's start (recorded, so a replay has the same) */
+uint64_t replay_epoch(void);
+
+uint64_t epoch_now_us(void) {
+    if (!epoch_us)
+        epoch_us = replay_epoch();
+    if (!epoch_us) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        epoch_us = (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000;
     }
+    return epoch_us + now_us;
+}
+
+uint64_t run_epoch_us(void) {
+    return epoch_now_us() - now_us;
+}
+
+/* Every thread waits: move the clock to `until`, once the wall clock is there (unless fast-forwarding). Ahead or behind
+ * by more than a quarter of a second - after fast-forwarding, or a stall - the pacing starts again from now. */
+static void advance_to(uint64_t until) {
+    if (until <= now_us)                /* due, but not run (interrupts off): let time go on */
+        until = now_us + 1;
+    if (!fast_forward()) {
+        uint64_t wall = wall_us();
+        int64_t ahead = (int64_t)(wall_base + until) - (int64_t)wall;
+        if (ahead > 250000 || ahead < -250000) {
+            wall_base = wall - until;
+            ahead = 0;
+        }
+        if (ahead > 0) {
+            struct timespec ts = {(time_t)(ahead / 1000000), (long)(ahead % 1000000) * 1000};
+            nanosleep(&ts, NULL);
+        }
+    }
+    now_us = until;
 }
 
 #define VBLANK_US_NUM 1001000u        /* 59.94 Hz: a vblank every 1001000 / 60 us */
@@ -299,13 +339,7 @@ void scheduler_run(void) {
         Thread *t = highest_ready();
         if (!t) {
             uint64_t next = next_event(), display = present_pump();
-            if (fast_forward()) {
-                uint64_t now = time_us();
-                if (next > now)
-                    warp_us += next - now;
-                continue;
-            }
-            sleep_until(display < next ? display : next);
+            advance_to(display < next ? display : next);
             continue;
         }
         current = t;
@@ -890,8 +924,8 @@ static void run_callbacks(void) {
 
 /* -- HLE: time and virtual timers --------------------------------------------------------------------------------- */
 
-void hle_sceKernelGetSystemTimeLow(Ctx *c) { RET((uint32_t)time_us()); }
-void hle_sceKernelGetSystemTimeWide(Ctx *c) { RET64(time_us()); }
+void hle_sceKernelGetSystemTimeLow(Ctx *c) { RET((uint32_t)time_read_us()); }
+void hle_sceKernelGetSystemTimeWide(Ctx *c) { RET64(time_read_us()); }
 
 void hle_sceKernelSysClock2USecWide(Ctx *c) {
     uint64_t clock = ARG0 | ((uint64_t)ARG1 << 32);

@@ -21,7 +21,6 @@
 #include <string.h>
 #include <time.h>
 
-extern uint8_t ctrl_lx, ctrl_ly;
 
 enum {
     PSP_SELECT = 0x1, PSP_START = 0x8, PSP_UP = 0x10, PSP_RIGHT = 0x20, PSP_DOWN = 0x40, PSP_LEFT = 0x80,
@@ -35,6 +34,7 @@ static SDL_Gamepad *pad;
 static int disabled = 1;
 static uint32_t pixels[480 * 272];
 static uint32_t device_buttons;
+static uint8_t device_lx = 128, device_ly = 128;     /* the stick: the game reads it at frames (present.c) */
 static int mouse_captured;
 static float mouse_dx, mouse_dy;         /* motion since the game last took it */
 
@@ -188,8 +188,8 @@ int window_poll(void) {
     uint32_t b = keyboard_buttons(&lx, &ly);
     b |= gamepad_buttons(&lx, &ly);
     device_buttons = b;
-    ctrl_lx = lx;
-    ctrl_ly = ly;
+    device_lx = lx;
+    device_ly = ly;
     return 1;
 }
 
@@ -205,3 +205,8 @@ void window_show(const uint32_t *frame) {
 
 uint32_t *window_pixels(void) { return pixels; }
 uint32_t window_buttons(void) { return device_buttons; }
+
+void window_stick(uint8_t *lx, uint8_t *ly) {
+    *lx = device_lx;
+    *ly = device_ly;
+}

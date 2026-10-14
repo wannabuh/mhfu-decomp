@@ -56,6 +56,10 @@ on-screen keyboard gives), `MHFU_SAVEDIR=...`, `MHFU_RENDERER=soft`, `MHFU_MOUSE
 count turns the camera), `MHFU_INTRO=1` (play the intros: otherwise English is chosen and the logos are skipped, to the
 title in about two seconds).
 
+To get back somewhere quickly - into a quest, say - record playing there once, `MHFU_RECORD=quest.rec`, then start
+with `MHFU_REPLAY=quest.rec`: the game replays it in seconds and hands over (saving in the game since can change where
+it ends up). Both together replay and keep recording.
+
 ## Licence
 
 GPL-2.0-or-later (see `LICENSE`): the runtime reuses code from [PPSSPP](https://github.com/hrydgard/ppsspp),

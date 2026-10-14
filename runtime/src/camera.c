@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void window_mouse(float *dx, float *dy);
 void window_mouse_peek(float *dx, float *dy);
 
 #define SCENE_PTR 0x089CBD04u
@@ -77,14 +76,12 @@ static void pitch(uint32_t preset, float by) {
     *distance = pitched[i].distance = pitched[i].radius * cosf(a);
 }
 
-/* After each game frame: note its camera, then give the game the mouse's motion for the next */
-void camera_update(void) {
+/* After each game frame: note its camera, then give the game the mouse's motion (this frame's, dx dy) for the next */
+void camera_update(float dx, float dy) {
     if (sens < 0) {
         const char *e = getenv("MHFU_MOUSE_SENS");
         sens = e ? (float)atof(e) : 0.15f;
     }
-    float dx, dy;
-    window_mouse(&dx, &dy);
     applied = written;
     written = 0;
     active = 0;

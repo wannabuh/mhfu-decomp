@@ -207,21 +207,23 @@ void hle_sceKernelDcacheWritebackInvalidateAll(Ctx *c) { RET(0); }
 void hle_sceKernelDcacheInvalidateRange(Ctx *c) { RET(0); }
 void hle_sceKernelIcacheInvalidateAll(Ctx *c) { RET(0); }
 
+uint64_t epoch_now_us(void);
+uint64_t time_read_us(void);
+
 void hle_sceKernelLibcTime(Ctx *c) {
-    uint32_t t = (uint32_t)time(NULL);
+    uint32_t t = (uint32_t)(epoch_now_us() / 1000000u);
     if (ARG0)
         SW(ARG0, t);
     RET(t);
 }
 
-void hle_sceKernelLibcClock(Ctx *c) { RET((uint32_t)time_us()); }
+void hle_sceKernelLibcClock(Ctx *c) { RET((uint32_t)time_read_us()); }
 
 void hle_sceKernelLibcGettimeofday(Ctx *c) {
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t us = epoch_now_us();
     if (ARG0) {
-        SW(ARG0, (uint32_t)ts.tv_sec);
-        SW(ARG0 + 4, (uint32_t)(ts.tv_nsec / 1000));
+        SW(ARG0, (uint32_t)(us / 1000000u));
+        SW(ARG0 + 4, (uint32_t)(us % 1000000u));
     }
     RET(0);
 }

@@ -82,8 +82,18 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
 - **Interrupts** (vblank at 59.94 Hz, GE list completion, timers) run at kernel calls rather than at any instruction.
   The game waits for vblank through the kernel every frame, so that should be enough; if a thread is found busy-waiting
   on memory an interrupt handler sets, the recompiler can add a check at backward branches.
-- **Time**: the emulated clock follows the host clock, so the game runs in real time; `sceKernelDelayThread` and the
-  vblank are scheduled on it.
+- **Time** is virtual, so that a run is the same every time for the same input: the clock stands still while the game
+  runs and moves only when every thread waits - to what they wait for (a vblank, a timer, a timeout), once the host
+  clock gets there (or at once, fast-forwarding). A slow host slows the game instead of making it skip; reading the
+  clock moves it a microsecond, so that a wait by reading it ends. The date and time are the run's start (recorded)
+  plus the clock. Input reaches the game only at its frames. Two runs of the village script leave all 24 MB of RAM the
+  same at frames 1500 and 2500.
+- **Recording and replay**: `MHFU_RECORD=file` writes the input of each frame that changes it (buttons, stick, mouse)
+  and the start time; `MHFU_REPLAY=file` plays it back fast-forwarded (nothing shown or heard), then hands over (with
+  `MHFU_RECORD` too, the recording carries on). A replay ends where the recording did, byte for byte - as long as the
+  saves it loads and the way the runtime runs the game are unchanged.
+- **Intros** are skipped (`MHFU_INTRO=1` plays them): cross is pressed at the language menu (frame 40) and the game
+  fast-forwarded to the title (frame 470).
 
 ## HLE
 
