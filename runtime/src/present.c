@@ -16,6 +16,10 @@
 static int dump_every = -1;
 static unsigned long frame;
 
+unsigned long present_frame_number(void) {
+    return frame;
+}
+
 /* Scripted input, for running unattended: MHFU_INPUT="first-last:buttons,..." holds the buttons (PSP button bits, in
  * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last; and the analog
  * stick, pushed fully: 0x10000 up, 0x20000 down, 0x40000 left, 0x80000 right */
@@ -296,6 +300,9 @@ uint64_t present_pump(void) {
     uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
     if (now < next_display)
         return next_display;
+    /* the input first, so that the frame shows the mouse as it is now (as the game's frames do) */
+    if (!window_poll())
+        exit(0);
     /* the moment shown trails the game by one frame: t runs from 0, as a frame lands, towards 1 */
     uint64_t since = now - gpu_last_frame_time(), period = gpu_frame_period();
     float t = period ? (float)since / (float)period : 1.0f;
@@ -332,8 +339,6 @@ uint64_t present_pump(void) {
         stats_at = now;
         shown = 0;
     }
-    if (!window_poll())
-        exit(0);
     next_display += interval;
     if (next_display < now)
         next_display = now + interval;

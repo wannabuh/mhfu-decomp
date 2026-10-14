@@ -39,12 +39,19 @@ static float left;                      /* turn not yet written (in 65536ths) */
 /* The yaw turn the latest was made with (radians); active: the camera follows the yaw (not in the village,
  * where it is fixed) */
 static float applied, written;
+/* r: how much of its last turn the game did (it turns less, or not at all, where the scenery holds the camera back);
+ * the shown yaw just before the latest frame, from the frame before it (the latest's yaw then, and r) - to carry the
+ * picture across the frame without a jump; tick: the game's frames, counted */
+static float r = 1, before_yaw, before_r = 1;
+static unsigned long tick;
 static int active;
 
 /* The game's last two frames' cameras: view matrices (4x3, as gpu.c's), targets, yaws (the eye's bearing from the
  * target, radians); have: how many frames are recorded (up to 2) */
 static float views[2][12], targets[2][3], eyes[2][3], yaws[2];
 static int have;
+
+static float wrap(float a);
 
 static int in_ram(uint32_t a) {
     return a >= 0x08800000u && a < 0x0A000000u;
@@ -82,9 +89,11 @@ void camera_update(float dx, float dy) {
         const char *e = getenv("MHFU_MOUSE_SENS");
         sens = e ? (float)atof(e) : 0.15f;
     }
+    before_r = r;
     applied = written;
     written = 0;
     active = 0;
+    tick++;
     uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);
     if (!in_ram(scene))
         return;
@@ -99,6 +108,7 @@ void camera_update(float dx, float dy) {
     memcpy(views[0], views[1], sizeof views[0]);
     memcpy(targets[0], targets[1], sizeof targets[0]);
     memcpy(eyes[0], eyes[1], sizeof eyes[0]);
+    before_yaw = yaws[1];
     yaws[0] = yaws[1];
     for (int j = 0; j < 4; j++)
         for (int i = 0; i < 3; i++)
@@ -108,10 +118,17 @@ void camera_update(float dx, float dy) {
     yaws[1] = atan2f(e[0] - t[0], e[2] - t[2]);
     if (have < 2)
         have++;
-    /* the camera follows the yaw if it looks along it: its eye is behind the target, at the yaw half a turn round */
-    int16_t off = (int16_t)((int)(atan2f(e[0] - t[0], e[2] - t[2]) * 32768 / PI) + 32768 - yaw[1]);
-    /* and only the hunt's camera (view 0): the village's (2) has its own fixed angle, and eases back to it */
-    active = view_no == 0 && off > -0x1000 && off < 0x1000;
+    if (fabsf(applied) > 0.002f) {
+        float f = wrap(yaws[1] - yaws[0]) / applied;
+        r = f < 0 ? 0 : f > 1 ? 1 : f;
+    }
+    /* the hunt's camera (view 0) turns with the yaw; the village's and the camp tent's (view 2) have their own fixed
+     * angles. (Where the hunt's runs into the scenery, the game holds it back for a few frames; the turn shown then
+     * follows what the game did - applied less turned.) */
+    active = view_no == 0;
+    if (getenv("MHFU_CAMERA_DEBUG"))
+        fprintf(stderr, "camera: %llu view %d yaw %04X/%04X bearing %.4f->%.4f applied %.4f\n",
+                (unsigned long long)time_us(), view_no, yaw[0], yaw[1], yaws[0], yaws[1], applied);
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
     int turn = (int)left;
@@ -173,7 +190,34 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     window_mouse_peek(&dx, &dy);
     /* pending: what the game has been given but not drawn yet (written), and what the mouse has moved since */
     float pending = written + (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536;
-    float a = interpolating ? (1 - t) * (applied - turned) + pending : pending;
+    /* the turn the mouse asks for is shown at once as far as the game follows it (r): showing it ahead of a camera the
+     * scenery holds back would jerk back every frame */
+    float a = interpolating ? r * ((1 - t) * applied + pending) - (1 - t) * turned : r * pending;
+    /* where the game did something else than expected (the camera stopped by a wall), the picture would jump at its
+     * frame: the jump is taken out, and fades over about 60 ms. (Over 30 degrees: a cut, shown as it is.) */
+    static unsigned long seen;
+    static float corr;
+    static uint64_t corr_at;
+    uint64_t now = time_us();
+    float fade = corr * expf(-(float)(now - corr_at) / 60000.0f);
+    if (seen != tick) {
+        seen = tick;
+        float jump = wrap(yaws[1] + a - (before_yaw + before_r * (applied + pending)));
+        fade = fabsf(jump) < PI / 6 ? fade - jump : 0;
+        corr = fade;
+        corr_at = now;
+    }
+    a += fade;
+    /* MHFU_CAMERA_LOG=file: each frame shown, its time, t and the yaw shown (for checking that turning is smooth) */
+    static FILE *log;
+    static int log_read;
+    if (!log_read) {
+        log_read = 1;
+        if (getenv("MHFU_CAMERA_LOG"))
+            log = fopen(getenv("MHFU_CAMERA_LOG"), "w");
+    }
+    if (log)
+        fprintf(log, "%llu %.4f %.6f %d\n", (unsigned long long)time_us(), t, yaws[1] + a, interpolating);
     float c[3];
     for (int i = 0; i < 3; i++)
         c[i] = interpolating ? targets[0][i] + (targets[1][i] - targets[0][i]) * t : targets[1][i];

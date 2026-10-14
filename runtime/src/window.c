@@ -158,7 +158,34 @@ static uint32_t gamepad_buttons(uint8_t *lx, uint8_t *ly) {
 }
 
 /* Read input; returns 0 if the window was closed */
+/* MHFU_TEST_MOUSE="frame,vx,vy[,frames]": from the game's frame, move the mouse at vx, vy counts a second (for so many
+ * frames), as the window would - for testing the camera without a hand on the mouse */
+unsigned long present_frame_number(void);
+
+static void test_mouse(void) {
+    static int read;
+    static unsigned long from, frames;
+    static float vx, vy;
+    static uint64_t last;
+    if (!read) {
+        read = 1;
+        const char *e = getenv("MHFU_TEST_MOUSE");
+        frames = ~0ul;
+        if (!e || sscanf(e, "%lu,%f,%f,%lu", &from, &vx, &vy, &frames) < 3)
+            from = ~0ul;
+    }
+    unsigned long f = present_frame_number();
+    uint64_t now = time_us();
+    if (f >= from && f < from + frames && last) {
+        float dt = (float)(now - last) / 1e6f;
+        mouse_dx += vx * dt;
+        mouse_dy += vy * dt;
+    }
+    last = now;
+}
+
 int window_poll(void) {
+    test_mouse();
     if (!enabled())
         return 1;
     SDL_Event e;
