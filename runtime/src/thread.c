@@ -93,6 +93,7 @@ static VTimer *vtimers[MAX_VTIMERS];
  * stands still while the game runs and moves only when every thread waits - to what they wait for (a vblank, a timer, a
  * timeout), when the wall clock gets there; fast-forwarding, at once. A slow host slows the game rather than making it
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
+float rt_time_scale = 1;
 static uint64_t now_us;
 static uint64_t wall_base;          /* the wall clock (us) when the game's clock was 0, for pacing */
 static uint64_t epoch_us;           /* the date and time (us since 1970) when the game's clock was 0 */
@@ -424,6 +425,15 @@ static void dump_threads(void) {
 void threads_init(void) {
     if (getenv("MHFU_VBLANK_HZ"))
         vblank_den = (unsigned)atoi(getenv("MHFU_VBLANK_HZ"));
+    /* MHFU_TICK_HZ=N (an experiment, towards the native frame rate): the game's frames N a second - its vblank handler
+     * wakes it every second vblank, so the vblanks come 2N a second - and what the patches scale by 30 / N */
+    if (getenv("MHFU_TICK_HZ")) {
+        int hz = atoi(getenv("MHFU_TICK_HZ"));
+        if (hz >= 30 && hz <= 480) {
+            vblank_den = (unsigned)(2 * hz);
+            rt_time_scale = 30.0f / (float)hz;
+        }
+    }
     if (getenv("MHFU_THREADS")) {
         atexit(dump_threads);
         at_quick_exit(dump_threads);

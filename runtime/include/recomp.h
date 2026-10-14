@@ -48,6 +48,9 @@ void rt_bad_jump(Ctx *c, uint32_t value, uint32_t at);
 void rt_break(Ctx *c, uint32_t at);
 void rt_unreachable(Ctx *c, uint32_t at);
 
+/* The native frame rate (recomp/patches.py): 30 / the game's frames a second (MHFU_TICK_HZ), 1 at its own rate */
+extern float rt_time_scale;
+
 /* Instructions done by the runtime */
 void vfpu_exec(Ctx *c, uint32_t instr, uint32_t at);    /* any VFPU instruction but a branch */
 uint32_t rt_lwl(Ctx *c, uint32_t addr, uint32_t old);

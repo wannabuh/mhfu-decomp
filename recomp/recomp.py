@@ -22,6 +22,7 @@ import rabbitizer  # noqa: E402
 rabbitizer.config.pseudos_enablePseudos = False
 
 import modules  # noqa: E402
+from patches import PATCHES  # noqa: E402
 
 ROOT = modules.ROOT
 
@@ -71,6 +72,7 @@ def vfpu_op(name):
 
 class Translator:
     def __init__(self, mods, functions):
+        self.patched = 0
         self.mods = mods
         self.by_name = {m.name: m for m in mods}
         self.main = mods[0]
@@ -99,6 +101,13 @@ class Translator:
     # -- one instruction (not control flow) --------------------------------------------------------------------
     def op(self, mod, a):
         i = mod.ins(a)
+        patch = PATCHES.get((mod.name, a))
+        if patch:
+            expected, code, _why = patch
+            if " ".join(i.disassemble().split()) != " ".join(expected.split()):
+                raise SystemExit(f"patch at {mod.name} {a:#x}: expected {expected!r}, found {i.disassemble()!r}")
+            self.patched += 1
+            return code + " /* patched (recomp/patches.py) */"
         n = i.uniqueId.name
         w = i.getRaw()
         rs, rt, rd = (w >> 21) & 31, (w >> 16) & 31, (w >> 11) & 31
@@ -428,7 +437,9 @@ def main():
         out.write("const RecompImport recomp_imports[] = {\n")
         out.write("".join(f"    {{{hx(a)}, \"{lib}\", {hx(nid)}}},\n" for a, (lib, nid) in imps))
         out.write(f"}};\nconst int recomp_nimports = {len(imps)};\n")
-    print(f"{files} C files, {len(protos)} functions, {errors} not translated", file=sys.stderr)
+    print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched", file=sys.stderr)
+    if not args.modules and tr.patched != len(PATCHES):
+        raise SystemExit(f"{len(PATCHES) - tr.patched} patches in recomp/patches.py were not applied")
     return 1 if errors else 0
 
 

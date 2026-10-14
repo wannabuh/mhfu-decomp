@@ -66,6 +66,7 @@ frame's matching primitive (same vertex address, format, type and count - the k-
 trailing the game by a frame (about 33 ms). A camera cut - the camera moving over 600 units or turning
 over 60 degrees in a frame - turns the interpolation off for that frame. In the village
 98-100% of primitives match and 144 fps holds. What the game animates by rewriting vertices, and the 2D, move at 30.
+Running the game itself faster - the native frame rate - is in `docs/native.md` (`MHFU_TICK_HZ`, an experiment).
 `MHFU_FPS_STATS=1` reports the rate and matching; `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
 
 ## Threads
