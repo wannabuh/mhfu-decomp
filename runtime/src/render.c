@@ -27,6 +27,9 @@
 #include "shadow.frag.inc"
 #include "pshadow.vert.inc"
 #include "pshadow.frag.inc"
+#include "ao.frag.inc"
+#include "ao_blur.frag.inc"
+#include "ao_apply.frag.inc"
 
 int render_on;
 
@@ -60,6 +63,7 @@ static Emitter emitters[MAX_EMITTERS];
 static int nemitters, emitting, point_lights_on = -1;
 static double emit_sum[7];          /* the draw being batched: weight, weighted position and colour */
 static float tex_average[MAX_TEXTURES][3];
+static uint8_t tex_cutout[MAX_TEXTURES];     /* the texture has holes (the alpha test's: leaves, grass) */
 static LightSet point_lights[2];    /* the lights for the frame being made (two sets of four) */
 static float view_center[3];        /* where the camera looks (the shadow map's centre), in the world */
 
@@ -88,8 +92,34 @@ static int point_shadows_on = 1;    /* MHFU_POINT_SHADOWS=0: none */
 #define SHADOW_EXTRA_BYTES (8u << 20)
 static VkBuf shadow_extra[2], extra;
 static VkDeviceSize extra_used, extra_batch;
+/* The scenery's shading by the sun: it comes lit beforehand, without normals - they are made from its triangles, each
+ * batch's (MHFU_SUN_SHADING=0: none): the batch's places in the world and on the screen, kept as they are put */
+static int sun_shading = -1;
+typedef struct { float w[3], sx, sy; } Corner;
+static Corner *corners;
+static size_t corners_cap;
+/* Ambient occlusion: from the depth of the world once it is drawn (before what is drawn over it - the HUD), at half
+ * resolution, blurred, multiplied into the picture (MHFU_AO=0: none; MHFU_AO_STRENGTH, MHFU_AO_RADIUS) */
+#define AO_FADE 6000.0f                 /* gone by this far */
+static int ao_on = -1;
+static float ao_strength = 1.0f, ao_radius = 60.0f;
+static VkImg ao_img[2];
+static VkPipeline ao_pipeline, ao_blur_pipeline, ao_apply_pipeline;
+static VkPipelineLayout ao_layout;
+static VkDescriptorSetLayout ao_set_layout;
+static VkDescriptorPool ao_pool;
+#define AO_PER_FRAME 8                  /* times a frame (the frame dumps draw it again) */
+static VkDescriptorSet ao_sets[2][AO_PER_FRAME][4];     /* a frame in flight's: the pass, the two blurs, the picture */
+static VkSampler depth_sampler;
+static float prim_view[16], ao_view[16];    /* the camera's space to the screen: the primitive's, the world's */
+static float prim_world_view[12], ao_world_view[12];    /* and to the world (3 x 4, by columns) */
+static struct Target *ao_target;        /* the solid world was drawn into it, without occlusion yet */
+static struct Target *ao_applied;       /* it has its occlusion (until it is cleared) */
+static int ao_used;                     /* times this frame */
+/* its passes' push constants (ao_common.glsl) */
+typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4], colors[4][4]; } AoPush;
 
-typedef struct {
+typedef struct Target {
     uint32_t addr;                  /* VRAM address, mirror bits off */
     VkImg color, depth;
     int used, cleared;
@@ -123,6 +153,15 @@ typedef struct {
     VkFrontFace front;
     uint32_t lights;                /* its light set (by the pixel), ~0: none */
 } DrawState;
+
+/* Whether a draw is shaded by the sun: the solid scenery (not what has holes in its texture - leaves, grass, whose
+ * cards' normals mean nothing - nor what writes no depth or adds to the picture) */
+static int shaded(const DrawState *d) {
+    return (d->flags & 1792u) == 256u && d->depth_write && sun_shading && shadow_on &&
+           (d->tex_slot >= MAX_TEXTURES || !tex_cutout[d->tex_slot]) &&
+           (!d->blend || (d->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
+                          d->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA));
+}
 
 static int scale = 2;
 static Target targets[MAX_TARGETS];
@@ -170,8 +209,9 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {5, 0, VK_FORMAT_R8G8B8A8_UNORM, 44},
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
     };
+    int verts = ge >= 1 && ge <= 3;
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
-                                               ge ? 1u : 0u, &bind, ge ? 7u : 0u, attrs};
+                                               verts ? 1u : 0u, &bind, verts ? 7u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
                                                  VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
@@ -193,9 +233,19 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT, VK_DYNAMIC_STATE_CULL_MODE, VK_DYNAMIC_STATE_FRONT_FACE};
     VkDynamicState dyn_present[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dy = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0,
-                                           ge ? 11u : 2u, ge ? dyn_ge : dyn_present};
+                                           verts ? 11u : 2u, verts ? dyn_ge : dyn_present};
     VkPipelineRenderingCreateInfo ri = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, NULL, 0, 1, &color, depth,
                                         VK_FORMAT_UNDEFINED};
+    if (ge == 4) {                      /* multiplied into what is there (the colour, not its alpha) */
+        att.blendEnable = VK_TRUE;
+        att.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+        att.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+        att.colorBlendOp = VK_BLEND_OP_ADD;
+        att.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        att.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        att.alphaBlendOp = VK_BLEND_OP_ADD;
+        att.colorWriteMask = 7;
+    }
     if (ge == 3) {                      /* the point lights' (depth: the distance, written by the shader): no bias */
         ri.colorAttachmentCount = 0;
         cb.attachmentCount = 0;
@@ -218,7 +268,7 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         dy.pDynamicStates = dyn_present;
     }
     VkGraphicsPipelineCreateInfo pci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &ri, 0, 2, stages, &vi, &ia,
-                                        NULL, &vp, &rs, &ms, ge ? &ds : NULL, &cb, &dy, pl, VK_NULL_HANDLE, 0,
+                                        NULL, &vp, &rs, &ms, verts ? &ds : NULL, &cb, &dy, pl, VK_NULL_HANDLE, 0,
                                         VK_NULL_HANDLE, -1};
     VkPipeline p;
     if (vkCreateGraphicsPipelines(vk.device, VK_NULL_HANDLE, 1, &pci, NULL, &p) != VK_SUCCESS) {
@@ -232,6 +282,53 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
 void render_default_scale(int s) {
     if (s >= 1 && s <= 8)
         scale = s;
+}
+
+/* Ambient occlusion's images, pipelines and descriptor sets (each pass's: its input, and the depth) */
+static void ao_init(void) {
+    ao_on = !getenv("MHFU_AO") || atoi(getenv("MHFU_AO")) != 0;
+    if (getenv("MHFU_AO_STRENGTH"))
+        ao_strength = (float)atof(getenv("MHFU_AO_STRENGTH"));
+    if (getenv("MHFU_AO_RADIUS"))
+        ao_radius = (float)atof(getenv("MHFU_AO_RADIUS"));
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(vk.gpu, &props);
+    if (props.limits.maxPushConstantsSize < sizeof(AoPush))
+        ao_on = 0;
+    if (!ao_on)
+        return;
+    for (int i = 0; i < 2; i++)
+        ao_img[i] = vk_image(240u * (uint32_t)scale, 136u * (uint32_t)scale, VK_FORMAT_R16G16_SFLOAT,
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    VkDescriptorSetLayoutBinding b[2] = {
+        {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+    };
+    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 2, b};
+    vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &ao_set_layout);
+    enum { SETS = 2 * AO_PER_FRAME * 4 };
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * SETS};
+    VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL, 0, SETS, 1, &ps};
+    vkCreateDescriptorPool(vk.device, &dpi, NULL, &ao_pool);
+    VkDescriptorSetLayout layouts[SETS];
+    for (int i = 0; i < SETS; i++)
+        layouts[i] = ao_set_layout;
+    VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, ao_pool, SETS, layouts};
+    vkAllocateDescriptorSets(vk.device, &dai, &ao_sets[0][0][0]);
+    VkPushConstantRange pr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(AoPush)};
+    VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &ao_set_layout, 1, &pr};
+    vkCreatePipelineLayout(vk.device, &pli, NULL, &ao_layout);
+    VkShaderModule vs = vk_shader(present_vert, sizeof present_vert);
+    ao_pipeline = make_pipeline(vs, vk_shader(ao_frag, sizeof ao_frag), ao_layout, VK_FORMAT_R16G16_SFLOAT,
+                                VK_FORMAT_UNDEFINED, 0);
+    ao_blur_pipeline = make_pipeline(vs, vk_shader(ao_blur_frag, sizeof ao_blur_frag), ao_layout,
+                                     VK_FORMAT_R16G16_SFLOAT, VK_FORMAT_UNDEFINED, 0);
+    ao_apply_pipeline = make_pipeline(vs, vk_shader(ao_apply_frag, sizeof ao_apply_frag), ao_layout,
+                                      VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_UNDEFINED, 4);
+    VkSamplerCreateInfo sci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
+    sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    vkCreateSampler(vk.device, &sci, NULL, &depth_sampler);
 }
 
 int render_init(void *sdl_window) {
@@ -366,6 +463,7 @@ int render_init(void *sdl_window) {
     shadow_cmd = shadow_cmds[0];
     vkAllocateCommandBuffers(vk.device, &cai, point_cmds);
     point_cmd = point_cmds[0];
+    ao_init();
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -401,7 +499,8 @@ static Target *target(uint32_t addr, int create) {
                                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                                 VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                                 VK_IMAGE_ASPECT_COLOR_BIT);
-            t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+            t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT,
+                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_IMAGE_ASPECT_DEPTH_BIT);
             t->sample_slot = next_slot++;
             write_slot(t->sample_slot, t->color.view, samplers[1 | 2 | 4]);
@@ -561,10 +660,12 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     if (t->slot < MAX_TEXTURES) {      /* its average colour (by alpha), for the lights effects make */
         const uint32_t *px = (const uint32_t *)((uint8_t *)staging.map + staging_used);
         double sum[3] = {0, 0, 0}, wsum = 0;
-        int step = w * h > 4096 ? (w * h) / 4096 : 1;
+        int step = w * h > 4096 ? (w * h) / 4096 : 1, n = 0, holes = 0;
         for (int i = 0; i < w * h; i += step) {
             uint32_t c = px[i];
             double a = (double)(c >> 24) / 255.0;
+            n++;
+            holes += (c >> 24) < 128;
             sum[0] += a * (c & 255);
             sum[1] += a * ((c >> 8) & 255);
             sum[2] += a * ((c >> 16) & 255);
@@ -572,6 +673,7 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         }
         for (int k = 0; k < 3; k++)
             tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
+        tex_cutout[t->slot] = holes * 50 > n;
     }
     if (t->w != w || t->h != h) {
         retire(&t->img);
@@ -638,6 +740,131 @@ uint32_t render_texture(const uint32_t *reg, int *w, int *h) {
 }
 
 static void flush_emitter(void);
+
+/* -- ambient occlusion -------------------------------------------------------------------------------------------- */
+
+/* gpu.c: the next primitive's camera space to the screen and to the world (if it is in the world) */
+void render_prim_view(const float *screen_from_view, const float *world_from_view) {
+    memcpy(prim_view, screen_from_view, sizeof prim_view);
+    memcpy(prim_world_view, world_from_view, sizeof prim_world_view);
+}
+
+static int invert4(const float *m, float *out) {
+    double a[4][8];
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 8; c++)
+            a[r][c] = c < 4 ? m[4 * c + r] : (c - 4 == r);
+    for (int c = 0; c < 4; c++) {
+        int best = c;
+        for (int r = c + 1; r < 4; r++)
+            if (fabs(a[r][c]) > fabs(a[best][c]))
+                best = r;
+        if (fabs(a[best][c]) < 1e-12)
+            return 0;
+        for (int k = 0; k < 8; k++) {
+            double t = a[c][k];
+            a[c][k] = a[best][k];
+            a[best][k] = t;
+        }
+        double d = a[c][c];
+        for (int k = 0; k < 8; k++)
+            a[c][k] /= d;
+        for (int r = 0; r < 4; r++)
+            if (r != c) {
+                double f = a[r][c];
+                for (int k = 0; k < 8; k++)
+                    a[r][k] -= f * a[c][k];
+            }
+    }
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++)
+            out[4 * c + r] = (float)a[r][4 + c];
+    return 1;
+}
+
+static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth) {
+    VkDescriptorImageInfo ii[2] = {{sampler, source, layout},
+                                   {depth_sampler, depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
+    VkWriteDescriptorSet w[2] = {
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 0, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[0],
+         NULL, NULL},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 1, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[1],
+         NULL, NULL}};
+    vkUpdateDescriptorSets(vk.device, 2, w, 0, NULL);
+}
+
+/* One of its passes: a triangle over w x h of an image */
+static void ao_draw(VkImageView view, uint32_t w, uint32_t h, VkPipeline p, VkDescriptorSet ds, const AoPush *pc,
+                    int load) {
+    VkCommandBuffer cmd = vk_cmd();
+    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, view,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {w, h}}, 1, 0, 1, &ca, NULL, NULL};
+    vkCmdBeginRendering(cmd, &ri);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_layout, 0, 1, &ds, 0, NULL);
+    VkViewport vp = {0, 0, (float)w, (float)h, 0, 1};
+    VkRect2D sc = {{0, 0}, {w, h}};
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+    vkCmdSetScissor(cmd, 0, 1, &sc);
+    vkCmdPushConstants(cmd, ao_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof *pc, pc);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+    vkCmdEndRendering(cmd);
+}
+
+/* The world is drawn into t: its occlusion, multiplied in */
+static void ao_apply(Target *t) {
+    ao_target = NULL;
+    ao_applied = t;
+    if (ao_on <= 0 || ao_used >= AO_PER_FRAME)
+        return;
+    AoPush pc;
+    if (!invert4(ao_view, pc.to_view))
+        return;
+    end_rendering();
+    uint32_t fw = 480u * (uint32_t)scale, fh = 272u * (uint32_t)scale, hw = fw / 2, hh = fh / 2;
+    float focal = fabsf(ao_view[0]) * (float)scale;
+    memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)scale, focal}, sizeof pc.params);
+    memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, 0}, sizeof pc.params2);
+    memcpy(pc.area, (float[4]){(float)fw, (float)fh, (float)hw, (float)hh}, sizeof pc.area);
+    /* the point lights (the first four), in the camera's space: where they shine, the occlusion takes nothing - it
+     * takes away the light from all round, not theirs */
+    memset(pc.lights, 0, sizeof pc.lights + sizeof pc.colors);
+    float m4[16] = {0}, inv[16];
+    for (int c = 0; c < 4; c++)
+        for (int i = 0; i < 3; i++)
+            m4[4 * c + i] = ao_world_view[3 * c + i];
+    m4[15] = 1;
+    if (point_lights_on > 0 && invert4(m4, inv))
+        for (uint32_t i = 0; i < point_lights[0].count && i < 4; i++) {
+            const float *w = point_lights[0].dir[i];
+            for (int k = 0; k < 3; k++)
+                pc.lights[i][k] = inv[k] * w[0] + inv[4 + k] * w[1] + inv[8 + k] * w[2] + inv[12 + k];
+            pc.lights[i][3] = w[3];
+            memcpy(pc.colors[i], point_lights[0].color[i], sizeof pc.colors[i]);
+        }
+    VkDescriptorSet *sets = ao_sets[vk.frame][ao_used++];
+    VkImageLayout ro = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    ao_set(sets[0], t->depth.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, depth_sampler, t->depth.view);
+    ao_set(sets[1], ao_img[0].view, ro, depth_sampler, t->depth.view);
+    ao_set(sets[2], ao_img[1].view, ro, depth_sampler, t->depth.view);
+    ao_set(sets[3], ao_img[0].view, ro, depth_sampler, t->depth.view);
+    vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+    vk_transition(&ao_img[0], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    ao_draw(ao_img[0].view, hw, hh, ao_pipeline, sets[0], &pc, 0);
+    for (int pass = 0; pass < 2; pass++) {     /* blurred across, then down: back into the first */
+        VkImg *src = &ao_img[pass], *dst = &ao_img[1 - pass];
+        vk_transition(src, ro);
+        vk_transition(dst, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        pc.params2[1] = pass == 0 ? 1.0f : 0.0f;
+        pc.params2[2] = pass == 0 ? 0.0f : 1.0f;
+        ao_draw(dst->view, hw, hh, ao_blur_pipeline, sets[1 + pass], &pc, 0);
+    }
+    vk_transition(&ao_img[0], ro);
+    vk_transition(&t->color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    ao_draw(t->color.view, fw, fh, ao_apply_pipeline, sets[3], &pc, 1);
+}
 
 void render_prim_begin(const uint32_t *reg) {
     if (emitting)
@@ -735,6 +962,20 @@ void render_prim_begin(const uint32_t *reg) {
     if (sx1 < sx0) sx1 = sx0;
     if (sy1 < sy0) sy1 = sy0;
     s.scissor = (VkRect2D){{sx0 * scale, sy0 * scale}, {(uint32_t)((sx1 - sx0) * scale), (uint32_t)((sy1 - sy0) * scale)}};
+    /* the solid world drawn, then what is not solid (glows, fire, smoke, the HUD): the world's occlusion first - only
+     * the solid world's colours have it, once (until the picture is cleared) */
+    int solid = (s.flags & 256u) && s.depth_write;
+    if (ao_target && s.target == ao_target && !solid) {
+        flush();
+        ao_apply(ao_target);
+    }
+    if (clear && s.target == ao_applied)
+        ao_applied = NULL;
+    if (solid && s.target != ao_applied) {
+        ao_target = s.target;
+        memcpy(ao_view, prim_view, sizeof ao_view);
+        memcpy(ao_world_view, prim_world_view, sizeof ao_world_view);
+    }
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;
@@ -742,6 +983,7 @@ void render_prim_begin(const uint32_t *reg) {
     if (point_lights_on < 0) {
         point_lights_on = !getenv("MHFU_POINT_LIGHTS") || atoi(getenv("MHFU_POINT_LIGHTS")) != 0;
         point_shadows_on = !getenv("MHFU_POINT_SHADOWS") || atoi(getenv("MHFU_POINT_SHADOWS")) != 0;
+        sun_shading = !getenv("MHFU_SUN_SHADING") || atoi(getenv("MHFU_SUN_SHADING")) != 0;
         if (getenv("MHFU_POINT_GAIN"))
             point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
@@ -1085,12 +1327,81 @@ static void make_point_lights(void) {
 }
 
 /* Draw what has been batched with the current state */
+/* The batch's normals (the scenery's): each triangle's, turned towards the camera, summed where corners meet (the same
+ * place in the world), each corner taking the sum unless it bends more than 60 degrees from its own (an edge) */
+static void make_normals(size_t n) {
+    static uint32_t *table, *owner;     /* a place's first corner + 1 (0: empty); each corner's first at its place */
+    static float (*sum)[3], (*face)[3];
+    static size_t table_cap, sum_cap;
+    if (n > sum_cap) {
+        sum_cap = n * 2;
+        sum = realloc(sum, sum_cap * sizeof *sum);
+        face = realloc(face, sum_cap * sizeof *face);
+        owner = realloc(owner, sum_cap * sizeof *owner);
+    }
+    size_t tsize = 1024;
+    while (tsize < n * 2)
+        tsize *= 2;
+    if (tsize > table_cap) {
+        table_cap = tsize;
+        table = realloc(table, table_cap * sizeof *table);
+    }
+    memset(table, 0, tsize * sizeof *table);
+    for (size_t t = 0; t + 2 < n; t += 3) {
+        const Corner *a = &corners[t], *b = &corners[t + 1], *c = &corners[t + 2];
+        float e1[3] = {b->w[0] - a->w[0], b->w[1] - a->w[1], b->w[2] - a->w[2]};
+        float e2[3] = {c->w[0] - a->w[0], c->w[1] - a->w[1], c->w[2] - a->w[2]};
+        float f[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
+        float area = (b->sx - a->sx) * (c->sy - a->sy) - (b->sy - a->sy) * (c->sx - a->sx);
+        if (area > 0)                   /* wound the other way on the screen: facing away as wound */
+            f[0] = -f[0], f[1] = -f[1], f[2] = -f[2];
+        for (int k = 0; k < 3; k++)
+            memcpy(face[t + (size_t)k], f, sizeof f);
+    }
+    for (size_t i = 0; i < n; i++) {
+        uint32_t h[3];
+        memcpy(h, corners[i].w, sizeof h);
+        uint32_t x = (h[0] * 0x9E3779B1u ^ h[1] * 0x85EBCA77u ^ h[2] * 0xC2B2AE3Du);
+        x ^= x >> 15;
+        size_t j = x & (tsize - 1);
+        for (;;) {
+            uint32_t e = table[j];
+            if (!e) {
+                table[j] = (uint32_t)i + 1;
+                owner[i] = (uint32_t)i;
+                memcpy(sum[i], face[i], sizeof sum[i]);
+                break;
+            }
+            if (!memcmp(corners[e - 1].w, corners[i].w, sizeof h)) {
+                for (int k = 0; k < 3; k++)
+                    sum[e - 1][k] += face[i][k];
+                owner[i] = e - 1;
+                break;
+            }
+            j = (j + 1) & (tsize - 1);
+        }
+    }
+    GpuVertex *g = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
+    for (size_t i = 0; i < n; i++) {
+        const float *s = sum[owner[i]], *f = face[i];
+        float sl = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]), fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
+        if (!(fl > 0))
+            continue;
+        const float *use = sl > 0 && (s[0] * f[0] + s[1] * f[1] + s[2] * f[2]) > 0.5f * sl * fl ? s : f;
+        float k = 32767.0f / (use == s ? sl : fl);
+        int16_t nn[4] = {(int16_t)(use[0] * k), (int16_t)(use[1] * k), (int16_t)(use[2] * k), 0};
+        memcpy(g[i].n, nn, sizeof nn);
+    }
+}
+
 static void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
     if (!n || !rendering) {
         extra_batch = extra_used;
         return;
     }
+    if (shaded(&cur))
+        make_normals((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
@@ -1118,6 +1429,8 @@ static void flush(void) {
         point_lights_on > 0 && (s->flags & 256u) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
             ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, {0}};
     memcpy(pc.light, light_vp, sizeof pc.light);
+    if (shaded(s))
+        pc.flags |= 4096u;
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     /* what is solid in the world casts shadows: drawn again into the shadow map - blended over what is there by its
@@ -1196,6 +1509,14 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->n[1] = (int16_t)(v->ny * k);
     g->n[2] = (int16_t)(v->nz * k);
     g->n[3] = 0;
+    if (shaded(&cur)) {
+        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
+        if (i >= corners_cap) {
+            corners_cap = corners_cap ? corners_cap * 2 : 65536;
+            corners = realloc(corners, corners_cap * sizeof *corners);
+        }
+        corners[i] = (Corner){{v->wx, v->wy, v->wz}, x, y};
+    }
     if (emitting) {
         double wgt = (double)(r + gg + b) * (double)a / (3.0 * 255.0 * 255.0);
         emit_sum[0] += wgt;
@@ -1255,6 +1576,8 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
 static void end_frame(void) {
+    ao_target = ao_applied = NULL;
+    ao_used = 0;
     extra_used = extra_batch = 0;
     if (emitting)
         flush_emitter();
@@ -1274,6 +1597,8 @@ static void end_frame(void) {
 
 /* The end of a frame not shown (fast-forwarding): its work submitted, the frame's buffers and checks started again */
 void render_finish_frame(void) {
+    if (ao_target)
+        ao_apply(ao_target);
     end_rendering();
     if (vk.recording)
         vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
@@ -1281,6 +1606,8 @@ void render_finish_frame(void) {
 }
 
 void render_flip(uint32_t addr) {
+    if (ao_target)
+        ao_apply(ao_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!vk.surface || !t) {
@@ -1341,6 +1668,8 @@ void render_flip(uint32_t addr) {
 
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
 uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
+    if (ao_target)
+        ao_apply(ao_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!t)
@@ -1362,6 +1691,8 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
 
 /* The displayed part of a framebuffer, for a frame dump: read back, and scaled down to 480 x 272 */
 void render_readback(uint32_t addr, uint32_t *pixels) {
+    if (ao_target)
+        ao_apply(ao_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!t) {

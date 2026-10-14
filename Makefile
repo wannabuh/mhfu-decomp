@@ -26,7 +26,7 @@ build/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
 SHADERS := $(patsubst runtime/shaders/%,build/shaders/%.inc,$(wildcard runtime/shaders/*.vert runtime/shaders/*.frag))
 
 # Shaders: SPIR-V as C arrays (ge.vert -> ge_vert[])
-build/shaders/%.inc: runtime/shaders/%
+build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl)
 	@mkdir -p $(@D)
 	$(GLSLC) --target-env=vulkan1.3 -O -mfmt=c $< -o $@.tmp
 	printf 'static const uint32_t %s[] = \n' $(subst .,_,$*) > $@ && cat $@.tmp >> $@ && printf ';\n' >> $@ && rm $@.tmp

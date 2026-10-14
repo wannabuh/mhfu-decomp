@@ -37,7 +37,8 @@ layout(push_constant) uniform Draw {
     uint tex_index;      // into textures[]; ~0u: untextured
     uint flags;          // bits 0-2 texture function, 3 texture alpha, 4 colour doubling, 5 alpha test, 6 clear mode,
                          // 7 fog, 8 in the world (shadows fall on it), 9 lit by the GE (its sun part is known),
-                         // 10 lit by the pixel (light_set)
+                         // 10 lit by the pixel (light_set), 11 (shadow passes) blended, 12 lit beforehand with
+                         // normals made from its triangles (shaded by the sun)
     uint alpha_test;     // function (bits 0-2), reference (8-15), mask (16-23)
     uint env_color;      // RGB, for the blend texture function
     uint fog_color;      // RGB
@@ -149,8 +150,16 @@ void main() {
         if ((draw.flags & 16u) != 0u)
             c.rgb = min(c.rgb * 2.0, vec3(1.0));
     }
-    if ((draw.flags & 1536u) == 0u)         // lit beforehand (the scenery's colours): darker in shadow
-        c.rgb *= 1.0 - 0.45 * sh;
+    if ((draw.flags & 1536u) == 0u) {       // lit beforehand (the scenery's colours): darker in shadow - and turned
+        float dark = sh;                    // away from the sun, as dark as in shadow
+        float nl = length(in_normal);
+        if ((draw.flags & 4096u) != 0u && nl > 0.0) {
+            vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));
+            float facing = smoothstep(-0.1, 0.3, dot(in_normal / nl, sun));
+            dark = 1.0 - (1.0 - sh) * facing;
+        }
+        c.rgb *= 1.0 - 0.45 * dark;
+    }
     if (points && (draw.flags & 1024u) == 0u)   // not lit by the pixel: the point lights brighten its colour
     {
         c.rgb = min(c.rgb * (vec3(1.0) + point_light(vec3(0.0), false)), vec3(1.0));

@@ -170,6 +170,8 @@ int camera_game(float *inv, float *target);
 void camera_invert(const float *v, float *out);
 void render_shadow_frame(const float *light_vp, int on);
 void render_prim_world(int on);
+void render_prim_view(const float *screen_from_view, const float *world_from_view);
+void camera_invert(const float *v, float *out);
 void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
 
 #define SHADOW_HALF 1500.0f         /* the shadow map covers this far each way from what the camera looks at */
@@ -291,6 +293,34 @@ static void shadow_prim(void) {
     int through = (reg[0x12] >> 23) & 1;
     prim_world = shadow_world && !through && proj[11] != 0;
     render_prim_world(prim_world);
+    if (prim_world) {
+        /* the camera's space to the screen (by columns): the projection, then the viewport - x, y in PSP pixels and
+         * the depth as drawn (0 to 1), over w - for what reads the depth back (ambient occlusion) */
+        float sx = ge_float(reg[0x42]), sy = ge_float(reg[0x43]), sz = ge_float(reg[0x44]) / 65535.0f;
+        float ox = ge_float(reg[0x45]) - (float)(reg[0x4C] & 0xFFFF) / 16.0f;
+        float oy = ge_float(reg[0x46]) - (float)(reg[0x4D] & 0xFFFF) / 16.0f, oz = ge_float(reg[0x47]) / 65535.0f;
+        float m[16];
+        for (int c = 0; c < 4; c++) {
+            const float *p = &proj[4 * c];
+            m[4 * c + 0] = p[0] * sx + p[3] * ox;
+            m[4 * c + 1] = p[1] * sy + p[3] * oy;
+            m[4 * c + 2] = p[2] * sz + p[3] * oz;
+            m[4 * c + 3] = p[3];
+        }
+        /* and the camera's space to the world: the view undone, then to_world */
+        float inv[12], wv[12];
+        camera_invert(view, inv);
+        for (int c = 0; c < 4; c++) {
+            float col[3];
+            if (c < 3)
+                for (int i = 0; i < 3; i++)
+                    col[i] = to_world[i] * inv[3 * c] + to_world[3 + i] * inv[3 * c + 1] + to_world[6 + i] * inv[3 * c + 2];
+            else
+                mul43(to_world, &inv[9], col);
+            memcpy(&wv[3 * c], col, sizeof col);
+        }
+        render_prim_view(m, wv);
+    }
     sun_light = -1;
     prim_pixel_light = 0;
     pixel_lights = 0;
