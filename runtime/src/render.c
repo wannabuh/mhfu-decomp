@@ -44,6 +44,22 @@ static VkBuf light_buf;
 static uint32_t light_sets_used, prim_lights = ~0u;
 static LightSet last_lights;
 
+/* Point lights: the game has none. What it draws adding to the picture in the world (fire, glows) is a light: each such
+ * draw's vertices give a place and a colour (with its texture's average colour), those near each other are one light,
+ * and the warm ones light the next frame around them (MHFU_POINT_LIGHTS=0: none) */
+#define MAX_EMITTERS 1024
+#define MAX_POINT_LIGHTS 8
+#define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
+#define POINT_LIGHT_RADIUS 450.0f       /* how far a light reaches */
+#define POINT_LIGHT_GAIN 0.6f
+typedef struct { float pos[3], color[3], weight; } Emitter;
+static Emitter emitters[MAX_EMITTERS];
+static int nemitters, emitting, point_lights_on = -1;
+static double emit_sum[7];          /* the draw being batched: weight, weighted position and colour */
+static float tex_average[MAX_TEXTURES][3];
+static LightSet point_lights[2];    /* the lights for the frame being made (two sets of four) */
+static float view_center[3];        /* where the camera looks (the shadow map's centre), in the world */
+
 /* Shadows: the sun's depth over the world around the camera's target (gpu.c places it: SHADOW_SIZE), drawn each frame
  * from what is drawn in the world - the same vertices, in a command buffer of its own submitted before the frame's */
 #define SHADOW_SIZE 2048
@@ -235,7 +251,7 @@ int render_init(void *sdl_window) {
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[0]);
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[1]);
 
-    VkPushConstantRange pr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 96};
+    VkPushConstantRange pr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 112};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
@@ -490,6 +506,21 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         return t->slot;
     }
     gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
+    if (t->slot < MAX_TEXTURES) {      /* its average colour (by alpha), for the lights effects make */
+        const uint32_t *px = (const uint32_t *)((uint8_t *)staging.map + staging_used);
+        double sum[3] = {0, 0, 0}, wsum = 0;
+        int step = w * h > 4096 ? (w * h) / 4096 : 1;
+        for (int i = 0; i < w * h; i += step) {
+            uint32_t c = px[i];
+            double a = (double)(c >> 24) / 255.0;
+            sum[0] += a * (c & 255);
+            sum[1] += a * ((c >> 8) & 255);
+            sum[2] += a * ((c >> 16) & 255);
+            wsum += a;
+        }
+        for (int k = 0; k < 3; k++)
+            tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
+    }
     if (t->w != w || t->h != h) {
         retire(&t->img);
         t->img = vk_image((uint32_t)w, (uint32_t)h, VK_FORMAT_R8G8B8A8_UNORM,
@@ -554,7 +585,11 @@ uint32_t render_texture(const uint32_t *reg, int *w, int *h) {
     return texture_slot(reg, w, h);
 }
 
+static void flush_emitter(void);
+
 void render_prim_begin(const uint32_t *reg) {
+    if (emitting)
+        flush_emitter();            /* the last primitive's light (each its own, batched or not) */
     DrawState s;
     memset(&s, 0, sizeof s);
     uint32_t fb = 0x04000000u | ((reg[0x9C] & 0xFFFFF0) | ((reg[0x9D] & 0xFF0000) << 8)) % 0x200000u;
@@ -652,12 +687,17 @@ void render_prim_begin(const uint32_t *reg) {
         flush();
         cur = s;
     }
+    if (point_lights_on < 0)
+        point_lights_on = !getenv("MHFU_POINT_LIGHTS") || atoi(getenv("MHFU_POINT_LIGHTS")) != 0;
+    emitting = point_lights_on && (s.flags & 256u) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
+               s.eq.colorBlendOp == VK_BLEND_OP_ADD;
 }
 
 typedef struct {
     float w, h;
     uint32_t slot, flags, alpha, env, fog, pad;
     float light[16];
+    uint32_t points, pad2[3];       /* the point lights' two sets (or ~0: none) */
 } PushConstants;
 
 /* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
@@ -714,6 +754,11 @@ void render_shadow_frame(const float *m, int on) {
     if (on && memcmp(m, light_vp, sizeof light_vp)) {
         flush();                        /* what is batched was placed with the last */
         memcpy(light_vp, m, sizeof light_vp);
+        /* the map's centre: the point at x = y = 0, depth 0.5 (the light's rows are orthonormal, scaled) */
+        float sx = 1 / (m[0] * m[0] + m[4] * m[4] + m[8] * m[8]), sy = 1 / (m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
+        float sz = 1 / (m[2] * m[2] + m[6] * m[6] + m[10] * m[10]);
+        for (int i = 0; i < 3; i++)
+            view_center[i] = -(m[4 * i] * m[12] * sx + m[4 * i + 1] * m[13] * sy + m[4 * i + 2] * (m[14] - 0.5f) * sz);
     }
     if (on != shadow_on)
         flush();
@@ -735,7 +780,7 @@ void render_prim_lights(int n, const float *dirs, const float *colors, int sun) 
     l.sun = sun < 0 ? 99u : (uint32_t)sun;
     if (prim_lights != ~0u && light_sets_used && !memcmp(&l, &last_lights, sizeof l))
         return;
-    if (light_sets_used >= LIGHT_SETS) {
+    if (light_sets_used >= LIGHT_SETS - 2) {     /* (the last two: the point lights) */
         prim_lights = ~0u;
         return;
     }
@@ -748,6 +793,114 @@ void render_prim_lights(int n, const float *dirs, const float *colors, int sun) 
 /* gpu.c: the next primitive's vertices have their place in the world (shadows fall on it, and it casts them) */
 void render_prim_world(int on) {
     prim_world = on;
+}
+
+/* The batch's light, if it adds to the picture: an emitter, its colour the vertices' times the texture's */
+static void flush_emitter(void) {
+    if (emit_sum[0] > 0 && nemitters < MAX_EMITTERS) {
+        Emitter *e = &emitters[nemitters++];
+        double w = emit_sum[0];
+        for (int k = 0; k < 3; k++) {
+            e->pos[k] = (float)(emit_sum[1 + k] / w);
+            e->color[k] = (float)(emit_sum[4 + k] / w);
+            if (cur.tex_slot < MAX_TEXTURES)
+                e->color[k] *= tex_average[cur.tex_slot][k];
+        }
+        e->weight = (float)w;
+    }
+    memset(emit_sum, 0, sizeof emit_sum);
+}
+
+/* The frame's emitters to lights: those within 300 units one, the warm (fire) ones kept, the strongest first */
+static void make_point_lights(void) {
+    typedef struct { float pos[3], color[3], weight; } Light;
+    Light l[64];
+    int n = 0;
+    for (int i = 0; i < nemitters; i++) {
+        Emitter *e = &emitters[i];
+        int j = 0;
+        for (; j < n; j++) {
+            float d2 = 0;
+            for (int k = 0; k < 3; k++)
+                d2 += (l[j].pos[k] - e->pos[k]) * (l[j].pos[k] - e->pos[k]);
+            if (d2 < 300.0f * 300.0f)
+                break;
+        }
+        if (j == n) {
+            if (n == 64)
+                continue;
+            memset(&l[n], 0, sizeof l[n]);
+            n++;
+        }
+        float w0 = l[j].weight, w = w0 + e->weight;
+        for (int k = 0; k < 3; k++) {
+            l[j].pos[k] = (l[j].pos[k] * w0 + e->pos[k] * e->weight) / w;
+            l[j].color[k] = (l[j].color[k] * w0 + e->color[k] * e->weight) / w;
+        }
+        l[j].weight = w;
+    }
+    /* the warm ones (fire: red over green over blue) near what the camera looks at, smoothed from frame to frame -
+     * a light found again near where one was eases to its new colour and strength, one gone fades out */
+    typedef struct { float pos[3], color[3], strength; int seen; } Smoothed;
+    static Smoothed lit[MAX_POINT_LIGHTS];
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+        lit[i].seen = 0;
+    for (int j = 0; j < n; j++) {
+        const float *c = l[j].color;
+        float dc = sqrtf((l[j].pos[0] - view_center[0]) * (l[j].pos[0] - view_center[0]) +
+                         (l[j].pos[1] - view_center[1]) * (l[j].pos[1] - view_center[1]) +
+                         (l[j].pos[2] - view_center[2]) * (l[j].pos[2] - view_center[2]));
+        if (dc > POINT_LIGHT_REACH || !(c[0] > 0.3f && c[0] >= c[1] && c[1] >= c[2] && c[0] > 1.4f * c[2]))
+            continue;
+        float strength = l[j].weight / 12.0f;
+        strength = strength > 1 ? 1 : strength;
+        float m = fmaxf(c[0], 1e-3f);
+        int k = -1;
+        for (int i = 0; i < MAX_POINT_LIGHTS && k < 0; i++) {
+            float d2 = 0;
+            for (int q = 0; q < 3; q++)
+                d2 += (lit[i].pos[q] - l[j].pos[q]) * (lit[i].pos[q] - l[j].pos[q]);
+            if (lit[i].strength > 0 && d2 < 250.0f * 250.0f)
+                k = i;
+        }
+        if (k < 0) {                        /* a new light: in an empty place, or instead of the weakest */
+            k = 0;
+            for (int i = 1; i < MAX_POINT_LIGHTS; i++)
+                if (lit[i].strength < lit[k].strength)
+                    k = i;
+            if (lit[k].strength > strength)
+                continue;
+            memcpy(lit[k].pos, l[j].pos, sizeof lit[k].pos);
+            for (int q = 0; q < 3; q++)
+                lit[k].color[q] = c[q] / m;
+            lit[k].strength = 0;
+        }
+        for (int q = 0; q < 3; q++) {
+            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.2f;
+            lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.2f;
+        }
+        lit[k].strength += (strength - lit[k].strength) * 0.2f;
+        lit[k].seen = 1;
+    }
+    memset(point_lights, 0, sizeof point_lights);
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+        if (!lit[i].seen)
+            lit[i].strength *= 0.8f;
+        if (lit[i].strength < 0.02f) {
+            lit[i].strength = 0;
+            continue;
+        }
+        LightSet *ls = &point_lights[point_lights[0].count < 4 ? 0 : 1];
+        uint32_t at = ls->count++;
+        memcpy(ls->dir[at], lit[i].pos, sizeof lit[i].pos);
+        ls->dir[at][3] = POINT_LIGHT_RADIUS;
+        /* a fire's light flickers: two slow waves, a light's own (by where it is) */
+        double now = (double)time_us() / 1e6, phase = lit[i].pos[0] * 0.013 + lit[i].pos[2] * 0.017;
+        float flicker = 0.88f + 0.08f * (float)sin(now * 9.1 + phase) + 0.04f * (float)sin(now * 23.7 + 2 * phase);
+        for (int q = 0; q < 3; q++)
+            ls->color[at][q] = lit[i].color[q] * lit[i].strength * POINT_LIGHT_GAIN * flicker;
+    }
+    nemitters = 0;
 }
 
 /* Draw what has been batched with the current state */
@@ -780,7 +933,9 @@ static void flush(void) {
     if (!last_valid || s->front != last.front)
         vkCmdSetFrontFace(cmd, s->front);
     PushConstants pc = {s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1, s->tex_slot,
-        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, s->lights, {0}};
+        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, s->lights, {0},
+        point_lights_on > 0 && (s->flags & 256u) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
+            ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, {0}};
     memcpy(pc.light, light_vp, sizeof pc.light);
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
@@ -842,6 +997,16 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->n[1] = (int16_t)(v->ny * k);
     g->n[2] = (int16_t)(v->nz * k);
     g->n[3] = 0;
+    if (emitting) {
+        double wgt = (double)(r + gg + b) * (double)a / (3.0 * 255.0 * 255.0);
+        emit_sum[0] += wgt;
+        emit_sum[1] += wgt * v->wx;
+        emit_sum[2] += wgt * v->wy;
+        emit_sum[3] += wgt * v->wz;
+        emit_sum[4] += wgt * r / 255.0;
+        emit_sum[5] += wgt * gg / 255.0;
+        emit_sum[6] += wgt * b / 255.0;
+    }
     vertex_used += sizeof(GpuVertex);
 }
 
@@ -892,7 +1057,13 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 
 static void end_frame(void) {
     extra_used = extra_batch = 0;
-
+    if (emitting)
+        flush_emitter();
+    emitting = 0;
+    make_point_lights();
+    if (point_lights_on > 0)                /* for the next frame (its half: vk.frame is the next's now) */
+        memcpy((LightSet *)light_buf.map + (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2, point_lights,
+               sizeof point_lights);
     light_sets_used = 0;
     prim_lights = ~0u;
     vertex_used = batch_start = 0;

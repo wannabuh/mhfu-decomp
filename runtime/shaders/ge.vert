@@ -14,6 +14,7 @@ layout(push_constant) uniform Draw {
     vec2 tex_size;
     uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
     mat4 light;          // the world to the shadow map: x, y in -1..1, depth 0..1 away from the sun
+    uint points;
 } draw;
 
 layout(location = 0) out vec2 out_uv;
@@ -22,6 +23,7 @@ layout(location = 2) out float out_fog;
 layout(location = 3) out vec3 out_shadow;
 layout(location = 4) out vec3 out_sun;
 layout(location = 5) out vec3 out_normal;
+layout(location = 6) out vec3 out_world;
 
 void main() {
     gl_Position = in_pos;
@@ -31,4 +33,5 @@ void main() {
     out_shadow = (draw.light * vec4(in_world, 1.0)).xyz;
     out_sun = in_sun.rgb;
     out_normal = in_normal.xyz;
+    out_world = in_world;
 }

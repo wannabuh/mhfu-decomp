@@ -25,6 +25,7 @@ layout(push_constant) uniform Draw {
     uint fog_color;      // RGB
     uint light_set;
     mat4 light;
+    uint points;         // the point lights' first set of two (~0u: none): dir = place and reach, colour
 } draw;
 
 layout(location = 0) in vec2 in_uv;
@@ -33,6 +34,7 @@ layout(location = 2) in float in_fog;
 layout(location = 3) in vec3 in_shadow;
 layout(location = 4) in vec3 in_sun;
 layout(location = 5) in vec3 in_normal;
+layout(location = 6) in vec3 in_world;
 layout(location = 0) out vec4 out_color;
 
 // How much the sun is hidden here (0 lit, 1 in shadow): the shadow map's depths compared around the point (3 x 3),
@@ -51,8 +53,30 @@ float shadow() {
     return (1.0 - lit / 9.0) * clamp((1.0 - edge) * 8.0, 0.0, 1.0);
 }
 
+// The point lights here (the game has none: they are made from its fires): the light falling on the point, by
+// distance (smoothly to nothing at the reach), and turned towards it if the normal is known
+vec3 point_light(vec3 n, bool has_normal) {
+    vec3 sum = vec3(0.0);
+    for (uint s = 0u; s < 2u; s++) {
+        uint set = draw.points + s;
+        uint count = sets[set].count;
+        for (uint i = 0u; i < count; i++) {
+            vec4 p = sets[set].dir[i];
+            vec3 l = p.xyz - in_world;
+            float d = length(l);
+            float k = clamp(1.0 - d / p.w, 0.0, 1.0);
+            k *= k;
+            if (has_normal && d > 0.0)
+                k *= max(dot(n, l / d), 0.0);
+            sum += sets[set].color[i].rgb * k;
+        }
+    }
+    return sum;
+}
+
 void main() {
     vec4 c = in_color;
+    bool points = draw.points != 0xFFFFFFFFu && (draw.flags & 256u) != 0u;
     float sh = (draw.flags & 256u) != 0u ? shadow() : 0.0;
     if ((draw.flags & 512u) != 0u)          // lit: the sun's part goes in shadow
         c.rgb = max(c.rgb - in_sun * sh, vec3(0.0));
@@ -70,6 +94,8 @@ void main() {
             vec3 term = sets[draw.light_set].color[i].rgb * in_sun * k;
             sum += i == sun ? term * (1.0 - sh) : term;
         }
+        if (points)
+            sum += in_sun * point_light(n, true);
         c.rgb = min(c.rgb + sum, vec3(1.0));
     }
     if ((draw.flags & 64u) == 0u && draw.tex_index != 0xFFFFFFFFu) {
@@ -94,6 +120,8 @@ void main() {
     }
     if ((draw.flags & 1536u) == 0u)         // lit beforehand (the scenery's colours): darker in shadow
         c.rgb *= 1.0 - 0.45 * sh;
+    if (points && (draw.flags & 1024u) == 0u)   // not lit by the pixel: the point lights brighten its colour
+        c.rgb = min(c.rgb * (vec3(1.0) + point_light(vec3(0.0), false)), vec3(1.0));
     if ((draw.flags & 128u) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
                         float((draw.fog_color >> 16) & 255u)) / 255.0;
