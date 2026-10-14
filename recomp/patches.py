@@ -19,6 +19,11 @@ BLEND = "the motion player: a blend's weight step times the time scale, its coun
 # turning the camera (rt_camera_free) those turns are left out: the camera goes where the mouse puts it.
 CAMERA = "the hunt's camera: its own turns away from the scenery, left out while the mouse has the camera"
 
+# The test of a model's sphere against the camera's view (EBOOT 088160F0: a0 the scene, a1 the centre, f12 the radius;
+# 1 if it is to be drawn): what is drawn casts the renderer's shadows, so with them a model is drawn when within
+# rt_cull_margin (units) of the view - the shadows of what is just out of view do not come and go as the camera turns.
+CULL = "the view test of a model's sphere: the sphere larger by rt_cull_margin (the shadows of what is just out of view)"
+
 
 def scaled_load(f, base, off):
     """lwc1 $f<f>, off($<base>), the value times the time scale"""
@@ -35,4 +40,5 @@ PATCHES = {
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
+    ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

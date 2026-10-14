@@ -866,7 +866,14 @@ static int shadow_finish(VkCommandBuffer *out) {
 }
 
 /* gpu.c: this frame's shadows - the world to the shadow map (by columns), or off */
+float rt_cull_margin;
+
 void render_shadow_frame(const float *m, int on) {
+    /* with shadows, what is just out of view is drawn too (MHFU_CULL_MARGIN: how far, 1200) */
+    static float margin = -1;
+    if (margin < 0)
+        margin = getenv("MHFU_CULL_MARGIN") ? (float)atof(getenv("MHFU_CULL_MARGIN")) : 1200.0f;
+    rt_cull_margin = on ? margin : 0.0f;
     if (on && memcmp(m, light_vp, sizeof light_vp)) {
         flush();                        /* what is batched was placed with the last */
         memcpy(light_vp, m, sizeof light_vp);
@@ -976,8 +983,7 @@ static void make_point_lights(void) {
         /* by its hue: a fire's textures can be mostly dark, their average dark (0.14, 0.11, 0.06 in the guild hall) */
         if (dc > POINT_LIGHT_REACH || !(c[0] > 0.04f && c[0] >= c[1] && c[1] >= c[2] && c[0] > 1.4f * c[2]))
             continue;
-        float strength = l[j].weight / 40.0f;
-        strength = strength > 1 ? 1 : strength;
+        float strength = fminf(1.0f, l[j].weight / 40.0f);
         float m = fmaxf(c[0], 1e-3f);
         int k = -1;
         for (int i = 0; i < MAX_POINT_LIGHTS && k < 0; i++) {
@@ -1003,25 +1009,50 @@ static void make_point_lights(void) {
         /* a fire stands still: what is drawn of its flames moves about (80 units) as they play and the camera
          * turns, so its light drifts to it only slowly (a third of a second); it brightens quickly and dims slowly */
         for (int q = 0; q < 3; q++) {
-            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.02f;
+            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.005f;
             lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.05f;
         }
-        lit[k].strength += (strength - lit[k].strength) * (strength > lit[k].strength ? 0.1f : 0.02f);
-        lit[k].power += (l[j].weight - lit[k].power) * 0.05f;      /* (uncapped: which have shadows) */
+
+        /* (uncapped: which have shadows) - the brightest it has been seen lately: how much of a fire's flames is
+         * drawn changes as the camera turns, the fire does not */
+        lit[k].power = fmaxf(lit[k].power * 0.9995f, l[j].weight);
+        /* its strength by that too (a fire turned from is no dimmer), reached in a fraction of a second */
+        float target = fminf(1.0f, lit[k].power / 40.0f);
+        lit[k].strength += (target - lit[k].strength) * 0.1f;
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         if (!lit[i].seen)
-            lit[i].strength *= 0.985f;      /* (half in a third of a second: a frame without its flames is no flicker) */
-    /* the brightest first (as they give light, not capped), the nearer the more: the first two (of the first set)
-     * have shadows */
-    int order[MAX_POINT_LIGHTS];
+            lit[i].strength *= 0.9995f;     /* (half in ten seconds: out of view the game draws no flames) */
+    /* the brightest first (as they give light, not capped), the nearer the more. The first two (of the first set)
+     * have shadows, and keep them - and their cube maps - until another is half as bright again */
+    static int shadowed[2] = {-1, -1};
+    float rank[MAX_POINT_LIGHTS];
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        order[i] = i;
-    for (int i = 1; i < MAX_POINT_LIGHTS; i++)
-        for (int j = i; j > 0 && light_rank(&lit[order[j]].pos[0], lit[order[j]].power * (lit[order[j]].strength > 0)) >
-                                  light_rank(&lit[order[j - 1]].pos[0], lit[order[j - 1]].power * (lit[order[j - 1]].strength > 0)); j--) {
+        rank[i] = lit[i].strength > 0.02f ? light_rank(lit[i].pos, lit[i].power) : 0.0f;
+    for (int slot = 0; slot < 2; slot++) {
+        int best = -1;
+        for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+            if (rank[i] > 0 && i != shadowed[1 - slot] && (best < 0 || rank[i] > rank[best]))
+                best = i;
+        int cur_i = shadowed[slot];
+        if (cur_i < 0 || rank[cur_i] <= 0 || (best >= 0 && best != cur_i && rank[best] > 1.5f * rank[cur_i]))
+            shadowed[slot] = best;
+    }
+    if (shadowed[0] < 0 && shadowed[1] >= 0) {
+        shadowed[0] = shadowed[1];
+        shadowed[1] = -1;
+    }
+    int order[MAX_POINT_LIGHTS], no = 0;
+    for (int slot = 0; slot < 2; slot++)
+        if (shadowed[slot] >= 0)
+            order[no++] = shadowed[slot];
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+        if (i != shadowed[0] && i != shadowed[1])
+            order[no++] = i;
+    for (int i = (shadowed[0] >= 0) + (shadowed[1] >= 0) + 1; i < MAX_POINT_LIGHTS; i++)     /* the rest by rank */
+        for (int j = i; j > (shadowed[0] >= 0) + (shadowed[1] >= 0) && rank[order[j]] > rank[order[j - 1]]; j--) {
             int t = order[j];
             order[j] = order[j - 1];
             order[j - 1] = t;
@@ -1039,11 +1070,14 @@ static void make_point_lights(void) {
         ls->dir[at][3] = POINT_LIGHT_RADIUS;
         /* a fire's light flickers: two slow waves, a light's own (by where it is) */
         double now = (double)time_us() / 1e6, phase = lit[i].pos[0] * 0.013 + lit[i].pos[2] * 0.017;
-        float flicker = 0.88f + 0.08f * (float)sin(now * 9.1 + phase) + 0.04f * (float)sin(now * 23.7 + 2 * phase);
+        float flicker = 0.94f + 0.04f * (float)sin(now * 9.1 + phase) + 0.02f * (float)sin(now * 23.7 + 2 * phase);
         for (int q = 0; q < 3; q++)
             ls->color[at][q] = lit[i].color[q] * lit[i].strength * point_gain * flicker;
     }
-    point_shadows_next = point_lights[0].count < 2 ? (int)point_lights[0].count : 2;
+    point_shadows_next = (shadowed[0] >= 0 && lit[shadowed[0]].strength >= 0.02f) +
+                         (shadowed[1] >= 0 && lit[shadowed[1]].strength >= 0.02f);
+    if (point_shadows_next > (int)point_lights[0].count)
+        point_shadows_next = (int)point_lights[0].count;
     if (!vk.output_layer || !shadow_on || !point_shadows_on)
         point_shadows_next = 0;
     point_lights[0].pad[0] = (uint32_t)point_shadows_next;
