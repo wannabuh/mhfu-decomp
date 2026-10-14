@@ -14,3 +14,4 @@ __pycache__/
 # Ghidra project (local; it contains the game's code)
 /ghidra/
 *.rec
+*.rec.*
