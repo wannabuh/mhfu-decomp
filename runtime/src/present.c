@@ -318,6 +318,8 @@ static void watch(void) {
 }
 
 uint64_t wall_time_us(void), time_slept_us(void);
+int64_t clock_behind_us(void);
+static unsigned long skipped;        /* frames not shown, the game running late (for MHFU_FPS_STATS) */
 static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
 static int fps = -1;                /* the display's frame rate; 0: the game's own frames */
 static uint64_t next_display;
@@ -343,6 +345,12 @@ uint64_t present_pump(void) {
     uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
     if (now < next_display)
         return next_display;
+    /* the game first: when it is running late (the frames shown taking the time it needs), a frame is not shown */
+    if (clock_behind_us() > (int64_t)interval) {
+        skipped++;
+        next_display = now + interval;
+        return next_display;
+    }
     /* the input first, so that the frame shows the mouse as it is now (as the game's frames do) */
     if (!window_poll())
         exit(0);
@@ -382,10 +390,11 @@ uint64_t present_pump(void) {
             unsigned long m, u;
             gpu_match_stats(&m, &u);
             double secs = (double)(wall - stats_at) / 1e6;
-            fprintf(stderr, "display: %.1f frames a second, the game %.1f (longest frame %.1f ms), idle %.0f%%, "
-                    "%.0f%% of primitives matched\n", (double)shown / secs, (double)(frame - stats_frame) / secs,
-                    (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
-                    m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
+            fprintf(stderr, "display: %.1f frames a second (%lu left out, the game late), the game %.1f (longest frame "
+                    "%.1f ms), idle %.0f%%, %.0f%% of primitives matched\n", (double)shown / secs, skipped,
+                    (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
+                    (double)time_slept_us() / 1e4 / secs, m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
+            skipped = 0;
             stats_at = wall;
             stats_frame = frame;
             longest_frame_us = 0;

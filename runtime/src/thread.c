@@ -113,6 +113,11 @@ static uint64_t wall_us(void) {
 
 uint64_t wall_time_us(void) { return wall_us(); }
 
+/* How far the game's clock is behind the wall clock (us; negative: ahead) - the game running slower than it should */
+int64_t clock_behind_us(void) {
+    return fast_forward() ? 0 : (int64_t)wall_us() - (int64_t)(wall_base + now_us);
+}
+
 static uint64_t slept_us;           /* for MHFU_FPS_STATS: how long the clock waited for the wall clock */
 
 uint64_t time_slept_us(void) {
