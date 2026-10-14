@@ -367,3 +367,26 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     compose(views[1], q, shown);
     return 1;
 }
+
+/* For shadows (gpu.c): the game's camera now - the inverse of its view matrix (the world from what the game draws in:
+ * it multiplies the camera into each world matrix) and the point it looks at. 0 if there is no scene */
+int camera_game(float *inv, float *target) {
+    uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);
+    if (!in_ram(scene) || *MEM(scene + 0xA8D) >= 6)
+        return 0;
+    const float *vm = (const float *)MEM(scene + 0xB80);
+    float v[12];
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 3; i++)
+            v[3 * j + i] = vm[4 * j + i];
+    if (!(fabsf(v[0]) + fabsf(v[4]) + fabsf(v[8]) > 0.5f))
+        return 0;
+    invert(v, inv);
+    memcpy(target, MEM(scene + 0xB50), 3 * sizeof(float));
+    return 1;
+}
+
+/* The inverse of a camera (4x3, as above) */
+void camera_invert(const float *v, float *out) {
+    invert(v, out);
+}

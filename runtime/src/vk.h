@@ -46,6 +46,7 @@ typedef struct {
     PFN_vkCmdSetColorBlendEnableEXT SetColorBlendEnable;
     PFN_vkCmdSetColorBlendEquationEXT SetColorBlendEquation;
     PFN_vkCmdSetColorWriteMaskEXT SetColorWriteMask;
+    VkCommandBuffer (*before_submit)(void);     /* commands to submit before the frame's (render.c: the shadow map) */
 } VkContext;
 
 extern VkContext vk;

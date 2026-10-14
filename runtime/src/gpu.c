@@ -141,14 +141,36 @@ void gpu_decode_texture(uint32_t *out, int w, int h) {
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
 
 /* A vertex after the vertex stage: screen position (pixels, framebuffer coordinates), depth (0-65535), 1/w for
- * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel), fog (1 none, 0 all fog) */
-typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog; } Vertex;
+ * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel), fog (1 none, 0 all fog);
+ * for the renderer's shadows, its position in the world (the camera taken out) and the part of its colour the sun gave
+ * (0-255, in the colour) */
+typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb; } Vertex;
 
 /* Before the viewport: clip-space position and the rest */
-typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog; } ClipVertex;
+typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb; } ClipVertex;
+#define VERTEX_FLOATS 17
 
 static float world[12], view[12], proj[16], bones[8][12];
 static int world_i, view_i, proj_i, bone_i;
+
+/* Shadows (render.c): the GE's world space - which has the camera in it: the game multiplies it into each world
+ * matrix - to the world, for the frame; and the light that is the sun among the GE's (-1: none known) */
+static int shadow_world;            /* to_world is known this frame */
+static float to_world[12], game_to_world[12];
+static int sun_light = -1;
+static int prim_world;              /* this primitive's vertices get their place in the world */
+static float sun_dir[3];            /* towards the sun, in the world (as last seen) */
+static int sun_known;
+
+int camera_game(float *inv, float *target);
+void camera_invert(const float *v, float *out);
+void render_shadow_frame(const float *light_vp, int on);
+void render_prim_world(int on);
+
+#define SHADOW_HALF 1500.0f         /* the shadow map covers this far each way from what the camera looks at */
+#define SHADOW_RANGE 6000.0f        /* and this far towards and away from the sun */
+#define SHADOW_SIZE 2048
+
 
 static float ge_float(uint32_t data) {
     uint32_t u = data << 8;
@@ -206,6 +228,84 @@ static void unpack(uint32_t c, float *f) {
     f[2] = (float)((c >> 16) & 255) / 255.0f;
 }
 
+/* A frame's shadows: the world from what is drawn (the camera shown, or the game's), and the sun's view of the world
+ * around what the camera looks at - its centre moved in whole texels, so that the shadows' edges stand still */
+static void shadow_frame(const float *shown) {
+    static int enabled = -1;
+    if (enabled < 0)
+        enabled = !getenv("MHFU_SHADOWS") || atoi(getenv("MHFU_SHADOWS")) != 0;
+    float c[3];
+    shadow_world = enabled && camera_game(game_to_world, c);
+    if (!shadow_world) {
+        render_shadow_frame(NULL, 0);
+        return;
+    }
+    if (shown)
+        camera_invert(shown, to_world);
+    else
+        memcpy(to_world, game_to_world, sizeof to_world);
+    if (!sun_known) {
+        render_shadow_frame(NULL, 0);
+        return;
+    }
+    const float *d = sun_dir;
+    float up[3] = {0, 1, 0};
+    if (fabsf(d[1]) > 0.99f)
+        up[0] = 1, up[1] = 0;
+    float r[3] = {up[1] * d[2] - up[2] * d[1], up[2] * d[0] - up[0] * d[2], up[0] * d[1] - up[1] * d[0]};
+    float rl = sqrtf(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+    for (int i = 0; i < 3; i++)
+        r[i] /= rl;
+    float u[3] = {d[1] * r[2] - d[2] * r[1], d[2] * r[0] - d[0] * r[2], d[0] * r[1] - d[1] * r[0]};
+    float texel = 2 * SHADOW_HALF / SHADOW_SIZE;
+    float cr = r[0] * c[0] + r[1] * c[1] + r[2] * c[2], cu = u[0] * c[0] + u[1] * c[1] + u[2] * c[2];
+    float sr = floorf(cr / texel) * texel - cr, su = floorf(cu / texel) * texel - cu;
+    for (int i = 0; i < 3; i++)
+        c[i] += r[i] * sr + u[i] * su;
+    float m[16] = {0};                  /* by columns: x along r, y along u, depth away from the sun (0 to 1) */
+    for (int i = 0; i < 3; i++) {
+        m[4 * i + 0] = r[i] / SHADOW_HALF;
+        m[4 * i + 1] = u[i] / SHADOW_HALF;
+        m[4 * i + 2] = -d[i] / (2 * SHADOW_RANGE);
+    }
+    m[12] = -(r[0] * c[0] + r[1] * c[1] + r[2] * c[2]) / SHADOW_HALF;
+    m[13] = -(u[0] * c[0] + u[1] * c[1] + u[2] * c[2]) / SHADOW_HALF;
+    m[14] = 0.5f + (d[0] * c[0] + d[1] * c[1] + d[2] * c[2]) / (2 * SHADOW_RANGE);
+    m[15] = 1;
+    render_shadow_frame(m, 1);
+}
+
+/* Before a primitive's vertices: whether they are placed in the world (3D, through the camera), and which light is the
+ * sun - the directional one giving most - its direction in the world noted for the next frame's shadows */
+static void shadow_prim(void) {
+    int through = (reg[0x12] >> 23) & 1;
+    prim_world = shadow_world && !through && proj[11] != 0;
+    render_prim_world(prim_world);
+    sun_light = -1;
+    if (through || !(reg[0x17] & 1))
+        return;
+    float best = 0;
+    for (int k = 0; k < 4; k++) {
+        if (!(reg[0x18 + k] & 1) || ((reg[0x5F + k] >> 8) & 3) != 0)
+            continue;
+        uint32_t ld = reg[0x90 + 3 * k];
+        float lum = (float)(ld & 255) + (float)((ld >> 8) & 255) + (float)((ld >> 16) & 255);
+        if (lum > best)
+            best = lum, sun_light = k;
+    }
+    if (sun_light >= 0 && prim_world) {
+        int k = sun_light;
+        float L[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])}, w[3];
+        mul33(game_to_world, L, w);
+        float l = sqrtf(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+        if (l > 0) {
+            for (int i = 0; i < 3; i++)
+                sun_dir[i] = w[i] / l;
+            sun_known = 1;
+        }
+    }
+}
+
 /* The GE's lighting of one vertex: emissive, plus the global ambient light on the material's ambient colour, plus each
  * enabled light's ambient, diffuse and specular terms (attenuated with distance for point and spot lights, cut to the
  * cone for spots). The material's ambient / diffuse / specular colours are the vertex's own where the material mode
@@ -229,7 +329,7 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
     if (mode & 2) memcpy(mat_dif, vc, sizeof vc);
     if (mode & 4) memcpy(mat_spe, vc, sizeof vc);
     float spow = ge_float(reg[0x5B]);
-    float sum[3], spec[3] = {0, 0, 0};
+    float sum[3], spec[3] = {0, 0, 0}, sun[3] = {0, 0, 0};
     for (int i = 0; i < 3; i++)
         sum[i] = emi[i] + glob[i] * mat_amb[i];
     for (int k = 0; k < 4; k++) {
@@ -270,22 +370,34 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
         if (dot < 0) dot = 0;
         if (comp == 2)
             dot = powf(dot, spow);
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 3; i++) {
             sum[i] += (la[i] * mat_amb[i] + ld[i] * mat_dif[i] * dot) * att;
+            if (k == sun_light)
+                sun[i] += ld[i] * mat_dif[i] * dot * att;
+        }
         if (comp == 1 && dot > 0) {     /* specular: the half vector with the viewer straight ahead */
             float h[3] = {L[0], L[1], L[2] + 1.0f};
             float hl = sqrtf(h[0] * h[0] + h[1] * h[1] + h[2] * h[2]);
             float sd = hl > 0 ? (n[0] * h[0] + n[1] * h[1] + n[2] * h[2]) / hl : 0;
             float sp = sd > 0 ? powf(sd, spow) : 0;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) {
                 spec[i] += ls[i] * mat_spe[i] * sp * att;
+                if (k == sun_light)
+                    sun[i] += ls[i] * mat_spe[i] * sp * att;
+            }
         }
     }
     float rgb[3];
     for (int i = 0; i < 3; i++) {
         rgb[i] = sum[i] + spec[i];
         rgb[i] = rgb[i] < 0 ? 0 : rgb[i] > 1 ? 1 : rgb[i];
+        /* the sun's part: what the colour loses without it (as clamped) */
+        float without = rgb[i] - sun[i];
+        sun[i] = rgb[i] - (without < 0 ? 0 : without);
     }
+    out->sr = sun[0] * 255.0f;
+    out->sg = sun[1] * 255.0f;
+    out->sb = sun[2] * 255.0f;
     /* alpha: the material's ambient alpha (or the vertex's), times the global ambient light's */
     float a = mat_amb_a * ((float)(reg[0x5D] & 255) / 255.0f);
     out->r = rgb[0] * 255.0f;
@@ -341,6 +453,8 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
     out->g = (float)((c >> 8) & 255);
     out->b = (float)((c >> 16) & 255);
     out->a = (float)(c >> 24);
+    out->wx = out->wy = out->wz = 0;
+    out->sr = out->sg = out->sb = 0;
 
     if (through) {
         out->cx = p[0];
@@ -381,6 +495,8 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         memcpy(nr, nacc, sizeof nr);
     }
     mul43(world, p, m);
+    if (prim_world)
+        mul43(to_world, m, &out->wx);
     if (reg[0x17] & 1) {                /* lighting, in world space */
         float wn[3];
         mul33(world, nr, wn);
@@ -422,6 +538,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
     s->b = c->b;
     s->a = c->a;
     s->fog = c->fog;
+    memcpy(&s->wx, &c->wx, 6 * sizeof(float));
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */
@@ -617,7 +734,9 @@ static void raster_triangle(const Vertex *a, const Vertex *b, const Vertex *c, i
     float area = edge(a->x, a->y, b->x, b->y, c->x, c->y);
     if (area == 0)
         return;
-    if (!through && (reg[0x1D] & 1)) {          /* back-face culling: the front face's winding from FFACE */
+    /* back-face culling: the front face's winding from FFACE (on the GPU for what casts shadows: the faces turned
+     * away from the camera may face the sun) */
+    if (!through && (reg[0x1D] & 1) && !(render_on && prim_world)) {
         int ccw = area < 0;
         if (ccw == (int)(reg[0x9B] & 1))
             return;
@@ -677,7 +796,7 @@ static void clip_triangle(const ClipVertex *v0, const ClipVertex *v1, const Clip
             ClipVertex m;
             float *mf = &m.cx;
             const float *pf = &p->cx, *qf = &q->cx;
-            for (int k = 0; k < 11; k++)
+            for (int k = 0; k < VERTEX_FLOATS; k++)
                 mf[k] = pf[k] + (qf[k] - pf[k]) * t;
             out[n++] = m;
         }
@@ -731,6 +850,8 @@ typedef struct {
 } Frame;
 
 static int recording;               /* primitives are recorded, not drawn */
+static int in_replay;               /* drawing a recorded frame (gpu_render_frame) */
+static unsigned frame_generation_direct = 1, shadow_generation;    /* frames drawn as the game draws them */
 static unsigned frame_generation;   /* counts the frames recorded: what is worked out from the last two keeps until it changes */
 static Frame frames[3];             /* recording, latest, previous */
 static Frame *rec = &frames[0], *latest = &frames[1], *previous = &frames[2];
@@ -822,6 +943,7 @@ void gpu_record(int on) { recording = on; }
 
 /* The game's frame is done: it becomes the latest, the latest the previous */
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
+    frame_generation_direct++;
     close_run(rec);
     Frame *old = previous;
     previous = latest;
@@ -1125,7 +1247,9 @@ uint32_t gpu_render_frame(float t) {
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
     int *m = interpolate ? match() : NULL;
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
+    shadow_frame(native_camera ? shown_view : NULL);
     recording = 0;
+    in_replay = 1;
     for (int i = 0; i < latest->n; i++) {
         const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
         if (m)
@@ -1133,6 +1257,7 @@ uint32_t gpu_render_frame(float t) {
         replay(&latest->draws[i], prev, t);
     }
     recording = 1;
+    in_replay = 0;
     memcpy(reg, saved, sizeof reg);
     vaddr = sv;
     iaddr = si;
@@ -1167,8 +1292,14 @@ static void prim(uint32_t data) {
             vaddr += (uint32_t)(count * l.size);
         return;
     }
-    if (render_on && count > 0)
+    if (render_on && count > 0) {
+        if (!in_replay && shadow_generation != frame_generation_direct) {
+            shadow_generation = frame_generation_direct;
+            shadow_frame(NULL);
+        }
+        shadow_prim();
         render_prim_begin(reg);
+    }
     if (count > 0) {
         ClipVertex *v = malloc(sizeof *v * (size_t)count);
         int through = 0;

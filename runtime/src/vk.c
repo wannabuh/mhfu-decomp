@@ -301,10 +301,15 @@ void vk_submit(VkSemaphore wait, VkSemaphore signal) {
     CHECK(vkEndCommandBuffer(vk.cmd));
     vk.recording = 0;
     VkPipelineStageFlags stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL, wait ? 1u : 0u, wait ? &wait : NULL, &stage, 1, &vk.cmd,
-                       signal ? 1u : 0u, signal ? &signal : NULL};
+    VkCommandBuffer cmds[2] = {VK_NULL_HANDLE, vk.cmd};
+    cmds[0] = vk.before_submit ? vk.before_submit() : VK_NULL_HANDLE;
+    int first = cmds[0] ? 0 : 1;
+    VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL, wait ? 1u : 0u, wait ? &wait : NULL, &stage,
+                       (uint32_t)(2 - first), &cmds[first], signal ? 1u : 0u, signal ? &signal : NULL};
     CHECK(vkQueueSubmit(vk.queue, 1, &si, vk.fence));
     CHECK(vkWaitForFences(vk.device, 1, &vk.fence, VK_TRUE, UINT64_MAX));
     CHECK(vkResetFences(vk.device, 1, &vk.fence));
     CHECK(vkResetCommandBuffer(vk.cmd, 0));
+    if (cmds[0])
+        CHECK(vkResetCommandBuffer(cmds[0], 0));
 }

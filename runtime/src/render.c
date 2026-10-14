@@ -22,6 +22,8 @@
 #include "ge.frag.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
+#include "shadow.vert.inc"
+#include "shadow.frag.inc"
 
 int render_on;
 
@@ -31,7 +33,17 @@ int render_on;
 #define VERTEX_BYTES (64u << 20)
 #define STAGING_BYTES (64u << 20)
 
-typedef struct { float x, y, z, w, u, v; uint32_t color; float fog; } GpuVertex;
+typedef struct { float x, y, z, w, u, v; uint32_t color; float fog, wx, wy, wz; uint32_t sun; } GpuVertex;
+
+/* Shadows: the sun's depth over the world around the camera's target (gpu.c places it: SHADOW_SIZE), drawn each frame
+ * from what is drawn in the world - the same vertices, in a command buffer of its own submitted before the frame's */
+#define SHADOW_SIZE 2048
+static VkImg shadow_img;
+static VkSampler shadow_sampler;
+static VkPipeline shadow_pipeline;
+static VkCommandBuffer shadow_cmd;
+static int shadow_recording, shadow_on, prim_world;
+static float light_vp[16];
 
 typedef struct {
     uint32_t addr;                  /* VRAM address, mirror bits off */
@@ -63,6 +75,8 @@ typedef struct {
     VkCompareOp depth_op;
     VkColorComponentFlags write_mask;
     VkRect2D scissor;
+    VkCullModeFlags cull;
+    VkFrontFace front;
 } DrawState;
 
 static int scale = 2;
@@ -86,6 +100,8 @@ static int last_valid;
 static VkDeviceSize batch_start;     /* vertices of the batch not drawn yet */
 static VkBuf readback;
 
+static VkCommandBuffer shadow_finish(void);
+
 /* -- setup -------------------------------------------------------------------------------------------------------- */
 
 static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color,
@@ -95,14 +111,16 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
-    VkVertexInputAttributeDescription attrs[4] = {
+    VkVertexInputAttributeDescription attrs[6] = {
         {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
         {1, 0, VK_FORMAT_R32G32_SFLOAT, 16},
         {2, 0, VK_FORMAT_R8G8B8A8_UNORM, 24},
         {3, 0, VK_FORMAT_R32_SFLOAT, 28},
+        {4, 0, VK_FORMAT_R32G32B32_SFLOAT, 32},
+        {5, 0, VK_FORMAT_R8G8B8A8_UNORM, 44},
     };
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
-                                               ge ? 1u : 0u, &bind, ge ? 4u : 0u, attrs};
+                                               ge ? 1u : 0u, &bind, ge ? 6u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
                                                  VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
@@ -121,12 +139,24 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
     VkDynamicState dyn_ge[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE,
         VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP, VK_DYNAMIC_STATE_BLEND_CONSTANTS,
         VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT, VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT,
-        VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT};
+        VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT, VK_DYNAMIC_STATE_CULL_MODE, VK_DYNAMIC_STATE_FRONT_FACE};
     VkDynamicState dyn_present[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     VkPipelineDynamicStateCreateInfo dy = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0,
-                                           ge ? 9u : 2u, ge ? dyn_ge : dyn_present};
+                                           ge ? 11u : 2u, ge ? dyn_ge : dyn_present};
     VkPipelineRenderingCreateInfo ri = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, NULL, 0, 1, &color, depth,
                                         VK_FORMAT_UNDEFINED};
+    if (ge == 2) {                      /* the shadow map's: depth only, its faces both ways, a slope-scaled bias */
+        ri.colorAttachmentCount = 0;
+        cb.attachmentCount = 0;
+        rs.depthBiasEnable = VK_TRUE;
+        rs.depthBiasSlopeFactor = 1.5f;
+        rs.depthBiasConstantFactor = 0.0f;
+        ds.depthTestEnable = VK_TRUE;
+        ds.depthWriteEnable = VK_TRUE;
+        ds.depthCompareOp = VK_COMPARE_OP_LESS;
+        dy.dynamicStateCount = 2;
+        dy.pDynamicStates = dyn_present;
+    }
     VkGraphicsPipelineCreateInfo pci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &ri, 0, 2, stages, &vi, &ia,
                                         NULL, &vp, &rs, &ms, ge ? &ds : NULL, &cb, &dy, pl, VK_NULL_HANDLE, 0,
                                         VK_NULL_HANDLE, -1};
@@ -152,21 +182,25 @@ int render_init(void *sdl_window) {
         return 0;
 
     /* bindless textures: one array, filled as textures are made */
-    VkDescriptorSetLayoutBinding b = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES,
-                                      VK_SHADER_STAGE_FRAGMENT_BIT, NULL};
-    VkDescriptorBindingFlags bf = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                  VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-                                  VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
+    VkDescriptorSetLayoutBinding b[2] = {
+        {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+    };
+    VkDescriptorBindingFlags bf[2] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
+                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 1, &bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 2, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 1, &b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 2, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 1};
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 2};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 2, 1, &ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
@@ -175,7 +209,7 @@ int render_init(void *sdl_window) {
     dai.pSetLayouts = &present_set_layout;
     vkAllocateDescriptorSets(vk.device, &dai, &present_set);
 
-    VkPushConstantRange pr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 28};
+    VkPushConstantRange pr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 96};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
@@ -185,6 +219,8 @@ int render_init(void *sdl_window) {
 
     VkShaderModule vs = vk_shader(ge_vert, sizeof ge_vert), fs = vk_shader(ge_frag, sizeof ge_frag);
     pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
+    shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), vk_shader(shadow_frag, sizeof shadow_frag),
+                                    layout, VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 2);
     if (vk.surface) {
         VkShaderModule pvs = vk_shader(present_vert, sizeof present_vert);
         VkShaderModule pfs = vk_shader(present_frag, sizeof present_frag);
@@ -201,6 +237,12 @@ int render_init(void *sdl_window) {
         sci.maxLod = 0;
         vkCreateSampler(vk.device, &sci, NULL, &samplers[i]);
     }
+    VkSamplerCreateInfo shi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    shi.magFilter = shi.minFilter = VK_FILTER_LINEAR;
+    shi.addressModeU = shi.addressModeV = shi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    shi.compareEnable = VK_TRUE;
+    shi.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+    vkCreateSampler(vk.device, &shi, NULL, &shadow_sampler);
     VkSamplerCreateInfo psi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     psi.magFilter = psi.minFilter = VK_FILTER_LINEAR;
     psi.addressModeU = psi.addressModeV = psi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -210,6 +252,16 @@ int render_init(void *sdl_window) {
     staging = vk_buffer(STAGING_BYTES, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1);
     readback = vk_buffer((VkDeviceSize)RT_SIZE * scale * RT_SIZE * scale * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
     textures = calloc(MAX_TEXTURES, sizeof *textures);
+    shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
+                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    VkDescriptorImageInfo sii = {shadow_sampler, shadow_img.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 1, 0, 1,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
+    VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
+                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
+    vkAllocateCommandBuffers(vk.device, &cai, &shadow_cmd);
+    vk.before_submit = shadow_finish;
     render_on = 1;
     fprintf(stderr, "renderer: Vulkan, %dx internal resolution\n", scale);
     return 1;
@@ -463,6 +515,15 @@ void render_prim_begin(const uint32_t *reg) {
               (!clear && (reg[0x1F] & 1) && !((reg[0x12] >> 23) & 1) ? 128u : 0u);
     s.fog_color = reg[0xCF];
     s.alpha_test = reg[0xDB];
+    s.cull = VK_CULL_MODE_NONE;
+    s.front = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    if (prim_world && !clear) {
+        s.flags |= 256u | ((reg[0x17] & 1) ? 512u : 0u);
+        if (reg[0x1D] & 1) {            /* the culling gpu.c leaves to the GPU (the same faces as it would drop) */
+            s.cull = VK_CULL_MODE_BACK_BIT;
+            s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        }
+    }
     s.env_color = reg[0xCA];
     if (clear) {
         uint32_t mode = reg[0xD3] >> 8;
@@ -528,6 +589,77 @@ void render_prim_begin(const uint32_t *reg) {
     }
 }
 
+typedef struct {
+    float w, h;
+    uint32_t slot, flags, alpha, env, fog, pad;
+    float light[16];
+} PushConstants;
+
+/* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
+static void shadow_begin(void) {
+    if (shadow_recording)
+        return;
+    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL};
+    vkBeginCommandBuffer(shadow_cmd, &bi);
+    shadow_recording = 1;
+    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED, shadow_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}};
+    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
+    vkCmdPipelineBarrier2(shadow_cmd, &d);
+    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, shadow_img.view,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    da.clearValue.depthStencil.depth = 1.0f;
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {SHADOW_SIZE, SHADOW_SIZE}}, 1, 0, 0, NULL,
+                          &da, NULL};
+    vkCmdBeginRendering(shadow_cmd, &ri);
+    vkCmdBindPipeline(shadow_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_pipeline);
+    vkCmdBindDescriptorSets(shadow_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &vertices.buffer, &zero);
+    VkViewport vp = {0, 0, SHADOW_SIZE, SHADOW_SIZE, 0, 1};
+    VkRect2D sc = {{0, 0}, {SHADOW_SIZE, SHADOW_SIZE}};
+    vkCmdSetViewport(shadow_cmd, 0, 1, &vp);
+    vkCmdSetScissor(shadow_cmd, 0, 1, &sc);
+}
+
+/* vk_submit: the shadow pass, finished, to submit before the frame's commands (NULL if there is none) */
+static VkCommandBuffer shadow_finish(void) {
+    if (!shadow_recording)
+        return VK_NULL_HANDLE;
+    vkCmdEndRendering(shadow_cmd);
+    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED, shadow_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}};
+    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
+    vkCmdPipelineBarrier2(shadow_cmd, &d);
+    vkEndCommandBuffer(shadow_cmd);
+    shadow_recording = 0;
+    return shadow_cmd;
+}
+
+/* gpu.c: this frame's shadows - the world to the shadow map (by columns), or off */
+void render_shadow_frame(const float *m, int on) {
+    if (on && memcmp(m, light_vp, sizeof light_vp)) {
+        flush();                        /* what is batched was placed with the last */
+        memcpy(light_vp, m, sizeof light_vp);
+    }
+    if (on != shadow_on)
+        flush();
+    shadow_on = on;
+}
+
+/* gpu.c: the next primitive's vertices have their place in the world (shadows fall on it, and it casts them) */
+void render_prim_world(int on) {
+    prim_world = on;
+}
+
 /* Draw what has been batched with the current state */
 static void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
@@ -551,10 +683,23 @@ static void flush(void) {
         vk.SetColorWriteMask(cmd, 0, 1, &s->write_mask);
     if (!last_valid || memcmp(s->blend_const, last.blend_const, sizeof s->blend_const))
         vkCmdSetBlendConstants(cmd, s->blend_const);
-    struct { float w, h; uint32_t slot, flags, alpha, env, fog; } pc = {s->tex_w ? s->tex_w : 1,
-        s->tex_h ? s->tex_h : 1, s->tex_slot, s->flags, s->alpha_test, s->env_color, s->fog_color};
-    vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
+    if (!last_valid || s->cull != last.cull)
+        vkCmdSetCullMode(cmd, s->cull);
+    if (!last_valid || s->front != last.front)
+        vkCmdSetFrontFace(cmd, s->front);
+    PushConstants pc = {s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1, s->tex_slot,
+        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, 0, {0}};
+    memcpy(pc.light, light_vp, sizeof pc.light);
+    vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+    /* what is solid in the world casts shadows: drawn again into the shadow map */
+    if (shadow_on && (s->flags & 256u) && s->depth_write && !s->blend) {
+        shadow_begin();
+        vkCmdPushConstants(shadow_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc,
+                           &pc);
+        vkCmdDraw(shadow_cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+    } else if (shadow_on && (s->flags & 256u))
+        shadow_begin();                 /* (it is sampled: made this frame, if empty) */
     last = *s;
     last_valid = 1;
     batch_start = vertex_used;
@@ -579,6 +724,12 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     uint32_t b = v->b < 0 ? 0 : v->b > 255 ? 255 : (uint32_t)v->b, a = v->a < 0 ? 0 : v->a > 255 ? 255 : (uint32_t)v->a;
     g->color = r | gg << 8 | b << 16 | a << 24;
     g->fog = v->fog;
+    g->wx = v->wx;
+    g->wy = v->wy;
+    g->wz = v->wz;
+    uint32_t sr = v->sr > 255 ? 255 : v->sr > 0 ? (uint32_t)v->sr : 0, sg = v->sg > 255 ? 255 : v->sg > 0 ? (uint32_t)v->sg : 0;
+    uint32_t sb = v->sb > 255 ? 255 : v->sb > 0 ? (uint32_t)v->sb : 0;
+    g->sun = sr | sg << 8 | sb << 16;
     vertex_used += sizeof(GpuVertex);
 }
 
