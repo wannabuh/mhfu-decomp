@@ -61,8 +61,9 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
 | system | patch | at 60 ticks |
 |---|---|---|
 | motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: about 500 units a second at either rate) |
+| motion blends | the weight's step (`08863894`), the count of frames (`088638A0`, on `rt_tick30`) | blends take their time |
 
-Not yet: motion blends (the weight step, and the tick count, an integer), and everything else - movement that is not
+Not yet: everything else - movement that is not
 root motion, the hunter's and monsters' state timers (attack windows, invulnerability, AI decisions), effects and
 particles, sounds started by ticks, the camera's easing, the UI's animations and fades, menus' waits. At 60 ticks a
 second those run twice as fast; menus and transitions too, so a recording made at one rate does not replay at another.
@@ -73,8 +74,9 @@ second those run twice as fast; menus and transitions too, so a recording made a
    added to it for the input to try (`<frame> <buttons> <stick x> <stick y> 0 0`).
 2. Find its variable: snapshots a tick or two apart, `tools/ramdiff.py` for what changes by a constant.
 3. `tools/watch.py` for the code that advances it; the add (or count down) is the place.
-4. Patch it in `recomp/patches.py` to scale by `rt_time_scale`; for integer counters, the counter needs to count in
-   finer steps (scaled by the rate) where it is set, or a fraction kept beside it.
+4. Patch it in `recomp/patches.py`: what adds a float, to add it times `rt_time_scale`; an integer count of frames, to
+   count only when `rt_tick30` is 1 (the frames where a frame at 30 a second falls: the same time, in steps of a
+   30th).
 5. Check at 30 that a recording replays to the same RAM (the patches must change nothing there).
 
 The shared helpers come first - one patch fixes every caller: the motion player was one function for every character.

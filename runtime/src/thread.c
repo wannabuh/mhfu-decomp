@@ -98,6 +98,8 @@ static VTimer *vtimers[MAX_VTIMERS];
  * timeout), when the wall clock gets there; fast-forwarding, at once. A slow host slows the game rather than making it
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
 float rt_time_scale = 1;
+int rt_tick30 = 1;
+static float tick30_phase;           /* 30ths of a second gone by, since the last whole one */
 static uint64_t now_us;
 static uint64_t wall_base;          /* the wall clock (us) when the game's clock was 0, for pacing */
 static uint64_t epoch_us;           /* the date and time (us since 1970) when the game's clock was 0 */
@@ -172,6 +174,11 @@ void set_tick_hz(int hz) {
 
 /* present.c, each game frame: the rate switch of MHFU_TICK_HZ=N@frame */
 void tick_frame(unsigned long frame) {
+    /* this frame is a 30th's if, with it, another whole 30th has gone by */
+    tick30_phase += rt_time_scale;
+    rt_tick30 = tick30_phase >= 0.999f;
+    if (rt_tick30)
+        tick30_phase -= 1;
     if (tick_switch_frame && frame == tick_switch_frame) {
         set_tick_hz(tick_switch_hz);
         fprintf(stderr, "frame %lu: %d game frames a second\n", frame, tick_switch_hz);
