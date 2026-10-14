@@ -94,6 +94,15 @@ static Axis yaw_axis = {.r = 1, .before_r = 1}, pitch_axis = {.r = 1, .before_r 
 
 /* The game's last two frames' cameras: view matrices (4x3, as gpu.c's), targets, eyes; have: how many are recorded */
 static float views[2][12], targets[2][3], eyes[2][3];
+static float view_before[12];           /* the frame's before the previous (what some models were placed with) */
+static float target_before[3], eye_before[3];
+/* gpu.c: the frames shown are drawn with the camera of the update before theirs - and so are a frame behind what the
+ * camera follows: the target (and eye) followed are then the frame's before */
+static int frames_late;
+
+void camera_frames_late(int late) {
+    frames_late = late;
+}
 static int have;
 
 static float wrap(float a) {
@@ -199,6 +208,9 @@ void camera_update(float dx, float dy) {
     /* the frame's camera (its view matrix 4x4 by columns: the game multiplies it into each world matrix) */
     const float *e = (const float *)MEM(scene + 0xB40), *t = (const float *)MEM(scene + 0xB50);
     const float *vm = (const float *)MEM(scene + 0xB80);
+    memcpy(view_before, views[0], sizeof view_before);
+    memcpy(target_before, targets[0], sizeof target_before);
+    memcpy(eye_before, eyes[0], sizeof eye_before);
     memcpy(views[0], views[1], sizeof views[0]);
     memcpy(targets[0], targets[1], sizeof targets[0]);
     memcpy(eyes[0], eyes[1], sizeof eyes[0]);
@@ -344,9 +356,11 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         if (getenv("MHFU_CAMERA_LOG"))
             log = fopen(getenv("MHFU_CAMERA_LOG"), "w");
     }
+    const float *t0 = frames_late ? target_before : targets[0], *t1 = frames_late ? targets[0] : targets[1];
+    const float *e0 = frames_late ? eye_before : eyes[0], *e1 = frames_late ? eyes[0] : eyes[1];
     float c[3];
     for (int i = 0; i < 3; i++)
-        c[i] = interpolating ? targets[0][i] + (targets[1][i] - targets[0][i]) * t : targets[1][i];
+        c[i] = interpolating ? t0[i] + (t1[i] - t0[i]) * t : t1[i];
     /* The eye's offset from the target turned by M: by a about the vertical, then up by b about the horizontal at right
      * angles to it (k: rotating about k by -b raises the offset (sin, 0, cos) of bearing ψ). The camera shown sees a
      * point x as the latest sees M^T (x - c) + target. */
@@ -367,14 +381,15 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     /* the eye's distance from the target as interpolated too (the game moves it in and out as the hunter goes): the
      * target, straight ahead, brought to that distance */
     if (interpolating) {
-        float d0 = sqrtf((eyes[0][0] - targets[0][0]) * (eyes[0][0] - targets[0][0]) +
-                         (eyes[0][1] - targets[0][1]) * (eyes[0][1] - targets[0][1]) +
-                         (eyes[0][2] - targets[0][2]) * (eyes[0][2] - targets[0][2]));
-        float d1 = sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) +
+        float d0 = sqrtf((e0[0] - t0[0]) * (e0[0] - t0[0]) + (e0[1] - t0[1]) * (e0[1] - t0[1]) +
+                         (e0[2] - t0[2]) * (e0[2] - t0[2]));
+        float d1 = sqrtf((e1[0] - t1[0]) * (e1[0] - t1[0]) + (e1[1] - t1[1]) * (e1[1] - t1[1]) +
+                         (e1[2] - t1[2]) * (e1[2] - t1[2]));
+        float dl = sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) +
                          (eyes[1][1] - targets[1][1]) * (eyes[1][1] - targets[1][1]) +
                          (eyes[1][2] - targets[1][2]) * (eyes[1][2] - targets[1][2]));
-        if (d1 > 1 && d0 > 1 && fabsf(d0 - d1) < 0.5f * d1) {
-            float k = (d0 + (d1 - d0) * t) / d1, tv[3];
+        if (dl > 1 && d1 > 1 && d0 > 1 && fabsf(d0 - dl) < 0.5f * dl) {
+            float k = (d0 + (d1 - d0) * t) / dl, tv[3];
             for (int i = 0; i < 3; i++)
                 tv[i] = shown[i] * c[0] + shown[3 + i] * c[1] + shown[6 + i] * c[2] + shown[9 + i];
             for (int i = 0; i < 3; i++)
@@ -415,5 +430,12 @@ int camera_game(float *inv, float *target) {
 /* The inverse of a camera (4x3, as above) */
 void camera_invert(const float *v, float *out) {
     invert(v, out);
+}
+
+
+/* gpu.c: the inverse of the camera two game frames ago. The game places some models (the monsters) during their update,
+ * with the camera as it was before the frame's: a frame's drawing of them has the camera of the frame before in it */
+void camera_before_inverse(float *inv) {
+    invert(view_before, inv);
 }
 

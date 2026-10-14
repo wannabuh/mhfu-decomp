@@ -1031,6 +1031,13 @@ static void lerp(float *out, const float *a, const float *b, int n, float t) {
 int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown);
 static int native_camera;
 static float prev_inv[12], latest_inv[12], shown_view[12];
+static float before_inv[12];        /* the camera before the previous frame's, undone */
+/* stale (below): for each draw of the latest frame, placed with the camera of the frame before. The game draws a frame
+ * with the camera of its update before (the scene's matrix read after a frame is the next's): told apart by which keeps
+ * the draws still in the world, as most say, so that it holds whatever the game does */
+static uint8_t *stale;
+static int stale_known;             /* (worked out for this frame: interpolating, the camera shown) */
+void camera_before_inverse(float *inv);
 
 static void compose43(const float *a, const float *b, float *out) {
     float m[12];
@@ -1051,10 +1058,11 @@ static void replay(const Draw *d, const Draw *prev, float t) {
         /* the game multiplied its camera into the world matrix: take each frame's out, interpolate in the world, and
          * put the camera shown in */
         float wl[12];
-        compose43(latest_inv, d->world, wl);
+        int late = stale_known && stale[d - latest->draws];     /* placed with the camera a frame late */
+        compose43(late ? prev_inv : latest_inv, d->world, wl);
         if (prev) {
             float wp[12];
-            compose43(prev_inv, prev->world, wp);
+            compose43(late ? before_inv : prev_inv, prev->world, wp);
             lerp(world, wp, wl, 12, t);
             lerp(view, prev->view, d->view, 12, t);
             lerp(proj, prev->proj, d->proj, 16, t);
@@ -1134,6 +1142,30 @@ static void to_frame_world(const float *inv, float *p) {
     memcpy(p, w, sizeof w);
 }
 
+/* A matched draw's evidence of the camera it was placed with: its moves (squared) between the frames with the frame's
+ * camera undone and with the one before's. Marks the draw 2 (clearly late) or 3 (clearly not), else 0 (as the frame) */
+static int votes_late, votes_fresh;
+static int frames_late = 1;         /* the frames are drawn with the camera of the update before (as last told) */
+void camera_frames_late(int late);
+static uint8_t *stale;
+
+static void vote(int i, float fresh, float late) {
+    if (fresh < 1 && late < 1)
+        return;                 /* the camera did not move enough to tell */
+    if (late < 0.25f * fresh)
+        votes_late++;
+    else if (fresh < 0.25f * late)
+        votes_fresh++;
+    if (late < 0.01f * fresh && fresh > 25)
+        stale[i] = 2;
+    else if (fresh < 0.01f * late && late > 25)
+        stale[i] = 3;
+}
+
+static float dist2(const float *a, const float *b) {
+    return (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]);
+}
+
 static int cmp_key(const void *a, const void *b) {
     uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
     return x < y ? -1 : x > y;
@@ -1172,7 +1204,11 @@ static int *match(int in_world) {
     if (latest->n > cap) {
         cap = latest->n * 2;
         m = realloc(m, sizeof *m * (size_t)cap);
+        stale = realloc(stale, (size_t)cap);
     }
+    if (in_world)
+        camera_before_inverse(before_inv);
+    votes_late = votes_fresh = 0;
     if (previous->n > tcap) {
         tcap = previous->n * 2;
         taken = realloc(taken, (size_t)tcap);
@@ -1231,16 +1267,30 @@ static int *match(int in_world) {
             if (keys[order[mid]] < k) lo = mid + 1;
             else hi = mid;
         }
-        float p[3];
+        float p[3], p_late[3];
         draw_position(d, p);
-        if (in_world)
+        memcpy(p_late, p, sizeof p);
+        if (in_world) {
             to_frame_world(latest_inv, p);
+            to_frame_world(prev_inv, p_late);
+        }
+        stale[i] = 0;
         int best = -1;
+        float best_fresh = 0, best_late = 0;
         if (lo < previous->n && keys[order[lo]] == k && (lo + 1 == previous->n || keys[order[lo + 1]] != k) &&
             latest_count(k) == 1) {
             m[i] = taken[order[lo]] ? -1 : order[lo];
-            if (m[i] >= 0)
+            if (m[i] >= 0) {
                 taken[order[lo]] = 1;
+                if (in_world) {         /* which camera it was placed with: the one that keeps it still-er */
+                    float q[3], q_late[3];
+                    draw_position(&previous->draws[m[i]], q);
+                    memcpy(q_late, q, sizeof q);
+                    to_frame_world(prev_inv, q);
+                    to_frame_world(before_inv, q_late);
+                    vote(i, dist2(p, q), dist2(p_late, q_late));
+                }
+            }
             continue;
         }
         /* in the world the camera's turn moves nothing: only the distance (as seen, things far off sweep further) */
@@ -1250,19 +1300,43 @@ static int *match(int in_world) {
             int c = order[j];
             if (taken[c])
                 continue;
-            float q[3];
+            float q[3], q_late[3];
             draw_position(&previous->draws[c], q);
-            if (in_world)
+            memcpy(q_late, q, sizeof q);
+            int late = 0;
+            if (in_world) {
                 to_frame_world(prev_inv, q);
-            float dd = (p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]) + (p[2] - q[2]) * (p[2] - q[2]);
+                to_frame_world(before_inv, q_late);
+            }
+            float dd = dist2(p, q), dd_late = in_world ? dist2(p_late, q_late) : dd;
+            if (dd_late < dd) {
+                dd = dd_late;
+                late = 1;
+            }
             if (dd <= best_d) {
                 best_d = dd;
                 best = c;
+                best_fresh = dist2(p, q);
+                best_late = dd_late;
             }
+            (void)late;
         }
         m[i] = best;
-        if (best >= 0)
+        if (best >= 0) {
             taken[best] = 1;
+            if (in_world)
+                vote(i, best_fresh, best_late);
+        }
+    }
+    /* the frame's camera: as most of its draws say; a draw says otherwise only on clear evidence of its own (its move
+     * with one camera a tenth of that with the other, and over 5 units) */
+    if (in_world) {
+        /* when the camera turns enough to tell; kept until it does again */
+        if (votes_late + votes_fresh > 50)
+            frames_late = votes_late > votes_fresh;
+        int frame_late = frames_late;
+        for (int i = 0; i < latest->n; i++)
+            stale[i] = stale[i] == 2 ? 1 : stale[i] == 3 ? 0 : (uint8_t)frame_late;
     }
     return m;
 }
@@ -1324,8 +1398,10 @@ uint32_t gpu_render_frame(float t) {
     shown_frames++;
     placed_run = -1;
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
+    camera_frames_late(frames_late);
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
     int *m = interpolate ? match(native_camera) : NULL;
+    stale_known = m && native_camera;
     shadow_frame(native_camera ? shown_view : NULL);
     recording = 0;
     in_replay = 1;
