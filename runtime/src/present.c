@@ -431,6 +431,8 @@ static void snapshots(void) {
     }
 }
 
+void gpu_frame_tick(void);
+
 void present_frame(void) {
     static uint64_t frame_wall;
     uint64_t wall = wall_time_us();
@@ -450,6 +452,7 @@ void present_frame(void) {
     if (debug_frame && (long)frame == debug_frame)
         debug_frame_hook(frame);
     tick_frame(frame);
+    gpu_frame_tick();
     watch();
     snapshots();
     uint32_t *pixels = window_pixels();

@@ -942,8 +942,12 @@ uint64_t gpu_last_frame_time(void) { return latest->time; }
 void gpu_record(int on) { recording = on; }
 
 /* The game's frame is done: it becomes the latest, the latest the previous */
-void gpu_frame_end(uint32_t display_addr, uint64_t time) {
+/* present.c, each game frame: the next is drawn with its own shadows' placement */
+void gpu_frame_tick(void) {
     frame_generation_direct++;
+}
+
+void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
     Frame *old = previous;
     previous = latest;
