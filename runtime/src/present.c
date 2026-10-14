@@ -410,6 +410,8 @@ void present_frame(void) {
             gpu_frame_end(display_fb_addr, time_us());
         if (dump && (!display_fps() || gpu_render_frame(1.0f)) && render_on)
             render_readback(display_fb_addr, pixels);
+        if (render_on && !display_fps())
+            render_finish_frame();
     } else if (display_fps()) {
         gpu_frame_end(display_fb_addr, time_us());
         if (dump && gpu_render_frame(1.0f))

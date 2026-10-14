@@ -603,6 +603,14 @@ static void end_frame(void) {
     frame_no++;
 }
 
+/* The end of a frame not shown (fast-forwarding): its work submitted, the frame's buffers and checks started again */
+void render_finish_frame(void) {
+    end_rendering();
+    if (vk.recording)
+        vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    end_frame();
+}
+
 void render_flip(uint32_t addr) {
     end_rendering();
     Target *t = target(addr, 0);
