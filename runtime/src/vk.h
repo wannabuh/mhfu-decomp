@@ -50,7 +50,8 @@ typedef struct {
     PFN_vkCmdSetColorBlendEnableEXT SetColorBlendEnable;
     PFN_vkCmdSetColorBlendEquationEXT SetColorBlendEquation;
     PFN_vkCmdSetColorWriteMaskEXT SetColorWriteMask;
-    VkCommandBuffer (*before_submit)(void);     /* commands to submit before the frame's (render.c: the shadow map) */
+    int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render.c: shadows) */
+    int output_layer;                /* a vertex shader can choose the layer it draws into */
 } VkContext;
 
 extern VkContext vk;
@@ -62,6 +63,8 @@ void vk_recreate_swapchain(void);
 VkBuf vk_buffer(VkDeviceSize size, VkBufferUsageFlags usage, int host);
 void vk_buffer_free(VkBuf *b);
 VkImg vk_image(uint32_t w, uint32_t h, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspect);
+VkImg vk_image_layers(uint32_t w, uint32_t h, uint32_t layers, VkImageCreateFlags flags, VkFormat format,
+                      VkImageUsageFlags usage, VkImageAspectFlags aspect);
 void vk_image_free(VkImg *i);
 void vk_transition(VkImg *i, VkImageLayout to);
 VkShaderModule vk_shader(const uint32_t *code, size_t size);

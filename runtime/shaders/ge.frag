@@ -13,6 +13,24 @@ struct LightSet {
     uint count, sun, pad0, pad1;
 };
 layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
+// The strongest two point lights' shadows: distance from the light over its reach, by direction from it
+layout(set = 0, binding = 3) uniform samplerCube point_shadow[2];
+
+// How much of point light i (one of the first two) reaches this point: its cube map's distances compared around the
+// direction (4 taps across it)
+float point_lit(uint i, vec3 v, float reach) {
+    float d = length(v) / reach * 0.96 - 0.01;     // (surfaces at a grazing angle to the light shade themselves)
+    vec3 n = normalize(v);
+    vec3 a = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));
+    vec3 b = cross(n, a);
+    float r = 0.006;
+    float lit = 0.0;
+    lit += d <= texture(point_shadow[i], n + a * r).r ? 1.0 : 0.0;
+    lit += d <= texture(point_shadow[i], n - a * r).r ? 1.0 : 0.0;
+    lit += d <= texture(point_shadow[i], n + b * r).r ? 1.0 : 0.0;
+    lit += d <= texture(point_shadow[i], n - b * r).r ? 1.0 : 0.0;
+    return lit * 0.25;
+}
 
 layout(push_constant) uniform Draw {
     vec2 tex_size;       // texels, to normalise the coordinates
@@ -68,6 +86,8 @@ vec3 point_light(vec3 n, bool has_normal) {
             k *= k;
             if (has_normal && d > 0.0)
                 k *= max(dot(n, l / d), 0.0);
+            if (s == 0u && i < sets[set].pad0 && k > 0.0)
+                k *= point_lit(i, -l, p.w);
             sum += sets[set].color[i].rgb * k;
         }
     }

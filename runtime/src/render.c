@@ -25,6 +25,8 @@
 #include "present.frag.inc"
 #include "shadow.vert.inc"
 #include "shadow.frag.inc"
+#include "pshadow.vert.inc"
+#include "pshadow.frag.inc"
 
 int render_on;
 
@@ -52,6 +54,7 @@ static LightSet last_lights;
 #define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
 #define POINT_LIGHT_RADIUS 450.0f       /* how far a light reaches */
 #define POINT_LIGHT_GAIN 0.6f
+static float point_gain = POINT_LIGHT_GAIN;     /* MHFU_POINT_GAIN: the lights' strength */
 typedef struct { float pos[3], color[3], weight; } Emitter;
 static Emitter emitters[MAX_EMITTERS];
 static int nemitters, emitting, point_lights_on = -1;
@@ -69,6 +72,17 @@ static VkPipeline shadow_pipeline;
 static VkCommandBuffer shadow_cmd, shadow_cmds[2];
 static int shadow_recording, shadow_on, prim_world;
 static float light_vp[16];
+/* The point lights' shadows: the two strongest lights' cube maps (6 faces each, distance from the light over its
+ * reach), drawn in one pass from what casts shadows - each draw once into all twelve faces (instances; the vertex
+ * shader picks the face's layer) - in a command buffer of their own before the frame's */
+#define POINT_SHADOW_SIZE 512
+static VkImg point_img;
+static VkImageView point_cube[2];
+static VkSampler point_sampler;
+static VkPipeline point_pipeline;
+static VkCommandBuffer point_cmd, point_cmds[2];
+static int point_recording, point_shadows, point_shadows_next;
+static int point_shadows_on = 1;    /* MHFU_POINT_SHADOWS=0: none */
 /* What clipping at the camera's near plane cut off (behind the camera, it still casts shadows): whole, for the shadow
  * pass only, in a buffer of their own (one a frame in flight) */
 #define SHADOW_EXTRA_BYTES (8u << 20)
@@ -135,7 +149,7 @@ static int last_valid;
 static VkDeviceSize batch_start;     /* vertices of the batch not drawn yet */
 static VkBuf readback;
 
-static VkCommandBuffer shadow_finish(void);
+static int shadow_finish(VkCommandBuffer *out);
 static void frame_reused(int frame);
 
 /* -- setup -------------------------------------------------------------------------------------------------------- */
@@ -182,6 +196,15 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
                                            ge ? 11u : 2u, ge ? dyn_ge : dyn_present};
     VkPipelineRenderingCreateInfo ri = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, NULL, 0, 1, &color, depth,
                                         VK_FORMAT_UNDEFINED};
+    if (ge == 3) {                      /* the point lights' (depth: the distance, written by the shader): no bias */
+        ri.colorAttachmentCount = 0;
+        cb.attachmentCount = 0;
+        ds.depthTestEnable = VK_TRUE;
+        ds.depthWriteEnable = VK_TRUE;
+        ds.depthCompareOp = VK_COMPARE_OP_LESS;
+        dy.dynamicStateCount = 2;
+        dy.pDynamicStates = dyn_present;
+    }
     if (ge == 2) {                      /* the shadow map's: depth only, its faces both ways, a slope-scaled bias */
         ri.colorAttachmentCount = 0;
         cb.attachmentCount = 0;
@@ -219,28 +242,31 @@ int render_init(void *sdl_window) {
         return 0;
 
     /* bindless textures: one array, filled as textures are made */
-    VkDescriptorSetLayoutBinding b[3] = {
+    VkDescriptorSetLayoutBinding b[4] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[3] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+    VkDescriptorBindingFlags bf[4] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 3, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 4, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 3, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 4, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 3},
+    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 5},
                                   {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
@@ -263,6 +289,10 @@ int render_init(void *sdl_window) {
     pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
     shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), vk_shader(shadow_frag, sizeof shadow_frag),
                                     layout, VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 2);
+    if (vk.output_layer)
+        point_pipeline = make_pipeline(vk_shader(pshadow_vert, sizeof pshadow_vert),
+                                       vk_shader(pshadow_frag, sizeof pshadow_frag), layout, VK_FORMAT_UNDEFINED,
+                                       VK_FORMAT_D32_SFLOAT, 3);
     if (vk.surface) {
         VkShaderModule pvs = vk_shader(present_vert, sizeof present_vert);
         VkShaderModule pfs = vk_shader(present_frag, sizeof present_frag);
@@ -307,6 +337,24 @@ int render_init(void *sdl_window) {
     VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 1, 0, 1,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
+    point_img = vk_image_layers(POINT_SHADOW_SIZE, POINT_SHADOW_SIZE, 12, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
+                                VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
+                                VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    VkSamplerCreateInfo psci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
+    psci.magFilter = psci.minFilter = VK_FILTER_NEAREST;
+    psci.addressModeU = psci.addressModeV = psci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    vkCreateSampler(vk.device, &psci, NULL, &point_sampler);
+    VkDescriptorImageInfo pii[2];
+    for (int i = 0; i < 2; i++) {
+        VkImageViewCreateInfo vci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL, 0, point_img.image,
+                                     VK_IMAGE_VIEW_TYPE_CUBE, VK_FORMAT_D32_SFLOAT, {0},
+                                     {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, (uint32_t)(6 * i), 6}};
+        vkCreateImageView(vk.device, &vci, NULL, &point_cube[i]);
+        pii[i] = (VkDescriptorImageInfo){point_sampler, point_cube[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
+    }
+    VkWriteDescriptorSet pw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 3, 0, 2,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, pii, NULL, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &pw, 0, NULL);
     light_buf = vk_buffer(2 * LIGHT_SETS * sizeof(LightSet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
     VkDescriptorBufferInfo lbi = {light_buf.buffer, 0, VK_WHOLE_SIZE};
     VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 2, 0, 1,
@@ -316,6 +364,8 @@ int render_init(void *sdl_window) {
                                        VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
     vkAllocateCommandBuffers(vk.device, &cai, shadow_cmds);
     shadow_cmd = shadow_cmds[0];
+    vkAllocateCommandBuffers(vk.device, &cai, point_cmds);
+    point_cmd = point_cmds[0];
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -431,6 +481,8 @@ static void frame_reused(int frame) {
     extra = shadow_extra[frame];
     shadow_cmd = shadow_cmds[frame];
     vkResetCommandBuffer(shadow_cmd, 0);
+    point_cmd = point_cmds[frame];
+    vkResetCommandBuffer(point_cmd, 0);
     for (int i = 0; i < nretired[frame]; i++)
         vk_image_free(&retired[frame][i]);
     nretired[frame] = 0;
@@ -687,8 +739,12 @@ void render_prim_begin(const uint32_t *reg) {
         flush();
         cur = s;
     }
-    if (point_lights_on < 0)
+    if (point_lights_on < 0) {
         point_lights_on = !getenv("MHFU_POINT_LIGHTS") || atoi(getenv("MHFU_POINT_LIGHTS")) != 0;
+        point_shadows_on = !getenv("MHFU_POINT_SHADOWS") || atoi(getenv("MHFU_POINT_SHADOWS")) != 0;
+        if (getenv("MHFU_POINT_GAIN"))
+            point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
+    }
     emitting = point_lights_on && (s.flags & 256u) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
                s.eq.colorBlendOp == VK_BLEND_OP_ADD;
 }
@@ -732,8 +788,8 @@ static void shadow_begin(void) {
     vkCmdSetScissor(shadow_cmd, 0, 1, &sc);
 }
 
-/* vk_submit: the shadow pass, finished, to submit before the frame's commands (NULL if there is none) */
-static VkCommandBuffer shadow_finish(void) {
+/* The sun's shadow pass, finished (NULL if there was none) */
+static VkCommandBuffer sun_finish(void) {
     if (!shadow_recording)
         return VK_NULL_HANDLE;
     vkCmdEndRendering(shadow_cmd);
@@ -747,6 +803,66 @@ static VkCommandBuffer shadow_finish(void) {
     vkEndCommandBuffer(shadow_cmd);
     shadow_recording = 0;
     return shadow_cmd;
+}
+
+/* The point lights' shadow pass, begun at the first thing in the world of a frame with shadowed point lights */
+static void point_begin(void) {
+    if (point_recording)
+        return;
+    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL};
+    vkBeginCommandBuffer(point_cmd, &bi);
+    point_recording = 1;
+    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED, point_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 12}};
+    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
+    vkCmdPipelineBarrier2(point_cmd, &d);
+    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, point_img.view,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    da.clearValue.depthStencil.depth = 1.0f;
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {POINT_SHADOW_SIZE, POINT_SHADOW_SIZE}},
+                          12, 0, 0, NULL, &da, NULL};
+    vkCmdBeginRendering(point_cmd, &ri);
+    vkCmdBindPipeline(point_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, point_pipeline);
+    vkCmdBindDescriptorSets(point_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(point_cmd, 0, 1, &vertices.buffer, &zero);
+    VkViewport vp = {0, 0, POINT_SHADOW_SIZE, POINT_SHADOW_SIZE, 0, 1};
+    VkRect2D sc = {{0, 0}, {POINT_SHADOW_SIZE, POINT_SHADOW_SIZE}};
+    vkCmdSetViewport(point_cmd, 0, 1, &vp);
+    vkCmdSetScissor(point_cmd, 0, 1, &sc);
+}
+
+static VkCommandBuffer point_finish(void) {
+    if (!point_recording)
+        return VK_NULL_HANDLE;
+    vkCmdEndRendering(point_cmd);
+    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
+        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED, point_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 12}};
+    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
+    vkCmdPipelineBarrier2(point_cmd, &d);
+    vkEndCommandBuffer(point_cmd);
+    point_recording = 0;
+    return point_cmd;
+}
+
+/* vk_submit: the shadow passes, finished, to submit before the frame's commands */
+static int shadow_finish(VkCommandBuffer *out) {
+    int n = 0;
+    VkCommandBuffer c = sun_finish();
+    if (c)
+        out[n++] = c;
+    c = point_finish();
+    if (c)
+        out[n++] = c;
+    return n;
 }
 
 /* gpu.c: this frame's shadows - the world to the shadow map (by columns), or off */
@@ -883,9 +999,21 @@ static void make_point_lights(void) {
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++) {
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         if (!lit[i].seen)
             lit[i].strength *= 0.8f;
+    /* the strongest first: the first two (of the first set) have shadows */
+    int order[MAX_POINT_LIGHTS];
+    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
+        order[i] = i;
+    for (int i = 1; i < MAX_POINT_LIGHTS; i++)
+        for (int j = i; j > 0 && lit[order[j]].strength > lit[order[j - 1]].strength; j--) {
+            int t = order[j];
+            order[j] = order[j - 1];
+            order[j - 1] = t;
+        }
+    for (int oi = 0; oi < MAX_POINT_LIGHTS; oi++) {
+        int i = order[oi];
         if (lit[i].strength < 0.02f) {
             lit[i].strength = 0;
             continue;
@@ -893,13 +1021,18 @@ static void make_point_lights(void) {
         LightSet *ls = &point_lights[point_lights[0].count < 4 ? 0 : 1];
         uint32_t at = ls->count++;
         memcpy(ls->dir[at], lit[i].pos, sizeof lit[i].pos);
+        ls->dir[at][1] += 70.0f;            /* a fire's light: in its flames, above where they are drawn on average */
         ls->dir[at][3] = POINT_LIGHT_RADIUS;
         /* a fire's light flickers: two slow waves, a light's own (by where it is) */
         double now = (double)time_us() / 1e6, phase = lit[i].pos[0] * 0.013 + lit[i].pos[2] * 0.017;
         float flicker = 0.88f + 0.08f * (float)sin(now * 9.1 + phase) + 0.04f * (float)sin(now * 23.7 + 2 * phase);
         for (int q = 0; q < 3; q++)
-            ls->color[at][q] = lit[i].color[q] * lit[i].strength * POINT_LIGHT_GAIN * flicker;
+            ls->color[at][q] = lit[i].color[q] * lit[i].strength * point_gain * flicker;
     }
+    point_shadows_next = point_lights[0].count < 2 ? (int)point_lights[0].count : 2;
+    if (!vk.output_layer || !shadow_on || !point_shadows_on)
+        point_shadows_next = 0;
+    point_lights[0].pad[0] = (uint32_t)point_shadows_next;
     nemitters = 0;
 }
 
@@ -960,6 +1093,24 @@ static void flush(void) {
 
     } else if (shadow_on && (s->flags & 256u))
         shadow_begin();                 /* (it is sampled: made this frame, if empty) */
+    if (point_shadows && shadow_on && (s->flags & 256u)) {
+        point_begin();
+        if (s->depth_write && (!s->blend || alpha_blend)) {
+            if (alpha_blend)
+                pc.flags |= 2048u;
+            vkCmdPushConstants(point_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                               sizeof pc, &pc);
+            uint32_t instances = 6u * (uint32_t)point_shadows;
+            vkCmdDraw(point_cmd, (uint32_t)n, instances, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+            if (extra_used > extra_batch) {
+                VkDeviceSize zero = 0;
+                vkCmdBindVertexBuffers(point_cmd, 0, 1, &extra.buffer, &zero);
+                vkCmdDraw(point_cmd, (uint32_t)((extra_used - extra_batch) / sizeof(GpuVertex)), instances,
+                          (uint32_t)(extra_batch / sizeof(GpuVertex)), 0);
+                vkCmdBindVertexBuffers(point_cmd, 0, 1, &vertices.buffer, &zero);
+            }
+        }
+    }
     last = *s;
     last_valid = 1;
     batch_start = vertex_used;
@@ -1064,6 +1215,7 @@ static void end_frame(void) {
     if (point_lights_on > 0)                /* for the next frame (its half: vk.frame is the next's now) */
         memcpy((LightSet *)light_buf.map + (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2, point_lights,
                sizeof point_lights);
+    point_shadows = point_lights_on > 0 ? point_shadows_next : 0;
     light_sets_used = 0;
     prim_lights = ~0u;
     vertex_used = batch_start = 0;

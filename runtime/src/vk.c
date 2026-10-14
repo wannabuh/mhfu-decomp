@@ -123,6 +123,11 @@ int vk_init(void *window) {
     f12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
     f12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
     VkPhysicalDeviceFeatures2 f2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &f12};
+    VkPhysicalDeviceVulkan12Features have12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+    VkPhysicalDeviceFeatures2 have2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &have12};
+    vkGetPhysicalDeviceFeatures2(vk.gpu, &have2);
+    if (have12.shaderOutputLayer)
+        f12.shaderOutputLayer = VK_TRUE, vk.output_layer = 1;
     const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.queue_family, 1, &prio};
@@ -239,6 +244,31 @@ void vk_buffer_free(VkBuf *b) {
     memset(b, 0, sizeof *b);
 }
 
+/* An image of layers (its view: all of them, as an array) */
+VkImg vk_image_layers(uint32_t w, uint32_t h, uint32_t layers, VkImageCreateFlags flags, VkFormat format,
+                      VkImageUsageFlags usage, VkImageAspectFlags aspect) {
+    VkImg i = {0};
+    i.format = format;
+    i.width = w;
+    i.height = h;
+    i.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    i.aspect = aspect;
+    VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, NULL, flags, VK_IMAGE_TYPE_2D, format, {w, h, 1}, 1,
+        layers, VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, usage, VK_SHARING_MODE_EXCLUSIVE, 0, NULL,
+        VK_IMAGE_LAYOUT_UNDEFINED};
+    CHECK(vkCreateImage(vk.device, &ici, NULL, &i.image));
+    VkMemoryRequirements req;
+    vkGetImageMemoryRequirements(vk.device, i.image, &req);
+    VkMemoryAllocateInfo mai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, NULL, req.size,
+                                memory_type(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
+    CHECK(vkAllocateMemory(vk.device, &mai, NULL, &i.memory));
+    CHECK(vkBindImageMemory(vk.device, i.image, i.memory, 0));
+    VkImageViewCreateInfo vci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL, 0, i.image, VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                                 format, {0}, {aspect, 0, 1, 0, layers}};
+    CHECK(vkCreateImageView(vk.device, &vci, NULL, &i.view));
+    return i;
+}
+
 VkImg vk_image(uint32_t w, uint32_t h, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspect) {
     VkImg i = {0};
     i.format = format;
@@ -308,11 +338,13 @@ void vk_submit(VkSemaphore wait, VkSemaphore signal) {
     CHECK(vkEndCommandBuffer(vk.cmd));
     vk.recording = 0;
     VkPipelineStageFlags stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkCommandBuffer cmds[2] = {VK_NULL_HANDLE, vk.cmd};
-    cmds[0] = vk.before_submit ? vk.before_submit() : VK_NULL_HANDLE;
-    int first = cmds[0] ? 0 : 1;
+    VkCommandBuffer cmds[3] = {VK_NULL_HANDLE, VK_NULL_HANDLE, vk.cmd};
+    int before = vk.before_submit ? vk.before_submit(cmds) : 0;     /* into cmds[0], cmds[1] */
+    if (before == 1)
+        cmds[1] = cmds[0];
+    int first = 2 - before;
     VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL, wait ? 1u : 0u, wait ? &wait : NULL, &stage,
-                       (uint32_t)(2 - first), &cmds[first], signal ? 1u : 0u, signal ? &signal : NULL};
+                       (uint32_t)(3 - first), &cmds[first], signal ? 1u : 0u, signal ? &signal : NULL};
     CHECK(vkResetFences(vk.device, 1, &vk.fences[vk.frame]));
     CHECK(vkQueueSubmit(vk.queue, 1, &si, vk.fences[vk.frame]));
     /* on to the other frame's resources, once the GPU is done with them (the frame before this one) */
