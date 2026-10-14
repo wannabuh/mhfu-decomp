@@ -138,13 +138,19 @@ int vk_init(void *window) {
                                    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, vk.queue_family};
     CHECK(vkCreateCommandPool(vk.device, &pci, NULL, &vk.pool));
     VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
-                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
-    CHECK(vkAllocateCommandBuffers(vk.device, &cai, &vk.cmd));
-    VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, 0};
-    CHECK(vkCreateFence(vk.device, &fci, NULL, &vk.fence));
+                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
+    CHECK(vkAllocateCommandBuffers(vk.device, &cai, vk.cmds));
+    VkFenceCreateInfo fci = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, NULL, VK_FENCE_CREATE_SIGNALED_BIT};
     VkSemaphoreCreateInfo sci = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, NULL, 0};
-    CHECK(vkCreateSemaphore(vk.device, &sci, NULL, &vk.acquired));
-    CHECK(vkCreateSemaphore(vk.device, &sci, NULL, &vk.rendered));
+    for (int i = 0; i < 2; i++) {
+        CHECK(vkCreateFence(vk.device, &fci, NULL, &vk.fences[i]));
+        CHECK(vkCreateSemaphore(vk.device, &sci, NULL, &vk.acquired_s[i]));
+    }
+    for (int i = 0; i < 8; i++)
+        CHECK(vkCreateSemaphore(vk.device, &sci, NULL, &vk.rendered_s[i]));
+    vk.cmd = vk.cmds[0];
+    vk.acquired = vk.acquired_s[0];
+    vk.rendered = vk.rendered_s[0];
     if (vk.surface)
         vk_recreate_swapchain();
     VkPhysicalDeviceProperties p;
@@ -166,7 +172,7 @@ void vk_recreate_swapchain(void) {
     vkGetPhysicalDeviceSurfaceFormatsKHR(vk.gpu, vk.surface, &nf, formats);
     VkSurfaceFormatKHR fmt = formats[0];
     for (uint32_t i = 0; i < nf; i++)
-        if (formats[i].format == VK_FORMAT_B8G8R8A8_UNORM)
+        if (formats[i].format == VK_FORMAT_B8G8R8A8_UNORM && formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
             fmt = formats[i];
     vk.swap_format = fmt.format;
     VkExtent2D ext = caps.currentExtent;
@@ -306,10 +312,18 @@ void vk_submit(VkSemaphore wait, VkSemaphore signal) {
     int first = cmds[0] ? 0 : 1;
     VkSubmitInfo si = {VK_STRUCTURE_TYPE_SUBMIT_INFO, NULL, wait ? 1u : 0u, wait ? &wait : NULL, &stage,
                        (uint32_t)(2 - first), &cmds[first], signal ? 1u : 0u, signal ? &signal : NULL};
-    CHECK(vkQueueSubmit(vk.queue, 1, &si, vk.fence));
-    CHECK(vkWaitForFences(vk.device, 1, &vk.fence, VK_TRUE, UINT64_MAX));
-    CHECK(vkResetFences(vk.device, 1, &vk.fence));
+    CHECK(vkResetFences(vk.device, 1, &vk.fences[vk.frame]));
+    CHECK(vkQueueSubmit(vk.queue, 1, &si, vk.fences[vk.frame]));
+    /* on to the other frame's resources, once the GPU is done with them (the frame before this one) */
+    vk.frame ^= 1;
+    CHECK(vkWaitForFences(vk.device, 1, &vk.fences[vk.frame], VK_TRUE, UINT64_MAX));
+    vk.cmd = vk.cmds[vk.frame];
+    vk.acquired = vk.acquired_s[vk.frame];
     CHECK(vkResetCommandBuffer(vk.cmd, 0));
-    if (cmds[0])
-        CHECK(vkResetCommandBuffer(cmds[0], 0));
+    if (vk.frame_reused)
+        vk.frame_reused(vk.frame);
+}
+
+void vk_finish(void) {
+    CHECK(vkQueueWaitIdle(vk.queue));
 }

@@ -41,7 +41,7 @@ typedef struct { float x, y, z, w, u, v; uint32_t color; float fog, wx, wy, wz; 
 static VkImg shadow_img;
 static VkSampler shadow_sampler;
 static VkPipeline shadow_pipeline;
-static VkCommandBuffer shadow_cmd;
+static VkCommandBuffer shadow_cmd, shadow_cmds[2];
 static int shadow_recording, shadow_on, prim_world;
 static float light_vp[16];
 
@@ -83,13 +83,17 @@ static int scale = 2;
 static Target targets[MAX_TARGETS];
 static Texture *textures;
 static int ntextures;
-static VkBuf vertices, staging;
+static VkBuf vertices, staging;    /* the frame's (one of two: vk.frame) */
+static VkBuf frame_vertices[2], frame_staging[2];
+/* images replaced while the GPU may still draw with them: freed when their frame comes round again */
+static VkImg retired[2][64];
+static int nretired[2];
 static VkDeviceSize vertex_used, staging_used;
 static VkPipeline pipeline, present_pipeline;
 static VkPipelineLayout layout, present_layout;
 static VkDescriptorSetLayout set_layout, present_set_layout;
 static VkDescriptorPool pool;
-static VkDescriptorSet set, present_set;
+static VkDescriptorSet set, present_sets[2];
 static VkSampler samplers[8], present_sampler;
 static unsigned long frame_no = 1;
 
@@ -101,6 +105,7 @@ static VkDeviceSize batch_start;     /* vertices of the batch not drawn yet */
 static VkBuf readback;
 
 static VkCommandBuffer shadow_finish(void);
+static void frame_reused(int frame);
 
 /* -- setup -------------------------------------------------------------------------------------------------------- */
 
@@ -200,14 +205,15 @@ int render_init(void *sdl_window) {
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 2};
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 3};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
-                                      VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 2, 1, &ps};
+                                      VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 1, &ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
     VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, pool, 1, &set_layout};
     vkAllocateDescriptorSets(vk.device, &dai, &set);
     dai.pSetLayouts = &present_set_layout;
-    vkAllocateDescriptorSets(vk.device, &dai, &present_set);
+    vkAllocateDescriptorSets(vk.device, &dai, &present_sets[0]);
+    vkAllocateDescriptorSets(vk.device, &dai, &present_sets[1]);
 
     VkPushConstantRange pr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 96};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
@@ -248,8 +254,12 @@ int render_init(void *sdl_window) {
     psi.addressModeU = psi.addressModeV = psi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     vkCreateSampler(vk.device, &psi, NULL, &present_sampler);
 
-    vertices = vk_buffer(VERTEX_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
-    staging = vk_buffer(STAGING_BYTES, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1);
+    for (int i = 0; i < 2; i++) {
+        frame_vertices[i] = vk_buffer(VERTEX_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
+        frame_staging[i] = vk_buffer(STAGING_BYTES, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1);
+    }
+    vertices = frame_vertices[0];
+    staging = frame_staging[0];
     readback = vk_buffer((VkDeviceSize)RT_SIZE * scale * RT_SIZE * scale * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
     textures = calloc(MAX_TEXTURES, sizeof *textures);
     shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
@@ -259,9 +269,11 @@ int render_init(void *sdl_window) {
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
     VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
-                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
-    vkAllocateCommandBuffers(vk.device, &cai, &shadow_cmd);
+                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
+    vkAllocateCommandBuffers(vk.device, &cai, shadow_cmds);
+    shadow_cmd = shadow_cmds[0];
     vk.before_submit = shadow_finish;
+    vk.frame_reused = frame_reused;
     render_on = 1;
     fprintf(stderr, "renderer: Vulkan, %dx internal resolution\n", scale);
     return 1;
@@ -357,6 +369,28 @@ static uint64_t hash_bytes(const uint8_t *p, size_t n, uint64_t h) {
     return h;
 }
 
+/* An image the GPU may still be drawing with: freed once the frame comes round again */
+static void retire(VkImg *i) {
+    if (!i->image)
+        return;
+    if (nretired[vk.frame] < 64)
+        retired[vk.frame][nretired[vk.frame]++] = *i;
+    else
+        vk_image_free(i);          /* (never: a frame does not replace that many) */
+    memset(i, 0, sizeof *i);
+}
+
+/* vk_submit: the frame's resources are free again */
+static void frame_reused(int frame) {
+    vertices = frame_vertices[frame];
+    staging = frame_staging[frame];
+    shadow_cmd = shadow_cmds[frame];
+    vkResetCommandBuffer(shadow_cmd, 0);
+    for (int i = 0; i < nretired[frame]; i++)
+        vk_image_free(&retired[frame][i]);
+    nretired[frame] = 0;
+}
+
 /* The current texture's slot: a render target's, or a cached texture's (made or updated as needed) */
 static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
@@ -412,7 +446,7 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
                 if (textures[i].used < textures[lru].used)
                     lru = i;
             t = &textures[lru];
-            vk_image_free(&t->img);
+            retire(&t->img);
         } else {
             t = &textures[ntextures++];
             t->slot = next_slot++;
@@ -428,7 +462,7 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     }
     gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
     if (t->w != w || t->h != h) {
-        vk_image_free(&t->img);
+        retire(&t->img);
         t->img = vk_image((uint32_t)w, (uint32_t)h, VK_FORMAT_R8G8B8A8_UNORM,
                           VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
         t->w = w;
@@ -791,10 +825,11 @@ void render_flip(uint32_t addr) {
         end_frame();
         return;
     }
+    vk.rendered = vk.rendered_s[index % 8];
     VkCommandBuffer cmd = vk_cmd();
     vk_transition(&t->color, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     VkDescriptorImageInfo ii = {present_sampler, t->color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, present_set, 0, 0, 1,
+    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, present_sets[vk.frame], 0, 0, 1,
                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
     VkImg swap = {vk.swap_images[index], VK_NULL_HANDLE, vk.swap_views[index], vk.swap_format, vk.swap_extent.width,
@@ -816,7 +851,7 @@ void render_flip(uint32_t addr) {
     VkViewport vp = {(sw - vw) / 2, (sh - vh) / 2, vw, vh, 0, 1};
     VkRect2D sc = {{0, 0}, vk.swap_extent};
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_layout, 0, 1, &present_set, 0, NULL);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_layout, 0, 1, &present_sets[vk.frame], 0, NULL);
     vkCmdSetViewport(cmd, 0, 1, &vp);
     vkCmdSetScissor(cmd, 0, 1, &sc);
     float region[2] = {480.0f / RT_SIZE, 272.0f / RT_SIZE};
@@ -845,6 +880,7 @@ void render_readback(uint32_t addr, uint32_t *pixels) {
     VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {w, h, 1}};
     vkCmdCopyImageToBuffer(vk_cmd(), t->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1, &copy);
     vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    vk_finish();
     const uint32_t *src = readback.map;
     for (int y = 0; y < 272; y++)
         for (int x = 0; x < 480; x++)

@@ -30,8 +30,11 @@ typedef struct {
     VkQueue queue;
     uint32_t queue_family;
     VkCommandPool pool;
-    VkCommandBuffer cmd;             /* the frame's */
-    VkFence fence;
+    VkCommandBuffer cmd;             /* the frame's (one of two: the GPU draws one frame while the next is made) */
+    VkCommandBuffer cmds[2];
+    VkFence fences[2];
+    int frame;                       /* which of the two */
+    void (*frame_reused)(int frame);  /* the frame's resources are free again (the GPU is done with them) */
     int recording;
     /* the window's, if any */
     VkSurfaceKHR surface;
@@ -41,7 +44,8 @@ typedef struct {
     uint32_t swap_count;
     VkImage swap_images[8];
     VkImageView swap_views[8];
-    VkSemaphore acquired, rendered;
+    VkSemaphore acquired, rendered;  /* the frame's (acquired) and the swapchain image's (rendered) */
+    VkSemaphore acquired_s[2], rendered_s[8];
     /* extended dynamic state 3 */
     PFN_vkCmdSetColorBlendEnableEXT SetColorBlendEnable;
     PFN_vkCmdSetColorBlendEquationEXT SetColorBlendEquation;
@@ -65,5 +69,6 @@ VkShaderModule vk_shader(const uint32_t *code, size_t size);
 /* The frame's command buffer: begun on first use, submitted (and waited for) by vk_submit */
 VkCommandBuffer vk_cmd(void);
 void vk_submit(VkSemaphore wait, VkSemaphore signal);
+void vk_finish(void);                /* wait for everything submitted */
 
 #endif
