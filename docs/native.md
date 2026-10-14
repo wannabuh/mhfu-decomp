@@ -30,6 +30,11 @@ In a hunt the state's run is `game_task 09A60298` → `09A62740` → `09A627B8`,
 +0x1C. The hunter's state function is `game_task 09A665F0` (`09AA94C8` in the village's `lobby_task`). Every timer,
 speed and wait in those functions is a count of ticks: there are thousands.
 
+**The hunter** (in a hunt; found from its vtable `089BB3CC`, whose +0x38 is its state function `game_task 09A66198`):
++0x10 its rotation (3x3, rows of 4), +0x40 its position, +0x90 / +0xD0 a motion layer's frame and +0x9C / +0xDC its
+end, +0x1F4 its facing (16 bits), +0x200 / +0x210 its position now and before, +0x3F4 ticks in its state (counting up:
+a timer to convert). Starting to walk it turns at once: there is no turning rate.
+
 **Motions** (animations) are made at 60 frames a second. The motion player, `EBOOT 088637C4`, called from
 `08865648` ← `088D5C7C` (an object's motion update), advances each layer's frame (+0x10) by its speed (+0x14) a tick -
 2.0 normally; 0 holds a frame (hit-stop); a blend steps a weight (+0x34 by +0x24) and counts down ticks (+0x30, an
@@ -55,9 +60,9 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
 
 | system | patch | at 60 ticks |
 |---|---|---|
-| motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: 509 units a second at 60, 582 at 30, the stick held two seconds) |
+| motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: about 500 units a second at either rate) |
 
-Turning to face the stick is not (the hunter turns about twice as fast at 60). Not yet either: motion blends (the weight step, and the tick count, an integer), and everything else - movement that is not
+Not yet: motion blends (the weight step, and the tick count, an integer), and everything else - movement that is not
 root motion, the hunter's and monsters' state timers (attack windows, invulnerability, AI decisions), effects and
 particles, sounds started by ticks, the camera's easing, the UI's animations and fades, menus' waits. At 60 ticks a
 second those run twice as fast; menus and transitions too, so a recording made at one rate does not replay at another.
