@@ -114,7 +114,11 @@ static void axis_frame(Axis *x, float angle) {
     x->written = 0;
     x->angle[0] = x->angle[1];
     x->angle[1] = angle;
-    if (fabsf(x->applied) > 0.002f) {
+    /* with the mouse having the camera the game turns it exactly as far as it is told (its own turns patched out): an
+     * estimate would only add noise - stuck from before, or taken on a slow turn, it delays the turn and jumps */
+    if (rt_camera_free)
+        x->r = 1;
+    else if (fabsf(x->applied) > 0.002f) {
         float f = wrap(x->angle[1] - x->angle[0]) / x->applied;
         x->r = f < 0 ? 0 : f > 1 ? 1 : f;
     }
@@ -340,11 +344,6 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         if (getenv("MHFU_CAMERA_LOG"))
             log = fopen(getenv("MHFU_CAMERA_LOG"), "w");
     }
-    if (log)
-        fprintf(log, "%llu %.4f %.6f %d %.6f %.6f %.1f\n", (unsigned long long)time_us(), t, yaw_axis.angle[1] + a,
-                interpolating, pitch_axis.angle[1] + b, pitch_axis.angle[1],
-                sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) + (eyes[1][1] - targets[1][1]) *
-                      (eyes[1][1] - targets[1][1]) + (eyes[1][2] - targets[1][2]) * (eyes[1][2] - targets[1][2])));
     float c[3];
     for (int i = 0; i < 3; i++)
         c[i] = interpolating ? targets[0][i] + (targets[1][i] - targets[0][i]) * t : targets[1][i];
@@ -365,6 +364,33 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     for (int i = 0; i < 3; i++)
         q[9 + i] = targets[1][i] - (q[i] * c[0] + q[3 + i] * c[1] + q[6 + i] * c[2]);
     compose(views[1], q, shown);
+    /* the eye's distance from the target as interpolated too (the game moves it in and out as the hunter goes): the
+     * target, straight ahead, brought to that distance */
+    if (interpolating) {
+        float d0 = sqrtf((eyes[0][0] - targets[0][0]) * (eyes[0][0] - targets[0][0]) +
+                         (eyes[0][1] - targets[0][1]) * (eyes[0][1] - targets[0][1]) +
+                         (eyes[0][2] - targets[0][2]) * (eyes[0][2] - targets[0][2]));
+        float d1 = sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) +
+                         (eyes[1][1] - targets[1][1]) * (eyes[1][1] - targets[1][1]) +
+                         (eyes[1][2] - targets[1][2]) * (eyes[1][2] - targets[1][2]));
+        if (d1 > 1 && d0 > 1 && fabsf(d0 - d1) < 0.5f * d1) {
+            float k = (d0 + (d1 - d0) * t) / d1, tv[3];
+            for (int i = 0; i < 3; i++)
+                tv[i] = shown[i] * c[0] + shown[3 + i] * c[1] + shown[6 + i] * c[2] + shown[9 + i];
+            for (int i = 0; i < 3; i++)
+                shown[9 + i] += tv[i] * (k - 1);
+        }
+    }
+    if (log) {
+        float ex[3];
+        for (int i = 0; i < 3; i++)     /* the eye shown: -R^T t */
+            ex[i] = -(shown[3 * i] * shown[9] + shown[3 * i + 1] * shown[10] + shown[3 * i + 2] * shown[11]);
+        fprintf(log, "%llu %.4f %.6f %d %.6f %.6f %.1f %.2f %.2f %.2f %.2f %.2f %.2f\n", (unsigned long long)time_us(), t,
+                yaw_axis.angle[1] + a, interpolating, pitch_axis.angle[1] + b, pitch_axis.angle[1],
+                sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) + (eyes[1][1] - targets[1][1]) *
+                      (eyes[1][1] - targets[1][1]) + (eyes[1][2] - targets[1][2]) * (eyes[1][2] - targets[1][2])),
+                c[0], c[1], c[2], ex[0], ex[1], ex[2]);
+    }
     return 1;
 }
 
@@ -390,3 +416,4 @@ int camera_game(float *inv, float *target) {
 void camera_invert(const float *v, float *out) {
     invert(v, out);
 }
+

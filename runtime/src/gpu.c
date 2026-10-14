@@ -1127,6 +1127,13 @@ static float camera_distance(const Draw *d, const float *p) {
     return sqrtf(e[0] * e[0] + e[1] * e[1] + e[2] * e[2]);
 }
 
+/* A position in what the game draws in (its camera in it) to the world, through the frame's camera undone */
+static void to_frame_world(const float *inv, float *p) {
+    float w[3];
+    mul43(inv, p, w);
+    memcpy(p, w, sizeof w);
+}
+
 static int cmp_key(const void *a, const void *b) {
     uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
     return x < y ? -1 : x > y;
@@ -1152,12 +1159,14 @@ static int latest_count(uint64_t k) {
 /* Match each draw of the latest frame to the previous frame's: the previous draw with the same key (vertex address,
  * format, type, count) if there is one in each; among several - copies of a model (a herd, dust) come in a different
  * order from frame to frame - the nearest not already taken, within MATCH_DISTANCE (and MATCH_TURN) */
-static int *match(void) {
+static int *match(int in_world) {
     static int *m, cap;
     static unsigned done = ~0u;
-    if (done == frame_generation)
+    static int done_world;
+    if (done == frame_generation && done_world == in_world)
         return m;
     done = frame_generation;
+    done_world = in_world;
     static uint8_t *taken;
     static int tcap;
     if (latest->n > cap) {
@@ -1224,6 +1233,8 @@ static int *match(void) {
         }
         float p[3];
         draw_position(d, p);
+        if (in_world)
+            to_frame_world(latest_inv, p);
         int best = -1;
         if (lo < previous->n && keys[order[lo]] == k && (lo + 1 == previous->n || keys[order[lo + 1]] != k) &&
             latest_count(k) == 1) {
@@ -1232,7 +1243,8 @@ static int *match(void) {
                 taken[order[lo]] = 1;
             continue;
         }
-        float reach = MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p);
+        /* in the world the camera's turn moves nothing: only the distance (as seen, things far off sweep further) */
+        float reach = in_world ? MATCH_DISTANCE : MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p);
         float best_d = reach * reach;
         for (int j = lo; j < previous->n && keys[order[j]] == k; j++) {
             int c = order[j];
@@ -1240,6 +1252,8 @@ static int *match(void) {
                 continue;
             float q[3];
             draw_position(&previous->draws[c], q);
+            if (in_world)
+                to_frame_world(prev_inv, q);
             float dd = (p[0] - q[0]) * (p[0] - q[0]) + (p[1] - q[1]) * (p[1] - q[1]) + (p[2] - q[2]) * (p[2] - q[2]);
             if (dd <= best_d) {
                 best_d = dd;
@@ -1310,8 +1324,8 @@ uint32_t gpu_render_frame(float t) {
     shown_frames++;
     placed_run = -1;
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
-    int *m = interpolate ? match() : NULL;
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
+    int *m = interpolate ? match(native_camera) : NULL;
     shadow_frame(native_camera ? shown_view : NULL);
     recording = 0;
     in_replay = 1;

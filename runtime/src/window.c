@@ -246,4 +246,19 @@ uint32_t window_buttons(void) { return device_buttons; }
 void window_stick(uint8_t *lx, uint8_t *ly) {
     *lx = device_lx;
     *ly = device_ly;
+    /* MHFU_TEST_STICK="frame,x,y[,frames]": the stick held there from the game's frame (for testing) */
+    static int read;
+    static unsigned long from = ~0ul, frames = ~0ul;
+    static int x, y;
+    if (!read) {
+        read = 1;
+        const char *e = getenv("MHFU_TEST_STICK");
+        if (!e || sscanf(e, "%lu,%d,%d,%lu", &from, &x, &y, &frames) < 3)
+            from = ~0ul;
+    }
+    unsigned long f = present_frame_number();
+    if (f >= from && f < from + frames) {
+        *lx = (uint8_t)x;
+        *ly = (uint8_t)y;
+    }
 }
