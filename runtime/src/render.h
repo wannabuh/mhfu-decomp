@@ -16,6 +16,7 @@ int render_init(void *sdl_window);          /* NULL: offscreen. 0 if Vulkan cann
 /* gpu.c: before each primitive (the GE's state in regs), then its triangles and sprites */
 void render_prim_begin(const uint32_t *regs);
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c);
+void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c);     /* clipped: for shadows */
 void render_sprite(const RVertex *a, const RVertex *b);
 void render_vram_written(uint32_t addr, uint32_t size);     /* something other than the GE wrote VRAM */
 

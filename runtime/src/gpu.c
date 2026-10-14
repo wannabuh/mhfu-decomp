@@ -846,6 +846,21 @@ static void clip_triangle(const ClipVertex *v0, const ClipVertex *v1, const Clip
     }
     const float near = 1e-4f;
     ClipVertex in[3] = {*v0, *v1, *v2}, out[4];
+    if (render_on && prim_world && (v0->cw <= near || v1->cw <= near || v2->cw <= near)) {
+        /* cut by the near plane: the shadows have it whole (they need only its place in the world) */
+        RVertex r[3];
+        const ClipVertex *cv[3] = {v0, v1, v2};
+        for (int i = 0; i < 3; i++) {
+            memset(&r[i], 0, sizeof r[i]);
+            r[i].u = cv[i]->u;
+            r[i].v = cv[i]->v;
+            r[i].a = cv[i]->a;
+            r[i].wx = cv[i]->wx;
+            r[i].wy = cv[i]->wy;
+            r[i].wz = cv[i]->wz;
+        }
+        render_shadow_triangle(&r[0], &r[1], &r[2]);
+    }
     int n = 0;
     for (int i = 0; i < 3; i++) {
         const ClipVertex *p = &in[i], *q = &in[(i + 1) % 3];

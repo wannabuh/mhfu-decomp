@@ -53,6 +53,11 @@ static VkPipeline shadow_pipeline;
 static VkCommandBuffer shadow_cmd, shadow_cmds[2];
 static int shadow_recording, shadow_on, prim_world;
 static float light_vp[16];
+/* What clipping at the camera's near plane cut off (behind the camera, it still casts shadows): whole, for the shadow
+ * pass only, in a buffer of their own (one a frame in flight) */
+#define SHADOW_EXTRA_BYTES (8u << 20)
+static VkBuf shadow_extra[2], extra;
+static VkDeviceSize extra_used, extra_batch;
 
 typedef struct {
     uint32_t addr;                  /* VRAM address, mirror bits off */
@@ -275,6 +280,9 @@ int render_init(void *sdl_window) {
     }
     vertices = frame_vertices[0];
     staging = frame_staging[0];
+    for (int i = 0; i < 2; i++)
+        shadow_extra[i] = vk_buffer(SHADOW_EXTRA_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
+    extra = shadow_extra[0];
     readback = vk_buffer((VkDeviceSize)RT_SIZE * scale * RT_SIZE * scale * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
     textures = calloc(MAX_TEXTURES, sizeof *textures);
     shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
@@ -404,6 +412,7 @@ static void retire(VkImg *i) {
 static void frame_reused(int frame) {
     vertices = frame_vertices[frame];
     staging = frame_staging[frame];
+    extra = shadow_extra[frame];
     shadow_cmd = shadow_cmds[frame];
     vkResetCommandBuffer(shadow_cmd, 0);
     for (int i = 0; i < nretired[frame]; i++)
@@ -744,8 +753,10 @@ void render_prim_world(int on) {
 /* Draw what has been batched with the current state */
 static void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
-    if (!n || !rendering)
+    if (!n || !rendering) {
+        extra_batch = extra_used;
         return;
+    }
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
@@ -784,11 +795,20 @@ static void flush(void) {
         vkCmdPushConstants(shadow_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc,
                            &pc);
         vkCmdDraw(shadow_cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+        if (extra_used > extra_batch) {
+            VkDeviceSize zero = 0;
+            vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &extra.buffer, &zero);
+            vkCmdDraw(shadow_cmd, (uint32_t)((extra_used - extra_batch) / sizeof(GpuVertex)), 1,
+                      (uint32_t)(extra_batch / sizeof(GpuVertex)), 0);
+            vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &vertices.buffer, &zero);
+        }
+
     } else if (shadow_on && (s->flags & 256u))
         shadow_begin();                 /* (it is sampled: made this frame, if empty) */
     last = *s;
     last_valid = 1;
     batch_start = vertex_used;
+    extra_batch = extra_used;
 }
 
 /* -- primitives --------------------------------------------------------------------------------------------------- */
@@ -825,6 +845,25 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     vertex_used += sizeof(GpuVertex);
 }
 
+/* gpu.c: a triangle of the current primitive clipping cut (some of it is behind the camera): whole, for the shadows */
+void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
+    if (!shadow_on || !(cur.flags & 256u) || extra_used + 3 * sizeof(GpuVertex) > SHADOW_EXTRA_BYTES)
+        return;
+    const RVertex *v[3] = {a, b, c};
+    for (int i = 0; i < 3; i++) {
+        GpuVertex *g = (GpuVertex *)((uint8_t *)extra.map + extra_used);
+        memset(g, 0, sizeof *g);
+        g->u = v[i]->u;
+        g->v = v[i]->v;
+        uint32_t al = v[i]->a < 0 ? 0 : v[i]->a > 255 ? 255 : (uint32_t)v[i]->a;
+        g->color = al << 24;
+        g->wx = v[i]->wx;
+        g->wy = v[i]->wy;
+        g->wz = v[i]->wz;
+        extra_used += sizeof(GpuVertex);
+    }
+}
+
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     begin_rendering(cur.target);
     put(a, a->x, a->y, a->u, a->v, 0);
@@ -852,6 +891,8 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
 static void end_frame(void) {
+    extra_used = extra_batch = 0;
+
     light_sets_used = 0;
     prim_lights = ~0u;
     vertex_used = batch_start = 0;
