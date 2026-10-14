@@ -115,8 +115,16 @@ static int replaying(void) {
     return replay_end && frame < replay_end;
 }
 
+/* MHFU_REPLAY_SPEED=N: from the game's frame N on, a replay runs at the game's speed (to measure it, or to watch) */
+static unsigned long replay_speed_at(void) {
+    static long at = -1;
+    if (at < 0)
+        at = getenv("MHFU_REPLAY_SPEED") ? atol(getenv("MHFU_REPLAY_SPEED")) : 0;
+    return at ? (unsigned long)at : ~0ul;
+}
+
 int fast_forward(void) {
-    return (skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME) || replaying();
+    return (skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME) || (replaying() && frame < replay_speed_at());
 }
 
 /* This frame's input, from the replay while there is one */
@@ -294,6 +302,8 @@ static void watch(void) {
     }
 }
 
+uint64_t wall_time_us(void), time_slept_us(void);
+static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
 static int fps = -1;                /* the display's frame rate; 0: the game's own frames */
 static uint64_t next_display;
 
@@ -347,15 +357,25 @@ uint64_t present_pump(void) {
     if (addr)
         render_flip(addr);
     static uint64_t stats_at;
-    static unsigned long shown;
+    static unsigned long shown, stats_frame;
     shown++;
-    if (getenv("MHFU_FPS_STATS") && now - stats_at > 5000000) {
-        unsigned long m, u;
-        gpu_match_stats(&m, &u);
-        fprintf(stderr, "display: %.1f frames a second, %.0f%% of primitives matched\n",
-                (double)shown * 1e6 / (double)(now - stats_at), m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
-        stats_at = now;
-        shown = 0;
+    if (getenv("MHFU_FPS_STATS")) {
+        uint64_t wall = wall_time_us();
+        if (!stats_at)
+            stats_at = wall;
+        if (wall - stats_at > 5000000) {
+            unsigned long m, u;
+            gpu_match_stats(&m, &u);
+            double secs = (double)(wall - stats_at) / 1e6;
+            fprintf(stderr, "display: %.1f frames a second, the game %.1f (longest frame %.1f ms), idle %.0f%%, "
+                    "%.0f%% of primitives matched\n", (double)shown / secs, (double)(frame - stats_frame) / secs,
+                    (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
+                    m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
+            stats_at = wall;
+            stats_frame = frame;
+            longest_frame_us = 0;
+            shown = 0;
+        }
     }
     next_display += interval;
     if (next_display < now)
@@ -388,6 +408,11 @@ static void snapshots(void) {
 }
 
 void present_frame(void) {
+    static uint64_t frame_wall;
+    uint64_t wall = wall_time_us();
+    if (frame_wall && wall - frame_wall > longest_frame_us)
+        longest_frame_us = wall - frame_wall;
+    frame_wall = wall;
     if (dump_every < 0) {
         const char *e = getenv("MHFU_DUMP");
         dump_every = e ? atoi(e) : 0;

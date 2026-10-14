@@ -111,6 +111,16 @@ static uint64_t wall_us(void) {
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000;
 }
 
+uint64_t wall_time_us(void) { return wall_us(); }
+
+static uint64_t slept_us;           /* for MHFU_FPS_STATS: how long the clock waited for the wall clock */
+
+uint64_t time_slept_us(void) {
+    uint64_t s = slept_us;
+    slept_us = 0;
+    return s;
+}
+
 uint64_t time_us(void) {
     return now_us;
 }
@@ -152,6 +162,7 @@ static void advance_to(uint64_t until) {
         if (ahead > 0) {
             struct timespec ts = {(time_t)(ahead / 1000000), (long)(ahead % 1000000) * 1000};
             nanosleep(&ts, NULL);
+            slept_us += (uint64_t)ahead;
         }
     }
     now_us = until;

@@ -707,6 +707,7 @@ typedef struct {
     uint32_t data;                  /* the PRIM command's */
     uint32_t vaddr;                 /* where the vertices were, to match primitives between frames */
     uint32_t vbytes, ibytes;        /* the copies' sizes */
+    uint32_t vfirst, vstride;       /* the vertices copied start at this one (the lowest index); their size */
     size_t vcopy, icopy;            /* their offsets in the frame's data */
     uint32_t tex_slot;
     int tex_w, tex_h;
@@ -722,6 +723,7 @@ typedef struct {
 } Frame;
 
 static int recording;               /* primitives are recorded, not drawn */
+static unsigned frame_generation;   /* counts the frames recorded: what is worked out from the last two keeps until it changes */
 static Frame frames[3];             /* recording, latest, previous */
 static Frame *rec = &frames[0], *latest = &frames[1], *previous = &frames[2];
 #define SCRATCH_VERTICES 0x08000000u
@@ -752,20 +754,28 @@ static void record(uint32_t data, const Layout *l) {
     memcpy(d->bones, bones, sizeof bones);
     d->data = data;
     d->vaddr = vaddr;
-    int nverts = count;
+    int nverts = count, first = 0;
     d->ibytes = 0;
     if (idx) {
+        /* small strips index into big shared buffers: only the vertices they use are kept */
         d->ibytes = (uint32_t)(count * (idx == 1 ? 1 : 2));
         nverts = 0;
+        first = 0xFFFF;
         for (int i = 0; i < count; i++) {
             int n = idx == 1 ? LBU(iaddr + (uint32_t)i) : LHU(iaddr + 2 * (uint32_t)i);
             if (n + 1 > nverts)
                 nverts = n + 1;
+            if (n < first)
+                first = n;
         }
+        if (first > nverts)
+            first = 0;
         d->icopy = keep(rec, PTR(iaddr), d->ibytes);
     }
-    d->vbytes = (uint32_t)(nverts * l->size);
-    d->vcopy = keep(rec, PTR(vaddr), d->vbytes);
+    d->vfirst = (uint32_t)first;
+    d->vstride = (uint32_t)l->size;
+    d->vbytes = (uint32_t)((nverts - first) * l->size);
+    d->vcopy = keep(rec, PTR(vaddr + (uint32_t)(first * l->size)), d->vbytes);
     d->tex_slot = 0xFFFFFFFFu;
     if (!(reg[0xD3] & 1) && (reg[0x1E] & 1))
         d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
@@ -791,6 +801,7 @@ void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     rec->used = 0;
     latest->display_addr = display_addr;
     latest->time = time;
+    frame_generation++;
 }
 
 static void lerp(float *out, const float *a, const float *b, int n, float t) {
@@ -845,7 +856,7 @@ static void replay(const Draw *d, const Draw *prev, float t) {
         memcpy(bones, d->bones, sizeof bones);
     }
     const Frame *f = latest;
-    memcpy(PTR(SCRATCH_VERTICES), f->bytes + d->vcopy, d->vbytes);
+    memcpy(PTR(SCRATCH_VERTICES + d->vfirst * d->vstride), f->bytes + d->vcopy, d->vbytes);
     if (d->ibytes)
         memcpy(PTR(SCRATCH_INDICES), f->bytes + d->icopy, d->ibytes);
     vaddr = SCRATCH_VERTICES;
@@ -911,6 +922,10 @@ static int latest_count(uint64_t k) {
  * order from frame to frame - the nearest not already taken, within MATCH_DISTANCE (and MATCH_TURN) */
 static int *match(void) {
     static int *m, cap;
+    static unsigned done = ~0u;
+    if (done == frame_generation)
+        return m;
+    done = frame_generation;
     static uint8_t *taken;
     static int tcap;
     if (latest->n > cap) {
