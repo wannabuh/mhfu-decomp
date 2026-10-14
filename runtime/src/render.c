@@ -321,12 +321,18 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
                    (uint64_t)sampler << 52 | (uint64_t)(reg[0xC2] & 1) << 55 | (uint64_t)bw << 56;
     int bits = fmt == 3 || fmt == 7 ? 32 : fmt == 4 ? 4 : fmt == 5 ? 8 : 16;
     size_t bytes = (size_t)(bw ? bw : (uint32_t)w) * (size_t)h * (size_t)bits / 8;
+    /* consecutive draws mostly use the same texture: the last one found is tried first */
+    static int last_found = -1;
     Texture *t = NULL;
-    for (int i = 0; i < ntextures; i++)
-        if (textures[i].key == key) {
-            t = &textures[i];
-            break;
-        }
+    if (last_found >= 0 && last_found < ntextures && textures[last_found].key == key)
+        t = &textures[last_found];
+    else
+        for (int i = 0; i < ntextures; i++)
+            if (textures[i].key == key) {
+                t = &textures[i];
+                last_found = i;
+                break;
+            }
     if (t && t->checked == frame_no) {
         t->used = frame_no;
         return t->slot;
