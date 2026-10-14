@@ -73,8 +73,13 @@ float shadow() {
 
 // The point lights here (the game has none: they are made from its fires): the light falling on the point, by
 // distance (smoothly to nothing at the reach), and turned towards it if the normal is known
+// How much the point lights' shadows darken here (set by point_light): the game's own lighting near a fire has its
+// light in it already, so a shadow takes some of that away too, as much as the light would give
+float point_shadow_dark = 0.0;
+
 vec3 point_light(vec3 n, bool has_normal) {
     vec3 sum = vec3(0.0);
+    point_shadow_dark = 0.0;
     for (uint s = 0u; s < 2u; s++) {
         uint set = draw.points + s;
         uint count = sets[set].count;
@@ -86,8 +91,12 @@ vec3 point_light(vec3 n, bool has_normal) {
             float k = (1.0 - r * r) * (1.0 - r * r);
             if (has_normal && d > 0.0)
                 k *= max(dot(n, l / d), 0.0);
-            if (s == 0u && i < sets[set].pad0 && k > 0.0)
-                k *= point_lit(i, -l, p.w);
+            if (s == 0u && i < sets[set].pad0 && k > 0.0) {
+                float lit = point_lit(i, -l, p.w);
+                vec3 col = sets[set].color[i].rgb;
+                point_shadow_dark += max(col.r, max(col.g, col.b)) * k * (1.0 - lit);
+                k *= lit;
+            }
             sum += sets[set].color[i].rgb * k;
         }
     }
@@ -117,6 +126,8 @@ void main() {
         if (points)
             sum += in_sun * point_light(n, true);
         c.rgb = min(c.rgb + sum, vec3(1.0));
+        if (points)
+            c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
     }
     if ((draw.flags & 64u) == 0u && draw.tex_index != 0xFFFFFFFFu) {
         vec4 t = texture(textures[nonuniformEXT(draw.tex_index)], in_uv / draw.tex_size);
@@ -141,7 +152,10 @@ void main() {
     if ((draw.flags & 1536u) == 0u)         // lit beforehand (the scenery's colours): darker in shadow
         c.rgb *= 1.0 - 0.45 * sh;
     if (points && (draw.flags & 1024u) == 0u)   // not lit by the pixel: the point lights brighten its colour
+    {
         c.rgb = min(c.rgb * (vec3(1.0) + point_light(vec3(0.0), false)), vec3(1.0));
+        c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
+    }
     if ((draw.flags & 128u) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
                         float((draw.fog_color >> 16) & 255u)) / 255.0;

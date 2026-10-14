@@ -16,7 +16,9 @@ layout(location = 2) in vec3 in_rel;
 layout(location = 3) flat in float in_reach;
 
 void main() {
-    if (length(in_rel) < 160.0)         // the fire's own logs and stones: the light is among them
+    // the fire's own logs and stones (the light is among them) cast nothing - the scenery only: who comes close
+    // (models the game lights) still casts
+    if (length(in_rel) < 160.0 && (draw.flags & 1536u) == 0u)
         discard;
     bool blended = (draw.flags & 2048u) != 0u;
     if ((draw.flags & 32u) != 0u || blended) {
