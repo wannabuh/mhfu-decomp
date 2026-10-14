@@ -58,6 +58,8 @@ void window_mouse(float *dx, float *dy) {
     mouse_dx = mouse_dy = 0;
 }
 
+void render_default_scale(int s);
+
 void window_init(void) {
     int headless = getenv("MHFU_HEADLESS") != NULL;
     const char *r = getenv("MHFU_RENDERER");
@@ -68,9 +70,17 @@ void window_init(void) {
         disabled = headless = 1;
     }
     if (want_vulkan) {
-        if (!headless)
+        if (!headless) {
             window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2,
                                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN);
+            /* the internal resolution: by default as many lines as the screen has, or more (the picture is never
+             * stretched up, even maximised) */
+            const SDL_DisplayMode *mode = window ? SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window)) : NULL;
+            if (mode && mode->h > 0) {
+                float lines = (float)mode->h * (mode->pixel_density > 0 ? mode->pixel_density : 1.0f);
+                render_default_scale((int)((lines + 271) / 272));
+            }
+        }
         if (render_init(window)) {
             capture_mouse(1);
             return;

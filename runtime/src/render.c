@@ -138,6 +138,12 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
     return p;
 }
 
+/* window.c: the internal resolution to use unless MHFU_SCALE says (enough for the screen's lines) */
+void render_default_scale(int s) {
+    if (s >= 1 && s <= 8)
+        scale = s;
+}
+
 int render_init(void *sdl_window) {
     const char *s = getenv("MHFU_SCALE");
     if (s && atoi(s) >= 1 && atoi(s) <= 8)

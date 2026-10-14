@@ -65,7 +65,7 @@ mouse_sens = 0.15
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
 120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_SCALE=4` (internal resolution, times the
-PSP's), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
+PSP's; by default as many lines as the screen has: 6 at 1440p), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
 `MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
