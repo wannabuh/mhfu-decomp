@@ -58,7 +58,8 @@ title in about two seconds).
 
 To get back somewhere quickly - into a quest, say - record playing there once, `MHFU_RECORD=quest.rec`, then start
 with `MHFU_REPLAY=quest.rec`: the game replays it in seconds and hands over (saving in the game since can change where
-it ends up). Both together replay and keep recording.
+it ends up). Both together, the same file, replay it and carry on recording into it; an existing recording is never
+overwritten otherwise (a new one goes to `quest.rec.1`, `.2`...).
 
 ## Licence
 

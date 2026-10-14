@@ -9,7 +9,9 @@
 
 #include <png.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static int dump_every = -1;
 static unsigned long frame;
@@ -137,12 +139,21 @@ static void record_input(float mx, float my) {
     static int last_x = -1, last_y = -1;
     if (!opened) {
         opened = 1;
-        const char *path = getenv("MHFU_RECORD");
+        const char *path = getenv("MHFU_RECORD"), *from = getenv("MHFU_REPLAY");
         if (path) {
-            record = fopen(path, "w");
+            /* a recording is not overwritten - unless it is the one being replayed, which this run extends: another
+             * name is taken instead (file.1, file.2...) */
+            char name[4096];
+            snprintf(name, sizeof name, "%s", path);
+            for (int n = 1; access(name, F_OK) == 0 && !(from && strcmp(from, path) == 0); n++)
+                snprintf(name, sizeof name, "%s.%d", path, n);
+            if (strcmp(name, path) != 0)
+                fprintf(stderr, "%s exists: recording to %s\n", path, name);
+            record = fopen(name, "w");
             if (!record)
-                fprintf(stderr, "cannot write the recording %s\n", path);
+                fprintf(stderr, "cannot write the recording %s\n", name);
             else {
+                fprintf(stderr, "recording to %s\n", name);
                 fprintf(record, "mhfu-replay 1\nepoch %llu\n", (unsigned long long)run_epoch_us());
                 atexit(end_record);
             }
@@ -368,6 +379,8 @@ void present_frame(void) {
     if (fast_forward()) {
         if (display_fps())
             gpu_frame_end(display_fb_addr, time_us());
+        if (dump && (!display_fps() || gpu_render_frame(1.0f)) && render_on)
+            render_readback(display_fb_addr, pixels);
     } else if (display_fps()) {
         gpu_frame_end(display_fb_addr, time_us());
         if (dump && gpu_render_frame(1.0f))
