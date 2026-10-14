@@ -62,12 +62,19 @@ would mean finding and rescaling every system that counts ticks.
 `MHFU_FPS=N` (Vulkan) shows N frames a second: each primitive of the game's frame is recorded (registers, matrices,
 texture, a copy of its vertex data) instead of drawn; in the scheduler's idle time the display replays the latest
 frame with each primitive's world, bone, view and projection matrices interpolated towards it from the previous
-frame's matching primitive (same vertex address, format, type and count - the k-th with the k-th), the moment shown
+frame's matching primitive (same vertex and index addresses, format, type and count; among several, the nearest), the
+moment shown
 trailing the game by a frame (about 33 ms). A camera cut - the camera moving over 600 units or turning
 over 60 degrees in a frame - turns the interpolation off for that frame. In the village
 98-100% of primitives match and 144 fps holds. What the game animates by rewriting vertices, and the 2D, move at 30.
 Running the game itself faster - the native frame rate - is in `docs/native.md` (`MHFU_TICK_HZ`, an experiment).
-`MHFU_FPS_STATS=1` reports the rate and matching; `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
+The display's frames are drawn while the game waits (one host thread); when the game's clock falls behind the wall
+clock by more than a frame shown, frames are left out rather than the game slowed. Each primitive keeps only the span
+of vertices it indexes, consecutive primitives on one buffer sharing a copy (a hunt's strips index big shared buffers:
+copied whole, that was 70 MB a frame, and the game ran at 20-24 at 144).
+`MHFU_FPS_STATS=1` reports, by the wall clock, the frames shown and left out, the game's rate, its longest frame, the
+time idle, and the matching; `MHFU_REPLAY_SPEED=N` plays a replay at the game's speed from frame N (to measure
+somewhere a recording gets to); `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
 
 ## Threads
 
