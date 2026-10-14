@@ -705,17 +705,25 @@ typedef struct {
     uint32_t reg[256];
     float world[12], view[12], proj[16], bones[8][12];
     uint32_t data;                  /* the PRIM command's */
-    uint32_t vaddr;                 /* where the vertices were, to match primitives between frames */
-    uint32_t vbytes, ibytes;        /* the copies' sizes */
-    uint32_t vfirst, vstride;       /* the vertices copied start at this one (the lowest index); their size */
-    size_t vcopy, icopy;            /* their offsets in the frame's data */
+    uint32_t vaddr, iaddr;          /* where the vertices (and indices) were, to match primitives between frames */
+    uint32_t ibytes;                /* the indices' size */
+    size_t icopy;                   /* their copy's offset in the frame's data */
+    int run;                        /* the run of draws whose vertices it is among */
     uint32_t tex_slot;
     int tex_w, tex_h;
 } Draw;
 
+/* Consecutive draws on the same vertices (strips into a model's buffer) share a copy of the span they use */
+typedef struct {
+    uint32_t vaddr, lo, hi;         /* the bytes from vaddr + lo to vaddr + hi */
+    size_t copy;                    /* their offset in the frame's data */
+} Run;
+
 typedef struct {
     Draw *draws;
     int n, cap;
+    Run *runs;
+    int nruns, rcap, open;          /* open: the last run is still taking draws (its copy not made yet) */
     uint8_t *bytes;
     size_t used, size;
     uint32_t display_addr;
@@ -740,6 +748,15 @@ static size_t keep(Frame *f, const void *p, size_t n) {
     return at;
 }
 
+/* The open run is done: its vertices are kept */
+static void close_run(Frame *f) {
+    if (!f->open)
+        return;
+    Run *r = &f->runs[f->nruns - 1];
+    r->copy = keep(f, PTR(r->vaddr + r->lo), r->hi - r->lo);
+    f->open = 0;
+}
+
 static void record(uint32_t data, const Layout *l) {
     int count = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
     if (rec->n == rec->cap) {
@@ -754,6 +771,7 @@ static void record(uint32_t data, const Layout *l) {
     memcpy(d->bones, bones, sizeof bones);
     d->data = data;
     d->vaddr = vaddr;
+    d->iaddr = idx ? iaddr : 0;
     int nverts = count, first = 0;
     d->ibytes = 0;
     if (idx) {
@@ -772,10 +790,21 @@ static void record(uint32_t data, const Layout *l) {
             first = 0;
         d->icopy = keep(rec, PTR(iaddr), d->ibytes);
     }
-    d->vfirst = (uint32_t)first;
-    d->vstride = (uint32_t)l->size;
-    d->vbytes = (uint32_t)((nverts - first) * l->size);
-    d->vcopy = keep(rec, PTR(vaddr + (uint32_t)(first * l->size)), d->vbytes);
+    uint32_t lo = (uint32_t)(first * l->size), hi = (uint32_t)(nverts * l->size);
+    Run *r = rec->open ? &rec->runs[rec->nruns - 1] : NULL;
+    if (r && r->vaddr == vaddr) {
+        if (lo < r->lo) r->lo = lo;
+        if (hi > r->hi) r->hi = hi;
+    } else {
+        close_run(rec);
+        if (rec->nruns == rec->rcap) {
+            rec->rcap = rec->rcap ? rec->rcap * 2 : 256;
+            rec->runs = realloc(rec->runs, sizeof *rec->runs * (size_t)rec->rcap);
+        }
+        rec->runs[rec->nruns++] = (Run){vaddr, lo, hi, 0};
+        rec->open = 1;
+    }
+    d->run = rec->nruns - 1;
     d->tex_slot = 0xFFFFFFFFu;
     if (!(reg[0xD3] & 1) && (reg[0x1E] & 1))
         d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
@@ -793,11 +822,13 @@ void gpu_record(int on) { recording = on; }
 
 /* The game's frame is done: it becomes the latest, the latest the previous */
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
+    close_run(rec);
     Frame *old = previous;
     previous = latest;
     latest = rec;
     rec = old;
     rec->n = 0;
+    rec->nruns = 0;
     rec->used = 0;
     latest->display_addr = display_addr;
     latest->time = time;
@@ -822,7 +853,11 @@ static void compose43(const float *a, const float *b, float *out) {
     memcpy(out, m, sizeof m);
 }
 
+static int placed_run = -1;         /* the run whose vertices are in the scratch area */
+
 /* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
+static int draw_bones(const Draw *d);
+
 static void replay(const Draw *d, const Draw *prev, float t) {
     memcpy(reg, d->reg, sizeof reg);
     if (native_camera && d->proj[11] != 0) {
@@ -836,27 +871,31 @@ static void replay(const Draw *d, const Draw *prev, float t) {
             lerp(world, wp, wl, 12, t);
             lerp(view, prev->view, d->view, 12, t);
             lerp(proj, prev->proj, d->proj, 16, t);
-            lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 8 * 12, t);
+            lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t);
         } else {
             memcpy(world, wl, sizeof world);
             memcpy(view, d->view, sizeof view);
             memcpy(proj, d->proj, sizeof proj);
-            memcpy(bones, d->bones, sizeof bones);
+            memcpy(bones, d->bones, sizeof(float) * 12 * (size_t)draw_bones(d));
         }
         compose43(shown_view, world, world);
     } else if (prev) {
         lerp(world, prev->world, d->world, 12, t);
         lerp(view, prev->view, d->view, 12, t);
         lerp(proj, prev->proj, d->proj, 16, t);
-        lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 8 * 12, t);
+        lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t);
     } else {
         memcpy(world, d->world, sizeof world);
         memcpy(view, d->view, sizeof view);
         memcpy(proj, d->proj, sizeof proj);
-        memcpy(bones, d->bones, sizeof bones);
+        memcpy(bones, d->bones, sizeof(float) * 12 * (size_t)draw_bones(d));
     }
     const Frame *f = latest;
-    memcpy(PTR(SCRATCH_VERTICES + d->vfirst * d->vstride), f->bytes + d->vcopy, d->vbytes);
+    if (d->run != placed_run) {
+        const Run *r = &f->runs[d->run];
+        memcpy(PTR(SCRATCH_VERTICES + r->lo), f->bytes + r->copy, r->hi - r->lo);
+        placed_run = d->run;
+    }
     if (d->ibytes)
         memcpy(PTR(SCRATCH_INDICES), f->bytes + d->icopy, d->ibytes);
     vaddr = SCRATCH_VERTICES;
@@ -866,9 +905,15 @@ static void replay(const Draw *d, const Draw *prev, float t) {
     render_override_texture(0xFFFFFFFEu, 0, 0);
 }
 
-/* A primitive's identity across frames: where its vertices are, their format, the primitive type and count */
+/* A primitive's identity across frames: where its vertices (and indices: strips share a model's vertices) are, their
+ * format, the primitive type and count */
 static uint64_t draw_key(const Draw *d) {
-    return (uint64_t)d->vaddr << 32 ^ (uint64_t)d->reg[0x12] << 8 ^ d->data;
+    return ((uint64_t)d->vaddr << 32 | d->iaddr) ^ ((uint64_t)d->reg[0x12] << 8 ^ d->data) * 0x9E3779B97F4A7C15ull;
+}
+
+/* How many bone matrices a draw uses (0 if it is not skinned) */
+static int draw_bones(const Draw *d) {
+    return (d->reg[0x12] >> 9) & 3 ? (int)((d->reg[0x12] >> 14) & 7) + 1 : 0;
 }
 
 /* Where a draw is: its world matrix's translation, through its first bone's if it is skinned */
@@ -1076,6 +1121,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(sp, proj, sizeof sp);
     memcpy(sb, bones, sizeof sb);
     shown_frames++;
+    placed_run = -1;
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
     int *m = interpolate ? match() : NULL;
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
