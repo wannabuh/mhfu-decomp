@@ -23,6 +23,11 @@
  * follows: where the scenery holds the camera back it turns less, and showing the mouse's turn ahead of it would jerk
  * back every frame. A jump left at a game frame (the game did something else) fades over 60 ms.
  *
+ * Where the camera keeps its own angles (the village, the camp tent: view 2) the mouse orbits the picture about the
+ * camera's target instead (with MHFU_FPS: it is the frames shown that turn), the stick turned to match so that
+ * forward is forward as shown. The game knows nothing of it: the camera can go into walls, and what the game places
+ * on the screen from its own camera (name tags) stays where it was.
+ *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
 #include "hle.h"
 
@@ -35,11 +40,23 @@ void window_mouse_peek(float *dx, float *dy);
 
 #define SCENE_PTR 0x089CBD04u
 #define PI 3.14159265f
+#define STICK_SIGN 1.0f
 
 static float sens = -1;
 static float left;                      /* yaw not yet written (in 65536ths) */
 static unsigned long tick;              /* the game's frames, counted */
 static int active;                      /* the camera is the hunt's, which the mouse turns */
+/* Elsewhere (the village, the camp tent: view 2) the game's camera keeps its own angles; the mouse orbits the picture
+ * about its target instead, by these (radians: yaw, and pitch up), and turns the stick to match */
+static int orbiting, orbit_on = 1;
+static float orbit_yaw, orbit_pitch;
+
+/* Off while replaying a recording made before the mouse orbited (version 1): its stick was not turned */
+void camera_orbit_enable(int on) {
+    orbit_on = on;
+    if (!on)
+        orbit_yaw = orbit_pitch = 0;
+}
 
 /* An axis the mouse turns: the game's angle in its last two frames; the turn the latest was made with (applied) and
  * the one given for the next (written), radians; r: how much of its last turn the game did; the angle shown just
@@ -167,8 +184,21 @@ void camera_update(float dx, float dy) {
     float ox = e[0] - t[0], oy = e[1] - t[1], oz = e[2] - t[2];
     axis_frame(&yaw_axis, atan2f(ox, oz));
     axis_frame(&pitch_axis, atan2f(oy, sqrtf(ox * ox + oz * oz)));
-    /* the hunt's camera turns with the yaw; the others keep their own angles */
+    /* the hunt's camera turns with the yaw; the others keep their own angles, and the mouse orbits the picture */
     active = view_no == 0;
+    orbiting = !active;
+    if (active || !orbit_on)
+        orbit_yaw = orbit_pitch = 0;
+    else {
+        /* MHFU_TEST_ORBIT=degrees[,frame]: orbit so far (from the game's frame), for testing */
+        const char *test = getenv("MHFU_TEST_ORBIT");
+        if (test && tick >= (strchr(test, ',') ? strtoul(strchr(test, ',') + 1, NULL, 10) : 0))
+            orbit_yaw = (float)atof(test) * PI / 180;
+        orbit_yaw = wrap(orbit_yaw - dx * sens * PI / 180);
+        float el = pitch_axis.angle[1], p = orbit_pitch + dy * sens * PI / 180;
+        float lo = -20 * PI / 180 - el, hi = 80 * PI / 180 - el;
+        orbit_pitch = p < lo ? lo : p > hi ? hi : p;
+    }
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
     int turn = (int)left;
@@ -182,6 +212,18 @@ void camera_update(float dx, float dy) {
     uint32_t preset = *(uint32_t *)MEM(view + 0x110);
     if (active && dy != 0 && in_ram(preset))
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
+}
+
+/* The stick, turned with the picture where the mouse orbits it: forward is then forward as shown */
+void camera_stick(uint8_t *lx, uint8_t *ly) {
+    if (!orbiting || orbit_yaw == 0)
+        return;
+    float x = (float)*lx - 128, y = (float)*ly - 128, c = cosf(orbit_yaw), s = sinf(orbit_yaw);
+    float rx = x * c + y * s * STICK_SIGN, ry = y * c - x * s * STICK_SIGN;
+    rx += 128;
+    ry += 128;
+    *lx = (uint8_t)(rx < 0 ? 0 : rx > 255 ? 255 : rx + 0.5f);
+    *ly = (uint8_t)(ry < 0 ? 0 : ry > 255 ? 255 : ry + 0.5f);
 }
 
 /* a o b, 4x3 matrices (as gpu.c's: columns, the last the translation) */
@@ -229,7 +271,7 @@ static void mul33(const float *a, const float *b, float *out) {
  * The camera shown is the latest's, its target moved to where the target is at t, and its eye turned about it by the
  * yaw and pitch at t (as above). Across a cut (the camera jumped) it is the latest's, with what is pending. */
 int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown) {
-    if (!active || have < 2 || sens < 0)
+    if ((!active && !orbiting) || have < 2 || sens < 0)
         return 0;
     invert(views[0], prev_inv);
     invert(views[1], latest_inv);
@@ -240,8 +282,16 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         interpolating = 0;
     float dx, dy;
     window_mouse_peek(&dx, &dy);
-    float a = axis_shown(&yaw_axis, t, interpolating, (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536);
-    float b = axis_shown(&pitch_axis, t, interpolating, dy * sens * PI / 180.0f);
+    float a, b;
+    if (orbiting) {
+        /* the game's camera as interpolated, orbited by the mouse's (at once) */
+        float ty = wrap(yaw_axis.angle[1] - yaw_axis.angle[0]), tp = pitch_axis.angle[1] - pitch_axis.angle[0];
+        a = (interpolating ? -(1 - t) * ty : 0) + orbit_yaw - dx * sens * PI / 180;
+        b = (interpolating ? -(1 - t) * tp : 0) + orbit_pitch + dy * sens * PI / 180;
+    } else {
+        a = axis_shown(&yaw_axis, t, interpolating, (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536);
+        b = axis_shown(&pitch_axis, t, interpolating, dy * sens * PI / 180.0f);
+    }
     /* MHFU_CAMERA_LOG=file: each frame shown, its time, t and the yaw and pitch shown (for checking smoothness) */
     static FILE *log;
     static int log_read;

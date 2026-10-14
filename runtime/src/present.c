@@ -31,6 +31,7 @@ __attribute__((noinline)) void debug_frame_hook(unsigned long n) {
 extern uint32_t ctrl_buttons;
 float camera_sens(void);               /* camera.c: the mouse's sensitivity, kept in recordings */
 void camera_set_sens(float s);
+void camera_orbit_enable(int on);
 extern uint8_t ctrl_lx, ctrl_ly;
 
 /* Skipping the intros (unless MHFU_INTRO=1, or a script drives the input - its frames count from a full boot): the
@@ -53,9 +54,11 @@ static int skip_intro(void) {
  * extended). A file: "mhfu-replay 1", "epoch <us>" (the date and time the run started), "sens <degrees>" (the mouse's
  * sensitivity, MHFU_MOUSE_SENS, as the mouse turns the camera in the game), then a line for each frame whose
  * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
- * and "end <frame>". A save changed since, or a runtime that runs the game differently, can make a replay go astray. */
-typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
+ * "<frame> orbit" where the mouse starts orbiting fixed cameras (from the start in version 2; a version 1 recording
+ * extended from its end), and "end <frame>". A save changed since, or a runtime that runs the game differently, can make a replay go astray. */
+typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; int orbit; } Input;
 static Input *replay;
+static int replay_was_v1;
 static size_t replay_n, replay_at;
 static unsigned long replay_end;
 static int replay_loaded;
@@ -79,13 +82,29 @@ static void load_replay(void) {
         Input in;
         unsigned long long e;
         float sens;
-        if (sscanf(line, "epoch %llu", &e) == 1)
+        int version;
+        unsigned long f;
+        char word[16];
+        if (sscanf(line, "mhfu-replay %d", &version) == 1) {
+            if (version < 2) {      /* before the mouse orbited fixed cameras */
+                camera_orbit_enable(0);
+                replay_was_v1 = 1;
+            }
+        } else if (sscanf(line, "%lu %15s", &f, word) == 2 && strcmp(word, "orbit") == 0) {
+            in = (Input){f, 0, 0, 0, 0, 0, 1};
+            if (replay_n == cap) {
+                cap = cap ? cap * 2 : 1024;
+                replay = realloc(replay, cap * sizeof *replay);
+            }
+            replay[replay_n++] = in;
+        } else if (sscanf(line, "epoch %llu", &e) == 1)
             replay_epoch_us = e;
         else if (sscanf(line, "sens %g", &sens) == 1)
             camera_set_sens(sens);
         else if (sscanf(line, "end %lu", &replay_end) == 1)
             ;
         else if (sscanf(line, "%lu %x %d %d %g %g", &in.frame, &in.buttons, &in.lx, &in.ly, &in.mx, &in.my) == 6) {
+            in.orbit = 0;
             if (replay_n == cap) {
                 cap = cap ? cap * 2 : 1024;
                 replay = realloc(replay, cap * sizeof *replay);
@@ -105,6 +124,8 @@ uint64_t replay_epoch(void) {
     return replay_epoch_us;
 }
 
+static unsigned long orbit_from;       /* a version 1 replay ended: the mouse orbits again from this frame */
+
 static int replaying(void) {
     load_replay();
     return replay_end && frame < replay_end;
@@ -121,6 +142,11 @@ static void replay_input(float *mx, float *my) {
     static Input held = {0, 0, 128, 128, 0, 0};
     *mx = *my = 0;
     while (replay_at < replay_n && replay[replay_at].frame <= frame) {
+        if (replay[replay_at].orbit) {
+            camera_orbit_enable(1);
+            replay_at++;
+            continue;
+        }
         held = replay[replay_at];
         if (held.frame == frame) {
             *mx = held.mx;
@@ -131,8 +157,10 @@ static void replay_input(float *mx, float *my) {
     ctrl_buttons = held.buttons;
     ctrl_lx = (uint8_t)held.lx;
     ctrl_ly = (uint8_t)held.ly;
-    if (frame + 1 == replay_end)
+    if (frame + 1 == replay_end) {
         fprintf(stderr, "replay done: over to you\n");
+        orbit_from = frame + 1;                     /* (if it was off) from here on, recorded as such */
+    }
 }
 
 static FILE *record;
@@ -169,11 +197,17 @@ static void record_input(float mx, float my) {
                 fprintf(stderr, "cannot write the recording %s\n", name);
             else {
                 fprintf(stderr, "recording to %s\n", name);
-                fprintf(record, "mhfu-replay 1\nepoch %llu\nsens %.9g\n", (unsigned long long)run_epoch_us(),
+                fprintf(record, "mhfu-replay %d\nepoch %llu\nsens %.9g\n", replay_was_v1 ? 1 : 2,
+                        (unsigned long long)run_epoch_us(),
                         camera_sens());
                 atexit(end_record);
             }
         }
+    }
+    if (orbit_from && frame == orbit_from) {
+        camera_orbit_enable(1);
+        if (record && replay_was_v1)
+            fprintf(record, "%lu orbit\n", frame);
     }
     if (!record)
         return;
@@ -235,6 +269,7 @@ uint32_t window_buttons(void);
 void window_stick(uint8_t *lx, uint8_t *ly);
 void window_mouse(float *dx, float *dy);
 void camera_update(float dx, float dy);
+void camera_stick(uint8_t *lx, uint8_t *ly);
 void window_show(const uint32_t *frame);
 uint32_t *window_pixels(void);
 
@@ -427,6 +462,7 @@ void present_frame(void) {
     replay_input(&mx, &my);
     record_input(mx, my);
     camera_update(mx, my);
+    camera_stick(&ctrl_lx, &ctrl_ly);
     if (dump) {
         char path[64];
         snprintf(path, sizeof path, "build/frames/%06lu.png", frame);

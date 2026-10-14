@@ -44,7 +44,11 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 | Middle mouse / E | special attack (△ + ○) | Q | use item / sheathe (□) |
 | Tab | reset camera (L) | Esc | menu (START) |
 | Arrows | D-pad: menus, camera | Enter / Backspace | confirm / back in menus (× / ○) |
-| C | SELECT | | |
+| C | SELECT | F10 | release / capture the mouse |
+
+The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
+turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
+hunter, the movement keys turning with it. With `MHFU_FPS` the camera moves at the display's rate.
 
 A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
 
