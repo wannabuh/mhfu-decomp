@@ -52,8 +52,8 @@ static LightSet last_lights;
 #define MAX_EMITTERS 1024
 #define MAX_POINT_LIGHTS 8
 #define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
-#define POINT_LIGHT_RADIUS 450.0f       /* how far a light reaches */
-#define POINT_LIGHT_GAIN 0.6f
+#define POINT_LIGHT_RADIUS 500.0f       /* how far a light reaches */
+#define POINT_LIGHT_GAIN 1.0f
 static float point_gain = POINT_LIGHT_GAIN;     /* MHFU_POINT_GAIN: the lights' strength */
 typedef struct { float pos[3], color[3], weight; } Emitter;
 static Emitter emitters[MAX_EMITTERS];
@@ -991,17 +991,19 @@ static void make_point_lights(void) {
                 lit[k].color[q] = c[q] / m;
             lit[k].strength = 0;
         }
+        /* a fire stands still: what is drawn of its flames moves about (80 units) as they play and the camera
+         * turns, so its light drifts to it only slowly (a third of a second); it brightens quickly and dims slowly */
         for (int q = 0; q < 3; q++) {
-            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.2f;
-            lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.2f;
+            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.02f;
+            lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.05f;
         }
-        lit[k].strength += (strength - lit[k].strength) * 0.2f;
+        lit[k].strength += (strength - lit[k].strength) * (strength > lit[k].strength ? 0.1f : 0.02f);
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         if (!lit[i].seen)
-            lit[i].strength *= 0.8f;
+            lit[i].strength *= 0.985f;      /* (half in a third of a second: a frame without its flames is no flicker) */
     /* the strongest first: the first two (of the first set) have shadows */
     int order[MAX_POINT_LIGHTS];
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
