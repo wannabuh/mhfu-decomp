@@ -82,8 +82,8 @@ vec3 point_light(vec3 n, bool has_normal) {
             vec4 p = sets[set].dir[i];
             vec3 l = p.xyz - in_world;
             float d = length(l);
-            float k = clamp(1.0 - d / p.w, 0.0, 1.0);
-            k *= k;
+            float r = clamp(d / p.w, 0.0, 1.0);    // a window: strong to half way, nothing at the reach
+            float k = (1.0 - r * r) * (1.0 - r * r);
             if (has_normal && d > 0.0)
                 k *= max(dot(n, l / d), 0.0);
             if (s == 0u && i < sets[set].pad0 && k > 0.0)

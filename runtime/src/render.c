@@ -52,7 +52,7 @@ static LightSet last_lights;
 #define MAX_EMITTERS 1024
 #define MAX_POINT_LIGHTS 8
 #define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
-#define POINT_LIGHT_RADIUS 500.0f       /* how far a light reaches */
+#define POINT_LIGHT_RADIUS 900.0f       /* how far a light reaches */
 #define POINT_LIGHT_GAIN 1.0f
 static float point_gain = POINT_LIGHT_GAIN;     /* MHFU_POINT_GAIN: the lights' strength */
 typedef struct { float pos[3], color[3], weight; } Emitter;
@@ -927,6 +927,13 @@ static void flush_emitter(void) {
     memset(emit_sum, 0, sizeof emit_sum);
 }
 
+/* How much a light matters: how bright it is, less the further it is from what the camera looks at */
+static float light_rank(const float *pos, float power) {
+    float d = sqrtf((pos[0] - view_center[0]) * (pos[0] - view_center[0]) + (pos[1] - view_center[1]) * (pos[1] - view_center[1]) +
+                    (pos[2] - view_center[2]) * (pos[2] - view_center[2]));
+    return power / (1.0f + d / 1000.0f);
+}
+
 /* The frame's emitters to lights: those within 300 units one, the warm (fire) ones kept, the strongest first */
 static void make_point_lights(void) {
     typedef struct { float pos[3], color[3], weight; } Light;
@@ -957,7 +964,7 @@ static void make_point_lights(void) {
     }
     /* the warm ones (fire: red over green over blue) near what the camera looks at, smoothed from frame to frame -
      * a light found again near where one was eases to its new colour and strength, one gone fades out */
-    typedef struct { float pos[3], color[3], strength; int seen; } Smoothed;
+    typedef struct { float pos[3], color[3], strength, power; int seen; } Smoothed;
     static Smoothed lit[MAX_POINT_LIGHTS];
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         lit[i].seen = 0;
@@ -966,9 +973,10 @@ static void make_point_lights(void) {
         float dc = sqrtf((l[j].pos[0] - view_center[0]) * (l[j].pos[0] - view_center[0]) +
                          (l[j].pos[1] - view_center[1]) * (l[j].pos[1] - view_center[1]) +
                          (l[j].pos[2] - view_center[2]) * (l[j].pos[2] - view_center[2]));
-        if (dc > POINT_LIGHT_REACH || !(c[0] > 0.3f && c[0] >= c[1] && c[1] >= c[2] && c[0] > 1.4f * c[2]))
+        /* by its hue: a fire's textures can be mostly dark, their average dark (0.14, 0.11, 0.06 in the guild hall) */
+        if (dc > POINT_LIGHT_REACH || !(c[0] > 0.04f && c[0] >= c[1] && c[1] >= c[2] && c[0] > 1.4f * c[2]))
             continue;
-        float strength = l[j].weight / 12.0f;
+        float strength = l[j].weight / 40.0f;
         strength = strength > 1 ? 1 : strength;
         float m = fmaxf(c[0], 1e-3f);
         int k = -1;
@@ -990,6 +998,7 @@ static void make_point_lights(void) {
             for (int q = 0; q < 3; q++)
                 lit[k].color[q] = c[q] / m;
             lit[k].strength = 0;
+            lit[k].power = l[j].weight;
         }
         /* a fire stands still: what is drawn of its flames moves about (80 units) as they play and the camera
          * turns, so its light drifts to it only slowly (a third of a second); it brightens quickly and dims slowly */
@@ -998,18 +1007,21 @@ static void make_point_lights(void) {
             lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.05f;
         }
         lit[k].strength += (strength - lit[k].strength) * (strength > lit[k].strength ? 0.1f : 0.02f);
+        lit[k].power += (l[j].weight - lit[k].power) * 0.05f;      /* (uncapped: which have shadows) */
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         if (!lit[i].seen)
             lit[i].strength *= 0.985f;      /* (half in a third of a second: a frame without its flames is no flicker) */
-    /* the strongest first: the first two (of the first set) have shadows */
+    /* the brightest first (as they give light, not capped), the nearer the more: the first two (of the first set)
+     * have shadows */
     int order[MAX_POINT_LIGHTS];
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         order[i] = i;
     for (int i = 1; i < MAX_POINT_LIGHTS; i++)
-        for (int j = i; j > 0 && lit[order[j]].strength > lit[order[j - 1]].strength; j--) {
+        for (int j = i; j > 0 && light_rank(&lit[order[j]].pos[0], lit[order[j]].power * (lit[order[j]].strength > 0)) >
+                                  light_rank(&lit[order[j - 1]].pos[0], lit[order[j - 1]].power * (lit[order[j - 1]].strength > 0)); j--) {
             int t = order[j];
             order[j] = order[j - 1];
             order[j - 1] = t;
