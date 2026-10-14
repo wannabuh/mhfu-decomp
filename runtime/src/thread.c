@@ -83,6 +83,10 @@ static int intr_enabled = 1;
 static int in_interrupt;
 static uint64_t next_vblank;
 static uint64_t vblank_count;
+/* the schedule since the rate was last set: vblank number base_count + 1 comes at base_us */
+static uint64_t vblank_base_us, vblank_base_count;
+static unsigned long tick_switch_frame;                 /* MHFU_TICK_HZ=N@frame: the rate from that game frame */
+static int tick_switch_hz;
 
 #define MAX_VTIMERS 16
 static VTimer *vtimers[MAX_VTIMERS];
@@ -157,6 +161,23 @@ static unsigned vblank_den = 60;      /* MHFU_VBLANK_HZ (an experiment): vblanks
 
 uint32_t kernel_gp(void) { return module_gp; }
 
+/* The game's frames hz a second: its vblank handler wakes it every second vblank, so the vblanks come 2 hz a second
+ * (from the next, the schedule starting again), and what the patches scale goes by 30 / hz */
+void set_tick_hz(int hz) {
+    vblank_base_us = next_vblank;
+    vblank_base_count = vblank_count;
+    vblank_den = (unsigned)(2 * hz);
+    rt_time_scale = 30.0f / (float)hz;
+}
+
+/* present.c, each game frame: the rate switch of MHFU_TICK_HZ=N@frame */
+void tick_frame(unsigned long frame) {
+    if (tick_switch_frame && frame == tick_switch_frame) {
+        set_tick_hz(tick_switch_hz);
+        fprintf(stderr, "frame %lu: %d game frames a second\n", frame, tick_switch_hz);
+    }
+}
+
 /* -- interrupts --------------------------------------------------------------------------------------------------- */
 
 #define MAX_SUBINTR 16
@@ -200,7 +221,7 @@ static void process_events(void) {
     if (intr_enabled) {
         while (now >= next_vblank) {
             vblank_count++;
-            next_vblank = vblank_count * VBLANK_US_NUM / VBLANK_US_DEN + VBLANK_US_NUM / VBLANK_US_DEN;
+            next_vblank = vblank_base_us + (vblank_count - vblank_base_count) * VBLANK_US_NUM / VBLANK_US_DEN;
             raise_interrupt(PSP_VBLANK_INT);
         }
         for (int i = 0; i < MAX_VTIMERS; i++) {
@@ -425,13 +446,16 @@ static void dump_threads(void) {
 void threads_init(void) {
     if (getenv("MHFU_VBLANK_HZ"))
         vblank_den = (unsigned)atoi(getenv("MHFU_VBLANK_HZ"));
-    /* MHFU_TICK_HZ=N (an experiment, towards the native frame rate): the game's frames N a second - its vblank handler
-     * wakes it every second vblank, so the vblanks come 2N a second - and what the patches scale by 30 / N */
+    /* MHFU_TICK_HZ=N[@frame] (an experiment, towards the native frame rate): the game's frames N a second (from that
+     * game frame: getting somewhere at 30, by a recording, and carrying on at N) - see set_tick_hz */
     if (getenv("MHFU_TICK_HZ")) {
-        int hz = atoi(getenv("MHFU_TICK_HZ"));
+        const char *e = getenv("MHFU_TICK_HZ"), *at = strchr(e, '@');
+        int hz = atoi(e);
         if (hz >= 30 && hz <= 480) {
-            vblank_den = (unsigned)(2 * hz);
-            rt_time_scale = 30.0f / (float)hz;
+            if (at)
+                tick_switch_frame = strtoul(at + 1, NULL, 10), tick_switch_hz = hz;
+            else
+                set_tick_hz(hz);
         }
     }
     if (getenv("MHFU_THREADS")) {
@@ -439,7 +463,7 @@ void threads_init(void) {
         at_quick_exit(dump_threads);
     }
     intr_stack_top = kmem_alloc(0x4000, 1, 0x100, 0) + 0x4000 - 0x40;
-    next_vblank = VBLANK_US_NUM / VBLANK_US_DEN;
+    next_vblank = vblank_base_us = VBLANK_US_NUM / VBLANK_US_DEN;
     time_us();
 }
 

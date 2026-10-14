@@ -43,7 +43,8 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
 - **Patches** (`recomp/patches.py`): (module, address) → the instruction expected there (checked, so a patch never
   lands on something else after the code moves), the C to run instead, why. The generated code marks them
   `/* patched */`; the build fails if one is not applied.
-- **`MHFU_TICK_HZ=N`** (an experiment): the game runs N ticks a second (its vblank handler wakes it every second vblank,
+- **`MHFU_TICK_HZ=N[@frame]`** (an experiment): the game runs N ticks a second (from that game frame: a recording made
+  at 30 gets somewhere, the game carries on at N - the way to try a conversion in a hunt) (its vblank handler wakes it every second vblank,
   so the vblanks come 2N a second) and `rt_time_scale` is 30 / N, which patches multiply by. At 30 the scale is 1 and
   the patches change nothing.
 - **Finding what counts ticks**: `tools/ramdiff.py` over RAM snapshots (`MHFU_SNAPSHOT=frames`, or F9) finds variables
@@ -54,16 +55,17 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
 
 | system | patch | at 60 ticks |
 |---|---|---|
-| motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed |
+| motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: 509 units a second at 60, 582 at 30, the stick held two seconds) |
 
-Not yet: motion blends (the weight step, and the tick count, an integer), and everything else - movement that is not
+Turning to face the stick is not (the hunter turns about twice as fast at 60). Not yet either: motion blends (the weight step, and the tick count, an integer), and everything else - movement that is not
 root motion, the hunter's and monsters' state timers (attack windows, invulnerability, AI decisions), effects and
 particles, sounds started by ticks, the camera's easing, the UI's animations and fades, menus' waits. At 60 ticks a
 second those run twice as fast; menus and transitions too, so a recording made at one rate does not replay at another.
 
 ## How to carry on
 
-1. Pick what looks wrong at `MHFU_TICK_HZ=60` (twice as fast).
+1. Pick what looks wrong at `MHFU_TICK_HZ=60@N` (twice as fast) - with a recording to get there and a few lines
+   added to it for the input to try (`<frame> <buttons> <stick x> <stick y> 0 0`).
 2. Find its variable: snapshots a tick or two apart, `tools/ramdiff.py` for what changes by a constant.
 3. `tools/watch.py` for the code that advances it; the add (or count down) is the place.
 4. Patch it in `recomp/patches.py` to scale by `rt_time_scale`; for integer counters, the counter needs to count in

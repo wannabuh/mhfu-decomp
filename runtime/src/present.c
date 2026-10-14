@@ -17,6 +17,7 @@ static int dump_every = -1;
 static unsigned long frame;
 static int camera_orbit_ready;
 static int display_fps(void);
+void tick_frame(unsigned long frame);
 
 unsigned long present_frame_number(void) {
     return frame;
@@ -399,6 +400,7 @@ void present_frame(void) {
         debug_frame = getenv("MHFU_DEBUG_FRAME") ? atol(getenv("MHFU_DEBUG_FRAME")) : 0;
     if (debug_frame && (long)frame == debug_frame)
         debug_frame_hook(frame);
+    tick_frame(frame);
     watch();
     snapshots();
     uint32_t *pixels = window_pixels();
