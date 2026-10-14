@@ -110,7 +110,8 @@ void camera_update(float dx, float dy) {
         have++;
     /* the camera follows the yaw if it looks along it: its eye is behind the target, at the yaw half a turn round */
     int16_t off = (int16_t)((int)(atan2f(e[0] - t[0], e[2] - t[2]) * 32768 / PI) + 32768 - yaw[1]);
-    active = off > -0x1000 && off < 0x1000;
+    /* and only the hunt's camera (view 0): the village's (2) has its own fixed angle, and eases back to it */
+    active = view_no == 0 && off > -0x1000 && off < 0x1000;
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
     int turn = (int)left;
@@ -122,7 +123,7 @@ void camera_update(float dx, float dy) {
     }
     /* the pitch: moving the mouse up looks up, the eye going down around the hunter at the same distance */
     uint32_t preset = *(uint32_t *)MEM(view + 0x110);
-    if (dy != 0 && in_ram(preset))
+    if (active && dy != 0 && in_ram(preset))
         pitch(preset, dy * sens * PI / 180.0f);
 }
 
