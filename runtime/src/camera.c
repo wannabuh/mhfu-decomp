@@ -125,12 +125,22 @@ static float pitch(uint32_t preset, float by) {
     return done;
 }
 
-/* After each game frame: note its camera, then give the game the mouse's motion (this frame's, dx dy) for the next */
-void camera_update(float dx, float dy) {
+/* The sensitivity (degrees a mouse count turns): a recording keeps the one it was made with, for its replay */
+float camera_sens(void) {
     if (sens < 0) {
         const char *e = getenv("MHFU_MOUSE_SENS");
         sens = e ? (float)atof(e) : 0.15f;
     }
+    return sens;
+}
+
+void camera_set_sens(float s) {
+    sens = s;
+}
+
+/* After each game frame: note its camera, then give the game the mouse's motion (this frame's, dx dy) for the next */
+void camera_update(float dx, float dy) {
+    camera_sens();
     tick++;
     active = 0;
     uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);

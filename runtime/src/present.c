@@ -29,6 +29,8 @@ __attribute__((noinline)) void debug_frame_hook(unsigned long n) {
  * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last; and the analog
  * stick, pushed fully: 0x10000 up, 0x20000 down, 0x40000 left, 0x80000 right */
 extern uint32_t ctrl_buttons;
+float camera_sens(void);               /* camera.c: the mouse's sensitivity, kept in recordings */
+void camera_set_sens(float s);
 extern uint8_t ctrl_lx, ctrl_ly;
 
 /* Skipping the intros (unless MHFU_INTRO=1, or a script drives the input - its frames count from a full boot): the
@@ -48,7 +50,8 @@ static int skip_intro(void) {
 /* Recording and replaying the input (MHFU_RECORD=file, MHFU_REPLAY=file): the game's clock being virtual (thread.c), a
  * run is the same for the same input, so replaying a recording - as fast as it goes, nothing shown or heard - brings
  * the game back to where it ended, and play carries on from there (recorded too, with MHFU_RECORD: a recording can be
- * extended). A file: "mhfu-replay 1", "epoch <us>" (the date and time the run started), then a line for each frame whose
+ * extended). A file: "mhfu-replay 1", "epoch <us>" (the date and time the run started), "sens <degrees>" (the mouse's
+ * sensitivity, MHFU_MOUSE_SENS, as the mouse turns the camera in the game), then a line for each frame whose
  * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
  * and "end <frame>". A save changed since, or a runtime that runs the game differently, can make a replay go astray. */
 typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
@@ -75,8 +78,11 @@ static void load_replay(void) {
     while (fgets(line, sizeof line, f)) {
         Input in;
         unsigned long long e;
+        float sens;
         if (sscanf(line, "epoch %llu", &e) == 1)
             replay_epoch_us = e;
+        else if (sscanf(line, "sens %g", &sens) == 1)
+            camera_set_sens(sens);
         else if (sscanf(line, "end %lu", &replay_end) == 1)
             ;
         else if (sscanf(line, "%lu %x %d %d %g %g", &in.frame, &in.buttons, &in.lx, &in.ly, &in.mx, &in.my) == 6) {
@@ -163,7 +169,8 @@ static void record_input(float mx, float my) {
                 fprintf(stderr, "cannot write the recording %s\n", name);
             else {
                 fprintf(stderr, "recording to %s\n", name);
-                fprintf(record, "mhfu-replay 1\nepoch %llu\n", (unsigned long long)run_epoch_us());
+                fprintf(record, "mhfu-replay 1\nepoch %llu\nsens %.9g\n", (unsigned long long)run_epoch_us(),
+                        camera_sens());
                 atexit(end_record);
             }
         }
