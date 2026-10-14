@@ -81,3 +81,15 @@ second those run twice as fast; menus and transitions too, so a recording made a
 
 The shared helpers come first - one patch fixes every caller: the motion player was one function for every character.
 Timers in the objects' state functions are the long tail.
+
+## Where it is going
+
+Converting every timer before anything is playable at a higher rate would take long. Instead, the conversion can go
+object by object:
+
+- An object's tick is `08864634` (its state function, then its vtable's +0x18 and +0x1C). Patched there, an object
+  not converted yet ticks only on `rt_tick30` - its timers right, at 30 a second - while a converted one ticks every
+  frame. The same for the systems outside the objects (effects, the camera's easing, the UI).
+- The render pass draws every frame. What ticks at 30 changes only every few frames, so its draws need the
+  interpolation `MHFU_FPS` does now, across its own 30ths, while what is converted is drawn as it is.
+- The hunter first (what the player feels), then monsters, effects, the rest; the motion player is done for all.
