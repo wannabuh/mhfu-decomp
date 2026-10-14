@@ -20,6 +20,11 @@ unsigned long present_frame_number(void) {
     return frame;
 }
 
+/* MHFU_DEBUG_FRAME=N: called at the game's frame N, for a debugger to stop on (tools/watch.sh) */
+__attribute__((noinline)) void debug_frame_hook(unsigned long n) {
+    __asm__ volatile("" ::"r"(n) : "memory");
+}
+
 /* Scripted input, for running unattended: MHFU_INPUT="first-last:buttons,..." holds the buttons (PSP button bits, in
  * hex: 0x4000 cross, 0x2000 circle, 0x8 start, 0x10 up, 0x40 down...) from frame first to frame last; and the analog
  * stick, pushed fully: 0x10000 up, 0x20000 down, 0x40000 left, 0x80000 right */
@@ -377,6 +382,11 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    static long debug_frame = -1;
+    if (debug_frame < 0)
+        debug_frame = getenv("MHFU_DEBUG_FRAME") ? atol(getenv("MHFU_DEBUG_FRAME")) : 0;
+    if (debug_frame && (long)frame == debug_frame)
+        debug_frame_hook(frame);
     watch();
     snapshots();
     uint32_t *pixels = window_pixels();

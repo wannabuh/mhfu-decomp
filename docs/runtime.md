@@ -92,6 +92,10 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   and the start time; `MHFU_REPLAY=file` plays it back fast-forwarded (nothing shown or heard), then hands over (with
   `MHFU_RECORD` too, the recording carries on). A replay ends where the recording did, byte for byte - as long as the
   saves it loads and the way the runtime runs the game are unchanged.
+- **Finding code**: `tools/watch.py ADDR --frame N [--read|--access] -- MHFU_REPLAY=...` runs the game under gdb and,
+  from game frame N, prints each write (or read) of the PSP address: the value and the game functions on the stack with
+  the instruction (`EBOOT_08886E50@08887814`: the camera reading its preset). `tools/ramdiff.py` finds variables from
+  RAM snapshots (F9, or `MHFU_SNAPSHOT`).
 - **Intros** are skipped (`MHFU_INTRO=1` plays them): cross is pressed at the language menu (frame 40) and the game
   fast-forwarded to the title (frame 470).
 
