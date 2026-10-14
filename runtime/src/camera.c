@@ -9,10 +9,16 @@
  * matrix at +0xB80.
  *
  * Its height is a preset, pointed to from +0x110 (↑ and ↓ step through a table of them): floats at +4, the eye's height
- * over the hunter, +8 its distance and +0x10 the height it looks at. Moving the mouse up and down pitches the preset in
- * use: its eye moves around the point it looks at, keeping its distance, from 20 degrees below to 80 above. The
- * camera eases there (about 0.2 degrees a frame when asked 0.5, settling short of the angle asked: the preset's angle
- * is about another point than the eye's elevation over the target), so the pitch is softer than the yaw.
+ * over the hunter, +8 its distance and +0x10 the height it looks at. The game raises the eye over slopes and where the
+ * scenery is in the way (to about 55 degrees, closer). Moving the mouse up and down raises the eye over the elevation
+ * the game gives it, about the target at the same distance - in the frames shown (MHFU_FPS), at once and as far as the
+ * yaw turns for the same motion, the game's camera left as it is (from -20 to 80 degrees). Without the mouse having
+ * the camera (replaying a recording made before) it pitches the preset in use instead, which the game eases to (about
+ * 0.2 degrees a frame when asked 0.5, settling short).
+ *
+ * The game also turns the camera itself where the scenery is in the way (it casts rays between the eye and the hunter);
+ * with the mouse having the camera (rt_camera_free) those turns are patched out (recomp/patches.py): the camera stays
+ * where the mouse puts it. MHFU_CAMERA_ASSIST=1 leaves them in.
  *
  * At the display's rate the frames shown between the game's are interpolated (gpu.c), the camera with them; the
  * mouse's turn (each axis: yaw, the eye's bearing, and pitch, its elevation) is added at once instead - the part of it
@@ -43,6 +49,7 @@ void window_mouse_peek(float *dx, float *dy);
 #define PI 3.14159265f
 #define STICK_SIGN 1.0f
 
+int rt_camera_free = 1;
 static float sens = -1;
 static float left;                      /* yaw not yet written (in 65536ths) */
 static unsigned long tick;              /* the game's frames, counted */
@@ -51,6 +58,22 @@ static int active;                      /* the camera is the hunt's, which the m
  * about its target instead, by these (radians: yaw, and pitch up), and turns the stick to match */
 static int orbiting, orbit_on = 1;
 static float orbit_yaw, orbit_pitch;
+/* In the hunt, with the mouse having the camera (rt_camera_free) and MHFU_FPS: how far the mouse has raised the eye
+ * (radians) over the elevation the game gives it - which rises over slopes to keep it above the ground - shown at once
+ * as an orbit about the target in the frames shown, the game's camera left as it is */
+static float elevation;
+static int elevation_set;
+#define ELEVATION_LO (-20 * PI / 180)
+#define ELEVATION_HI (80 * PI / 180)
+
+static float clamp_elevation(float e) {
+    return e < ELEVATION_LO ? ELEVATION_LO : e > ELEVATION_HI ? ELEVATION_HI : e;
+}
+
+/* The mouse's raise of the eye, kept so that the eye stays within the limits over the game's elevation */
+static float clamp_raise(float raise, float game) {
+    return clamp_elevation(game + raise) - game;
+}
 
 /* Off while replaying a recording made before the mouse orbited (version 1): its stick was not turned */
 void camera_orbit_enable(int on) {
@@ -209,7 +232,16 @@ void camera_update(float dx, float dy) {
         yaw[1] = (uint16_t)(yaw[1] + turn);
         yaw_axis.written = (float)turn * 2 * PI / 65536;
     }
-    /* the pitch: moving the mouse up looks up, the eye going down around the hunter at the same distance */
+    /* the pitch: moving the mouse up looks up, the eye going down around the hunter at the same distance - in the
+     * frames shown (the eye's elevation, the game's camera left as it is), or, without them or replaying a recording
+     * made before, by pitching the game's preset */
+    if (active && rt_camera_free) {
+        if (!elevation_set)
+            elevation = 0, elevation_set = 1;
+        elevation = clamp_raise(elevation + dy * sens * PI / 180, pitch_axis.angle[1]);
+        return;
+    }
+    elevation_set = 0;
     uint32_t preset = *(uint32_t *)MEM(view + 0x110);
     if (active && dy != 0 && in_ram(preset))
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
@@ -291,7 +323,13 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         b = (interpolating ? -(1 - t) * tp : 0) + orbit_pitch + dy * sens * PI / 180;
     } else {
         a = axis_shown(&yaw_axis, t, interpolating, (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536);
-        b = axis_shown(&pitch_axis, t, interpolating, dy * sens * PI / 180.0f);
+        if (elevation_set) {   /* the game's elevation at t, raised by the mouse's: up to it from the latest's */
+            float game = interpolating ? pitch_axis.angle[0] + (pitch_axis.angle[1] - pitch_axis.angle[0]) * t
+                                       : pitch_axis.angle[1];
+            b = clamp_elevation(game + elevation + dy * sens * PI / 180.0f) - pitch_axis.angle[1];
+        }
+        else
+            b = axis_shown(&pitch_axis, t, interpolating, dy * sens * PI / 180.0f);
     }
     /* MHFU_CAMERA_LOG=file: each frame shown, its time, t and the yaw and pitch shown (for checking smoothness) */
     static FILE *log;
@@ -302,8 +340,10 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
             log = fopen(getenv("MHFU_CAMERA_LOG"), "w");
     }
     if (log)
-        fprintf(log, "%llu %.4f %.6f %d %.6f\n", (unsigned long long)time_us(), t, yaw_axis.angle[1] + a, interpolating,
-                pitch_axis.angle[1] + b);
+        fprintf(log, "%llu %.4f %.6f %d %.6f %.6f %.1f\n", (unsigned long long)time_us(), t, yaw_axis.angle[1] + a,
+                interpolating, pitch_axis.angle[1] + b, pitch_axis.angle[1],
+                sqrtf((eyes[1][0] - targets[1][0]) * (eyes[1][0] - targets[1][0]) + (eyes[1][1] - targets[1][1]) *
+                      (eyes[1][1] - targets[1][1]) + (eyes[1][2] - targets[1][2]) * (eyes[1][2] - targets[1][2])));
     float c[3];
     for (int i = 0; i < 3; i++)
         c[i] = interpolating ? targets[0][i] + (targets[1][i] - targets[0][i]) * t : targets[1][i];

@@ -13,6 +13,12 @@ and every frame a 30th, so the patches change nothing then. docs/native.md keeps
 MOTION = "the motion player: a layer's speed (frames a game frame), times the time scale"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
 
+# The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
+# in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
+# clear; the line of sight lost (+0x89), it swings an eighth of the way behind the hunter a frame. With the mouse
+# turning the camera (rt_camera_free) those turns are left out: the camera goes where the mouse puts it.
+CAMERA = "the hunt's camera: its own turns away from the scenery, left out while the mouse has the camera"
+
 
 def scaled_load(f, base, off):
     """lwc1 $f<f>, off($<base>), the value times the time scale"""
@@ -27,4 +33,6 @@ PATCHES = {
     # a blend between motions: its weight (+0x34) steps by +0x24 a game frame, while its count of frames (+0x30) runs out
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
+    ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
+    ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
 }

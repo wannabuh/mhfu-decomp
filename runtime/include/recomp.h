@@ -52,6 +52,7 @@ void rt_unreachable(Ctx *c, uint32_t at);
  * whether this game frame is one where a frame at 30 a second falls (always, at the game's own rate) */
 extern float rt_time_scale;
 extern int rt_tick30;
+extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
 
 /* Instructions done by the runtime */
 void vfpu_exec(Ctx *c, uint32_t instr, uint32_t at);    /* any VFPU instruction but a branch */
