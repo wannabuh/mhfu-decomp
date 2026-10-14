@@ -276,22 +276,28 @@ static void convert(uint32_t *out) {
                                      (int)display_fb_format);
 }
 
-static void write_png(const char *path, const uint32_t *frame) {
+static void write_png_size(const char *path, const uint32_t *frame, int w, int h) {
     FILE *f = fopen(path, "wb");
     if (!f)
         return;
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     png_infop info = png_create_info_struct(png);
     png_init_io(png, f);
-    png_set_IHDR(png, info, 480, 272, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT,
-                 PNG_FILTER_TYPE_DEFAULT);
+    png_set_IHDR(png, info, (png_uint_32)w, (png_uint_32)h, 8, PNG_COLOR_TYPE_RGBA, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
     png_write_info(png, info);
-    for (int y = 0; y < 272; y++)
-        png_write_row(png, (png_bytep)(frame + y * 480));
+    for (int y = 0; y < h; y++)
+        png_write_row(png, (png_bytep)(frame + (size_t)y * (size_t)w));
     png_write_end(png, NULL);
     png_destroy_write_struct(&png, &info);
     fclose(f);
 }
+
+static void write_png(const char *path, const uint32_t *frame) {
+    write_png_size(path, frame, 480, 272);
+}
+
+uint32_t *render_readback_full(uint32_t addr, int *w, int *h);
 
 /* MHFU_WATCH="addr,addr,...": log each watched word (hex addresses) when it changes, checked every frame */
 static void watch(void) {
@@ -374,6 +380,15 @@ uint64_t present_pump(void) {
             render_readback(addr, window_pixels());
             snprintf(path, sizeof path, "build/frames/g%06lu-t%03d.png", frame, k * 25);
             write_png(path, window_pixels());
+            if (k == 4 && getenv("MHFU_DUMP_FULL")) {       /* and the last at the internal resolution */
+                int w, h;
+                uint32_t *full = render_readback_full(addr, &w, &h);
+                if (full) {
+                    snprintf(path, sizeof path, "build/frames/g%06lu-full.png", frame);
+                    write_png_size(path, full, w, h);
+                    free(full);
+                }
+            }
         }
         gpu_render_frame(t);
     }

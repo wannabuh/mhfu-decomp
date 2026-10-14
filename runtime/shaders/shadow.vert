@@ -6,7 +6,7 @@ layout(location = 4) in vec3 in_world;
 
 layout(push_constant) uniform Draw {
     vec2 tex_size;
-    uint tex_index, flags, alpha_test, env_color, fog_color, pad;
+    uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
     mat4 light;
 } draw;
 

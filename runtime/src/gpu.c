@@ -144,11 +144,11 @@ void gpu_decode_texture(uint32_t *out, int w, int h) {
  * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel), fog (1 none, 0 all fog);
  * for the renderer's shadows, its position in the world (the camera taken out) and the part of its colour the sun gave
  * (0-255, in the colour) */
-typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb; } Vertex;
+typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz; } Vertex;
 
 /* Before the viewport: clip-space position and the rest */
-typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb; } ClipVertex;
-#define VERTEX_FLOATS 17
+typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz; } ClipVertex;
+#define VERTEX_FLOATS 20
 
 static float world[12], view[12], proj[16], bones[8][12];
 static int world_i, view_i, proj_i, bone_i;
@@ -159,6 +159,10 @@ static int shadow_world;            /* to_world is known this frame */
 static float to_world[12], game_to_world[12];
 static int sun_light = -1;
 static int prim_world;              /* this primitive's vertices get their place in the world */
+/* Lighting by the pixel (render.c): the primitive's directional lights are left to the GPU - the vertex keeps the rest
+ * of the lighting, its material's diffuse colour (in sr, sg, sb) and its normal in the world */
+static int prim_pixel_light;
+static uint32_t pixel_lights;       /* the lights (bits) the GPU does */
 static float sun_dir[3];            /* towards the sun, in the world (as last seen) */
 static int sun_known;
 
@@ -166,6 +170,7 @@ int camera_game(float *inv, float *target);
 void camera_invert(const float *v, float *out);
 void render_shadow_frame(const float *light_vp, int on);
 void render_prim_world(int on);
+void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
 
 #define SHADOW_HALF 1500.0f         /* the shadow map covers this far each way from what the camera looks at */
 #define SHADOW_RANGE 6000.0f        /* and this far towards and away from the sun */
@@ -282,8 +287,12 @@ static void shadow_prim(void) {
     prim_world = shadow_world && !through && proj[11] != 0;
     render_prim_world(prim_world);
     sun_light = -1;
-    if (through || !(reg[0x17] & 1))
+    prim_pixel_light = 0;
+    pixel_lights = 0;
+    if (through || !(reg[0x17] & 1)) {
+        render_prim_lights(0, NULL, NULL, -1);
         return;
+    }
     float best = 0;
     for (int k = 0; k < 4; k++) {
         if (!(reg[0x18 + k] & 1) || ((reg[0x5F + k] >> 8) & 3) != 0)
@@ -293,6 +302,49 @@ static void shadow_prim(void) {
         if (lum > best)
             best = lum, sun_light = k;
     }
+    prim_pixel_light = 0;
+    pixel_lights = 0;
+    static int pixel = -1;
+    if (pixel < 0)
+        pixel = !getenv("MHFU_PIXEL_LIGHTING") || atoi(getenv("MHFU_PIXEL_LIGHTING")) != 0;
+    if (pixel && prim_world) {
+        /* the directional lights giving diffuse light (no specular) go to the GPU, in the world */
+        float dirs[16], cols[16];
+        int n = 0, sun = -1, ok = 1;
+        for (int k = 0; k < 4; k++) {
+            if (!(reg[0x18 + k] & 1))
+                continue;
+            int comp = reg[0x5F + k] & 3, type = (reg[0x5F + k] >> 8) & 3;
+            if (comp == 1 && (reg[0x91 + 3 * k] & 0xFFFFFF))
+                ok = 0;                 /* specular: all by the vertex */
+            if (type != 0)
+                continue;
+            float L[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])}, w[3];
+            mul33(game_to_world, L, w);
+            float l = sqrtf(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+            if (!(l > 0))
+                continue;
+            uint32_t ld = reg[0x90 + 3 * k];
+            for (int i = 0; i < 3; i++)
+                dirs[4 * n + i] = w[i] / l;
+            dirs[4 * n + 3] = comp == 2 ? ge_float(reg[0x5B]) : 0;      /* a power of the diffuse term */
+            cols[4 * n + 0] = (float)(ld & 255) / 255.0f;
+            cols[4 * n + 1] = (float)((ld >> 8) & 255) / 255.0f;
+            cols[4 * n + 2] = (float)((ld >> 16) & 255) / 255.0f;
+            cols[4 * n + 3] = 0;
+            if (k == sun_light)
+                sun = n;
+            pixel_lights |= 1u << k;
+            n++;
+        }
+        if (ok && n) {
+            prim_pixel_light = 1;
+            render_prim_lights(n, dirs, cols, sun);
+        } else
+            pixel_lights = 0;
+    }
+    if (!prim_pixel_light)
+        render_prim_lights(0, NULL, NULL, -1);
     if (sun_light >= 0 && prim_world) {
         int k = sun_light;
         float L[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])}, w[3];
@@ -370,9 +422,10 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
         if (dot < 0) dot = 0;
         if (comp == 2)
             dot = powf(dot, spow);
+        int gpu = (pixel_lights >> k) & 1;      /* its diffuse term by the pixel */
         for (int i = 0; i < 3; i++) {
-            sum[i] += (la[i] * mat_amb[i] + ld[i] * mat_dif[i] * dot) * att;
-            if (k == sun_light)
+            sum[i] += (la[i] * mat_amb[i] + (gpu ? 0 : ld[i] * mat_dif[i] * dot)) * att;
+            if (k == sun_light && !gpu)
                 sun[i] += ld[i] * mat_dif[i] * dot * att;
         }
         if (comp == 1 && dot > 0) {     /* specular: the half vector with the viewer straight ahead */
@@ -398,6 +451,11 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
     out->sr = sun[0] * 255.0f;
     out->sg = sun[1] * 255.0f;
     out->sb = sun[2] * 255.0f;
+    if (pixel_lights) {                 /* the material's diffuse colour, for the GPU's lights */
+        out->sr = mat_dif[0] * 255.0f;
+        out->sg = mat_dif[1] * 255.0f;
+        out->sb = mat_dif[2] * 255.0f;
+    }
     /* alpha: the material's ambient alpha (or the vertex's), times the global ambient light's */
     float a = mat_amb_a * ((float)(reg[0x5D] & 255) / 255.0f);
     out->r = rgb[0] * 255.0f;
@@ -455,6 +513,7 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
     out->a = (float)(c >> 24);
     out->wx = out->wy = out->wz = 0;
     out->sr = out->sg = out->sb = 0;
+    out->nx = out->ny = out->nz = 0;
 
     if (through) {
         out->cx = p[0];
@@ -501,6 +560,8 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         float wn[3];
         mul33(world, nr, wn);
         light(m, wn, col >= 4 ? c : 0xFFFFFFFFu, col >= 4, out);
+        if (pixel_lights)
+            mul33(to_world, wn, &out->nx);
     }
     float e[3];
     mul43(view, m, e);
@@ -538,7 +599,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
     s->b = c->b;
     s->a = c->a;
     s->fog = c->fog;
-    memcpy(&s->wx, &c->wx, 6 * sizeof(float));
+    memcpy(&s->wx, &c->wx, 9 * sizeof(float));
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */

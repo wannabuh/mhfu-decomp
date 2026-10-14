@@ -120,6 +120,7 @@ int vk_init(void *window) {
     f12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
     f12.descriptorBindingPartiallyBound = VK_TRUE;
     f12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    f12.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
     f12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
     VkPhysicalDeviceFeatures2 f2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &f12};
     const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};

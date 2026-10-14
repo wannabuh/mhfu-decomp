@@ -15,6 +15,7 @@
 #include "vk.h"
 
 #include <SDL3/SDL.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +34,15 @@ int render_on;
 #define VERTEX_BYTES (64u << 20)
 #define STAGING_BYTES (64u << 20)
 
-typedef struct { float x, y, z, w, u, v; uint32_t color; float fog, wx, wy, wz; uint32_t sun; } GpuVertex;
+typedef struct { float x, y, z, w, u, v; uint32_t color; float fog, wx, wy, wz; uint32_t sun; int16_t n[4]; } GpuVertex;
+
+/* Lighting by the pixel: the sets of directional lights draws use (gpu.c gives them), in a storage buffer - half of it
+ * each frame in flight - a draw naming its set */
+#define LIGHT_SETS 8192
+typedef struct { float dir[4][4], color[4][4]; uint32_t count, sun, pad[2]; } LightSet;
+static VkBuf light_buf;
+static uint32_t light_sets_used, prim_lights = ~0u;
+static LightSet last_lights;
 
 /* Shadows: the sun's depth over the world around the camera's target (gpu.c places it: SHADOW_SIZE), drawn each frame
  * from what is drawn in the world - the same vertices, in a command buffer of its own submitted before the frame's */
@@ -77,6 +86,7 @@ typedef struct {
     VkRect2D scissor;
     VkCullModeFlags cull;
     VkFrontFace front;
+    uint32_t lights;                /* its light set (by the pixel), ~0: none */
 } DrawState;
 
 static int scale = 2;
@@ -116,16 +126,17 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
-    VkVertexInputAttributeDescription attrs[6] = {
+    VkVertexInputAttributeDescription attrs[7] = {
         {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
         {1, 0, VK_FORMAT_R32G32_SFLOAT, 16},
         {2, 0, VK_FORMAT_R8G8B8A8_UNORM, 24},
         {3, 0, VK_FORMAT_R32_SFLOAT, 28},
         {4, 0, VK_FORMAT_R32G32B32_SFLOAT, 32},
         {5, 0, VK_FORMAT_R8G8B8A8_UNORM, 44},
+        {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
     };
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
-                                               ge ? 1u : 0u, &bind, ge ? 6u : 0u, attrs};
+                                               ge ? 1u : 0u, &bind, ge ? 7u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
                                                  VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
@@ -187,27 +198,31 @@ int render_init(void *sdl_window) {
         return 0;
 
     /* bindless textures: one array, filled as textures are made */
-    VkDescriptorSetLayoutBinding b[2] = {
+    VkDescriptorSetLayoutBinding b[3] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[2] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+    VkDescriptorBindingFlags bf[3] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 2, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 3, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 2, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 3, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 3};
+    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 3},
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
-                                      VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 1, &ps};
+                                      VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
     VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, pool, 1, &set_layout};
     vkAllocateDescriptorSets(vk.device, &dai, &set);
@@ -268,6 +283,11 @@ int render_init(void *sdl_window) {
     VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 1, 0, 1,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
+    light_buf = vk_buffer(2 * LIGHT_SETS * sizeof(LightSet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+    VkDescriptorBufferInfo lbi = {light_buf.buffer, 0, VK_WHOLE_SIZE};
+    VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 2, 0, 1,
+                               VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &lbi, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &lw, 0, NULL);
     VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
                                        VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
     vkAllocateCommandBuffers(vk.device, &cai, shadow_cmds);
@@ -551,8 +571,10 @@ void render_prim_begin(const uint32_t *reg) {
     s.alpha_test = reg[0xDB];
     s.cull = VK_CULL_MODE_NONE;
     s.front = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    s.lights = ~0u;
     if (prim_world && !clear) {
-        s.flags |= 256u | ((reg[0x17] & 1) ? 512u : 0u);
+        s.flags |= 256u | ((reg[0x17] & 1) ? (prim_lights != ~0u ? 1024u : 512u) : 0u);
+        s.lights = prim_lights;
         if (reg[0x1D] & 1) {            /* the culling gpu.c leaves to the GPU (the same faces as it would drop) */
             s.cull = VK_CULL_MODE_BACK_BIT;
             s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -689,6 +711,31 @@ void render_shadow_frame(const float *m, int on) {
     shadow_on = on;
 }
 
+/* gpu.c: the next primitive's directional lights, for the GPU to light it by the pixel (n 0: lit by the vertex) - in
+ * the world: direction (to the light; w a power of the diffuse term, 0 none) and colour; which is the sun */
+void render_prim_lights(int n, const float *dirs, const float *colors, int sun) {
+    if (!n) {
+        prim_lights = ~0u;
+        return;
+    }
+    LightSet l;
+    memset(&l, 0, sizeof l);
+    memcpy(l.dir, dirs, sizeof(float) * 4 * (size_t)n);
+    memcpy(l.color, colors, sizeof(float) * 4 * (size_t)n);
+    l.count = (uint32_t)n;
+    l.sun = sun < 0 ? 99u : (uint32_t)sun;
+    if (prim_lights != ~0u && light_sets_used && !memcmp(&l, &last_lights, sizeof l))
+        return;
+    if (light_sets_used >= LIGHT_SETS) {
+        prim_lights = ~0u;
+        return;
+    }
+    uint32_t index = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
+    memcpy((LightSet *)light_buf.map + index, &l, sizeof l);
+    last_lights = l;
+    prim_lights = index;
+}
+
 /* gpu.c: the next primitive's vertices have their place in the world (shadows fall on it, and it casts them) */
 void render_prim_world(int on) {
     prim_world = on;
@@ -722,7 +769,7 @@ static void flush(void) {
     if (!last_valid || s->front != last.front)
         vkCmdSetFrontFace(cmd, s->front);
     PushConstants pc = {s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1, s->tex_slot,
-        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, 0, {0}};
+        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, s->lights, {0}};
     memcpy(pc.light, light_vp, sizeof pc.light);
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
@@ -764,6 +811,12 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     uint32_t sr = v->sr > 255 ? 255 : v->sr > 0 ? (uint32_t)v->sr : 0, sg = v->sg > 255 ? 255 : v->sg > 0 ? (uint32_t)v->sg : 0;
     uint32_t sb = v->sb > 255 ? 255 : v->sb > 0 ? (uint32_t)v->sb : 0;
     g->sun = sr | sg << 8 | sb << 16;
+    float nl = sqrtf(v->nx * v->nx + v->ny * v->ny + v->nz * v->nz);
+    float k = nl > 0 ? 32767.0f / nl : 0;
+    g->n[0] = (int16_t)(v->nx * k);
+    g->n[1] = (int16_t)(v->ny * k);
+    g->n[2] = (int16_t)(v->nz * k);
+    g->n[3] = 0;
     vertex_used += sizeof(GpuVertex);
 }
 
@@ -794,6 +847,8 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
 static void end_frame(void) {
+    light_sets_used = 0;
+    prim_lights = ~0u;
     vertex_used = batch_start = 0;
     staging_used = 0;
     last_valid = 0;
@@ -865,6 +920,27 @@ void render_flip(uint32_t addr) {
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR)
         vk_recreate_swapchain();
     end_frame();
+}
+
+/* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
+uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
+    end_rendering();
+    Target *t = target(addr, 0);
+    if (!t)
+        return NULL;
+    vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    uint32_t w = 480u * (uint32_t)scale, h = 272u * (uint32_t)scale;
+    VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {w, h, 1}};
+    vkCmdCopyImageToBuffer(vk_cmd(), t->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1, &copy);
+    vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    vk_finish();
+    uint32_t *p = malloc((size_t)w * h * 4);
+    const uint32_t *src = readback.map;
+    for (size_t i = 0; i < (size_t)w * h; i++)
+        p[i] = src[i] | 0xFF000000u;
+    *w_out = (int)w;
+    *h_out = (int)h;
+    return p;
 }
 
 /* The displayed part of a framebuffer, for a frame dump: read back, and scaled down to 480 x 272 */
