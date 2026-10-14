@@ -68,7 +68,7 @@ Each is the environment variable without its `MHFU_` (which still works, and win
 PSP's; by default as many lines as the screen has: 6 at 1440p), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
 `MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_SHADOWS=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`, `MHFU_POINT_SHADOWS=0` (the renderer's sun
-shadows, lighting by the pixel, lights from the game's fires and their shadows: all on otherwise), `MHFU_POINT_GAIN=0.6`
+shadows, lighting by the pixel, lights from the game's fires and their shadows: all on otherwise), `MHFU_POINT_GAIN=1`
 (the fires' lights' strength), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
 
