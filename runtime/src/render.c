@@ -773,8 +773,13 @@ static void flush(void) {
     memcpy(pc.light, light_vp, sizeof pc.light);
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
-    /* what is solid in the world casts shadows: drawn again into the shadow map */
-    if (shadow_on && (s->flags & 256u) && s->depth_write && !s->blend) {
+    /* what is solid in the world casts shadows: drawn again into the shadow map - blended over what is there by its
+     * alpha too (much of the scenery is), where it is more than half opaque */
+    int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
+                      s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    if (shadow_on && (s->flags & 256u) && s->depth_write && (!s->blend || alpha_blend)) {
+        if (alpha_blend)
+            pc.flags |= 2048u;
         shadow_begin();
         vkCmdPushConstants(shadow_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc,
                            &pc);
