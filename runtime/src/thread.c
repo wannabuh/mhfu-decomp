@@ -90,6 +90,8 @@ static VTimer *vtimers[MAX_VTIMERS];
 /* -- time --------------------------------------------------------------------------------------------------------- */
 
 static uint64_t boot_ns;
+static uint64_t warp_us;            /* time skipped while fast-forwarding (present.c) */
+int fast_forward(void);
 
 uint64_t time_us(void) {
     struct timespec ts;
@@ -97,7 +99,7 @@ uint64_t time_us(void) {
     uint64_t ns = (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
     if (!boot_ns)
         boot_ns = ns;
-    return (ns - boot_ns) / 1000;
+    return (ns - boot_ns) / 1000 + warp_us;
 }
 
 static void sleep_until(uint64_t us) {
@@ -297,6 +299,12 @@ void scheduler_run(void) {
         Thread *t = highest_ready();
         if (!t) {
             uint64_t next = next_event(), display = present_pump();
+            if (fast_forward()) {
+                uint64_t now = time_us();
+                if (next > now)
+                    warp_us += next - now;
+                continue;
+            }
             sleep_until(display < next ? display : next);
             continue;
         }

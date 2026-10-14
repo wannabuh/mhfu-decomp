@@ -20,6 +20,24 @@ static unsigned long frame;
 extern uint32_t ctrl_buttons;
 extern uint8_t ctrl_lx, ctrl_ly;
 
+/* Skipping the intros (unless MHFU_INTRO=1, or a script drives the input - its frames count from a full boot): the
+ * language menu is answered (cross: English, the first), then the game runs as fast as it can - its clock jumping to
+ * whatever it waits for, nothing shown or heard - through the logos, to the title. The menu runs at its own pace,
+ * for its second and a half. */
+#define LANGUAGE_FRAME 40           /* the language menu takes cross (from about frame 35) */
+#define TITLE_FRAME 470             /* the title, about 435 frames after the menu is answered */
+
+static int skip_intro(void) {
+    static int skip = -1;
+    if (skip < 0)
+        skip = !getenv("MHFU_INTRO") && !getenv("MHFU_INPUT");
+    return skip;
+}
+
+int fast_forward(void) {
+    return skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME;
+}
+
 /* The buttons held: the devices' (window_poll) and the script's */
 static void scripted_input(uint32_t device_buttons) {
     static const char *script;
@@ -138,7 +156,7 @@ static int display_fps(void) {
 
 /* Draw and show a frame if one is due; returns when the next is (or ~0 with no frame rate of its own) */
 uint64_t present_pump(void) {
-    if (!display_fps())
+    if (!display_fps() || fast_forward())
         return ~(uint64_t)0;
     uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
     if (now < next_display)
@@ -223,7 +241,10 @@ void present_frame(void) {
     snapshots();
     uint32_t *pixels = window_pixels();
     int dump = dump_every && frame % (unsigned long)dump_every == 0;
-    if (display_fps()) {
+    if (fast_forward()) {
+        if (display_fps())
+            gpu_frame_end(display_fb_addr, time_us());
+    } else if (display_fps()) {
         gpu_frame_end(display_fb_addr, time_us());
         if (dump && gpu_render_frame(1.0f))
             render_readback(display_fb_addr, pixels);
@@ -238,6 +259,8 @@ void present_frame(void) {
     if (!window_poll())
         exit(0);
     scripted_input(window_buttons());
+    if (skip_intro() && frame >= LANGUAGE_FRAME && frame < LANGUAGE_FRAME + 5)
+        ctrl_buttons |= 0x4000;
     camera_update();
     if (dump) {
         char path[64];

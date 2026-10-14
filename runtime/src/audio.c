@@ -56,11 +56,13 @@ static void dump(int ch, uint32_t addr) {
 }
 
 /* A buffer to the host: scaled by the channel's volumes (0x8000 is full), mono made stereo */
+int fast_forward(void);
+
 static void play(int ch, uint32_t addr, uint32_t vol_l, uint32_t vol_r) {
     if (!addr)                      /* no buffer: silence (the game outputs that when it stops a sound) */
         return;
     dump(ch, addr);
-    if (!audio_on())
+    if (!audio_on() || fast_forward())
         return;
     if (!chan[ch].stream) {
         SDL_AudioSpec spec = {SDL_AUDIO_S16LE, 2, RATE};
