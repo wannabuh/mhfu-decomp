@@ -236,7 +236,8 @@ void camera_update(float dx, float dy) {
      * frames shown (the eye's elevation, the game's camera left as it is), or, without them or replaying a recording
      * made before, by pitching the game's preset */
     if (active && rt_camera_free) {
-        if (!elevation_set)
+        /* the game putting the camera behind the hunter (L: +0x12E while it turns there) puts the height back too */
+        if (!elevation_set || *MEM(view + 0x12E))
             elevation = 0, elevation_set = 1;
         elevation = clamp_raise(elevation + dy * sens * PI / 180, pitch_axis.angle[1]);
         return;
