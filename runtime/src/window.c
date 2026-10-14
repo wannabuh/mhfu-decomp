@@ -47,6 +47,11 @@ static void capture_mouse(int on) {
     SDL_SetWindowRelativeMouseMode(window, on);
 }
 
+void window_mouse_peek(float *dx, float *dy) {
+    *dx = mouse_dx;
+    *dy = mouse_dy;
+}
+
 void window_mouse(float *dx, float *dy) {
     *dx = mouse_dx;
     *dy = mouse_dy;

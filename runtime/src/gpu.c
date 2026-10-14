@@ -798,10 +798,42 @@ static void lerp(float *out, const float *a, const float *b, int n, float t) {
         out[i] = a[i] + (b[i] - a[i]) * t;
 }
 
+/* camera.c: the camera shown, with the mouse's turn at once (and the frames' cameras, to take out of world matrices) */
+int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown);
+static int native_camera;
+static float prev_inv[12], latest_inv[12], shown_view[12];
+
+static void compose43(const float *a, const float *b, float *out) {
+    float m[12];
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 3; i++)
+            m[3 * j + i] = a[i] * b[3 * j] + a[3 + i] * b[3 * j + 1] + a[6 + i] * b[3 * j + 2] + (j == 3 ? a[9 + i] : 0);
+    memcpy(out, m, sizeof m);
+}
+
 /* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
 static void replay(const Draw *d, const Draw *prev, float t) {
     memcpy(reg, d->reg, sizeof reg);
-    if (prev) {
+    if (native_camera && d->proj[11] != 0) {
+        /* the game multiplied its camera into the world matrix: take each frame's out, interpolate in the world, and
+         * put the camera shown in */
+        float wl[12];
+        compose43(latest_inv, d->world, wl);
+        if (prev) {
+            float wp[12];
+            compose43(prev_inv, prev->world, wp);
+            lerp(world, wp, wl, 12, t);
+            lerp(view, prev->view, d->view, 12, t);
+            lerp(proj, prev->proj, d->proj, 16, t);
+            lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 8 * 12, t);
+        } else {
+            memcpy(world, wl, sizeof world);
+            memcpy(view, d->view, sizeof view);
+            memcpy(proj, d->proj, sizeof proj);
+            memcpy(bones, d->bones, sizeof bones);
+        }
+        compose43(shown_view, world, world);
+    } else if (prev) {
         lerp(world, prev->world, d->world, 12, t);
         lerp(view, prev->view, d->view, 12, t);
         lerp(proj, prev->proj, d->proj, 16, t);
@@ -1031,6 +1063,7 @@ uint32_t gpu_render_frame(float t) {
     shown_frames++;
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
     int *m = interpolate ? match() : NULL;
+    native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
     recording = 0;
     for (int i = 0; i < latest->n; i++) {
         const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
