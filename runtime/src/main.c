@@ -1,13 +1,19 @@
 /* The recompiled game: load the EBOOT's image into the PSP's memory, start its module as the PSP's kernel would, and
  * run the threads.
  *
- * Usage: mhfu <game.iso> [--eboot game/decrypted/EBOOT.elf] [--trace]
- * MHFU_TRACE=1 also traces every kernel call. */
+ * Usage: mhfu [game.iso] [--eboot game/decrypted/EBOOT.elf] [--trace]
+ * MHFU_TRACE=1 also traces every kernel call.
+ *
+ * Settings: lines "KEY = value" in ./mhfu.ini, then in $XDG_CONFIG_HOME/mhfu-recomp/settings.ini (~/.config/...), set
+ * the environment variables MHFU_KEY (the prefix optional: "fps = 144" is MHFU_FPS=144) where they are not set
+ * already - the environment first, then ./mhfu.ini, then settings.ini. "iso = path" names the game when the command
+ * line does not. Lines starting with # are comments. */
 #include "hle.h"
 
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static void on_signal(int sig) {
     (void)sig;
@@ -30,6 +36,62 @@ static uint8_t *read_file(const char *path, size_t *size) {
     }
     fclose(f);
     return data;
+}
+
+static char *iso_setting;
+
+static char *trim(char *s) {
+    while (*s == ' ' || *s == '\t')
+        s++;
+    char *e = s + strlen(s);
+    while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\n' || e[-1] == '\r'))
+        *--e = 0;
+    return s;
+}
+
+static void load_settings(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return;
+    char line[1024];
+    while (fgets(line, sizeof line, f)) {
+        char *l = trim(line), *eq = strchr(l, '=');
+        if (!*l || *l == '#' || !eq)
+            continue;
+        *eq = 0;
+        char *key = trim(l), *value = trim(eq + 1);
+        char name[256];
+        int n = 0;
+        if (strncasecmp(key, "MHFU_", 5) != 0)
+            n = snprintf(name, sizeof name, "MHFU_");
+        for (const char *k = key; *k && n < (int)sizeof name - 1; k++)
+            name[n++] = (char)(*k >= 'a' && *k <= 'z' ? *k - 32 : *k);
+        name[n] = 0;
+        if (!strcmp(name, "MHFU_ISO")) {
+            if (!iso_setting) {
+                iso_setting = value[0] == '~' && getenv("HOME") ? malloc(strlen(getenv("HOME")) + strlen(value)) : NULL;
+                if (iso_setting)
+                    sprintf(iso_setting, "%s%s", getenv("HOME"), value + 1);
+                else
+                    iso_setting = strdup(value);
+            }
+        } else
+            setenv(name, value, 0);
+    }
+    fclose(f);
+}
+
+static void settings(void) {
+    load_settings("mhfu.ini");
+    char path[4096];
+    const char *xdg = getenv("XDG_CONFIG_HOME"), *home = getenv("HOME");
+    if (xdg && *xdg)
+        snprintf(path, sizeof path, "%s/mhfu-recomp/settings.ini", xdg);
+    else if (home)
+        snprintf(path, sizeof path, "%s/.config/mhfu-recomp/settings.ini", home);
+    else
+        return;
+    load_settings(path);
 }
 
 static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
@@ -70,6 +132,7 @@ static uint32_t load_eboot(const char *path, uint32_t *entry, uint32_t *gp) {
 }
 
 int main(int argc, char **argv) {
+    settings();
     const char *iso = NULL, *eboot = "game/decrypted/EBOOT.elf";
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--eboot") && i + 1 < argc)
@@ -79,8 +142,11 @@ int main(int argc, char **argv) {
         else
             iso = argv[i];
     }
+    if (!iso)
+        iso = iso_setting;
     if (!iso) {
-        fprintf(stderr, "usage: %s <game.iso> [--eboot path/to/EBOOT.elf] [--trace]\n", argv[0]);
+        fprintf(stderr, "usage: %s <game.iso> [--eboot path/to/EBOOT.elf] [--trace] (or iso = path in mhfu.ini)\n",
+                argv[0]);
         return 2;
     }
     if (getenv("MHFU_TRACE"))

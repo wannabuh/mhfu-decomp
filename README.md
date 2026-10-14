@@ -54,7 +54,16 @@ A gamepad works as laid out (south ×, east ○, west □, north △, left stick
 
 ## Settings
 
-Environment variables, for now: `MHFU_FPS=60` (or 120, 144...: frame rate, the frames between the game's 30
+Put them in `~/.config/mhfu-recomp/settings.ini` (or `mhfu.ini` where you start the game), one a line, and run just
+`build/mhfu`:
+
+```ini
+iso = ~/Games/psp/mhfu.iso
+fps = 144
+mouse_sens = 0.15
+```
+
+Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or 120, 144...: frame rate, the frames between the game's 30
 interpolated), `MHFU_SCALE=4` (internal resolution, times the PSP's), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the
 on-screen keyboard gives), `MHFU_SAVEDIR=...`, `MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse
 count turns the camera), `MHFU_INTRO=1` (play the intros: otherwise English is chosen and the logos are skipped, to the
