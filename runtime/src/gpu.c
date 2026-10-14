@@ -1145,6 +1145,9 @@ static void draw_position(const Draw *d, float *p) {
 /* Farther than this between frames: not the same thing moving - 40 game units, and as the camera turns, things far
  * from it sweep further: a fifth of their distance from it (11 degrees a frame) */
 #define MATCH_DISTANCE 40.0f
+/* In the world (the camera taken out) only things' own moves count: a big animal's limbs move 60 units a frame as it
+ * flinches - the copies of a model (a herd) stand further apart than that */
+#define MATCH_DISTANCE_WORLD 150.0f
 #define MATCH_TURN 0.2f
 
 /* How far a draw is from the camera: its position through the view matrix (the game may put the camera in the view
@@ -1314,7 +1317,7 @@ static int *match(int in_world) {
             continue;
         }
         /* in the world the camera's turn moves nothing: only the distance (as seen, things far off sweep further) */
-        float reach = in_world ? MATCH_DISTANCE : MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p);
+        float reach = in_world ? MATCH_DISTANCE_WORLD : MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p);
         float best_d = reach * reach;
         for (int j = lo; j < previous->n && keys[order[j]] == k; j++) {
             int c = order[j];
