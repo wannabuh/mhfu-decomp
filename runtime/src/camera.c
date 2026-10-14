@@ -10,8 +10,9 @@
  *
  * Its height is a preset, pointed to from +0x110 (↑ and ↓ step through a table of them): floats at +4, the eye's height
  * over the hunter, +8 its distance and +0x10 the height it looks at. Moving the mouse up and down pitches the preset in
- * use: its eye moves around the point it looks at, keeping its distance, from 20 degrees below to 80 above; the camera
- * follows within a frame or two.
+ * use: its eye moves around the point it looks at, keeping its distance, from 20 degrees below to 80 above. The
+ * camera eases there (about 0.2 degrees a frame when asked 0.5, settling short of the angle asked: the preset's angle
+ * is about another point than the eye's elevation over the target), so the pitch is softer than the yaw.
  *
  * At the display's rate the frames shown between the game's are interpolated (gpu.c), the camera with them; the
  * mouse's turn (each axis: yaw, the eye's bearing, and pitch, its elevation) is added at once instead - the part of it
