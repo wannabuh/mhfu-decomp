@@ -235,6 +235,9 @@ static void unpack(uint32_t c, float *f) {
 
 /* A frame's shadows: the world from what is drawn (the camera shown, or the game's), and the sun's view of the world
  * around what the camera looks at - its centre moved in whole texels, so that the shadows' edges stand still */
+static float prev_inv[12], latest_inv[12];     /* (the last two frames' cameras undone: below) */
+static int frames_late;
+
 static void shadow_frame(const float *shown) {
     static int enabled = -1;
     if (enabled < 0)
@@ -245,9 +248,11 @@ static void shadow_frame(const float *shown) {
         render_shadow_frame(NULL, 0);
         return;
     }
-    if (shown)
+    if (shown) {
         camera_invert(shown, to_world);
-    else
+        /* the lights are given in the space of the camera the frame was drawn with (a frame late, as told) */
+        memcpy(game_to_world, frames_late ? prev_inv : latest_inv, sizeof game_to_world);
+    } else
         memcpy(to_world, game_to_world, sizeof to_world);
     if (!sun_known) {
         render_shadow_frame(NULL, 0);
