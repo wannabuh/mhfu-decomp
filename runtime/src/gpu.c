@@ -1118,6 +1118,147 @@ static void lerp(float *out, const float *a, const float *b, int n, float t) {
         out[i] = a[i] + (b[i] - a[i]) * t;
 }
 
+/* A 3 x 4 matrix (by columns) as a rotation, the scale of each axis (negative: mirrored) and a translation; 0 if it is
+ * not that (an axis of no length, sheared) */
+static int to_rotation(const float *m, float *q, float *s) {
+    float c[9];
+    for (int j = 0; j < 3; j++) {
+        s[j] = sqrtf(m[3 * j] * m[3 * j] + m[3 * j + 1] * m[3 * j + 1] + m[3 * j + 2] * m[3 * j + 2]);
+        if (s[j] < 1e-6f)
+            return 0;
+        for (int i = 0; i < 3; i++)
+            c[3 * j + i] = m[3 * j + i] / s[j];
+    }
+    for (int j = 0; j < 3; j++) {
+        const float *a = &c[3 * j], *b = &c[3 * ((j + 1) % 3)];
+        if (fabsf(a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) > 0.05f)
+            return 0;
+    }
+    float det = c[0] * (c[4] * c[8] - c[5] * c[7]) - c[3] * (c[1] * c[8] - c[2] * c[7]) +
+                c[6] * (c[1] * c[5] - c[2] * c[4]);
+    if (det < 0) {          /* mirrored: the first axis's scale negative, the rest a rotation */
+        s[0] = -s[0];
+        c[0] = -c[0], c[1] = -c[1], c[2] = -c[2];
+    }
+    /* (R(i, j) = c[3 j + i]) */
+    float tr = c[0] + c[4] + c[8];
+    if (tr > 0) {
+        float k = 0.5f / sqrtf(tr + 1);
+        q[0] = 0.25f / k, q[1] = (c[5] - c[7]) * k, q[2] = (c[6] - c[2]) * k, q[3] = (c[1] - c[3]) * k;
+    } else if (c[0] > c[4] && c[0] > c[8]) {
+        float k = 2 * sqrtf(1 + c[0] - c[4] - c[8]);
+        q[0] = (c[5] - c[7]) / k, q[1] = 0.25f * k, q[2] = (c[3] + c[1]) / k, q[3] = (c[6] + c[2]) / k;
+    } else if (c[4] > c[8]) {
+        float k = 2 * sqrtf(1 + c[4] - c[0] - c[8]);
+        q[0] = (c[6] - c[2]) / k, q[1] = (c[3] + c[1]) / k, q[2] = 0.25f * k, q[3] = (c[7] + c[5]) / k;
+    } else {
+        float k = 2 * sqrtf(1 + c[8] - c[0] - c[4]);
+        q[0] = (c[1] - c[3]) / k, q[1] = (c[6] + c[2]) / k, q[2] = (c[7] + c[5]) / k, q[3] = 0.25f * k;
+    }
+    return 1;
+}
+
+/* Between two placements (3 x 4, by columns): turning by the shortest way, their scales and translations lerped -
+ * lerped as they are, a half turn would pass through a matrix that flattens what it places. Matrices that are not
+ * rotations and scales (or mirror differently) are lerped as they are. */
+static void interp43(float *out, const float *a, const float *b, float t) {
+    float qa[4], qb[4], sa[3], sb[3];
+    if (!to_rotation(a, qa, sa) || !to_rotation(b, qb, sb) || (sa[0] < 0) != (sb[0] < 0)) {
+        lerp(out, a, b, 12, t);
+        return;
+    }
+    float d = qa[0] * qb[0] + qa[1] * qb[1] + qa[2] * qb[2] + qa[3] * qb[3];
+    if (d < 0) {
+        d = -d;
+        for (int i = 0; i < 4; i++)
+            qb[i] = -qb[i];
+    }
+    float wa = 1 - t, wb = t;
+    if (d < 0.9995f) {
+        float th = acosf(d), sn = sinf(th);
+        wa = sinf((1 - t) * th) / sn;
+        wb = sinf(t * th) / sn;
+    }
+    float q[4], n = 0;
+    for (int i = 0; i < 4; i++) {
+        q[i] = wa * qa[i] + wb * qb[i];
+        n += q[i] * q[i];
+    }
+    n = 1 / sqrtf(n);
+    float w = q[0] * n, x = q[1] * n, y = q[2] * n, z = q[3] * n;
+    float r[9] = {1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y),
+                  2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x),
+                  2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)};
+    for (int j = 0; j < 3; j++) {
+        float s = sa[j] + (sb[j] - sa[j]) * t;
+        for (int i = 0; i < 3; i++)
+            out[3 * j + i] = r[3 * j + i] * s;
+    }
+    lerp(&out[9], &a[9], &b[9], 3, t);
+}
+
+static void compose43(const float *a, const float *b, float *out);
+
+/* The inverse of a 3 x 4 placement; 0 if it has none */
+static int invert43(const float *m, float *out) {
+    float c0 = m[4] * m[8] - m[5] * m[7], c1 = m[2] * m[7] - m[1] * m[8], c2 = m[1] * m[5] - m[2] * m[4];
+    float det = m[0] * c0 + m[3] * c1 + m[6] * c2;
+    if (fabsf(det) < 1e-12f)
+        return 0;
+    float k = 1 / det, r[12];
+    r[0] = c0 * k, r[1] = c1 * k, r[2] = c2 * k;
+    r[3] = (m[5] * m[6] - m[3] * m[8]) * k, r[4] = (m[0] * m[8] - m[2] * m[6]) * k, r[5] = (m[2] * m[3] - m[0] * m[5]) * k;
+    r[6] = (m[3] * m[7] - m[4] * m[6]) * k, r[7] = (m[1] * m[6] - m[0] * m[7]) * k, r[8] = (m[0] * m[4] - m[1] * m[3]) * k;
+    for (int i = 0; i < 3; i++)
+        r[9 + i] = -(r[i] * m[9] + r[3 + i] * m[10] + r[6 + i] * m[11]);
+    memcpy(out, r, sizeof r);
+    return 1;
+}
+
+/* Between two frames' bones (n): the first by interp43, the rest as placed from it - a model turning about its root
+ * turns its bones' places with it, rather than drawing them in through the middle */
+static void interp_bones(float *out, const float *a, const float *b, int n, float t) {
+    float ia[12], ib[12];
+    if (n < 2 || !invert43(a, ia) || !invert43(b, ib)) {
+        for (int k = 0; k < n; k++)
+            interp43(out + 12 * k, a + 12 * k, b + 12 * k, t);
+        return;
+    }
+    float first[12];
+    interp43(first, a, b, t);
+    for (int k = 1; k < n; k++) {
+        float la[12], lb[12], l[12];
+        compose43(ia, a + 12 * k, la);
+        compose43(ib, b + 12 * k, lb);
+        interp43(l, la, lb, t);
+        compose43(first, l, out + 12 * k);
+    }
+    memcpy(out, first, sizeof first);
+}
+
+/* Between two frames' world matrix and bones (n, 0: not skinned): the bones as placed in the world (the world matrix
+ * times each) by interp_bones - a turn the game puts in the world matrix and takes back in the bones (as a model turns
+ * about) then cancels as it does in the frames - and back through the world matrix lerped by interp43 */
+static void interp_model(float *world_out, float *bones_out, const float *wa, const float *wb, const float *ba,
+                         const float *bb, int n, float t) {
+    interp43(world_out, wa, wb, t);
+    float inv[12];
+    if (!n)
+        return;
+    if (!invert43(world_out, inv)) {
+        interp_bones(bones_out, ba, bb, n, t);
+        return;
+    }
+    float ca[8 * 12], cb[8 * 12];
+    for (int k = 0; k < n; k++) {
+        compose43(wa, ba + 12 * k, ca + 12 * k);
+        compose43(wb, bb + 12 * k, cb + 12 * k);
+    }
+    interp_bones(bones_out, ca, cb, n, t);
+    for (int k = 0; k < n; k++)
+        compose43(inv, bones_out + 12 * k, bones_out + 12 * k);
+}
+
 /* camera.c: the camera shown, with the mouse's turn at once (and the frames' cameras, to take out of world matrices) */
 int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown);
 static int native_camera;
@@ -1153,9 +1294,8 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         float wl[12], wp[12], we[12];
         compose43(late ? prev_inv : latest_inv, d->world, wl);
         compose43(late ? before_inv : prev_inv, moved->world, wp);
-        lerp(we, wp, wl, 12, t - step);
+        interp_model(we, &earlier_bones[0][0], wp, wl, &moved->bones[0][0], &d->bones[0][0], draw_bones(d), t - step);
         compose43(shown_view, we, earlier_world);
-        lerp(&earlier_bones[0][0], &moved->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t - step);
         earlier = 1;
     }
     if (native_camera && d->proj[11] != 0) {
@@ -1167,10 +1307,9 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         if (prev) {
             float wp[12];
             compose43(late ? before_inv : prev_inv, prev->world, wp);
-            lerp(world, wp, wl, 12, t);
+            interp_model(world, &bones[0][0], wp, wl, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
             lerp(view, prev->view, d->view, 12, t);
             lerp(proj, prev->proj, d->proj, 16, t);
-            lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t);
         } else {
             memcpy(world, wl, sizeof world);
             memcpy(view, d->view, sizeof view);
@@ -1179,10 +1318,9 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         }
         compose43(shown_view, world, world);
     } else if (prev) {
-        lerp(world, prev->world, d->world, 12, t);
+        interp_model(world, &bones[0][0], prev->world, d->world, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
         lerp(view, prev->view, d->view, 12, t);
         lerp(proj, prev->proj, d->proj, 16, t);
-        lerp(&bones[0][0], &prev->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t);
     } else {
         memcpy(world, d->world, sizeof world);
         memcpy(view, d->view, sizeof view);
