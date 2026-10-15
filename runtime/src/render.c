@@ -146,6 +146,14 @@ static float sway = -1.0f;
 static struct GpuVertex *sway_verts;      /* the batch's vertices as put (the mapped buffer is slow to read) */
 static size_t sway_cap;
 static double sway_clock = -1.0;        /* the moment shown, in seconds (gpu.c), or -1: the game's frame */
+/* and they bend away from those walking through them: where the feet of what the GE lights (the hunter, monsters,
+ * people) were in the last frame - each such batch's lowest places */
+#define MAX_FEET 64
+typedef struct { float x, y, z, r; } Foot;
+static Foot feet[2][MAX_FEET];          /* this frame's, being found; the last's, used */
+static int nfeet[2];
+static float (*lit_pos)[3];             /* the batch's places, if it is lit (its feet are found at flush) */
+static size_t lit_cap;
 
 typedef struct Target {
     uint32_t addr;                  /* VRAM address, mirror bits off */
@@ -1502,6 +1510,30 @@ void render_time(double seconds) {
 
 unsigned long present_frame_number(void);
 
+/* A lit batch's feet (if it has any near the ground): the middle and spread of its lowest corners */
+static void find_feet(size_t n) {
+    float lo = 1e30f;
+    for (size_t i = 0; i < n; i++)
+        lo = fminf(lo, lit_pos[i][1]);
+    float x0 = 1e30f, x1 = -1e30f, z0 = 1e30f, z1 = -1e30f;
+    for (size_t i = 0; i < n; i++)
+        if (lit_pos[i][1] < lo + 25.0f) {
+            x0 = fminf(x0, lit_pos[i][0]);
+            x1 = fmaxf(x1, lit_pos[i][0]);
+            z0 = fminf(z0, lit_pos[i][2]);
+            z1 = fmaxf(z1, lit_pos[i][2]);
+        }
+    float x = 0.5f * (x0 + x1), z = 0.5f * (z0 + z1), r = 0.5f * fmaxf(x1 - x0, z1 - z0);
+    if (!(r <= 250.0f))                 /* (spread too wide to be feet: not something walking) */
+        return;
+    Foot *f = &feet[0][0];
+    for (int i = 0; i < nfeet[0]; i++)  /* (one foot drawn in pieces: one) */
+        if (fabsf(f[i].x - x) < 10.0f && fabsf(f[i].z - z) < 10.0f && fabsf(f[i].y - lo) < 10.0f)
+            return;
+    if (nfeet[0] < MAX_FEET)
+        f[nfeet[0]++] = (Foot){x, lo, z, r};
+}
+
 /* The batch's n vertices (triangles) moved by the wind */
 static void sway_batch(size_t n) {
     float wv[16] = {0}, vw[16], m[16];
@@ -1589,6 +1621,24 @@ static void sway_batch(size_t n) {
     }
     if (!any)
         return;
+    /* the feet near the batch at all */
+    float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f};
+    for (size_t i = 0; i < n; i++) {
+        const float *w = &g[i].wx;
+        for (int k = 0; k < 3; k++) {
+            lo[k] = fminf(lo[k], w[k]);
+            hi[k] = fmaxf(hi[k], w[k]);
+        }
+    }
+    const Foot *near[MAX_FEET];
+    int nnear = 0;
+    for (int f = 0; f < nfeet[1]; f++) {
+        const Foot *ft = &feet[1][f];
+        float reach = ft->r + 45.0f;
+        if (ft->x + reach > lo[0] && ft->x - reach < hi[0] && ft->z + reach > lo[2] && ft->z - reach < hi[2] &&
+            ft->y + 60.0f > lo[1] && ft->y - 60.0f < hi[1])
+            near[nnear++] = ft;
+    }
     for (size_t i = 0; i < n - n % 3; i++) {
         GpuVertex *v = &g[i];
         uint32_t o = owner[i];
@@ -1602,6 +1652,20 @@ static void sway_batch(size_t n) {
         float sw = 0.7f * sinf(t * 1.9f + ph * 6.2832f) + 0.3f * sinf(t * 3.7f + ph * 11.0f);
         float d = (sw + 0.4f) * gust * amp * wgt;
         float dw[3] = {wind[0] * d, -0.1f * fabsf(d), wind[2] * d};
+        /* bent away from feet among them: out and down, the more the nearer (their foot - not the leaves up a tree) */
+        for (int f = 0; f < nnear; f++) {
+            const Foot *ft = near[f];
+            float dx = v->wx - ft->x, dz = v->wz - ft->z, reach = ft->r + 45.0f;
+            if (fabsf(dx) > reach || fabsf(dz) > reach || fabsf(foot[o] - ft->y) > 60.0f)
+                continue;
+            float dist = sqrtf(dx * dx + dz * dz);
+            if (dist >= reach || dist < 1e-3f)
+                continue;
+            float push = (1.0f - dist / reach) * fminf(h, 60.0f) * 0.6f;
+            dw[0] += dx / dist * push;
+            dw[2] += dz / dist * push;
+            dw[1] -= push * 0.5f;
+        }
         float p[4], q[4];
         for (int r = 0; r < 4; r++) {
             p[r] = m[r] * v->wx + m[4 + r] * v->wy + m[8 + r] * v->wz + m[12 + r];
@@ -1632,6 +1696,8 @@ static void flush(void) {
         make_normals((size_t)n);
     if (swaying(&cur))
         sway_batch((size_t)n);
+    if (sway > 0 && (cur.flags & 1792u) > 256u)
+        find_feet((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
@@ -1763,6 +1829,16 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
             corners = realloc(corners, corners_cap * sizeof *corners);
         }
         corners[i] = (Corner){{v->wx, v->wy, v->wz}, x, y};
+    }
+    if (sway > 0 && (cur.flags & 1792u) > 256u) {   /* (in the world, lit by the GE) */
+        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
+        if (i >= lit_cap) {
+            lit_cap = lit_cap ? lit_cap * 2 : 65536;
+            lit_pos = realloc(lit_pos, lit_cap * sizeof *lit_pos);
+        }
+        lit_pos[i][0] = v->wx;
+        lit_pos[i][1] = v->wy;
+        lit_pos[i][2] = v->wz;
     }
     if (emitting) {
         double wgt = (double)(r + gg + b) * (double)a / (3.0 * 255.0 * 255.0);
@@ -1930,6 +2006,11 @@ static void end_frame(void) {
     ao_used = 0;
     post_target = post_done = NULL;
     nglow = 0;
+    if (nfeet[0]) {                     /* (a frame that drew none - the HUD's alone - keeps the last's) */
+        memcpy(feet[1], feet[0], sizeof feet[0]);
+        nfeet[1] = nfeet[0];
+        nfeet[0] = 0;
+    }
     shadow_drawn = 0;
     post_end_frame();
     extra_used = extra_batch = 0;
