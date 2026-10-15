@@ -53,6 +53,7 @@ typedef struct {
     int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render.c: shadows) */
     int output_layer;                /* a vertex shader can choose the layer it draws into */
     int tessellation;                /* tessellation shaders can be used */
+    int anisotropy;                  /* anisotropic filtering can be used */
 } VkContext;
 
 extern VkContext vk;
@@ -64,6 +65,8 @@ void vk_recreate_swapchain(void);
 VkBuf vk_buffer(VkDeviceSize size, VkBufferUsageFlags usage, int host);
 void vk_buffer_free(VkBuf *b);
 VkImg vk_image(uint32_t w, uint32_t h, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspect);
+VkImg vk_image_mips(uint32_t w, uint32_t h, uint32_t levels, VkFormat format, VkImageUsageFlags usage,
+                    VkImageAspectFlags aspect);
 VkImg vk_image_layers(uint32_t w, uint32_t h, uint32_t layers, VkImageCreateFlags flags, VkFormat format,
                       VkImageUsageFlags usage, VkImageAspectFlags aspect);
 void vk_image_free(VkImg *i);

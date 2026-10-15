@@ -8,7 +8,7 @@
  * address is a render target's samples that render target. Frames are submitted and waited for at each flip.
  *
  * Not yet: the framebuffers' contents in VRAM for the CPU (nothing reads them back but frame dumps), block transfers
- * into framebuffers, stencil, logic ops, mipmaps, the blend factors the hardware lacks (doubled alphas). */
+ * into framebuffers, stencil, logic ops, the blend factors the hardware lacks (doubled alphas). */
 #include "render.h"
 
 #include "hle.h"
@@ -185,6 +185,7 @@ typedef struct {
     uint32_t addr;
     int w, h;
     VkImg img;
+    int levels;                     /* its mipmaps' */
     uint32_t slot;
     unsigned long checked;          /* the frame it was last checked in */
     unsigned long used;
@@ -240,6 +241,7 @@ static VkDescriptorSetLayout set_layout, present_set_layout;
 static VkDescriptorPool pool;
 static VkDescriptorSet set, present_sets[2];
 static VkSampler samplers[8], present_sampler;
+static int mipmaps = 1;             /* the game's textures get mipmaps (MHFU_MIPMAPS=0: none) */
 static unsigned long frame_no = 1;
 
 static Target *rendering;            /* the target being rendered into, or NULL */
@@ -483,7 +485,9 @@ int render_init(void *sdl_window) {
         present_pipeline = make_pipeline(pvs, pfs, present_layout, vk.swap_format, VK_FORMAT_UNDEFINED, 0);
     }
 
-    /* samplers: nearest or linear, each axis repeating or clamped */
+    /* samplers: nearest or linear, each axis repeating or clamped; with mipmaps, made smaller from their levels
+     * (trilinear), and anisotropic where linear */
+    mipmaps = !getenv("MHFU_MIPMAPS") || atoi(getenv("MHFU_MIPMAPS")) != 0;
     for (int i = 0; i < 8; i++) {
         VkSamplerCreateInfo sci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
         sci.magFilter = sci.minFilter = (i & 1) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
@@ -491,6 +495,15 @@ int render_init(void *sdl_window) {
         sci.addressModeV = (i & 4) ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
         sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         sci.maxLod = 0;
+        if (mipmaps) {
+            sci.minFilter = VK_FILTER_LINEAR;
+            sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            sci.maxLod = VK_LOD_CLAMP_NONE;
+            if (vk.anisotropy && (i & 1)) {
+                sci.anisotropyEnable = VK_TRUE;
+                sci.maxAnisotropy = 16.0f;
+            }
+        }
         vkCreateSampler(vk.device, &sci, NULL, &samplers[i]);
     }
     VkSamplerCreateInfo shi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
@@ -682,6 +695,54 @@ static void frame_reused(int frame) {
 }
 
 /* The current texture's slot: a render target's, or a cached texture's (made or updated as needed) */
+/* A texture's next smaller level (half each way, at least 1): each texel the average of four, its colour weighted by
+ * their alpha (holes lend it none). A texture with holes (alpha tested: grass, leaves) keeps as much of itself solid
+ * as the full size has - its alpha scaled to that - so that it does not thin away in the distance */
+static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const uint32_t *top, int tw, int th,
+                       int cutout) {
+    int dw = w > 1 ? w / 2 : 1, dh = h > 1 ? h / 2 : 1;
+    int sx = w > 1 ? 2 : 1, sy = h > 1 ? 2 : 1;
+    for (int y = 0; y < dh; y++)
+        for (int x = 0; x < dw; x++) {
+            uint32_t sum[4] = {0, 0, 0, 0}, plain[3] = {0, 0, 0}, n = 0;
+            for (int j = 0; j < sy; j++)
+                for (int i = 0; i < sx; i++) {
+                    uint32_t c = src[(y * sy + j) * w + x * sx + i], a = c >> 24;
+                    for (int k = 0; k < 3; k++) {
+                        sum[k] += ((c >> (8 * k)) & 255) * a;
+                        plain[k] += (c >> (8 * k)) & 255;
+                    }
+                    sum[3] += a;
+                    n++;
+                }
+            uint32_t out = 0;
+            for (int k = 0; k < 3; k++)
+                out |= (sum[3] ? (sum[k] + sum[3] / 2) / sum[3] : (plain[k] + n / 2) / n) << (8 * k);
+            dst[y * dw + x] = out | ((sum[3] + n / 2) / n) << 24;
+        }
+    if (!cutout)
+        return;
+    /* the share solid (alpha at least half) at the full size, and the scale of this level's alpha keeping it */
+    size_t solid = 0, all = (size_t)tw * (size_t)th, n = (size_t)dw * (size_t)dh;
+    for (size_t i = 0; i < all; i++)
+        solid += (top[i] >> 24) >= 128;
+    float want = (float)solid / (float)all, lo = 0.0f, hi = 4.0f;
+    for (int it = 0; it < 10; it++) {
+        float mid = 0.5f * (lo + hi);
+        size_t c = 0;
+        for (size_t i = 0; i < n; i++)
+            c += (float)(dst[i] >> 24) * mid >= 127.5f;
+        if ((float)c / (float)n < want)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    for (size_t i = 0; i < n; i++) {
+        float a = (float)(dst[i] >> 24) * hi;
+        dst[i] = (dst[i] & 0xFFFFFFu) | (uint32_t)(a > 255.0f ? 255.0f : a + 0.5f) << 24;
+    }
+}
+
 static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
     *w_out = w;
@@ -797,21 +858,45 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
             }
         }
     }
-    if (t->w != w || t->h != h) {
+    /* its smaller levels, after it */
+    int levels = 1;
+    if (mipmaps)
+        while ((w >> levels) || (h >> levels))
+            levels++;
+    size_t level_at[16] = {0};
+    size_t total = size;
+    for (int l = 1; l < levels; l++) {
+        int lw = w >> l ? w >> l : 1, lh = h >> l ? h >> l : 1;
+        level_at[l] = total;
+        total += (size_t)lw * (size_t)lh * 4;
+    }
+    if (staging_used + total > STAGING_BYTES)
+        levels = 1;
+    for (int l = 1; l < levels; l++)
+        make_level((uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l - 1]),
+                   (uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l]),
+                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1,
+                   (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h,
+                   t->slot < MAX_TEXTURES && tex_cutout[t->slot]);
+    if (t->w != w || t->h != h || t->levels != levels) {
         retire(&t->img);
-        t->img = vk_image((uint32_t)w, (uint32_t)h, VK_FORMAT_R8G8B8A8_UNORM,
-                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        t->img = vk_image_mips((uint32_t)w, (uint32_t)h, (uint32_t)levels, VK_FORMAT_R8G8B8A8_UNORM,
+                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        t->levels = levels;
         t->w = w;
         t->h = h;
     }
     Target *was = rendering;
     end_rendering();
     vk_transition(&t->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    VkBufferImageCopy copy = {staging_used, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0},
-                              {(uint32_t)w, (uint32_t)h, 1}};
-    vkCmdCopyBufferToImage(vk_cmd(), staging.buffer, t->img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+    VkBufferImageCopy copies[16];
+    for (int l = 0; l < levels; l++)
+        copies[l] = (VkBufferImageCopy){staging_used + level_at[l], 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, (uint32_t)l, 0, 1},
+            {0, 0, 0}, {w >> l ? (uint32_t)(w >> l) : 1u, h >> l ? (uint32_t)(h >> l) : 1u, 1}};
+    vkCmdCopyBufferToImage(vk_cmd(), staging.buffer, t->img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           (uint32_t)levels, copies);
     vk_transition(&t->img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    staging_used += (size + 255) & ~(size_t)255;
+    staging_used += (total + 255) & ~(size_t)255;
     write_slot(t->slot, t->img.view, samplers[sampler]);
     t->hash = hash;
     t->addr = addr;

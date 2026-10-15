@@ -130,6 +130,8 @@ int vk_init(void *window) {
         f12.shaderOutputLayer = VK_TRUE, vk.output_layer = 1;
     if (have2.features.tessellationShader)
         f2.features.tessellationShader = VK_TRUE, vk.tessellation = 1;
+    if (have2.features.samplerAnisotropy)
+        f2.features.samplerAnisotropy = VK_TRUE, vk.anisotropy = 1;
     const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.queue_family, 1, &prio};
@@ -272,13 +274,18 @@ VkImg vk_image_layers(uint32_t w, uint32_t h, uint32_t layers, VkImageCreateFlag
 }
 
 VkImg vk_image(uint32_t w, uint32_t h, VkFormat format, VkImageUsageFlags usage, VkImageAspectFlags aspect) {
+    return vk_image_mips(w, h, 1, format, usage, aspect);
+}
+
+VkImg vk_image_mips(uint32_t w, uint32_t h, uint32_t levels, VkFormat format, VkImageUsageFlags usage,
+                    VkImageAspectFlags aspect) {
     VkImg i = {0};
     i.format = format;
     i.width = w;
     i.height = h;
     i.layout = VK_IMAGE_LAYOUT_UNDEFINED;
     i.aspect = aspect;
-    VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, NULL, 0, VK_IMAGE_TYPE_2D, format, {w, h, 1}, 1, 1,
+    VkImageCreateInfo ici = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, NULL, 0, VK_IMAGE_TYPE_2D, format, {w, h, 1}, levels, 1,
         VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL, usage, VK_SHARING_MODE_EXCLUSIVE, 0, NULL,
         VK_IMAGE_LAYOUT_UNDEFINED};
     CHECK(vkCreateImage(vk.device, &ici, NULL, &i.image));
@@ -289,7 +296,7 @@ VkImg vk_image(uint32_t w, uint32_t h, VkFormat format, VkImageUsageFlags usage,
     CHECK(vkAllocateMemory(vk.device, &mai, NULL, &i.memory));
     CHECK(vkBindImageMemory(vk.device, i.image, i.memory, 0));
     VkImageViewCreateInfo vci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL, 0, i.image, VK_IMAGE_VIEW_TYPE_2D,
-                                 format, {0}, {aspect, 0, 1, 0, 1}};
+                                 format, {0}, {aspect, 0, levels, 0, 1}};
     CHECK(vkCreateImageView(vk.device, &vci, NULL, &i.view));
     return i;
 }
@@ -311,7 +318,7 @@ void vk_transition(VkImg *i, VkImageLayout to) {
     VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-        i->layout, to, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, i->image, {i->aspect, 0, 1, 0, 1}};
+        i->layout, to, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, i->image, {i->aspect, 0, VK_REMAINING_MIP_LEVELS, 0, 1}};
     VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
     vkCmdPipelineBarrier2(vk_cmd(), &d);
     i->layout = to;
