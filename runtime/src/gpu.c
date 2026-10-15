@@ -341,12 +341,32 @@ static void shadow_prim(void) {
         render_prim_lights(0, NULL, NULL, -1);
         return;
     }
+    /* The sun: the directional light along the sun as known, if there is one - in the shade the game dims it, and a
+     * light from the camera (from below the horizon, as like as not) gives more - else the one giving most, from above
+     * the horizon (in the world) */
     float best = 0;
-    for (int k = 0; k < 4; k++) {
+    int along = 0;
+    for (int k = 0; k < 4 && !along; k++) {
         if (!(reg[0x18 + k] & 1) || ((reg[0x5F + k] >> 8) & 3) != 0)
             continue;
         uint32_t ld = reg[0x90 + 3 * k];
         float lum = (float)(ld & 255) + (float)((ld >> 8) & 255) + (float)((ld >> 16) & 255);
+        if (!(lum > 0))
+            continue;
+        if (shadow_world) {
+            float L[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])}, w[3];
+            mul33(game_to_world, L, w);
+            float l = sqrtf(w[0] * w[0] + w[1] * w[1] + w[2] * w[2]);
+            if (!(l > 0))
+                continue;
+            if (sun_known && (w[0] * sun_dir[0] + w[1] * sun_dir[1] + w[2] * sun_dir[2]) > 0.999f * l) {
+                sun_light = k;
+                along = 1;
+                continue;
+            }
+            if (w[1] < 0.1f * l)
+                continue;
+        }
         if (lum > best)
             best = lum, sun_light = k;
     }
