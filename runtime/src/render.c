@@ -12,6 +12,7 @@
 #include "render.h"
 
 #include "hle.h"
+#include "grass.h"
 #include "post.h"
 #include "vk.h"
 
@@ -22,6 +23,8 @@
 
 #include "ge.vert.inc"
 #include "ge.frag.inc"
+#include "grass.vert.inc"
+#include "grass.frag.inc"
 #include "ge.tesc.inc"
 #include "ge.tese.inc"
 #include "present.vert.inc"
@@ -142,6 +145,17 @@ typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4]
 #define MAX_GLOW_DRAWS 8192
 static int nglow;
 static VkPipeline glow_pipeline, glow_tess_pipeline;
+/* Ground grass (grass.c): its pipeline, the blade pool (GRASS_SLOTS slots of blades); the scenery's textures, small
+ * copies (the ground's colour); the solid world's depth test and fog (last drawn), for the grass to match */
+static VkPipeline grass_pipeline;
+static VkBuf grass_pool;
+static int grass_on;
+static uint32_t *tex_small[MAX_TEXTURES];
+static uint8_t tex_small_w[MAX_TEXTURES], tex_small_h[MAX_TEXTURES];
+static VkCompareOp world_depth_op = VK_COMPARE_OP_GREATER_OR_EQUAL;
+static float world_fog[3];              /* end, slope, on */
+static uint32_t world_fog_color;
+static unsigned long grass_frame_no;
 static struct Target *post_target, *post_done;
 static float post_view[16], post_world_view[12];
 static float sun_rgb[3] = {1, 1, 1};    /* the sun's colour (the GE's light that is the sun) */
@@ -281,9 +295,19 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
         {7, 0, VK_FORMAT_R16G16B16A16_SFLOAT, 56},
     };
-    int verts = (ge >= 1 && ge <= 3) || ge == 6;   /* (6: the GE's, tessellated) */
+    int verts = (ge >= 1 && ge <= 3) || ge == 6 || ge == 7;   /* (6: the GE's, tessellated; 7: grass blades) */
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
                                                verts ? 1u : 0u, &bind, verts ? 8u : 0u, attrs};
+    VkVertexInputBindingDescription blade_bind = {0, sizeof(GrassBlade), VK_VERTEX_INPUT_RATE_INSTANCE};
+    VkVertexInputAttributeDescription blade_attrs[2] = {
+        {0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0},
+        {1, 0, VK_FORMAT_R32G32B32A32_UINT, 12},
+    };
+    if (ge == 7) {                      /* a blade an instance (grass.vert) */
+        vi.pVertexBindingDescriptions = &blade_bind;
+        vi.vertexAttributeDescriptionCount = 2;
+        vi.pVertexAttributeDescriptions = blade_attrs;
+    }
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
         ge == 6 ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineTessellationStateCreateInfo ts = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO, NULL, 0, 3};
@@ -581,6 +605,15 @@ int render_init(void *sdl_window) {
         if (tess_pipeline && post_motion())
             glow_tess_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
     }
+    grass_on = getenv("MHFU_GRASS") ? atof(getenv("MHFU_GRASS")) > 0 : 1;
+    if (grass_on) {
+        grass_settings(getenv("MHFU_GRASS") ? (float)atof(getenv("MHFU_GRASS")) : 1.0f,
+                       getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 1500.0f);
+        grass_pipeline = make_pipeline(vk_shader(grass_vert, sizeof grass_vert), vk_shader(grass_frag, sizeof grass_frag),
+                                       layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
+        grass_pool = vk_buffer((VkDeviceSize)GRASS_SLOTS * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade),
+                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
+    }
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -841,6 +874,16 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         for (int k = 0; k < 3; k++)
             tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
         tex_cutout[t->slot] = holes * 50 > n;
+        if (grass_on) {                 /* a small copy (the ground's colour, for the grass) */
+            int sw = w < 64 ? w : 64, sh = h < 64 ? h : 64;
+            if (!tex_small[t->slot])
+                tex_small[t->slot] = malloc(64 * 64 * 4);
+            for (int y = 0; y < sh; y++)
+                for (int x = 0; x < sw; x++)
+                    tex_small[t->slot][y * sw + x] = px[(y * h / sh) * w + x * w / sw];
+            tex_small_w[t->slot] = (uint8_t)sw;
+            tex_small_h[t->slot] = (uint8_t)sh;
+        }
         if (tex_holes) {                /* where the holes are */
             uint32_t cnt[HOLE_GRID * HOLE_GRID] = {0}, hole[HOLE_GRID * HOLE_GRID] = {0};
             uint32_t rgb[HOLE_GRID * HOLE_GRID][3] = {{0}};
@@ -1044,9 +1087,19 @@ static void ao_draw(VkImageView view, uint32_t w, uint32_t h, VkPipeline p, VkDe
 }
 
 /* The world is drawn into t: its occlusion, multiplied in */
+static void grass_draw(Target *t);
+static void ao_occlude(Target *t);
+
+/* The solid world drawn: its ambient occlusion, then the ground grass (after it: a field of blades is all crevices to
+ * the occlusion, which darkened it far below its ground) */
 static void ao_apply(Target *t) {
     ao_target = NULL;
     ao_applied = t;
+    ao_occlude(t);
+    grass_draw(t);
+}
+
+static void ao_occlude(Target *t) {
     if (ao_on <= 0 || ao_used >= AO_PER_FRAME)
         return;
     AoPush pc;
@@ -1208,6 +1261,14 @@ void render_prim_begin(const uint32_t *reg) {
     }
     if (clear && s.target == ao_applied)
         ao_applied = NULL;
+    if (solid) {
+        world_depth_op = s.depth_op;
+        uint32_t fe = reg[0xCD] << 8, fs = reg[0xCE] << 8;
+        memcpy(&world_fog[0], &fe, 4);
+        memcpy(&world_fog[1], &fs, 4);
+        world_fog[2] = (s.flags & 128u) ? 1.0f : 0.0f;
+        world_fog_color = s.fog_color;
+    }
     if (solid && s.target != ao_applied) {
         ao_target = s.target;
         memcpy(ao_view, prim_view, sizeof ao_view);
@@ -2234,6 +2295,32 @@ static int blob_vertex(const RVertex *v) {
     return v->r == 25.0f && v->g == 25.0f && v->b == 25.0f;
 }
 
+/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first) */
+static void grass_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
+    if (grass_frame_no != frame_no) {
+        grass_frame_no = frame_no;
+        grass_frame(&prim_world_view[9]);
+    }
+    const RVertex *v[3] = {a, b, c};
+    float p[3][3], uv[3][2], col[3][3];
+    float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
+    int replace = (cur.flags & 7u) == 3;
+    for (int i = 0; i < 3; i++) {
+        p[i][0] = v[i]->wx;
+        p[i][1] = v[i]->wy;
+        p[i][2] = v[i]->wz;
+        uv[i][0] = v[i]->u / tw;
+        uv[i][1] = v[i]->v / th;
+        col[i][0] = replace ? 255 : v[i]->r;
+        col[i][1] = replace ? 255 : v[i]->g;
+        col[i][2] = replace ? 255 : v[i]->b;
+    }
+    uint32_t slot = cur.tex_slot;
+    int has = slot < MAX_TEXTURES && tex_small[slot];
+    grass_ground(p, uv, col, has ? tex_small[slot] : NULL, has ? tex_small_w[slot] : 0, has ? tex_small_h[slot] : 0,
+                 (cur.flags & 16u) != 0);
+}
+
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     if (blob_prim && shadow_on && blob_vertex(a) && blob_vertex(b) && blob_vertex(c))
         return;
@@ -2241,6 +2328,8 @@ void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     put(a, a->x, a->y, a->u, a->v, 0);
     put(b, b->x, b->y, b->u, b->v, 0);
     put(c, c->x, c->y, c->u, c->v, 0);
+    if (grass_on && shaded(&cur) && ((cur.flags & 7u) == 0 || (cur.flags & 7u) == 3))
+        grass_triangle(a, b, c);
 }
 
 /* A sprite: the rectangle between two corners, as two triangles, in the second corner's colour and depth */
@@ -2264,6 +2353,145 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 
 /* The world is drawn into t: what added light to it drawn again into the glow (against its depth), then post.c's
  * passes over it */
+/* The ground grass (grass.c), once the solid world is drawn (before its ambient occlusion): the tiles whose blades are
+ * ready uploaded into their slots of the pool, then those in view drawn - each blade an instance (grass.vert) - with
+ * the world's camera (the last solid draw's), its depth test, the sun's shadow map, the feet, the fog */
+static void grass_draw(Target *t) {
+    if (!grass_pipeline || !shadow_on)
+        return;
+    end_rendering();
+    int uploaded = 0;
+    for (int k = 0; k < 2; k++) {
+        int slot, n;
+        const GrassBlade *b;
+        size_t size;
+        if (staging_used + (size_t)GRASS_BLADES_PER_SLOT * sizeof(GrassBlade) > STAGING_BYTES ||
+            !grass_build(&slot, &b, &n))
+            break;
+        size = (size_t)n * sizeof(GrassBlade);
+        if (!size)
+            continue;
+        memcpy((uint8_t *)staging.map + staging_used, b, size);
+        VkBufferCopy copy = {staging_used, (VkDeviceSize)slot * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade), size};
+        vkCmdCopyBuffer(vk_cmd(), staging.buffer, grass_pool.buffer, 1, &copy);
+        staging_used += (size + 255) & ~(size_t)255;
+        uploaded = 1;
+    }
+    if (uploaded) {
+        VkMemoryBarrier2 mb = {VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, NULL, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                               VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
+                               VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT};
+        VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 1, &mb, 0, NULL, 0, NULL};
+        vkCmdPipelineBarrier2(vk_cmd(), &di);
+    }
+    static GrassDraw tiles[GRASS_SLOTS];
+    int ntiles = grass_tiles(tiles, GRASS_SLOTS);
+    if (!ntiles || light_sets_used + 2 > LIGHT_SETS - 2)
+        return;
+    /* the world to the clip space, with the world's camera */
+    float wv[16] = {0}, vw[16], m[16], clip[16];
+    for (int c = 0; c < 4; c++)
+        for (int i = 0; i < 3; i++)
+            wv[4 * c + i] = ao_world_view[3 * c + i];
+    wv[15] = 1;
+    if (!invert4(wv, vw))
+        return;
+    mul4(ao_view, vw, m);
+    for (int c = 0; c < 4; c++) {
+        clip[4 * c + 0] = m[4 * c + 0] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 1] = m[4 * c + 1] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 2] = m[4 * c + 2];
+        clip[4 * c + 3] = m[4 * c + 3];
+    }
+    LightSet cam, fl;
+    memset(&cam, 0, sizeof cam);
+    memset(&fl, 0, sizeof fl);
+    memcpy(cam.dir, clip, sizeof clip);
+    const float *eye = &ao_world_view[9];
+    double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
+    memcpy(cam.color[0], (float[4]){eye[0], eye[1], eye[2], 0}, 16);
+    memcpy(cam.color[1], (float[4]){(float)fmod(now, 3600.0), sway > 0 ? sway : 0, (float)scaled(RT_SIZE) / 2.0f,
+                                    grass_radius()}, 16);
+    memcpy(cam.color[2], (float[4]){world_fog[0], world_fog[1], world_fog[2], 0}, 16);
+    float fc[4];
+    unpack_rgb(world_fog_color, fc);
+    memcpy(cam.color[3], fc, 16);
+    /* the feet nearest the camera, eight */
+    uint32_t nf = 0;
+    float taken[MAX_FEET] = {0};
+    for (; nf < 8; nf++) {
+        int best = -1;
+        float bd = 1e30f;
+        for (int i = 0; i < nfeet[1]; i++) {
+            float dx = feet[1][i].x - eye[0], dz = feet[1][i].z - eye[2], d = dx * dx + dz * dz;
+            if (!taken[i] && d < bd)
+                best = i, bd = d;
+        }
+        if (best < 0)
+            break;
+        taken[best] = 1;
+        float *dst = nf < 4 ? fl.dir[nf] : fl.color[nf - 4];
+        memcpy(dst, (float[4]){feet[1][best].x, feet[1][best].y, feet[1][best].z, feet[1][best].r}, 16);
+    }
+    uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
+    uint32_t feet_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
+    memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
+    memcpy((LightSet *)light_buf.map + feet_set, &fl, sizeof fl);
+    struct { float light[16]; uint32_t camera, feet, nfeet, pad; } pc;
+    memcpy(pc.light, light_vp, sizeof pc.light);
+    pc.camera = cam_set;
+    pc.feet = feet_set;
+    pc.nfeet = nf;
+    pc.pad = 0;
+
+    begin_rendering(t);
+    VkCommandBuffer cmd = vk_cmd();
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, grass_pipeline);
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &grass_pool.buffer, &zero);
+    uint32_t px = scaled(RT_SIZE);
+    VkRect2D sc = {{0, 0}, {scaled(480), scaled(272)}};
+    vkCmdSetScissor(cmd, 0, 1, &sc);
+    vkCmdSetDepthTestEnable(cmd, VK_TRUE);
+    vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
+    vkCmdSetDepthCompareOp(cmd, world_depth_op);
+    VkBool32 no = VK_FALSE;
+    vk.SetColorBlendEnable(cmd, 0, 1, &no);
+    VkColorComponentFlags all = 0xF;
+    vk.SetColorWriteMask(cmd, 0, 1, &all);
+    VkColorBlendEquationEXT eq = {VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD, VK_BLEND_FACTOR_ONE,
+                                  VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD};
+    vk.SetColorBlendEquation(cmd, 0, 1, &eq);
+    float bc[4] = {0, 0, 0, 0};
+    vkCmdSetBlendConstants(cmd, bc);
+    vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);
+    vkCmdSetFrontFace(cmd, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+    vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof pc, &pc);
+    (void)px;
+    for (int i = 0; i < ntiles; i++) {
+        /* (out of view: all its corners beyond one side) */
+        int out[5] = {1, 1, 1, 1, 1};
+        for (int k = 0; k < 8; k++) {
+            float p[3] = {tiles[i].box[(k & 1) ? 3 : 0], tiles[i].box[(k & 2) ? 4 : 1], tiles[i].box[(k & 4) ? 5 : 2]};
+            float q[4];
+            for (int r = 0; r < 4; r++)
+                q[r] = clip[r] * p[0] + clip[4 + r] * p[1] + clip[8 + r] * p[2] + clip[12 + r];
+            out[0] &= q[0] < -q[3];
+            out[1] &= q[0] > q[3];
+            out[2] &= q[1] < -q[3];
+            out[3] &= q[1] > q[3];
+            out[4] &= q[3] <= 0;
+        }
+        if (out[0] || out[1] || out[2] || out[3] || out[4])
+            continue;
+        vkCmdDraw(cmd, 18, (uint32_t)tiles[i].count, 0, (uint32_t)tiles[i].slot * GRASS_BLADES_PER_SLOT);
+    }
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    bound_pipeline = pipeline;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
+    last_valid = 0;
+}
+
 static void post_run(Target *t) {
     post_target = NULL;
     post_done = t;
