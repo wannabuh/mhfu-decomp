@@ -424,3 +424,93 @@ int grass_tiles(GrassDraw *out, int max) {
     }
     return n;
 }
+
+/* -- the trodden grass ------------------------------------------------------------------------------------------- */
+
+static float trail[GRASS_TRAIL * GRASS_TRAIL][2];
+static int trail_ox = 1 << 30, trail_oz;
+static double trail_time = -1;
+
+/* the ground's height at a world x, z (unknown: NAN) */
+static float ground_y(float x, float z) {
+    int cx = (int)floorf(x / CELL), cz = (int)floorf(z / CELL);
+    int tx = (int)floorf((float)cx / TILE_CELLS), tz = (int)floorf((float)cz / TILE_CELLS);
+    const Tile *t = tile_at(tx, tz, 0);
+    if (!t)
+        return NAN;
+    const Cell *c = &t->cells[(cz - tz * TILE_CELLS) * TILE_CELLS + (cx - tx * TILE_CELLS)];
+    return c->state ? c->y : NAN;
+}
+
+void grass_trail(const float *feet, int nfeet, double now, uint32_t *out, int *origin_x, int *origin_z) {
+    const int n = GRASS_TRAIL, mask = GRASS_TRAIL - 1;
+    float dt = trail_time >= 0 ? (float)(now - trail_time) : 0;
+    if (dt < 0 || dt > 0.25f)
+        dt = 0;
+    trail_time = now;
+    /* the window, about the camera: the cells it has left cleared (they come back as the far side's) */
+    int ox = (int)floorf(eye[0] / GRASS_TRAIL_CELL) - n / 2, oz = (int)floorf(eye[2] / GRASS_TRAIL_CELL) - n / 2;
+    if (abs(ox - trail_ox) >= n || abs(oz - trail_oz) >= n) {
+        memset(trail, 0, sizeof trail);
+    } else {
+        for (int x = trail_ox; x != ox; x += ox > trail_ox ? 1 : -1) {
+            int col = (ox > trail_ox ? x : x + n - 1) & mask;
+            for (int z = 0; z < n; z++)
+                trail[z * n + col][0] = trail[z * n + col][1] = 0;
+        }
+        for (int z = trail_oz; z != oz; z += oz > trail_oz ? 1 : -1) {
+            int row = (oz > trail_oz ? z : z + n - 1) & mask;
+            for (int x = 0; x < n; x++)
+                trail[row * n + x][0] = trail[row * n + x][1] = 0;
+        }
+    }
+    trail_ox = ox;
+    trail_oz = oz;
+    /* springing back */
+    float keep = expf(-dt / 1.1f);
+    for (int i = 0; i < n * n; i++) {
+        trail[i][0] *= keep;
+        trail[i][1] *= keep;
+    }
+    /* pressed by each foot near its ground: the way it goes (standing, aside), most under it */
+    float in = 1.0f - expf(-dt * 10.0f);
+    for (int f = 0; f < nfeet; f++) {
+        const float *ft = feet + f * GRASS_FOOT;
+        float gy = ground_y(ft[0], ft[2]);
+        if (!(fabsf(ft[1] - gy) < 40.0f))
+            continue;
+        float r = 30.0f + ft[3], vx = ft[4], vz = ft[5], speed = sqrtf(vx * vx + vz * vz);
+        float t = fminf(fmaxf((speed - 15.0f) / 65.0f, 0), 1), going = t * t * (3 - 2 * t);
+        int c0x = (int)floorf((ft[0] - r) / GRASS_TRAIL_CELL), c1x = (int)floorf((ft[0] + r) / GRASS_TRAIL_CELL);
+        int c0z = (int)floorf((ft[2] - r) / GRASS_TRAIL_CELL), c1z = (int)floorf((ft[2] + r) / GRASS_TRAIL_CELL);
+        for (int cz = c0z; cz <= c1z; cz++)
+            for (int cx = c0x; cx <= c1x; cx++) {
+                if (cx < ox || cz < oz || cx >= ox + n || cz >= oz + n)
+                    continue;
+                float dx = ((float)cx + 0.5f) * GRASS_TRAIL_CELL - ft[0], dz = ((float)cz + 0.5f) * GRASS_TRAIL_CELL - ft[2];
+                float l = sqrtf(dx * dx + dz * dz);
+                if (l >= r)
+                    continue;
+                float u = fminf(fmaxf((l - 0.2f * r) / (0.8f * r), 0), 1), near = 1.0f - u * u * (3 - 2 * u);
+                float ax = l > 1e-3f ? dx / l : 0.7071f, az = l > 1e-3f ? dz / l : 0.7071f;
+                float wx = ax * (1 - 0.85f * going) + (speed > 1e-3f ? vx / speed : 0) * going;
+                float wz = az * (1 - 0.85f * going) + (speed > 1e-3f ? vz / speed : 0) * going;
+                float wl = sqrtf(wx * wx + wz * wz);
+                if (wl < 1e-4f)
+                    continue;
+                float tx = wx / wl * near, tz = wz / wl * near;
+                float *c = trail[(cz & mask) * n + (cx & mask)];
+                if (tx * tx + tz * tz < c[0] * c[0] + c[1] * c[1])    /* (pressed less than it is: left as it is) */
+                    continue;
+                c[0] += (tx - c[0]) * in;
+                c[1] += (tz - c[1]) * in;
+            }
+    }
+    for (int i = 0; i < n * n; i++) {
+        int x = (int)lroundf(fminf(fmaxf(trail[i][0], -1), 1) * 32767.0f);
+        int z = (int)lroundf(fminf(fmaxf(trail[i][1], -1), 1) * 32767.0f);
+        out[i] = (uint32_t)(uint16_t)(int16_t)x | (uint32_t)(uint16_t)(int16_t)z << 16;
+    }
+    *origin_x = ox;
+    *origin_z = oz;
+}

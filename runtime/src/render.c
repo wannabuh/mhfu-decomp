@@ -148,7 +148,7 @@ static VkPipeline glow_pipeline, glow_tess_pipeline;
 /* Ground grass (grass.c): its pipeline, the blade pool (GRASS_SLOTS slots of blades); the scenery's textures, small
  * copies (the ground's colour); the solid world's depth test and fog (last drawn), for the grass to match */
 static VkPipeline grass_pipeline;
-static VkBuf grass_pool;
+static VkBuf grass_pool, trail_buf;
 static int grass_on;
 static uint32_t *tex_small[MAX_TEXTURES];
 static uint8_t tex_small_w[MAX_TEXTURES], tex_small_h[MAX_TEXTURES];
@@ -459,13 +459,14 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* bindless textures: one array, filled as textures are made */
-    VkDescriptorSetLayoutBinding b[4] = {
+    VkDescriptorSetLayoutBinding b[5] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
         {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},     /* the trodden grass */
     };
-    VkDescriptorBindingFlags bf[4] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+    VkDescriptorBindingFlags bf[5] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
@@ -473,18 +474,20 @@ int render_init(void *sdl_window) {
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 4, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 5, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 4, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 5, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
     VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 5},
-                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1}};
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
@@ -593,6 +596,13 @@ int render_init(void *sdl_window) {
     VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 2, 0, 1,
                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &lbi, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &lw, 0, NULL);
+    /* the trodden grass's window, a copy each frame in flight */
+    trail_buf = vk_buffer(2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+    memset(trail_buf.map, 0, 2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t));
+    VkDescriptorBufferInfo tbi = {trail_buf.buffer, 0, VK_WHOLE_SIZE};
+    VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 4, 0, 1,
+                               VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
     VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
                                        VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
     vkAllocateCommandBuffers(vk.device, &cai, shadow_cmds);
@@ -2390,7 +2400,7 @@ static void grass_draw(Target *t) {
     }
     static GrassDraw tiles[GRASS_SLOTS];
     int ntiles = grass_tiles(tiles, GRASS_SLOTS);
-    if (!ntiles || light_sets_used + 3 > LIGHT_SETS - 2)
+    if (!ntiles || light_sets_used + 1 > LIGHT_SETS - 2)
         return;
     /* the world to the clip space, with the world's camera */
     float wv[16] = {0}, vw[16], m[16], clip[16];
@@ -2407,10 +2417,8 @@ static void grass_draw(Target *t) {
         clip[4 * c + 2] = m[4 * c + 2];
         clip[4 * c + 3] = m[4 * c + 3];
     }
-    LightSet cam, fl, fv;               /* (fv: the feet's velocities, two a vector) */
+    LightSet cam;
     memset(&cam, 0, sizeof cam);
-    memset(&fl, 0, sizeof fl);
-    memset(&fv, 0, sizeof fv);
     memcpy(cam.dir, clip, sizeof clip);
     const float *eye = &ao_world_view[9];
     double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
@@ -2421,37 +2429,22 @@ static void grass_draw(Target *t) {
     float fc[4];
     unpack_rgb(world_fog_color, fc);
     memcpy(cam.color[3], fc, 16);
-    /* the feet nearest the camera, eight */
-    uint32_t nf = 0;
-    float taken[MAX_FEET] = {0};
-    for (; nf < 8; nf++) {
-        int best = -1;
-        float bd = 1e30f;
-        for (int i = 0; i < nfeet[1]; i++) {
-            float dx = feet[1][i].x - eye[0], dz = feet[1][i].z - eye[2], d = dx * dx + dz * dz;
-            if (!taken[i] && d < bd)
-                best = i, bd = d;
-        }
-        if (best < 0)
-            break;
-        taken[best] = 1;
-        float *dst = nf < 4 ? fl.dir[nf] : fl.color[nf - 4];
-        memcpy(dst, (float[4]){feet[1][best].x, feet[1][best].y, feet[1][best].z, feet[1][best].r}, 16);
-        fv.dir[nf / 2][(nf & 1) * 2] = feet[1][best].vx;
-        fv.dir[nf / 2][(nf & 1) * 2 + 1] = feet[1][best].vz;
-    }
+    /* the trodden grass: pressed by the feet (the last frame's, found whole) */
+    static float fd[MAX_FEET * GRASS_FOOT];
+    for (int i = 0; i < nfeet[1]; i++)
+        memcpy(fd + i * GRASS_FOOT, (float[GRASS_FOOT]){feet[1][i].x, feet[1][i].y, feet[1][i].z, feet[1][i].r,
+                                                       feet[1][i].vx, feet[1][i].vz}, sizeof(float) * GRASS_FOOT);
+    int ox, oz;
+    uint32_t trail_at = (uint32_t)vk.frame * GRASS_TRAIL * GRASS_TRAIL;
+    grass_trail(fd, nfeet[1], now, (uint32_t *)trail_buf.map + trail_at, &ox, &oz);
     uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
-    uint32_t feet_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
-    uint32_t vel_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
-    memcpy((LightSet *)light_buf.map + feet_set, &fl, sizeof fl);
-    memcpy((LightSet *)light_buf.map + vel_set, &fv, sizeof fv);
-    struct { float light[16]; uint32_t camera, feet, nfeet, velocity; } pc;
+    struct { float light[16]; uint32_t camera, trail; int32_t trail_x, trail_z; } pc;
     memcpy(pc.light, light_vp, sizeof pc.light);
     pc.camera = cam_set;
-    pc.feet = feet_set;
-    pc.nfeet = nf;
-    pc.velocity = vel_set;
+    pc.trail = trail_at;
+    pc.trail_x = ox;
+    pc.trail_z = oz;
 
     begin_rendering(t);
     VkCommandBuffer cmd = vk_cmd();

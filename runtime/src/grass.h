@@ -32,4 +32,13 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
 int grass_build(int *slot, const GrassBlade **blades, int *count);
 int grass_tiles(GrassDraw *out, int max);
 
+/* The trodden grass: a window of GRASS_TRAIL x GRASS_TRAIL cells about the camera (world-aligned, each GRASS_TRAIL_CELL
+ * units; cell x, z at (x & (GRASS_TRAIL - 1)) + (z & (GRASS_TRAIL - 1)) GRASS_TRAIL), each the way and how far its
+ * grass is pressed down (snorm16 x, z). Pressed by the feet (x, y, z, radius, velocity x, z: GRASS_FOOT floats each)
+ * near their ground, easing in; springing back over a second or so */
+#define GRASS_TRAIL 128
+#define GRASS_TRAIL_CELL 6.0f
+#define GRASS_FOOT 6
+void grass_trail(const float *feet, int nfeet, double now, uint32_t *out, int *origin_x, int *origin_z);
+
 #endif
