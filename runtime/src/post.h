@@ -11,6 +11,7 @@ typedef struct {
     float sun[3];           /* the direction to the sun, in the camera's space */
     float sun_color[3];
     int shadows;            /* the shadow map was drawn this frame */
+    float focus;            /* the distance to what the camera looks at (0: unknown) */
 } PostFrame;
 
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */

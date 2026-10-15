@@ -1907,6 +1907,15 @@ static void post_run(Target *t) {
             f.sun[k] = len > 0 ? f.sun[k] / len : 0;
         if (!(len > 0))
             f.shadows = 0;
+        /* the focus: the point the camera looks at (the shadow map's centre) */
+        if (shadow_on) {
+            float c[3], fl = 0;
+            for (int k = 0; k < 3; k++) {
+                c[k] = inv[k] * view_center[0] + inv[4 + k] * view_center[1] + inv[8 + k] * view_center[2] + inv[12 + k];
+                fl += c[k] * c[k];
+            }
+            f.focus = sqrtf(fl);
+        }
     }
     float top = fmaxf(sun_rgb[0], fmaxf(sun_rgb[1], sun_rgb[2]));
     for (int k = 0; k < 3; k++)                 /* its hue, half way to white */

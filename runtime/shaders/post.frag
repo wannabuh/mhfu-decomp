@@ -1,6 +1,6 @@
 #version 450
-// Post-processing (post.c), the last pass: the picture with its bloom and light shafts (added the less the brighter it
-// is already, so that nothing overshoots white), colour graded, back into the render target.
+// Post-processing (post.c), the last pass: the picture with its depth of field, its bloom and light shafts (added the
+// less the brighter it is already, so that nothing overshoots white), colour graded, back into the render target.
 #include "post_common.glsl"
 layout(location = 0) out vec4 out_color;
 
@@ -23,6 +23,12 @@ void main() {
     vec4 s = texelFetch(source, ivec2(gl_FragCoord.xy), 0);
     vec2 uv = gl_FragCoord.xy / pc.area.xy;
     vec3 c = s.rgb;
+    if (pc.dof.z > 0.0) {               // the depth of field's blur, as much as this point is blurred
+        ivec2 pix = ivec2(gl_FragCoord.xy);
+        float d = texelFetch(depth, pix, 0).r;
+        float k = clamp(coc(d > 0.0 ? length(view_pos(pix, d)) : 1e6) / 1.5, 0.0, 1.0);
+        c = mix(c, texture(source4, uv).rgb, k);
+    }
     if (pc.bloom.x > 0.0) {
         vec3 b = texture(source2, uv).rgb * pc.bloom.x;
         b /= max(1.0, max(b.r, max(b.g, b.b)));     // (its hue kept)
