@@ -94,11 +94,13 @@ void main() {
     vec3 n = vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y);
     float phase = float((in_data.z >> 16) & 255u) * (6.2831853 / 256.0);
 
-    // the field's edge: thinned by the order (a blade goes when the density there falls below its place), then
-    // shrinking away
-    float dist = length(root.xz - eye.xz);
-    float keep = dist < 0.3 * reach ? 1.0 : 1.0 - 0.75 * (dist - 0.3 * reach) / (0.7 * reach);
-    float fade = clamp((keep - rank) / 0.06, 0.0, 1.0) * (1.0 - smoothstep(0.85 * reach, reach, dist));
+    // the distance: thinned by the order (a blade goes when the density there - full near, then as the square of the
+    // near distance over it - falls below its place), the rest wider to keep the field's look; at the reach shrinking
+    // away
+    float dist = length(root.xz - eye.xz), near = cam.color[0].w;
+    float keep = dist < near ? 1.0 : (near / dist) * (near / dist);
+    float fade = clamp((keep - rank) / max(0.06 * keep, 0.004), 0.0, 1.0) * (1.0 - smoothstep(0.85 * reach, reach, dist));
+    half_w *= min(inversesqrt(max(keep, 1e-3)), 3.0);
     float h = height * fade;
 
     vec3 up = normalize(vec3(0.0, 1.0, 0.0) * 0.85 + n * 0.15);
@@ -120,10 +122,10 @@ void main() {
     vec2 bend = way * (0.3 * h * t * t * sway * wind);
     // trodden: pressed the way the feet went, the top most
     vec2 push = trodden(root.xz);
+    // (laid down quickly, nearly flat: the length kept bends it down as it goes over)
     float pl = length(push);
-    if (pl > 1.0)
-        push /= pl;
-    bend += push * (0.85 * h * t * sqrt(t));
+    if (pl > 1e-3)
+        bend += push / pl * (smoothstep(0.0, 0.45, pl) * 0.95 * h * t * sqrt(t));
     axis += keep_length(vec3(bend.x, 0.0, bend.y), h * t);
 
     // across the view, square to the blade

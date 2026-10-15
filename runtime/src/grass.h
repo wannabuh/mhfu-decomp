@@ -5,7 +5,8 @@
 
 #include <stdint.h>
 
-#define GRASS_SLOTS 256                 /* the pool's: a tile's blades each */
+#define GRASS_SLOTS 512                 /* the pool's: a tile's blades each */
+#define GRASS_NEAR 700.0f               /* the field's full density this near; beyond, as the square of it over the distance */
 #define GRASS_BLADES_PER_SLOT 8192
 
 /* A blade (grass.vert's instance): its root in the world; its colour (RGB); height (quarter units), half width

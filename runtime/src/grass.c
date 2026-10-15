@@ -56,7 +56,7 @@ static double last_call = -1;       /* the moment (seconds of the game's) scener
 static int probing, probe_known, probe_new;     /* after a gap: the ground drawn, known or new */
 static int slot_used[GRASS_SLOTS];
 static float eye[3];
-static float radius = 1500.0f, density = 1.0f;
+static float radius = 3000.0f, density = 1.0f;
 static GrassBlade build_buf[GRASS_BLADES_PER_SLOT];
 
 void grass_settings(float d, float r) {
@@ -410,7 +410,7 @@ int grass_tiles(GrassDraw *out, int max) {
             continue;
         /* drawn: as many of its blades as the field's density at its nearest point (grass.vert thins each by its
          * own distance) */
-        float near = radius * 0.3f, k = d < near ? 1.0f : 1.0f - 0.75f * (d - near) / (radius - near);
+        float k = d < GRASS_NEAR ? 1.0f : (GRASS_NEAR / d) * (GRASS_NEAR / d);
         int count = (int)ceilf((float)t->nblades * fminf(fmaxf(k * density, 0.02f), 1.0f));
         out[n].slot = t->slot;
         out[n].count = count;
@@ -477,7 +477,7 @@ void grass_trail(const float *feet, int nfeet, double now, uint32_t *out, int *o
     for (int f = 0; f < nfeet; f++) {
         const float *ft = feet + f * GRASS_FOOT;
         float gy = ground_y(ft[0], ft[2]);
-        if (!(fabsf(ft[1] - gy) < 40.0f))
+        if (!(fabsf(ft[1] - gy) < 70.0f))
             continue;
         float r = 30.0f + ft[3], vx = ft[4], vz = ft[5], speed = sqrtf(vx * vx + vz * vz);
         float t = fminf(fmaxf((speed - 15.0f) / 65.0f, 0), 1), going = t * t * (3 - 2 * t);

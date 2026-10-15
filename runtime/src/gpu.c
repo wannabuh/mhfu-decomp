@@ -181,9 +181,11 @@ void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
 void render_time(double seconds);
 unsigned long present_frame_number(void);
 
-#define SHADOW_HALF 1500.0f         /* the shadow map covers this far each way from what the camera looks at */
-#define SHADOW_RANGE 6000.0f        /* and this far towards and away from the sun */
-#define SHADOW_SIZE 2048
+/* The shadow map covers this far each way from what the camera looks at (MHFU_SHADOW_DISTANCE), and this far towards
+ * and away from the sun; render.c's size (MHFU_SHADOW_RESOLUTION) */
+static float SHADOW_HALF = 3000.0f, SHADOW_RANGE = 6000.0f;
+int render_shadow_size(void);
+#define SHADOW_SIZE render_shadow_size()
 
 
 static float ge_float(uint32_t data) {
@@ -249,8 +251,12 @@ static int frames_late;
 
 static void shadow_frame(const float *shown) {
     static int enabled = -1;
-    if (enabled < 0)
+    if (enabled < 0) {
         enabled = !getenv("MHFU_SHADOWS") || atoi(getenv("MHFU_SHADOWS")) != 0;
+        if (getenv("MHFU_SHADOW_DISTANCE") && atof(getenv("MHFU_SHADOW_DISTANCE")) >= 500)
+            SHADOW_HALF = (float)atof(getenv("MHFU_SHADOW_DISTANCE"));
+        SHADOW_RANGE = fmaxf(6000.0f, 2.0f * SHADOW_HALF);
+    }
     float c[3];
     shadow_world = enabled && camera_game(game_to_world, c);
     if (!shadow_world) {

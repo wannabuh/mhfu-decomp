@@ -85,7 +85,13 @@ static float view_center[3];        /* where the camera looks (the shadow map's 
 
 /* Shadows: the sun's depth over the world around the camera's target (gpu.c places it: SHADOW_SIZE), drawn each frame
  * from what is drawn in the world - the same vertices, in a command buffer of its own submitted before the frame's */
-#define SHADOW_SIZE 2048
+static int shadow_size = 4096;         /* MHFU_SHADOW_RESOLUTION */
+#define SHADOW_SIZE ((uint32_t)shadow_size)
+
+/* gpu.c: the shadow map's size, to place it */
+int render_shadow_size(void) {
+    return shadow_size;
+}
 static VkImg shadow_img;
 static VkSampler shadow_sampler;
 static VkPipeline shadow_pipeline;
@@ -567,6 +573,11 @@ int render_init(void *sdl_window) {
     extra = shadow_extra[0];
     readback = vk_buffer((VkDeviceSize)scaled(RT_SIZE) * scaled(RT_SIZE) * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
     textures = calloc(MAX_TEXTURES, sizeof *textures);
+    if (getenv("MHFU_SHADOW_RESOLUTION")) {
+        int r = atoi(getenv("MHFU_SHADOW_RESOLUTION"));
+        if (r >= 512 && r <= 16384)
+            shadow_size = r;
+    }
     shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
     VkDescriptorImageInfo sii = {shadow_sampler, shadow_img.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
@@ -619,7 +630,7 @@ int render_init(void *sdl_window) {
     grass_on = getenv("MHFU_GRASS") ? atof(getenv("MHFU_GRASS")) > 0 : 1;
     if (grass_on) {
         grass_settings(getenv("MHFU_GRASS") ? (float)atof(getenv("MHFU_GRASS")) : 1.0f,
-                       getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 1500.0f);
+                       getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 3000.0f);
         grass_pipeline = make_pipeline(vk_shader(grass_vert, sizeof grass_vert), vk_shader(grass_frag, sizeof grass_frag),
                                        layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
         grass_pool = vk_buffer((VkDeviceSize)GRASS_SLOTS * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade),
@@ -2425,6 +2436,7 @@ static void grass_draw(Target *t) {
     memcpy(cam.color[0], (float[4]){eye[0], eye[1], eye[2], 0}, 16);
     memcpy(cam.color[1], (float[4]){(float)fmod(now, 3600.0), sway > 0 ? sway : 0, (float)scaled(RT_SIZE) / 2.0f,
                                     grass_radius()}, 16);
+    cam.color[0][3] = GRASS_NEAR;
     memcpy(cam.color[2], (float[4]){world_fog[0], world_fog[1], world_fog[2], 0}, 16);
     float fc[4];
     unpack_rgb(world_fog_color, fc);
