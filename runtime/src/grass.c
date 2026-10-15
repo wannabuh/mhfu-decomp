@@ -448,24 +448,18 @@ void grass_trail(const float *feet, int nfeet, double now, uint32_t *out, int *o
     if (dt < 0 || dt > 0.25f)
         dt = 0;
     trail_time = now;
-    /* the window, about the feet near their ground (the camera can be far from them: about it, they could be left
-     * out), or the camera: the cells it has left cleared (they come back as the far side's) */
-    float cx = 0, cz = 0;
-    int on_ground = 0;
+    /* the window, about the foot near its ground nearest the camera (the hunter's: not the middle of all - monsters
+     * come into view and leave it as the camera turns, and the window would follow them, the hunter's trail cleared),
+     * or the camera: the cells it has left cleared (they come back as the far side's) */
+    float cx = eye[0], cz = eye[2], best = 1e30f;
     for (int f = 0; f < nfeet; f++) {
         const float *ft = feet + f * GRASS_FOOT;
-        if (fabsf(ft[1] - ground_y(ft[0], ft[2])) < 70.0f) {
-            cx += ft[0];
-            cz += ft[2];
-            on_ground++;
+        float dx = ft[0] - eye[0], dz = ft[2] - eye[2];
+        if (fabsf(ft[1] - ground_y(ft[0], ft[2])) < 70.0f && dx * dx + dz * dz < best) {
+            best = dx * dx + dz * dz;
+            cx = ft[0];
+            cz = ft[2];
         }
-    }
-    if (on_ground) {
-        cx /= (float)on_ground;
-        cz /= (float)on_ground;
-    } else {
-        cx = eye[0];
-        cz = eye[2];
     }
     int ox = (int)floorf(cx / GRASS_TRAIL_CELL) - n / 2, oz = (int)floorf(cz / GRASS_TRAIL_CELL) - n / 2;
     if (trail_ox != 1 << 30 && abs(ox - trail_ox) < 4 && abs(oz - trail_oz) < 4) {
