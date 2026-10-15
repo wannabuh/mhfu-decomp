@@ -128,12 +128,19 @@ void main() {
     bend += lay_dir * (lay * 0.65 * h * t * sqrt(t));
     axis += keep_length(vec3(bend.x, 0.0, bend.y), h * t);
 
-    // across the view, square to the blade
+    // across the view, square to the blade - a standing blade is seen from every side; but one trodden down lies flat,
+    // its width along the ground (turned to the view, from the side it stood up again as a ribbon)
     vec3 view = axis - eye;
     vec3 dir = normalize(up + rr * (0.56 * t) + vec3(bend.x, 0.0, bend.y) / max(h, 1e-3));
     vec3 right = cross(dir, view);
     float rl = length(right);
     right = rl > 1e-4 ? right / rl : vec3(1.0, 0.0, 0.0);
+    vec3 flat_right = cross(dir, n);
+    float fl = length(flat_right);
+    if (lay > 0.0 && fl > 1e-3) {
+        flat_right /= fl;
+        right = normalize(mix(right * sign(dot(right, flat_right) + 1e-6), flat_right, lay));
+    }
     vec4 rc = to_clip * vec4(root, 1.0);
     float per_unit = length(vec3(to_clip[0][1], to_clip[1][1], to_clip[2][1])) * px / max(rc.w, 1e-3);
     float widen = max(1.0, 0.9 / max(2.0 * half_w * per_unit, 1e-4));
