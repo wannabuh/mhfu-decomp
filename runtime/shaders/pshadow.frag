@@ -1,14 +1,10 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
+#include "shared.h"
 // The point lights' shadow maps: the distance from the light over its reach; what the alpha test drops casts nothing.
-layout(set = 0, binding = 0) uniform sampler2D textures[];
+layout(set = 0, binding = BIND_TEXTURES) uniform sampler2D textures[];
 
-layout(push_constant) uniform Draw {
-    vec2 tex_size;
-    uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
-    mat4 light;
-    uint points;
-} draw;
+layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in float in_alpha;
@@ -18,18 +14,18 @@ layout(location = 3) flat in float in_reach;
 void main() {
     // the fire's own logs and stones (the light is among them) cast nothing - the scenery only: who comes close
     // (models the game lights) still casts
-    if (length(in_rel) < 160.0 && (draw.flags & 1536u) == 0u)
+    if (length(in_rel) < 160.0 && (draw.flags & DRAW_LIT) == 0u)
         discard;
-    bool blended = (draw.flags & 2048u) != 0u;
-    if ((draw.flags & 32u) != 0u || blended) {
+    bool blended = (draw.flags & DRAW_BLENDED) != 0u;
+    if ((draw.flags & DRAW_ALPHA_TEST) != 0u || blended) {
         float a = in_alpha;
-        if (draw.tex_index != 0xFFFFFFFFu && (draw.flags & 8u) != 0u) {
+        if (draw.tex_index != 0xFFFFFFFFu && (draw.flags & DRAW_TEX_ALPHA) != 0u) {
             float t = texture(textures[nonuniformEXT(draw.tex_index)], in_uv / draw.tex_size).a;
-            a = (draw.flags & 7u) == 3u ? t : a * t;
+            a = (draw.flags & DRAW_TFUNC) == 3u ? t : a * t;
         }
         if (blended && a < 0.5)
             discard;
-        if ((draw.flags & 32u) != 0u) {
+        if ((draw.flags & DRAW_ALPHA_TEST) != 0u) {
             uint fn = draw.alpha_test & 7u, ref = (draw.alpha_test >> 8) & 255u, mask = (draw.alpha_test >> 16) & 255u;
             uint ai = uint(a * 255.0 + 0.5) & mask;
             ref &= mask;

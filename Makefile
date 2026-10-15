@@ -2,7 +2,7 @@
 # needs game/analysis/functions.json first (tools/funcs.py).
 PY      := tools/.venv/bin/python
 CC      := clang
-CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Ibuild/gen -Ibuild/shaders
+CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
 GLSLC   := glslc
 GENFLAGS := $(CFLAGS) -w
 
@@ -27,12 +27,13 @@ SHADERS := $(patsubst runtime/shaders/%,build/shaders/%.inc,$(wildcard runtime/s
                                                                     runtime/shaders/*.tesc runtime/shaders/*.tese))
 
 # Shaders: SPIR-V as C arrays (ge.vert -> ge_vert[])
-build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl)
+build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl runtime/shaders/*.h)
 	@mkdir -p $(@D)
 	$(GLSLC) --target-env=vulkan1.3 -O -mfmt=c $< -o $@.tmp
 	printf 'static const uint32_t %s[] = \n' $(subst .,_,$*) > $@ && cat $@.tmp >> $@ && printf ';\n' >> $@ && rm $@.tmp
 
-build/runtime/%.o: runtime/src/%.c runtime/src/runtime.h runtime/src/hle.h runtime/src/nids.inc runtime/include/recomp.h build/gen/.stamp $(SHADERS)
+build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.h) runtime/src/nids.inc runtime/include/recomp.h \
+                   build/gen/.stamp $(SHADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
 

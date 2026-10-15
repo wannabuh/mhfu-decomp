@@ -1,4 +1,5 @@
 #version 450
+#include "shared.h"
 // Ground grass (grass.c): each instance a blade, its 18 vertices a strip of three quads from the root to the tip
 // (gl_VertexIndex: quad v / 6, its corner v % 6) - tapering, arching over its own way, bent by the wind (waves of
 // different lengths crossing the field, gusts passing over it, each blade swaying in its own measure) and pressed down
@@ -7,29 +8,19 @@
 layout(location = 0) in vec3 in_root;
 layout(location = 1) in uvec4 in_data;      // colour, shape, normal, (none)
 
-struct LightSet {
-    vec4 dir[4];
-    vec4 color[4];
-    uint count, sun, pad0, pad1;
-};
-layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
+layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 
 // The trodden grass (grass.c grass_trail): a window of 256 x 256 cells of 6 units, wrapping, each the way and how far
 // it is pressed (snorm16 x, z); this frame's from trail on
-layout(std430, set = 0, binding = 4) readonly buffer Trail { uint trail_cells[]; };
+layout(std430, set = 0, binding = BIND_TRAIL) readonly buffer Trail { uint trail_cells[]; };
 // The world's ambient occlusion (render.c's, at half resolution: the light left, the distance), drawn before the grass
-layout(set = 0, binding = 5) uniform sampler2D ao_map;
+layout(set = 0, binding = BIND_AO) uniform sampler2D ao_map;
 
 // camera: the set holding the world to the clip space (dir: its columns), the eye (color[0]), the time, the wind's
 // strength, render target pixels a clip unit, the field's reach (color[1]), the fog's end, slope, on (color[2]) and
 // colour (color[3]); trail, trail_x, trail_z: this frame's trodden grass, its window's first cell; ao: ao_map holds
 // this picture's occlusion
-layout(push_constant) uniform Grass {
-    mat4 light;
-    uint camera, trail;
-    int trail_x, trail_z;
-    uint ao;
-} g;
+layout(push_constant) uniform Grass { GRASS_PUSH } g;
 
 const int TRAIL = 256;
 const float TRAIL_CELL = 6.0;

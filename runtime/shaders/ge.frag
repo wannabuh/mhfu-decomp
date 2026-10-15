@@ -1,20 +1,16 @@
 #version 450
 #extension GL_EXT_nonuniform_qualifier : require
+#include "shared.h"
 // The GE's pixel stage before blending: the texture function, colour doubling, the alpha test. Blending, depth and
 // write masks are the fixed-function state set per draw.
-layout(set = 0, binding = 0) uniform sampler2D textures[];
-layout(set = 0, binding = 1) uniform sampler2DShadow shadow_map;
+layout(set = 0, binding = BIND_TEXTURES) uniform sampler2D textures[];
+layout(set = 0, binding = BIND_SHADOW_MAP) uniform sampler2DShadow shadow_map;
 
 // Lighting by the pixel: a draw's directional lights, in the world (direction to the light, w a power of the diffuse
 // term or 0; colour), and which is the sun (the shadows')
-struct LightSet {
-    vec4 dir[4];
-    vec4 color[4];
-    uint count, sun, pad0, pad1;
-};
-layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
+layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 // The strongest two point lights' shadows: distance from the light over its reach, by direction from it
-layout(set = 0, binding = 3) uniform samplerCube point_shadow[2];
+layout(set = 0, binding = BIND_POINT_SHADOWS) uniform samplerCube point_shadow[2];
 
 // How much of point light i (one of the first two) reaches this point: its cube map's distances compared around the
 // direction (4 taps across it)
@@ -32,21 +28,7 @@ float point_lit(uint i, vec3 v, float reach) {
     return lit * 0.25;
 }
 
-layout(push_constant) uniform Draw {
-    vec2 tex_size;       // texels, to normalise the coordinates
-    uint tex_index;      // into textures[]; ~0u: untextured
-    uint flags;          // bits 0-2 texture function, 3 texture alpha, 4 colour doubling, 5 alpha test, 6 clear mode,
-                         // 7 fog, 8 in the world (shadows fall on it), 9 lit by the GE (its sun part is known),
-                         // 10 lit by the pixel (light_set), 11 (shadow passes) blended, 12 lit beforehand with
-                         // normals made from its triangles (shaded by the sun), 13 relief from its texture's
-                         // brightness
-    uint alpha_test;     // function (bits 0-2), reference (8-15), mask (16-23)
-    uint env_color;      // RGB, for the blend texture function
-    uint fog_color;      // RGB
-    uint light_set;
-    mat4 light;
-    uint points;         // the point lights' first set of two (~0u: none): dir = place and reach, colour
-} draw;
+layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in vec4 in_color;
@@ -123,15 +105,15 @@ vec3 relief_normal(vec3 n, float h) {
 void main() {
     vec4 c = in_color;
     // the texture (sampled here: its slopes on the screen need every pixel's, before any is discarded)
-    bool textured = (draw.flags & 64u) == 0u && draw.tex_index != 0xFFFFFFFFu;
+    bool textured = (draw.flags & DRAW_CLEAR) == 0u && draw.tex_index != 0xFFFFFFFFu;
     vec4 t = textured ? texture(textures[nonuniformEXT(draw.tex_index)], in_uv / draw.tex_size) : vec4(1.0);
-    vec3 bumped = (draw.flags & 8192u) != 0u ? relief_normal(normalize(in_normal + vec3(0.0, 1e-6, 0.0)),
+    vec3 bumped = (draw.flags & DRAW_RELIEF) != 0u ? relief_normal(normalize(in_normal + vec3(0.0, 1e-6, 0.0)),
                                                              dot(t.rgb, vec3(0.299, 0.587, 0.114))) : vec3(0.0);
-    bool points = draw.points != 0xFFFFFFFFu && (draw.flags & 256u) != 0u;
-    float sh = (draw.flags & 256u) != 0u ? shadow() : 0.0;
-    if ((draw.flags & 512u) != 0u)          // lit: the sun's part goes in shadow
+    bool points = draw.points != 0xFFFFFFFFu && (draw.flags & DRAW_WORLD) != 0u;
+    float sh = (draw.flags & DRAW_WORLD) != 0u ? shadow() : 0.0;
+    if ((draw.flags & DRAW_LIT_GE) != 0u)          // lit: the sun's part goes in shadow
         c.rgb = max(c.rgb - in_sun * sh, vec3(0.0));
-    if ((draw.flags & 1024u) != 0u) {       // lit by the pixel: the lights' diffuse terms on the material's colour
+    if ((draw.flags & DRAW_LIT_PIXEL) != 0u) {       // lit by the pixel: the lights' diffuse terms on the material's colour
         vec3 n = in_normal;
         float nl = length(n);
         n = nl > 0.0 ? n / nl : vec3(0.0, 1.0, 0.0);
@@ -152,8 +134,8 @@ void main() {
             c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
     }
     if (textured) {
-        uint fn = draw.flags & 7u;
-        bool use_alpha = (draw.flags & 8u) != 0u;
+        uint fn = draw.flags & DRAW_TFUNC;
+        bool use_alpha = (draw.flags & DRAW_TEX_ALPHA) != 0u;
         vec3 env = vec3(float(draw.env_color & 255u), float((draw.env_color >> 8) & 255u),
                         float((draw.env_color >> 16) & 255u)) / 255.0;
         if (fn == 0u) {                     // modulate
@@ -167,35 +149,35 @@ void main() {
         } else {                            // add
             c = vec4(min(c.rgb + t.rgb, vec3(1.0)), use_alpha ? c.a * t.a : c.a);
         }
-        if ((draw.flags & 16u) != 0u)
+        if ((draw.flags & DRAW_DOUBLE) != 0u)
             c.rgb = min(c.rgb * 2.0, vec3(1.0));
     }
-    if ((draw.flags & 1536u) == 0u) {       // lit beforehand (the scenery's colours): darker in shadow - and turned
+    if ((draw.flags & DRAW_LIT) == 0u) {       // lit beforehand (the scenery's colours): darker in shadow - and turned
         float dark = sh;                    // away from the sun, as dark as in shadow
         float nl = length(in_normal);
         float relief = 1.0;
-        if ((draw.flags & 4096u) != 0u && nl > 0.0) {
+        if ((draw.flags & DRAW_SHADED) != 0u && nl > 0.0) {
             vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));
             float lambert = dot(in_normal / nl, sun);
             float facing = smoothstep(-0.1, 0.3, lambert);
             dark = 1.0 - (1.0 - sh) * facing;
             // the relief, in the sun: lighter where it turns towards it, darker where away
-            if ((draw.flags & 8192u) != 0u)
+            if ((draw.flags & DRAW_RELIEF) != 0u)
                 relief = mix(1.0, clamp(dot(bumped, sun) / max(lambert, 0.25), 0.65, 1.35), 1.0 - dark);
         }
         c.rgb *= (1.0 - 0.45 * dark) * relief;
     }
-    if (points && (draw.flags & 1024u) == 0u)   // not lit by the pixel: the point lights brighten its colour
+    if (points && (draw.flags & DRAW_LIT_PIXEL) == 0u)   // not lit by the pixel: the point lights brighten its colour
     {
         c.rgb = min(c.rgb * (vec3(1.0) + point_light(vec3(0.0), false)), vec3(1.0));
         c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
     }
-    if ((draw.flags & 128u) != 0u) {      // fog: towards the fog colour as the factor falls from 1
+    if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
                         float((draw.fog_color >> 16) & 255u)) / 255.0;
         c.rgb = mix(fog, c.rgb, clamp(in_fog, 0.0, 1.0));
     }
-    if ((draw.flags & 32u) != 0u) {
+    if ((draw.flags & DRAW_ALPHA_TEST) != 0u) {
         uint fn = draw.alpha_test & 7u, ref = (draw.alpha_test >> 8) & 255u, mask = (draw.alpha_test >> 16) & 255u;
         uint a = uint(c.a * 255.0 + 0.5) & mask;
         ref &= mask;
@@ -204,7 +186,7 @@ void main() {
         if (!pass)
             discard;
     }
-    if ((draw.flags & 16384u) != 0u) {  // drawn again into the motion blur's (post.c): its motion in the world, covered
+    if ((draw.flags & DRAW_MOTION) != 0u) {  // drawn again into the motion blur's (post.c): its motion in the world, covered
         out_color = vec4(in_motion, 1.0);
         return;
     }

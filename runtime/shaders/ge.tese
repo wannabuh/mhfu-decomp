@@ -1,24 +1,14 @@
 #version 450
+#include "shared.h"
 // Rounder characters (render.c, MHFU_TESSELLATION): each new point curved out by Phong tessellation (Boubekeur and
 // Alexa) - the flat triangle's point pulled towards its projections onto the corners' tangent planes (their shape
 // normals: the same for every corner at a place, so that the triangles about it curve alike) - and placed on the
 // screen by how far it moved (the corners stay where they were).
 layout(triangles, fractional_odd_spacing, ccw) in;
 
-struct LightSet {
-    vec4 dir[4];
-    vec4 color[4];
-    uint count, sun, pad0, pad1;
-};
-layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
+layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 
-layout(push_constant) uniform Draw {
-    vec2 tex_size;
-    uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
-    mat4 light;
-    uint points;
-    uint camera;        // the set holding the world to the clip space (its directions: the matrix's columns)
-} draw;
+layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
 layout(location = 0) in vec2 in_uv[];
 layout(location = 1) in vec4 in_color[];

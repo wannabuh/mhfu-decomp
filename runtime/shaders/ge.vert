@@ -1,4 +1,5 @@
 #version 450
+#include "shared.h"
 // GE vertices, transformed (and lit) on the CPU: clip-space position, texture coordinates in texels, colour; for
 // shadows, the position in the world and the part of the colour the sun gave (lit by the pixel: the material's
 // diffuse colour, and the normal in the world).
@@ -11,12 +12,7 @@ layout(location = 5) in vec4 in_sun;
 layout(location = 6) in vec4 in_normal;
 layout(location = 7) in vec4 in_motion;   // its motion in the world since the frame shown before (the motion blur's)
 
-layout(push_constant) uniform Draw {
-    vec2 tex_size;
-    uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
-    mat4 light;          // the world to the shadow map: x, y in -1..1, depth 0..1 away from the sun
-    uint points;
-} draw;
+layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
 layout(location = 0) out vec2 out_uv;
 layout(location = 1) out vec4 out_color;

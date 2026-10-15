@@ -1,20 +1,11 @@
 #version 450
+#include "shared.h"
 // Ground grass (grass.vert): the ground's colour, as the scenery is shaded - darker in the sun's shadow, and where the
 // ground turns away from the sun - and the sun shining through the blades' thin tops when the camera looks towards
 // it; the scenery's fog.
-layout(set = 0, binding = 1) uniform sampler2DShadow shadow_map;
-struct LightSet {
-    vec4 dir[4];
-    vec4 color[4];
-    uint count, sun, pad0, pad1;
-};
-layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
-layout(push_constant) uniform Grass {
-    mat4 light;
-    uint camera, trail;
-    int trail_x, trail_z;
-    uint ao;
-} g;
+layout(set = 0, binding = BIND_SHADOW_MAP) uniform sampler2DShadow shadow_map;
+layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
+layout(push_constant) uniform Grass { GRASS_PUSH } g;
 
 layout(location = 0) in vec3 in_color;
 layout(location = 1) in vec3 in_world;

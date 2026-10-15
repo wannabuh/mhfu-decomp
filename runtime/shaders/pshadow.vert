@@ -1,5 +1,6 @@
 #version 450
 #extension GL_ARB_shader_viewport_layer_array : require
+#include "shared.h"
 // The point lights' shadows: what casts them, drawn into the faces of their cube maps - instance i into face i % 6
 // of light i / 6 (layer i). A face is laid out as the cube map is looked up (the major axis, then s and t): the clip
 // position is (s, t) over the major axis, so that what is behind the face is clipped; the depth is written by the
@@ -8,19 +9,9 @@ layout(location = 1) in vec2 in_uv;
 layout(location = 2) in vec4 in_color;
 layout(location = 4) in vec3 in_world;
 
-layout(push_constant) uniform Draw {
-    vec2 tex_size;
-    uint tex_index, flags, alpha_test, env_color, fog_color, light_set;
-    mat4 light;
-    uint points;
-} draw;
+layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
-struct LightSet {
-    vec4 dir[4];
-    vec4 color[4];
-    uint count, sun, pad0, pad1;
-};
-layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
+layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 
 layout(location = 0) out vec2 out_uv;
 layout(location = 1) out float out_alpha;

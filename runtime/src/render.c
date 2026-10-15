@@ -14,6 +14,7 @@
 #include "hle.h"
 #include "grass.h"
 #include "post.h"
+#include "shared.h"
 #include "vk.h"
 
 #include <SDL3/SDL.h>
@@ -57,7 +58,6 @@ typedef struct GpuVertex {
 /* Lighting by the pixel: the sets of directional lights draws use (gpu.c gives them), in a storage buffer - half of it
  * each frame in flight - a draw naming its set */
 #define LIGHT_SETS 8192
-typedef struct { float dir[4][4], color[4][4]; uint32_t count, sun, pad[2]; } LightSet;
 static VkBuf light_buf;
 static uint32_t light_sets_used, prim_lights = ~0u;
 static LightSet last_lights;
@@ -144,8 +144,6 @@ static struct Target *ao_target;        /* the solid world was drawn into it, wi
 static struct Target *ao_applied;       /* it has its occlusion (until it is cleared) */
 static int ao_used;                     /* times this frame */
 static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
-/* its passes' push constants (ao_common.glsl) */
-typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4], colors[4][4]; } AoPush;
 /* Post-processing (post.c), once the world is drawn - at the first thing drawn over it that is not in the world (the
  * HUD), or at the flip: the world's camera, the target, and what adds light to the world (fire, glows), drawn again
  * into post.c's glow image at the time */
@@ -234,14 +232,14 @@ typedef struct {
 /* Whether a draw may sway in the wind: what has holes in its texture in the world, lit beforehand (the scenery) -
  * which of its triangles are a plant's, sway_batch says */
 static int swaying(const DrawState *d) {
-    return sway > 0 && (d->flags & 1792u) == 256u && d->depth_write && d->tex_slot < MAX_TEXTURES &&
+    return sway > 0 && (d->flags & DRAW_KIND) == DRAW_WORLD && d->depth_write && d->tex_slot < MAX_TEXTURES &&
            tex_cutout[d->tex_slot];
 }
 
 /* Whether a draw is shaded by the sun: the solid scenery (not what has holes in its texture - leaves, grass, whose
  * cards' normals mean nothing - nor what writes no depth or adds to the picture) */
 static int shaded(const DrawState *d) {
-    return (d->flags & 1792u) == 256u && d->depth_write && sun_shading && shadow_on &&
+    return (d->flags & DRAW_KIND) == DRAW_WORLD && d->depth_write && sun_shading && shadow_on &&
            (d->tex_slot >= MAX_TEXTURES || !tex_cutout[d->tex_slot]) &&
            (!d->blend || (d->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                           d->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA));
@@ -419,7 +417,7 @@ static void ao_init(void) {
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     /* the grass's (grass.vert): the occlusion of the ground its blades grow from */
     VkDescriptorImageInfo gi = {point_sampler, ao_img[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 5, 0, 1,
+    VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_AO, 0, 1,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
     VkDescriptorSetLayoutBinding b[2] = {
@@ -472,12 +470,12 @@ int render_init(void *sdl_window) {
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* bindless textures: one array, filled as textures are made */
     VkDescriptorSetLayoutBinding b[6] = {
-        {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
-        {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},     /* the trodden grass */
-        {5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL}, /* the occlusion, for it */
+        {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
+        {BIND_POINT_SHADOWS, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_TRAIL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
+        {BIND_AO, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
     };
     VkDescriptorBindingFlags bf[6] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
@@ -512,7 +510,7 @@ int render_init(void *sdl_window) {
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[0]);
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[1]);
 
-    VkPushConstantRange pr = {pc_stages, 0, 112};
+    VkPushConstantRange pr = {pc_stages, 0, sizeof(DrawPush)};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
@@ -590,7 +588,7 @@ int render_init(void *sdl_window) {
     shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
     VkDescriptorImageInfo sii = {shadow_sampler, shadow_img.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 1, 0, 1,
+    VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_SHADOW_MAP, 0, 1,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
     point_img = vk_image_layers(POINT_SHADOW_SIZE, POINT_SHADOW_SIZE, 12, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
@@ -608,19 +606,19 @@ int render_init(void *sdl_window) {
         vkCreateImageView(vk.device, &vci, NULL, &point_cube[i]);
         pii[i] = (VkDescriptorImageInfo){point_sampler, point_cube[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
     }
-    VkWriteDescriptorSet pw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 3, 0, 2,
+    VkWriteDescriptorSet pw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_POINT_SHADOWS, 0, 2,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, pii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &pw, 0, NULL);
     light_buf = vk_buffer(2 * LIGHT_SETS * sizeof(LightSet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
     VkDescriptorBufferInfo lbi = {light_buf.buffer, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 2, 0, 1,
+    VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_LIGHTS, 0, 1,
                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &lbi, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &lw, 0, NULL);
     /* the trodden grass's window, a copy each frame in flight */
     trail_buf = vk_buffer(2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
     memset(trail_buf.map, 0, 2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t));
     VkDescriptorBufferInfo tbi = {trail_buf.buffer, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 4, 0, 1,
+    VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_TRAIL, 0, 1,
                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
     VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
@@ -659,7 +657,7 @@ static uint32_t next_slot = 0;
 
 static void write_slot(uint32_t slot, VkImageView view, VkSampler sampler) {
     VkDescriptorImageInfo ii = {sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 0, slot, 1,
+    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_TEXTURES, slot, 1,
                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
 }
@@ -1210,16 +1208,16 @@ void render_prim_begin(const uint32_t *reg) {
         s.tex_w = (float)w;
         s.tex_h = (float)h;
     }
-    s.flags = (reg[0xC9] & 7) | (((reg[0xC9] >> 8) & 1) << 3) | (((reg[0xC9] >> 16) & 1) << 4) |
-              (!clear && (reg[0x22] & 1) ? 32u : 0u) | (clear ? 64u : 0u) |
-              (!clear && (reg[0x1F] & 1) && !((reg[0x12] >> 23) & 1) ? 128u : 0u);
+    s.flags = (reg[0xC9] & DRAW_TFUNC) | (((reg[0xC9] >> 8) & 1) ? DRAW_TEX_ALPHA : 0u) |
+              (((reg[0xC9] >> 16) & 1) ? DRAW_DOUBLE : 0u) | (!clear && (reg[0x22] & 1) ? DRAW_ALPHA_TEST : 0u) |
+              (clear ? DRAW_CLEAR : 0u) | (!clear && (reg[0x1F] & 1) && !((reg[0x12] >> 23) & 1) ? DRAW_FOG : 0u);
     s.fog_color = reg[0xCF];
     s.alpha_test = reg[0xDB];
     s.cull = VK_CULL_MODE_NONE;
     s.front = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     s.lights = ~0u;
     if (prim_world && !clear) {
-        s.flags |= 256u | ((reg[0x17] & 1) ? (prim_lights != ~0u ? 1024u : 512u) : 0u);
+        s.flags |= DRAW_WORLD | ((reg[0x17] & 1) ? (prim_lights != ~0u ? DRAW_LIT_PIXEL : DRAW_LIT_GE) : 0u);
         s.lights = prim_lights;
         if (reg[0x1D] & 1) {            /* the culling gpu.c leaves to the GPU (the same faces as it would drop) */
             s.cull = VK_CULL_MODE_BACK_BIT;
@@ -1287,7 +1285,7 @@ void render_prim_begin(const uint32_t *reg) {
     s.scissor = (VkRect2D){{(int32_t)scaled(sx0), (int32_t)scaled(sy0)}, {scaled(sx1) - scaled(sx0), scaled(sy1) - scaled(sy0)}};
     /* the solid world drawn, then what is not solid (glows, fire, smoke, the HUD): the world's occlusion first - only
      * the solid world's colours have it, once (until the picture is cleared) */
-    int solid = (s.flags & 256u) && s.depth_write;
+    int solid = (s.flags & DRAW_WORLD) && s.depth_write;
     if (ao_target && s.target == ao_target && !solid) {
         flush();
         ao_apply(ao_target);
@@ -1299,7 +1297,7 @@ void render_prim_begin(const uint32_t *reg) {
         uint32_t fe = reg[0xCD] << 8, fs = reg[0xCE] << 8;
         memcpy(&world_fog[0], &fe, 4);
         memcpy(&world_fog[1], &fs, 4);
-        world_fog[2] = (s.flags & 128u) ? 1.0f : 0.0f;
+        world_fog[2] = (s.flags & DRAW_FOG) ? 1.0f : 0.0f;
         world_fog_color = s.fog_color;
     }
     if (solid && s.target != ao_applied) {
@@ -1308,13 +1306,13 @@ void render_prim_begin(const uint32_t *reg) {
         memcpy(ao_world_view, prim_world_view, sizeof ao_world_view);
     }
     /* and once the world is drawn, at the first thing over it not in it, the post-processing (once, until cleared) */
-    if (post_target && s.target == post_target && !(s.flags & 256u) && !clear) {
+    if (post_target && s.target == post_target && !(s.flags & DRAW_WORLD) && !clear) {
         flush();
         post_run(post_target);
     }
     if (clear && s.target == post_done)
         post_done = NULL;
-    if (glow_pipeline && (s.flags & 256u) && s.target != post_done) {
+    if (glow_pipeline && (s.flags & DRAW_WORLD) && s.target != post_done) {
         post_target = s.target;
         if (solid) {
             memcpy(post_view, prim_view, sizeof post_view);
@@ -1335,22 +1333,16 @@ void render_prim_begin(const uint32_t *reg) {
         if (getenv("MHFU_POINT_GAIN"))
             point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
-    emitting = point_lights_on && (s.flags & 256u) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
+    emitting = point_lights_on && (s.flags & DRAW_WORLD) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
                s.eq.colorBlendOp == VK_BLEND_OP_ADD;
-    blob_prim = !blob_shadows && (s.flags & 1792u) == 256u && s.blend && !s.depth_write && (reg[0xDF] & 0xFFF) == 0x32 &&
+    blob_prim = !blob_shadows && (s.flags & DRAW_KIND) == DRAW_WORLD && s.blend && !s.depth_write && (reg[0xDF] & 0xFFF) == 0x32 &&
                 (reg[0xC3] & 0xF) == 5 && (reg[0xB8] & 0xF0F) == 0x707;
 }
 
-typedef struct {
-    float w, h;
-    uint32_t slot, flags, alpha, env, fog, pad;
-    float light[16];
-    uint32_t points, pad2[3];       /* the point lights' two sets (or ~0: none) */
-} PushConstants;
 
 /* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
  * people's, into the motion blur's image - their motion (1 flat, 2 tessellated) */
-static struct { DrawState s; PushConstants pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
+static struct { DrawState s; DrawPush pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
 
 /* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
 static void shadow_begin(void) {
@@ -1679,7 +1671,7 @@ static void make_point_lights(void) {
         point_shadows_next = (int)point_lights[0].count;
     if (!vk.output_layer || !shadow_on || !point_shadows_on)
         point_shadows_next = 0;
-    point_lights[0].pad[0] = (uint32_t)point_shadows_next;
+    point_lights[0].pad0 = (uint32_t)point_shadows_next;
     nemitters = 0;
 }
 
@@ -2101,7 +2093,7 @@ static void flush(void) {
         make_normals((size_t)n);
     if (swaying(&cur))
         sway_batch((size_t)n);
-    if (sway > 0 && (cur.flags & 1792u) > 256u)
+    if (sway > 0 && (cur.flags & DRAW_KIND) > DRAW_WORLD)
         find_feet((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
@@ -2125,26 +2117,26 @@ static void flush(void) {
         vkCmdSetCullMode(cmd, s->cull);
     if (!last_valid || s->front != last.front)
         vkCmdSetFrontFace(cmd, s->front);
-    PushConstants pc = {s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1, s->tex_slot,
-        shadow_on ? s->flags : s->flags & ~768u, s->alpha_test, s->env_color, s->fog_color, s->lights, {0},
-        point_lights_on > 0 && (s->flags & 256u) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
-            ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, {0}};
+    DrawPush pc = {{s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1}, s->tex_slot,
+        shadow_on ? s->flags : s->flags & ~(DRAW_WORLD | DRAW_LIT_GE), s->alpha_test, s->env_color, s->fog_color, s->lights, {0},
+        point_lights_on > 0 && (s->flags & DRAW_WORLD) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
+            ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, ~0u, 0, 0};
     memcpy(pc.light, light_vp, sizeof pc.light);
     /* lit by the pixel, opaque: also drawn tessellated (rounder), over itself drawn flat - which shows through any
      * crack the curving opens (and wins where it would curve inwards) */
-    uint32_t cam = tess_pipeline && (s->flags & 1024u) && !s->blend && n % 3 == 0 && on_screen_size((size_t)n) >= 40
+    uint32_t cam = tess_pipeline && (s->flags & DRAW_LIT_PIXEL) && !s->blend && n % 3 == 0 && on_screen_size((size_t)n) >= 40
                        ? camera_light_set() : ~0u;
     if (cam != ~0u)
         shape_normals((size_t)n);
-    else if (tess_pipeline && (s->flags & 1024u))
+    else if (tess_pipeline && (s->flags & DRAW_LIT_PIXEL))
         memcpy((uint8_t *)vertices.map + batch_start, sway_verts, (size_t)n * sizeof(GpuVertex));
     if (bound_pipeline != pipeline) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
         bound_pipeline = pipeline;
     }
-    pc.pad2[0] = cam;
+    pc.camera = cam;
     if (shaded(s))
-        pc.flags |= 4096u | (relief_on && s->tex_slot < MAX_TEXTURES ? 8192u : 0u);
+        pc.flags |= DRAW_SHADED | (relief_on && s->tex_slot < MAX_TEXTURES ? DRAW_RELIEF : 0u);
     vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     if (cam != ~0u) {
@@ -2153,7 +2145,7 @@ static void flush(void) {
         vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     }
     /* what adds light to the world: kept for the glow */
-    if (glow_pipeline && rendering == post_target && (s->flags & 256u) && s->blend &&
+    if (glow_pipeline && rendering == post_target && (s->flags & DRAW_WORLD) && s->blend &&
         s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE && s->eq.colorBlendOp == VK_BLEND_OP_ADD &&
         nglow < MAX_GLOW_DRAWS) {
         glow_draws[nglow].s = *s;
@@ -2162,12 +2154,12 @@ static void flush(void) {
         glow_draws[nglow].kind = 0;
         glow_draws[nglow++].count = (uint32_t)n;
     }
-    if (glow_pipeline && post_motion() && rendering == post_target && (s->flags & 1792u) > 256u && !s->blend &&
+    if (glow_pipeline && post_motion() && rendering == post_target && (s->flags & DRAW_KIND) > DRAW_WORLD && !s->blend &&
         s->depth_write) {
         for (int kind = 1; kind <= (cam != ~0u ? 2 : 1) && nglow < MAX_GLOW_DRAWS; kind++) {
             glow_draws[nglow].s = *s;
             glow_draws[nglow].pc = pc;
-            glow_draws[nglow].pc.flags |= 16384u;
+            glow_draws[nglow].pc.flags |= DRAW_MOTION;
             glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
             glow_draws[nglow].kind = kind;
             glow_draws[nglow++].count = (uint32_t)n;
@@ -2177,9 +2169,9 @@ static void flush(void) {
      * alpha too (much of the scenery is), where it is more than half opaque */
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                       s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    if (shadow_on && (s->flags & 256u) && s->depth_write && (!s->blend || alpha_blend)) {
+    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend)) {
         if (alpha_blend)
-            pc.flags |= 2048u;
+            pc.flags |= DRAW_BLENDED;
         shadow_begin();
         vkCmdPushConstants(shadow_cmd, layout, pc_stages, 0, sizeof pc,
                            &pc);
@@ -2192,13 +2184,13 @@ static void flush(void) {
             vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &vertices.buffer, &zero);
         }
 
-    } else if (shadow_on && (s->flags & 256u))
+    } else if (shadow_on && (s->flags & DRAW_WORLD))
         shadow_begin();                 /* (it is sampled: made this frame, if empty) */
-    if (point_shadows && shadow_on && (s->flags & 256u)) {
+    if (point_shadows && shadow_on && (s->flags & DRAW_WORLD)) {
         point_begin();
         if (s->depth_write && (!s->blend || alpha_blend)) {
             if (alpha_blend)
-                pc.flags |= 2048u;
+                pc.flags |= DRAW_BLENDED;
             vkCmdPushConstants(point_cmd, layout, pc_stages, 0,
                                sizeof pc, &pc);
             uint32_t instances = 6u * (uint32_t)point_shadows;
@@ -2266,7 +2258,7 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->motion[1] = half(v->my);
     g->motion[2] = half(v->mz);
     g->motion[3] = 0;
-    int tess = tess_pipeline && (cur.flags & 1024u);     /* (written at flush, with its shape normals) */
+    int tess = tess_pipeline && (cur.flags & DRAW_LIT_PIXEL);     /* (written at flush, with its shape normals) */
     if (swaying(&cur) || tess) {
         size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
         if (i >= sway_cap) {
@@ -2283,7 +2275,7 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
         }
         corners[i] = (Corner){{v->wx, v->wy, v->wz}, x, y};
     }
-    if (sway > 0 && (cur.flags & 1792u) > 256u) {   /* (in the world, lit by the GE) */
+    if (sway > 0 && (cur.flags & DRAW_KIND) > DRAW_WORLD) {   /* (in the world, lit by the GE) */
         size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
         if (i >= lit_cap) {
             lit_cap = lit_cap ? lit_cap * 2 : 65536;
@@ -2310,7 +2302,7 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
 
 /* gpu.c: a triangle of the current primitive clipping cut (some of it is behind the camera): whole, for the shadows */
 void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
-    if (!shadow_on || !(cur.flags & 256u) || extra_used + 3 * sizeof(GpuVertex) > SHADOW_EXTRA_BYTES)
+    if (!shadow_on || !(cur.flags & DRAW_WORLD) || extra_used + 3 * sizeof(GpuVertex) > SHADOW_EXTRA_BYTES)
         return;
     const RVertex *v[3] = {a, b, c};
     for (int i = 0; i < 3; i++) {
@@ -2340,7 +2332,7 @@ static void grass_triangle(const RVertex *a, const RVertex *b, const RVertex *c)
     const RVertex *v[3] = {a, b, c};
     float p[3][3], uv[3][2], col[3][3];
     float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
-    int replace = (cur.flags & 7u) == 3;
+    int replace = (cur.flags & DRAW_TFUNC) == 3;
     for (int i = 0; i < 3; i++) {
         p[i][0] = v[i]->wx;
         p[i][1] = v[i]->wy;
@@ -2354,7 +2346,7 @@ static void grass_triangle(const RVertex *a, const RVertex *b, const RVertex *c)
     uint32_t slot = cur.tex_slot;
     int has = slot < MAX_TEXTURES && tex_small[slot];
     grass_ground(p, uv, col, has ? tex_small[slot] : NULL, has ? tex_small_w[slot] : 0, has ? tex_small_h[slot] : 0,
-                 (cur.flags & 16u) != 0);
+                 (cur.flags & DRAW_DOUBLE) != 0);
 }
 
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
@@ -2364,7 +2356,7 @@ void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     put(a, a->x, a->y, a->u, a->v, 0);
     put(b, b->x, b->y, b->u, b->v, 0);
     put(c, c->x, c->y, c->u, c->v, 0);
-    if (grass_on && shaded(&cur) && ((cur.flags & 7u) == 0 || (cur.flags & 7u) == 3))
+    if (grass_on && shaded(&cur) && ((cur.flags & DRAW_TFUNC) == 0 || (cur.flags & DRAW_TFUNC) == 3))
         grass_triangle(a, b, c);
 }
 
@@ -2462,7 +2454,7 @@ static void grass_draw(Target *t) {
     grass_trail(fd, nfeet[1], now, (uint32_t *)trail_buf.map + trail_at, &ox, &oz);
     uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
-    struct { float light[16]; uint32_t camera, trail; int32_t trail_x, trail_z; uint32_t ao; } pc;
+    GrassPush pc;
     memcpy(pc.light, light_vp, sizeof pc.light);
     pc.camera = cam_set;
     pc.trail = trail_at;

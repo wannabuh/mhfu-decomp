@@ -19,6 +19,7 @@
  * The picture is copied out, the passes made from the copy, and the last pass writes the result back. MHFU_POST=0:
  * none of it. */
 #include "post.h"
+#include "shared.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -42,9 +43,7 @@
 #define PASSES (2 * LEVELS + 9)
 #define INPUTS 6
 
-typedef struct {
-    float to_view[16], to_shadow[16], texel[4], area[4], sun[4], sun_color[4], bloom[4], grade[4], dof[4];
-} Push;
+typedef PostPush Push;          /* (shared.h) */
 
 static int on = -1;
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
