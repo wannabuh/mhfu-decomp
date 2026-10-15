@@ -143,6 +143,7 @@ static float prim_world_view[12], ao_world_view[12];    /* and to the world (3 x
 static struct Target *ao_target;        /* the solid world was drawn into it, without occlusion yet */
 static struct Target *ao_applied;       /* it has its occlusion (until it is cleared) */
 static int ao_used;                     /* times this frame */
+static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
 /* its passes' push constants (ao_common.glsl) */
 typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4], colors[4][4]; } AoPush;
 /* Post-processing (post.c), once the world is drawn - at the first thing drawn over it that is not in the world (the
@@ -416,6 +417,11 @@ static void ao_init(void) {
     for (int i = 0; i < 2; i++)
         ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    /* the grass's (grass.vert): the occlusion of the ground its blades grow from */
+    VkDescriptorImageInfo gi = {point_sampler, ao_img[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, 5, 0, 1,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
     VkDescriptorSetLayoutBinding b[2] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
@@ -465,14 +471,15 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* bindless textures: one array, filled as textures are made */
-    VkDescriptorSetLayoutBinding b[5] = {
+    VkDescriptorSetLayoutBinding b[6] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
         {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {4, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},     /* the trodden grass */
+        {5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL}, /* the occlusion, for it */
     };
-    VkDescriptorBindingFlags bf[5] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+    VkDescriptorBindingFlags bf[6] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
@@ -482,17 +489,19 @@ int render_init(void *sdl_window) {
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
                                       VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
+                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
                                       VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 5, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 6, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 5, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 6, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 5},
+    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 6},
                                   {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
@@ -1117,6 +1126,7 @@ static void ao_occlude(Target *t);
 static void ao_apply(Target *t) {
     ao_target = NULL;
     ao_applied = t;
+    ao_fresh = 0;
     ao_occlude(t);
     grass_draw(t);
 }
@@ -1169,6 +1179,7 @@ static void ao_occlude(Target *t) {
     vk_transition(&ao_img[0], ro);
     vk_transition(&t->color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     ao_draw(t->color.view, fw, fh, ao_apply_pipeline, sets[3], &pc, 1);
+    ao_fresh = 1;
 }
 
 static void post_run(Target *t);
@@ -2451,12 +2462,13 @@ static void grass_draw(Target *t) {
     grass_trail(fd, nfeet[1], now, (uint32_t *)trail_buf.map + trail_at, &ox, &oz);
     uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
-    struct { float light[16]; uint32_t camera, trail; int32_t trail_x, trail_z; } pc;
+    struct { float light[16]; uint32_t camera, trail; int32_t trail_x, trail_z; uint32_t ao; } pc;
     memcpy(pc.light, light_vp, sizeof pc.light);
     pc.camera = cam_set;
     pc.trail = trail_at;
     pc.trail_x = ox;
     pc.trail_z = oz;
+    pc.ao = (uint32_t)ao_fresh;
 
     begin_rendering(t);
     VkCommandBuffer cmd = vk_cmd();

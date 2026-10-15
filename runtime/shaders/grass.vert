@@ -17,14 +17,18 @@ layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; }
 // The trodden grass (grass.c grass_trail): a window of 256 x 256 cells of 6 units, wrapping, each the way and how far
 // it is pressed (snorm16 x, z); this frame's from trail on
 layout(std430, set = 0, binding = 4) readonly buffer Trail { uint trail_cells[]; };
+// The world's ambient occlusion (render.c's, at half resolution: the light left, the distance), drawn before the grass
+layout(set = 0, binding = 5) uniform sampler2D ao_map;
 
 // camera: the set holding the world to the clip space (dir: its columns), the eye (color[0]), the time, the wind's
 // strength, render target pixels a clip unit, the field's reach (color[1]), the fog's end, slope, on (color[2]) and
-// colour (color[3]); trail, trail_x, trail_z: this frame's trodden grass, its window's first cell
+// colour (color[3]); trail, trail_x, trail_z: this frame's trodden grass, its window's first cell; ao: ao_map holds
+// this picture's occlusion
 layout(push_constant) uniform Grass {
     mat4 light;
     uint camera, trail;
     int trail_x, trail_z;
+    uint ao;
 } g;
 
 const int TRAIL = 256;
@@ -44,6 +48,17 @@ vec2 trodden(vec2 xz) {
             sum += w * unpackSnorm2x16(trail_cells[g.trail + uint((q.y & (TRAIL - 1)) * TRAIL + (q.x & (TRAIL - 1)))]);
         }
     return sum;
+}
+
+// The occlusion of the ground at a blade's root (rc: its clip position, d: its distance; px: render target pixels a
+// clip unit): the nearest texel (blurred already), if it is at its distance (the root hidden - behind the hunter -
+// open)
+float ground_ao(vec4 rc, float d, float px) {
+    if (g.ao == 0u || rc.w <= 0.0)
+        return 1.0;
+    ivec2 q = ivec2((rc.xy / rc.w + 1.0) * px * 0.5);  // texel i stands for full-resolution pixels 2i, 2i + 1
+    vec2 s = texelFetch(ao_map, clamp(q, ivec2(0), textureSize(ao_map, 0) - 1), 0).rg;
+    return mix(s.r, 1.0, smoothstep(0.04, 0.1, abs(s.g - d) / max(d, 1.0)));
 }
 
 float hash(vec2 p) {
@@ -149,6 +164,10 @@ void main() {
 
     out_color = vec3(float(in_data.x & 255u), float((in_data.x >> 8) & 255u), float((in_data.x >> 16) & 255u)) / 255.0 *
                 mix(0.78, 1.16, t);
+    // occluded: as the ground it grows from is (by rocks, walls, those standing in it), the tip a little less; and
+    // down among the blades, by the grass about it
+    float ao = ground_ao(rc, length(root - eye), px);
+    out_color *= mix(ao, 1.0, 0.35 * t) * (1.0 - 0.25 * (1.0 - t) * (1.0 - t));
     // trodden: crushed blades a darker, deeper green, in the shade of the grass standing about them; and as a lawn's
     // stripes, those lying away from the camera showing their lighter backs, those lying towards it their shaded
     // faces - so a trail shows whichever way it is seen (end-on, laid blades are hardly told from standing ones)

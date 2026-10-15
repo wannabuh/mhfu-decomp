@@ -13,6 +13,7 @@ layout(push_constant) uniform Grass {
     mat4 light;
     uint camera, trail;
     int trail_x, trail_z;
+    uint ao;
 } g;
 
 layout(location = 0) in vec3 in_color;
