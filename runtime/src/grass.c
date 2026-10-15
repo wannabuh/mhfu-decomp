@@ -13,7 +13,7 @@
  * detail). render_grass.c uploads them into a slot of its blade pool and draws them (grass.vert expands each into a blade).
  *
  * The game's zones have their own ground at the same coordinates: after a while with no scenery drawn (loading), or the
- * camera's jump, the next frame's ground is checked against what is known - mostly new, it is another zone, and all is
+ * camera's jump, the next frames' ground is checked against what is known - mostly new, it is another zone, and all is
  * forgotten. */
 #include "grass.h"
 
@@ -27,6 +27,7 @@
 #define BLADES_PER_CELL 8
 #define SETTLE 8                    /* frames without anything new before a tile's blades are made */
 #define MAX_TILES 4096
+#define PROBE_FRAMES 15
 
 typedef struct {
     float y;                        /* the top surface's height at the cell's centre */
@@ -53,7 +54,7 @@ static uint64_t *seen;              /* the triangles laid: their corners, rounde
 static size_t seen_size, seen_used;
 static unsigned long frame;
 static double last_call = -1;       /* the moment (seconds of the game's) scenery was last drawn */
-static int probing, probe_known, probe_new;     /* after a gap: the ground drawn, known or new */
+static int probing, probe_known, probe_new;     /* after a gap: frames left to tell by; the ground drawn, known or new */
 static int slot_used[GRASS_SLOTS];
 static float eye[3];
 static float radius = 3000.0f, density = 1.0f;
@@ -178,12 +179,20 @@ static int green(int r, int g, int b) {
 
 void grass_frame(const float camera[3], double now) {
     frame++;
-    /* the frame after a gap: its ground mostly new - another zone - all is forgotten */
-    if (probing && probe_new > 32 && probe_new > probe_known)
-        forget();
+    /* the frames after a gap: their ground mostly new - another zone - all is forgotten. Told by the ground of up to
+     * PROBE_FRAMES frames (the first may show little of it, fading in), until enough is seen */
+    if (probing) {
+        if (probe_new > 32 && probe_new > probe_known) {
+            forget();
+            probing = 0;
+        } else if (probe_new + probe_known >= 256 || !--probing)
+            probing = 0;
+    }
     float jump = fabsf(camera[0] - eye[0]) + fabsf(camera[2] - eye[2]);
-    probing = last_call >= 0 && (fabs(now - last_call) > 0.4 || jump > 1500.0f);
-    probe_known = probe_new = 0;
+    if (last_call >= 0 && (fabs(now - last_call) > 0.4 || jump > 1500.0f)) {
+        probing = PROBE_FRAMES;
+        probe_known = probe_new = 0;
+    }
     last_call = now;
     memcpy(eye, camera, sizeof eye);
 }
@@ -213,7 +222,9 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
     float reach = radius + TILE;
     if (x1 < eye[0] - reach || x0 > eye[0] + reach || z1 < eye[2] - reach || z0 > eye[2] + reach)
         return;
-    int known = seen_before(p);
+    /* (one reaching beyond is laid as far as it reaches, and again as the camera comes nearer: not noted) */
+    int whole = x0 >= eye[0] - reach && x1 <= eye[0] + reach && z0 >= eye[2] - reach && z1 <= eye[2] + reach;
+    int known = whole ? seen_before(p) : 0;
     if (probing)
         known ? probe_known++ : probe_new++;
     if (known)
