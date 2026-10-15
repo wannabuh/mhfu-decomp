@@ -12,6 +12,8 @@ typedef struct {
     float sun_color[3];
     int shadows;            /* the shadow map was drawn this frame */
     float focus;            /* the distance to what the camera looks at (0: unknown) */
+    float to_prev[16];      /* the camera's space to the last frame's PSP pixels (x, y, depth, w; by columns) */
+    int moved;              /* to_prev is known (a frame before, the same camera's) */
 } PostFrame;
 
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */
@@ -19,6 +21,7 @@ typedef VkPipeline (*PostPipeline)(VkShaderModule fs, VkPipelineLayout layout, V
 
 int post_init(int scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
 int post_on(void);
+int post_motion(void);       /* the motion blur is on: render.c draws its mask into the glow's alpha */
 VkImg *post_glow(void);         /* where render.c draws the light the effects add (fw x fh, cleared by it) */
 void post_apply(VkImg *color, VkImg *depth, const PostFrame *f);
 void post_end_frame(void);

@@ -203,5 +203,7 @@ void main() {
         if (!pass)
             discard;
     }
+    if ((draw.flags & 16384u) != 0u)    // drawn again into the motion blur's mask (post.c): covered
+        c.a = 1.0;
     out_color = c;
 }

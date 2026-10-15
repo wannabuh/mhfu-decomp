@@ -1,5 +1,9 @@
 /* Post-processing of the world's picture: run by the renderer (render.c) once the world is drawn, before the HUD.
  *
+ * - Motion blur: each pixel smeared along the way it moved on the screen since the last frame (the camera's motion:
+ *   from the depth, through the last frame's camera), as long as the shutter of a camera filming at the game's 30
+ *   frames a second stays open (MHFU_MOTION_BLUR: the share of the 30th of a second, 0 none); the hunter, monsters and
+ *   people left sharp.
  * - Bloom: the light the effects add (fire, glows - render.c draws those again into an image of their own, the glow)
  *   and the brightest of the picture's own, spread by a chain of ever smaller images (each half the last) and added
  *   back up (MHFU_BLOOM: its strength, 0 none).
@@ -27,11 +31,12 @@
 #include "post.frag.inc"
 #include "dof_prefilter.frag.inc"
 #include "dof_gather.frag.inc"
+#include "motion.frag.inc"
 
 #define LEVELS 10               /* the bloom's images, at most: half the picture, a quarter... */
 #define SPREAD 4                /* below the one as wide as the PSP's picture, so many (the same glow at any scale) */
 #define PER_FRAME 8             /* times a frame (the frame dumps draw it again) */
-#define PASSES (2 * LEVELS + 6)
+#define PASSES (2 * LEVELS + 7)
 #define INPUTS 6
 
 typedef struct {
@@ -42,11 +47,12 @@ static int on = -1;
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
 static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
-static float dof = 0.0f, sharpen = 0.4f;
+static float dof = 0.0f, sharpen = 0.4f, motion = 0.5f;
+static int fps;
 static uint32_t fw, fh;
 static int first, nlevels;      /* the bloom's: the level as wide as the PSP's picture (it is made up to), how many */
-static VkImg scene, glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
-static VkPipeline p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
+static VkImg scene, moved, glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
+static VkPipeline p_motion, p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
 static VkPipelineLayout layout;
 static VkDescriptorSetLayout set_layout;
 static VkDescriptorPool pool;
@@ -64,6 +70,10 @@ int post_on(void) {
     return on > 0;
 }
 
+int post_motion(void) {
+    return on > 0 && motion > 0;
+}
+
 VkImg *post_glow(void) {
     return &glow;
 }
@@ -78,6 +88,8 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
     vignette = env("MHFU_VIGNETTE", vignette);
     dof = env("MHFU_DOF", dof);
     sharpen = env("MHFU_SHARPEN", sharpen);
+    motion = env("MHFU_MOTION_BLUR", motion);
+    fps = (int)env("MHFU_FPS", 0);
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.gpu, &props);
     if (props.limits.maxPushConstantsSize < sizeof(Push))
@@ -91,6 +103,7 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
     VkImageUsageFlags rt = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     scene = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                      VK_IMAGE_ASPECT_COLOR_BIT);
+    moved = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     glow = vk_image(fw, fh, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     first = 0;                          /* (the level nearest 480 wide) */
     while (first + 1 < LEVELS - SPREAD && fabsf(log2f((float)(fw >> (first + 2)) / 480.0f)) <
@@ -128,6 +141,7 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkFormat hdr = VK_FORMAT_R16G16B16A16_SFLOAT;
+    p_motion = make(vk_shader(motion_frag, sizeof motion_frag), layout, VK_FORMAT_R8G8B8A8_UNORM, 0);
     p_down = make(vk_shader(bloom_down_frag, sizeof bloom_down_frag), layout, hdr, 0);
     p_up = make(vk_shader(bloom_up_frag, sizeof bloom_up_frag), layout, hdr, 1);
     p_shafts = make(vk_shader(shafts_frag, sizeof shafts_frag), layout, hdr, 0);
@@ -219,10 +233,23 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
     memcpy(pc.dof, (float[4]){f->focus, 0.35f, dof_on ? dof * 3.0f * (float)fw / 480.0f : 0, sharpen},
            sizeof pc.dof);
 
+    /* motion blur: the picture smeared, the rest made from it. Its length: the motion of a frame shown, times the
+     * frames shown in the shutter's time (1 without frames of its own between the game's) */
+    VkImg *picture = &scene;
+    if (motion > 0 && f->moved) {
+        Push mp = pc;
+        memcpy(mp.to_shadow, f->to_prev, sizeof mp.to_shadow);
+        float frames = motion * (fps > 30 ? (float)fps / 30.0f : 1.0f);
+        memcpy(mp.texel, (float[4]){frames, 24.0f * (float)fw / 480.0f, 0, 0}, sizeof mp.texel);
+        set_inputs(s[k], &scene, &glow, NULL, NULL, depth, 0);
+        draw(&moved, fw, fh, p_motion, s[k++], &mp, 0);
+        vk_transition(&moved, ro);
+        picture = &moved;
+    }
     /* bloom: down the levels, then back up, each adding the smaller */
     if (bloom > 0) {
         for (int i = 0; i < nlevels; i++) {
-            VkImg *src = i ? &levels[i - 1] : &scene;
+            VkImg *src = i ? &levels[i - 1] : picture;
             set_inputs(s[k], src, &glow, NULL, NULL, NULL, 0);
             memcpy(pc.texel, (float[4]){1.0f / (float)src->width, 1.0f / (float)src->height, i == 0, 0},
                    sizeof pc.texel);
@@ -252,7 +279,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
     }
     /* depth of field: the picture at half resolution with how blurred each pixel is, then blurred */
     if (dof_on) {
-        set_inputs(s[k], &scene, NULL, NULL, NULL, depth, 0);
+        set_inputs(s[k], picture, NULL, NULL, NULL, depth, 0);
         draw(&dof_img[0], fw / 2, fh / 2, p_dof_prefilter, s[k++], &pc, 0);
         vk_transition(&dof_img[0], ro);
         set_inputs(s[k], &dof_img[0], NULL, NULL, NULL, NULL, 0);
@@ -260,7 +287,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
         vk_transition(&dof_img[1], ro);
     }
     /* the picture, back */
-    set_inputs(s[k], &scene, bloom > 0 ? &levels[first] : NULL, shafts_on ? &shaft_img[0] : NULL,
+    set_inputs(s[k], picture, bloom > 0 ? &levels[first] : NULL, shafts_on ? &shaft_img[0] : NULL,
                dof_on ? &dof_img[1] : NULL, depth, 0);
     draw(color, fw, fh, p_final, s[k++], &pc, 0);
 }

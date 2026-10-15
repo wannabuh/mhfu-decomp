@@ -138,9 +138,9 @@ typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4]
 /* Post-processing (post.c), once the world is drawn - at the first thing drawn over it that is not in the world (the
  * HUD), or at the flip: the world's camera, the target, and what adds light to the world (fire, glows), drawn again
  * into post.c's glow image at the time */
-#define MAX_GLOW_DRAWS 2048
+#define MAX_GLOW_DRAWS 8192
 static int nglow;
-static VkPipeline glow_pipeline;
+static VkPipeline glow_pipeline, glow_tess_pipeline;
 static struct Target *post_target, *post_done;
 static float post_view[16], post_world_view[12];
 static float sun_rgb[3] = {1, 1, 1};    /* the sun's colour (the GE's light that is the sun) */
@@ -550,8 +550,11 @@ int render_init(void *sdl_window) {
     point_cmd = point_cmds[0];
     tex_holes = calloc(MAX_TEXTURES, sizeof *tex_holes);
     ao_init();
-    if (post_init(scale, shadow_img.view, shadow_sampler, post_pipeline))
+    if (post_init(scale, shadow_img.view, shadow_sampler, post_pipeline)) {
         glow_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
+        if (tess_pipeline && post_motion())
+            glow_tess_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
+    }
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -866,6 +869,17 @@ void render_prim_view(const float *screen_from_view, const float *world_from_vie
     memcpy(prim_world_view, world_from_view, sizeof prim_world_view);
 }
 
+/* out = a b (4 x 4, by columns) */
+static void mul4(const float *a, const float *b, float *out) {
+    for (int c = 0; c < 4; c++)
+        for (int r = 0; r < 4; r++) {
+            float v = 0;
+            for (int k = 0; k < 4; k++)
+                v += a[4 * k + r] * b[4 * c + k];
+            out[4 * c + r] = v;
+        }
+}
+
 static int invert4(const float *m, float *out) {
     double a[4][8];
     for (int r = 0; r < 4; r++)
@@ -1136,8 +1150,9 @@ typedef struct {
     uint32_t points, pad2[3];       /* the point lights' two sets (or ~0: none) */
 } PushConstants;
 
-/* A draw adding light to the world, kept to be drawn again into the glow */
-static struct { DrawState s; PushConstants pc; uint32_t first, count; } glow_draws[MAX_GLOW_DRAWS];
+/* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
+ * people's, into its alpha - where the motion blur leaves the picture sharp (1 flat, 2 tessellated) */
+static struct { DrawState s; PushConstants pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
 
 /* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
 static void shadow_begin(void) {
@@ -1943,7 +1958,19 @@ static void flush(void) {
         glow_draws[nglow].s = *s;
         glow_draws[nglow].pc = pc;
         glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
+        glow_draws[nglow].kind = 0;
         glow_draws[nglow++].count = (uint32_t)n;
+    }
+    if (glow_pipeline && post_motion() && rendering == post_target && (s->flags & 1792u) > 256u && !s->blend &&
+        s->depth_write) {
+        for (int kind = 1; kind <= (cam != ~0u ? 2 : 1) && nglow < MAX_GLOW_DRAWS; kind++) {
+            glow_draws[nglow].s = *s;
+            glow_draws[nglow].pc = pc;
+            glow_draws[nglow].pc.flags |= 16384u;
+            glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
+            glow_draws[nglow].kind = kind;
+            glow_draws[nglow++].count = (uint32_t)n;
+        }
     }
     /* what is solid in the world casts shadows: drawn again into the shadow map - blended over what is there by its
      * alpha too (much of the scenery is), where it is more than half opaque */
@@ -2143,12 +2170,19 @@ static void post_run(Target *t) {
         VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
         vkCmdSetViewport(cmd, 0, 1, &vp);
         vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
-        VkBool32 yes = VK_TRUE;
-        vk.SetColorBlendEnable(cmd, 0, 1, &yes);
-        VkColorComponentFlags all = 0xF;
-        vk.SetColorWriteMask(cmd, 0, 1, &all);
+        VkBool32 yes = VK_TRUE, no = VK_FALSE;
+        VkColorComponentFlags rgb = 0x7, alpha = 0x8;
+        VkPipeline bound = glow_pipeline;
         for (int i = 0; i < nglow; i++) {
             const DrawState *d = &glow_draws[i].s;
+            int kind = glow_draws[i].kind;
+            VkPipeline p = kind == 2 ? glow_tess_pipeline : glow_pipeline;
+            if (!p)
+                continue;
+            if (p != bound)
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound = p);
+            vk.SetColorBlendEnable(cmd, 0, 1, kind ? &no : &yes);
+            vk.SetColorWriteMask(cmd, 0, 1, kind ? &alpha : &rgb);
             VkRect2D sc = d->scissor;
             if (sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
                 continue;
@@ -2158,7 +2192,12 @@ static void post_run(Target *t) {
                 sc.extent.height = fh - (uint32_t)sc.offset.y;
             vkCmdSetScissor(cmd, 0, 1, &sc);
             vkCmdSetDepthTestEnable(cmd, d->depth_test);
-            vkCmdSetDepthCompareOp(cmd, d->depth_op);
+            VkCompareOp op = d->depth_op;       /* (the hunter's own depth: drawn again, it passes) */
+            if (kind && op == VK_COMPARE_OP_GREATER)
+                op = VK_COMPARE_OP_GREATER_OR_EQUAL;
+            if (kind && op == VK_COMPARE_OP_LESS)
+                op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            vkCmdSetDepthCompareOp(cmd, op);
             vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
             vkCmdSetBlendConstants(cmd, d->blend_const);
             vkCmdSetCullMode(cmd, d->cull);
@@ -2208,6 +2247,21 @@ static void post_run(Target *t) {
             f.focus = sqrtf(fl);
         }
     }
+    /* the motion since the last frame: this frame's camera space to the world, to the last's camera, its screen */
+    static float prev_view[16], prev_world_inv[16];
+    static int prev_ok;
+    if (invert4(m4, inv)) {
+        if (prev_ok) {
+            float a[16];
+            mul4(prev_world_inv, m4, a);
+            mul4(prev_view, a, f.to_prev);
+            f.moved = 1;
+        }
+        memcpy(prev_view, post_view, sizeof prev_view);
+        memcpy(prev_world_inv, inv, sizeof prev_world_inv);
+        prev_ok = 1;
+    } else
+        prev_ok = 0;
     float top = fmaxf(sun_rgb[0], fmaxf(sun_rgb[1], sun_rgb[2]));
     for (int k = 0; k < 3; k++)                 /* its hue, half way to white */
         f.sun_color[k] = 0.5f + 0.5f * (top > 0 ? sun_rgb[k] / top : 1.0f);

@@ -75,7 +75,7 @@ strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's s
 game's units), `MHFU_BLOB_SHADOWS=1` (the game's round shadows under the hunter's and monsters' feet kept: left out otherwise, while the sun's shadows are drawn), `MHFU_TESSELLATION=0` (the hunter, monsters and people drawn
 rounder: their triangles cut finer up close and curved by their normals; on otherwise), `MHFU_SWAY=1` (how far grass, bushes and leaves sway in the wind - and bend away from the hunter and
 monsters walking through them; 0 none), `MHFU_POST=0` (none of the
-picture's post-processing: bloom, light shafts, depth of field, sharpening, colour grading), `MHFU_BLOOM=3` (the glow round fires and effects, and
+picture's post-processing: motion blur, bloom, light shafts, depth of field, sharpening, colour grading), `MHFU_MOTION_BLUR=0.5` (motion blur as the camera moves: how long the shutter stays open, a share of the game's 30th of a second - the hunter, monsters and people kept sharp; 0 none), `MHFU_BLOOM=3` (the glow round fires and effects, and
 the brightest light; 0 none), `MHFU_SHAFTS=0` (light shafts: the sunlight the air scatters past what shades it, e.g. 1;
 the game's sun stands high, so they show little), `MHFU_DOF=0` (depth of field: what is beyond the hunter blurred, the more the
 farther; e.g. 0.5 or 1), `MHFU_SHARPEN=0.4` (texture detail
