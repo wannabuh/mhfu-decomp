@@ -14,7 +14,7 @@ struct LightSet {
 };
 layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
 
-// The trodden grass (grass.c grass_trail): a window of 128 x 128 cells of 6 units, wrapping, each the way and how far
+// The trodden grass (grass.c grass_trail): a window of 256 x 256 cells of 6 units, wrapping, each the way and how far
 // it is pressed (snorm16 x, z); this frame's from trail on
 layout(std430, set = 0, binding = 4) readonly buffer Trail { uint trail_cells[]; };
 
@@ -27,7 +27,7 @@ layout(push_constant) uniform Grass {
     int trail_x, trail_z;
 } g;
 
-const int TRAIL = 128;
+const int TRAIL = 256;
 const float TRAIL_CELL = 6.0;
 
 vec2 trodden(vec2 xz) {
