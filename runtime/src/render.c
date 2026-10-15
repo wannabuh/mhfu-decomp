@@ -12,6 +12,7 @@
 #include "render.h"
 
 #include "hle.h"
+#include "post.h"
 #include "vk.h"
 
 #include <SDL3/SDL.h>
@@ -39,7 +40,13 @@ int render_on;
 #define VERTEX_BYTES (64u << 20)
 #define STAGING_BYTES (64u << 20)
 
-typedef struct { float x, y, z, w, u, v; uint32_t color; float fog, wx, wy, wz; uint32_t sun; int16_t n[4]; } GpuVertex;
+typedef struct GpuVertex {
+    float x, y, z, w, u, v;
+    uint32_t color;
+    float fog, wx, wy, wz;
+    uint32_t sun;
+    int16_t n[4];
+} GpuVertex;
 
 /* Lighting by the pixel: the sets of directional lights draws use (gpu.c gives them), in a storage buffer - half of it
  * each frame in flight - a draw naming its set */
@@ -64,6 +71,9 @@ static int nemitters, emitting, point_lights_on = -1;
 static double emit_sum[7];          /* the draw being batched: weight, weighted position and colour */
 static float tex_average[MAX_TEXTURES][3];
 static uint8_t tex_cutout[MAX_TEXTURES];     /* the texture has holes (the alpha test's: leaves, grass) */
+#define HOLE_GRID 16
+static uint8_t (*tex_holes)[HOLE_GRID * HOLE_GRID];  /* where: each of 16 x 16 parts' share of holes (0-255) - if
+                                                         * it is a plant's colour (green, olive, dry brown), else 0 */
 static LightSet point_lights[2];    /* the lights for the frame being made (two sets of four) */
 static float view_center[3];        /* where the camera looks (the shadow map's centre), in the world */
 
@@ -118,6 +128,24 @@ static struct Target *ao_applied;       /* it has its occlusion (until it is cle
 static int ao_used;                     /* times this frame */
 /* its passes' push constants (ao_common.glsl) */
 typedef struct { float to_view[16], params[4], params2[4], area[4], lights[4][4], colors[4][4]; } AoPush;
+/* Post-processing (post.c), once the world is drawn - at the first thing drawn over it that is not in the world (the
+ * HUD), or at the flip: the world's camera, the target, and what adds light to the world (fire, glows), drawn again
+ * into post.c's glow image at the time */
+#define MAX_GLOW_DRAWS 2048
+static int nglow;
+static VkPipeline glow_pipeline;
+static struct Target *post_target, *post_done;
+static float post_view[16], post_world_view[12];
+static float sun_rgb[3] = {1, 1, 1};    /* the sun's colour (the GE's light that is the sun) */
+static int shadow_drawn;                /* the shadow map was drawn this frame */
+
+/* Wind: grass, bushes and leaves sway - the triangles of the scenery whose part of the texture is mostly holes and a
+ * plant's colour, their corners moved by their height above their feet, placed on the screen again, at flush
+ * (MHFU_SWAY: how far, 0 none) */
+static float sway = -1.0f;
+static struct GpuVertex *sway_verts;      /* the batch's vertices as put (the mapped buffer is slow to read) */
+static size_t sway_cap;
+static double sway_clock = -1.0;        /* the moment shown, in seconds (gpu.c), or -1: the game's frame */
 
 typedef struct Target {
     uint32_t addr;                  /* VRAM address, mirror bits off */
@@ -153,6 +181,13 @@ typedef struct {
     VkFrontFace front;
     uint32_t lights;                /* its light set (by the pixel), ~0: none */
 } DrawState;
+
+/* Whether a draw may sway in the wind: what has holes in its texture in the world, lit beforehand (the scenery) -
+ * which of its triangles are a plant's, sway_batch says */
+static int swaying(const DrawState *d) {
+    return sway > 0 && (d->flags & 1792u) == 256u && d->depth_write && d->tex_slot < MAX_TEXTURES &&
+           tex_cutout[d->tex_slot];
+}
 
 /* Whether a draw is shaded by the sun: the solid scenery (not what has holes in its texture - leaves, grass, whose
  * cards' normals mean nothing - nor what writes no depth or adds to the picture) */
@@ -246,6 +281,12 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         att.alphaBlendOp = VK_BLEND_OP_ADD;
         att.colorWriteMask = 7;
     }
+    if (ge == 5) {                      /* added to what is there */
+        att.blendEnable = VK_TRUE;
+        att.srcColorBlendFactor = att.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        att.srcAlphaBlendFactor = att.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        att.colorBlendOp = att.alphaBlendOp = VK_BLEND_OP_ADD;
+    }
     if (ge == 3) {                      /* the point lights' (depth: the distance, written by the shader): no bias */
         ri.colorAttachmentCount = 0;
         cb.attachmentCount = 0;
@@ -276,6 +317,12 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         exit(1);
     }
     return p;
+}
+
+/* post.c's passes: a full-screen triangle (blend: added to what is there) */
+static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat color, int blend) {
+    return make_pipeline(vk_shader(present_vert, sizeof present_vert), fs, pl, color, VK_FORMAT_UNDEFINED,
+                         blend ? 5 : 0);
 }
 
 /* window.c: the internal resolution to use unless MHFU_SCALE says (enough for the screen's lines) */
@@ -463,7 +510,10 @@ int render_init(void *sdl_window) {
     shadow_cmd = shadow_cmds[0];
     vkAllocateCommandBuffers(vk.device, &cai, point_cmds);
     point_cmd = point_cmds[0];
+    tex_holes = calloc(MAX_TEXTURES, sizeof *tex_holes);
     ao_init();
+    if (post_init(scale, shadow_img.view, shadow_sampler, post_pipeline))
+        glow_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -674,6 +724,34 @@ static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         for (int k = 0; k < 3; k++)
             tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
         tex_cutout[t->slot] = holes * 50 > n;
+        if (tex_holes) {                /* where the holes are */
+            uint32_t cnt[HOLE_GRID * HOLE_GRID] = {0}, hole[HOLE_GRID * HOLE_GRID] = {0};
+            uint32_t rgb[HOLE_GRID * HOLE_GRID][3] = {{0}};
+            int sx = w > 64 ? w / 64 : 1, sy = h > 64 ? h / 64 : 1;
+            for (int y = 0; y < h; y += sy)
+                for (int x = 0; x < w; x += sx) {
+                    int cell = (y * HOLE_GRID / h) * HOLE_GRID + x * HOLE_GRID / w;
+                    uint32_t c = px[y * w + x];
+                    cnt[cell]++;
+                    if ((c >> 24) < 128) {
+                        hole[cell]++;
+                    } else {
+                        rgb[cell][0] += c & 255;
+                        rgb[cell][1] += (c >> 8) & 255;
+                        rgb[cell][2] += (c >> 16) & 255;
+                    }
+                }
+            for (int c = 0; c < HOLE_GRID * HOLE_GRID; c++) {
+                float k = cnt[c] > hole[c] ? 1.0f / (255.0f * (float)(cnt[c] - hole[c])) : 0;
+                float r = (float)rgb[c][0] * k, g = (float)rgb[c][1] * k, b = (float)rgb[c][2] * k;
+                float hi = fmaxf(r, fmaxf(g, b)), lo = fminf(r, fminf(g, b));
+                /* green (however dark or pale), or olive to dry brown - saturated, and not bright (paper); not grey
+                 * (metal, snow) */
+                int plant = hi > 0 && ((g >= fmaxf(r, b) && hi - lo >= 0.06f * hi) ||
+                                       (g >= 0.55f * r && g >= 0.9f * b && hi - lo >= 0.25f * hi && hi <= 0.75f));
+                tex_holes[t->slot][c] = (uint8_t)(cnt[c] && plant ? hole[c] * 255 / cnt[c] : 0);
+            }
+        }
     }
     if (t->w != w || t->h != h) {
         retire(&t->img);
@@ -866,6 +944,8 @@ static void ao_apply(Target *t) {
     ao_draw(t->color.view, fw, fh, ao_apply_pipeline, sets[3], &pc, 1);
 }
 
+static void post_run(Target *t);
+
 void render_prim_begin(const uint32_t *reg) {
     if (emitting)
         flush_emitter();            /* the last primitive's light (each its own, batched or not) */
@@ -976,6 +1056,20 @@ void render_prim_begin(const uint32_t *reg) {
         memcpy(ao_view, prim_view, sizeof ao_view);
         memcpy(ao_world_view, prim_world_view, sizeof ao_world_view);
     }
+    /* and once the world is drawn, at the first thing over it not in it, the post-processing (once, until cleared) */
+    if (post_target && s.target == post_target && !(s.flags & 256u) && !clear) {
+        flush();
+        post_run(post_target);
+    }
+    if (clear && s.target == post_done)
+        post_done = NULL;
+    if (glow_pipeline && (s.flags & 256u) && s.target != post_done) {
+        post_target = s.target;
+        if (solid) {
+            memcpy(post_view, prim_view, sizeof post_view);
+            memcpy(post_world_view, prim_world_view, sizeof post_world_view);
+        }
+    }
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;
@@ -984,6 +1078,7 @@ void render_prim_begin(const uint32_t *reg) {
         point_lights_on = !getenv("MHFU_POINT_LIGHTS") || atoi(getenv("MHFU_POINT_LIGHTS")) != 0;
         point_shadows_on = !getenv("MHFU_POINT_SHADOWS") || atoi(getenv("MHFU_POINT_SHADOWS")) != 0;
         sun_shading = !getenv("MHFU_SUN_SHADING") || atoi(getenv("MHFU_SUN_SHADING")) != 0;
+        sway = getenv("MHFU_SWAY") ? (float)atof(getenv("MHFU_SWAY")) : 1.0f;
         if (getenv("MHFU_POINT_GAIN"))
             point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
@@ -998,6 +1093,9 @@ typedef struct {
     uint32_t points, pad2[3];       /* the point lights' two sets (or ~0: none) */
 } PushConstants;
 
+/* A draw adding light to the world, kept to be drawn again into the glow */
+static struct { DrawState s; PushConstants pc; uint32_t first, count; } glow_draws[MAX_GLOW_DRAWS];
+
 /* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
 static void shadow_begin(void) {
     if (shadow_recording)
@@ -1006,6 +1104,7 @@ static void shadow_begin(void) {
                                    VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL};
     vkBeginCommandBuffer(shadow_cmd, &bi);
     shadow_recording = 1;
+    shadow_drawn = 1;
     VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
         VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
@@ -1143,6 +1242,8 @@ void render_prim_lights(int n, const float *dirs, const float *colors, int sun) 
     memcpy(l.color, colors, sizeof(float) * 4 * (size_t)n);
     l.count = (uint32_t)n;
     l.sun = sun < 0 ? 99u : (uint32_t)sun;
+    if (sun >= 0 && sun < n)
+        memcpy(sun_rgb, colors + 4 * sun, sizeof sun_rgb);
     if (prim_lights != ~0u && light_sets_used && !memcmp(&l, &last_lights, sizeof l))
         return;
     if (light_sets_used >= LIGHT_SETS - 2) {     /* (the last two: the point lights) */
@@ -1394,6 +1495,133 @@ static void make_normals(size_t n) {
     }
 }
 
+/* gpu.c: the moment the frame shows, in seconds (-1: the game's own frame, drawn as it runs) */
+void render_time(double seconds) {
+    sway_clock = seconds;
+}
+
+unsigned long present_frame_number(void);
+
+/* The batch's n vertices (triangles) moved by the wind */
+static void sway_batch(size_t n) {
+    float wv[16] = {0}, vw[16], m[16];
+    for (int c = 0; c < 4; c++)
+        for (int i = 0; i < 3; i++)
+            wv[4 * c + i] = prim_world_view[3 * c + i];
+    wv[15] = 1;
+    if (!invert4(wv, vw))
+        return;
+    for (int c = 0; c < 4; c++)             /* the world to the screen (PSP pixels, depth over 65535) */
+        for (int r = 0; r < 4; r++) {
+            float v = 0;
+            for (int k = 0; k < 4; k++)
+                v += prim_view[4 * k + r] * vw[4 * c + k];
+            m[4 * c + r] = v;
+        }
+    double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
+    float t = (float)fmod(now, 3600.0), amp = 7.0f * sway;
+    const float wind[3] = {0.8f, 0.0f, 0.6f};
+    GpuVertex *g = sway_verts, *out = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
+    const uint8_t *holes = tex_holes[cur.tex_slot];
+    float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
+    /* the corners at one place (welded: a mesh's triangles share them) move as one: by their height above the lowest
+     * foot of their triangles; held where a triangle that is not a plant's meets them (a branch on its trunk) */
+    static uint32_t *table, *owner;
+    static float *foot;
+    static uint8_t *held;
+    static size_t cap, table_cap;
+    if (n > cap) {
+        cap = n * 2;
+        owner = realloc(owner, cap * sizeof *owner);
+        foot = realloc(foot, cap * sizeof *foot);
+        held = realloc(held, cap);
+    }
+    size_t tsize = 1024;
+    while (tsize < n * 2)
+        tsize *= 2;
+    if (tsize > table_cap) {
+        table_cap = tsize;
+        table = realloc(table, table_cap * sizeof *table);
+    }
+    memset(table, 0, tsize * sizeof *table);
+    int any = 0;
+    for (size_t tri = 0; tri + 3 <= n; tri += 3) {
+        /* a plant's: the part of the texture it shows is mostly holes (between blades, leaves) and a plant's colour -
+         * not the bark, rope, wood, paper or cloth sharing the texture with them */
+        float cu = (g[tri].u + g[tri + 1].u + g[tri + 2].u) / 3, cv = (g[tri].v + g[tri + 1].v + g[tri + 2].v) / 3;
+        int share = 0;
+        for (int k = -1; k < 3; k++) {
+            float u = k < 0 ? cu : 0.6f * g[tri + k].u + 0.4f * cu, v = k < 0 ? cv : 0.6f * g[tri + k].v + 0.4f * cv;
+            u /= tw;
+            v /= th;
+            u -= floorf(u);
+            v -= floorf(v);
+            int cx = (int)(u * HOLE_GRID), cy = (int)(v * HOLE_GRID);
+            share += holes[(cy < HOLE_GRID ? cy : HOLE_GRID - 1) * HOLE_GRID + (cx < HOLE_GRID ? cx : HOLE_GRID - 1)];
+        }
+        int plant = share >= 4 * 70;    /* (more than about a quarter holes) */
+        any |= plant;
+        float f = fminf(g[tri].wy, fminf(g[tri + 1].wy, g[tri + 2].wy));
+        for (size_t i = tri; i < tri + 3; i++) {
+            uint32_t hb[3];
+            memcpy(hb, &g[i].wx, sizeof hb);
+            uint32_t x = (hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du);
+            x ^= x >> 15;
+            size_t j = x & (tsize - 1);
+            for (;;) {
+                uint32_t e = table[j];
+                if (!e) {
+                    table[j] = (uint32_t)i + 1;
+                    owner[i] = (uint32_t)i;
+                    foot[i] = f;
+                    held[i] = !plant;
+                    break;
+                }
+                if (!memcmp(&g[e - 1].wx, &g[i].wx, sizeof hb)) {
+                    owner[i] = e - 1;
+                    foot[e - 1] = fminf(foot[e - 1], f);
+                    held[e - 1] |= !plant;
+                    break;
+                }
+                j = (j + 1) & (tsize - 1);
+            }
+        }
+    }
+    if (!any)
+        return;
+    for (size_t i = 0; i < n - n % 3; i++) {
+        GpuVertex *v = &g[i];
+        uint32_t o = owner[i];
+        float h = v->wy - foot[o];
+        if (held[o] || h <= 0.5f || v->w <= 0)
+            continue;
+        float wgt = fminf(fmaxf(h - 10.0f, 0.0f) / 80.0f, 1.0f);      /* (small cards hardly) */
+        wgt *= sqrtf(wgt);
+        float ph = v->wx * 0.0041f + v->wz * 0.0033f;
+        float gust = 0.55f + 0.45f * sinf(t * 0.37f + v->wx * 0.0006f - v->wz * 0.0004f);
+        float sw = 0.7f * sinf(t * 1.9f + ph * 6.2832f) + 0.3f * sinf(t * 3.7f + ph * 11.0f);
+        float d = (sw + 0.4f) * gust * amp * wgt;
+        float dw[3] = {wind[0] * d, -0.1f * fabsf(d), wind[2] * d};
+        float p[4], q[4];
+        for (int r = 0; r < 4; r++) {
+            p[r] = m[r] * v->wx + m[4 + r] * v->wy + m[8 + r] * v->wz + m[12 + r];
+            q[r] = p[r] + m[r] * dw[0] + m[4 + r] * dw[1] + m[8 + r] * dw[2];
+        }
+        if (p[3] <= 0 || q[3] <= 0)
+            continue;
+        float w = v->w * q[3] / p[3], z = q[2] / q[3];
+        GpuVertex moved = *v;
+        moved.x = (q[0] / q[3] / (RT_SIZE / 2.0f) - 1.0f) * w;
+        moved.y = (q[1] / q[3] / (RT_SIZE / 2.0f) - 1.0f) * w;
+        moved.z = (z < 0 ? 0 : z > 1 ? 1 : z) * w;
+        moved.w = w;
+        moved.wx += dw[0];              /* (its shadow sways too) */
+        moved.wy += dw[1];
+        moved.wz += dw[2];
+        out[i] = moved;
+    }
+}
+
 static void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
     if (!n || !rendering) {
@@ -1402,6 +1630,8 @@ static void flush(void) {
     }
     if (shaded(&cur))
         make_normals((size_t)n);
+    if (swaying(&cur))
+        sway_batch((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
@@ -1433,6 +1663,15 @@ static void flush(void) {
         pc.flags |= 4096u;
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+    /* what adds light to the world: kept for the glow */
+    if (glow_pipeline && rendering == post_target && (s->flags & 256u) && s->blend &&
+        s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE && s->eq.colorBlendOp == VK_BLEND_OP_ADD &&
+        nglow < MAX_GLOW_DRAWS) {
+        glow_draws[nglow].s = *s;
+        glow_draws[nglow].pc = pc;
+        glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
+        glow_draws[nglow++].count = (uint32_t)n;
+    }
     /* what is solid in the world casts shadows: drawn again into the shadow map - blended over what is there by its
      * alpha too (much of the scenery is), where it is more than half opaque */
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
@@ -1483,7 +1722,7 @@ static void flush(void) {
 static void put(const RVertex *v, float x, float y, float u, float vv, int sprite) {
     if (vertex_used + sizeof(GpuVertex) > VERTEX_BYTES)
         return;
-    GpuVertex *g = (GpuVertex *)((uint8_t *)vertices.map + vertex_used);
+    GpuVertex vert, *g = &vert;         /* (made here, written to the mapped buffer once: it is slow to read) */
     float w = sprite ? 1.0f : 1.0f / v->rw;
     float z = v->z / 65535.0f;
     z = z < 0 ? 0 : z > 1 ? 1 : z;
@@ -1509,6 +1748,14 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->n[1] = (int16_t)(v->ny * k);
     g->n[2] = (int16_t)(v->nz * k);
     g->n[3] = 0;
+    if (swaying(&cur)) {
+        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
+        if (i >= sway_cap) {
+            sway_cap = sway_cap ? sway_cap * 2 : 65536;
+            sway_verts = realloc(sway_verts, sway_cap * sizeof *sway_verts);
+        }
+        sway_verts[i] = vert;
+    }
     if (shaded(&cur)) {
         size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
         if (i >= corners_cap) {
@@ -1527,6 +1774,7 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
         emit_sum[5] += wgt * gg / 255.0;
         emit_sum[6] += wgt * b / 255.0;
     }
+    memcpy((uint8_t *)vertices.map + vertex_used, &vert, sizeof vert);
     vertex_used += sizeof(GpuVertex);
 }
 
@@ -1573,11 +1821,108 @@ void render_vram_written(uint32_t addr, uint32_t size) {
     (void)addr; (void)size;     /* TODO: upload into a render target the region covers */
 }
 
+/* -- post-processing ---------------------------------------------------------------------------------------------- */
+
+/* The world is drawn into t: what added light to it drawn again into the glow (against its depth), then post.c's
+ * passes over it */
+static void post_run(Target *t) {
+    post_target = NULL;
+    post_done = t;
+    if (!glow_pipeline)
+        return;
+    end_rendering();
+    VkImg *g = post_glow();
+    uint32_t fw = 480u * (uint32_t)scale, fh = 272u * (uint32_t)scale, px = (uint32_t)(RT_SIZE * scale);
+    vk_transition(g, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, g->view,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {fw, fh}}, 1, 0, 1, &ca, &da, NULL};
+    VkCommandBuffer cmd = vk_cmd();
+    vkCmdBeginRendering(cmd, &ri);
+    if (nglow) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, glow_pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
+        VkDeviceSize zero = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
+        VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
+        vkCmdSetViewport(cmd, 0, 1, &vp);
+        vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
+        VkBool32 yes = VK_TRUE;
+        vk.SetColorBlendEnable(cmd, 0, 1, &yes);
+        VkColorComponentFlags all = 0xF;
+        vk.SetColorWriteMask(cmd, 0, 1, &all);
+        for (int i = 0; i < nglow; i++) {
+            const DrawState *d = &glow_draws[i].s;
+            VkRect2D sc = d->scissor;
+            if (sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
+                continue;
+            if (sc.offset.x + sc.extent.width > fw)
+                sc.extent.width = fw - (uint32_t)sc.offset.x;
+            if (sc.offset.y + sc.extent.height > fh)
+                sc.extent.height = fh - (uint32_t)sc.offset.y;
+            vkCmdSetScissor(cmd, 0, 1, &sc);
+            vkCmdSetDepthTestEnable(cmd, d->depth_test);
+            vkCmdSetDepthCompareOp(cmd, d->depth_op);
+            vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
+            vkCmdSetBlendConstants(cmd, d->blend_const);
+            vkCmdSetCullMode(cmd, d->cull);
+            vkCmdSetFrontFace(cmd, d->front);
+            vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                               sizeof glow_draws[i].pc, &glow_draws[i].pc);
+            vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
+        }
+    }
+    vkCmdEndRendering(cmd);
+    nglow = 0;
+    last_valid = 0;
+    /* the camera, the sun, the shadow map */
+    PostFrame f;
+    memset(&f, 0, sizeof f);
+    float m4[16] = {0}, inv[16];
+    for (int c = 0; c < 4; c++)
+        for (int i = 0; i < 3; i++)
+            m4[4 * c + i] = post_world_view[3 * c + i];
+    m4[15] = 1;
+    if (invert4(post_view, f.to_view) && invert4(m4, inv)) {
+        f.shadows = shadow_on && shadow_drawn;
+        for (int c = 0; c < 4; c++)
+            for (int r = 0; r < 4; r++) {
+                float v = 0;
+                for (int k = 0; k < 4; k++)
+                    v += light_vp[4 * k + r] * m4[4 * c + k];
+                f.to_shadow[4 * c + r] = v;
+            }
+        float sw[3] = {-light_vp[2], -light_vp[6], -light_vp[10]}, len = 0;
+        for (int k = 0; k < 3; k++) {
+            f.sun[k] = inv[k] * sw[0] + inv[4 + k] * sw[1] + inv[8 + k] * sw[2];
+            len += f.sun[k] * f.sun[k];
+        }
+        len = sqrtf(len);
+        for (int k = 0; k < 3; k++)
+            f.sun[k] = len > 0 ? f.sun[k] / len : 0;
+        if (!(len > 0))
+            f.shadows = 0;
+    }
+    float top = fmaxf(sun_rgb[0], fmaxf(sun_rgb[1], sun_rgb[2]));
+    for (int k = 0; k < 3; k++)                 /* its hue, half way to white */
+        f.sun_color[k] = 0.5f + 0.5f * (top > 0 ? sun_rgb[k] / top : 1.0f);
+    post_apply(&t->color, &t->depth, &f);
+}
+
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
 static void end_frame(void) {
     ao_target = ao_applied = NULL;
     ao_used = 0;
+    post_target = post_done = NULL;
+    nglow = 0;
+    shadow_drawn = 0;
+    post_end_frame();
     extra_used = extra_batch = 0;
     if (emitting)
         flush_emitter();
@@ -1608,6 +1953,8 @@ void render_finish_frame(void) {
 void render_flip(uint32_t addr) {
     if (ao_target)
         ao_apply(ao_target);
+    if (post_target)
+        post_run(post_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!vk.surface || !t) {
@@ -1670,6 +2017,8 @@ void render_flip(uint32_t addr) {
 uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
     if (ao_target)
         ao_apply(ao_target);
+    if (post_target)
+        post_run(post_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!t)
@@ -1693,6 +2042,8 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
 void render_readback(uint32_t addr, uint32_t *pixels) {
     if (ao_target)
         ao_apply(ao_target);
+    if (post_target)
+        post_run(post_target);
     end_rendering();
     Target *t = target(addr, 0);
     if (!t) {

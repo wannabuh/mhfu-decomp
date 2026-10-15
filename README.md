@@ -71,7 +71,11 @@ game turns the camera away from walls itself, as on the PSP: otherwise it stays 
 `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, lighting by the pixel, lights
 from the game's fires and their shadows, ambient occlusion: all on otherwise), `MHFU_POINT_GAIN=1` (the fires' lights'
 strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's strength, and how far it looks, in the
-game's units), `MHFU_INTRO=1` (play the intros:
+game's units), `MHFU_SWAY=1` (how far grass, bushes and leaves sway in the wind; 0 none), `MHFU_POST=0` (none of the
+picture's post-processing: bloom, light shafts, colour grading), `MHFU_BLOOM=3` (the glow round fires and effects, and
+the brightest light; 0 none), `MHFU_SHAFTS=0` (light shafts: the sunlight the air scatters past what shades it, e.g. 1;
+the game's sun stands high, so they show little), `MHFU_SATURATION=1.08`, `MHFU_CONTRAST=1.05`, `MHFU_WARMTH=0`
+(below 0 cooler, above warmer), `MHFU_VIGNETTE=0.2` (the corners darkened), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
 
 To get back somewhere quickly - into a quest, say - record playing there once, `MHFU_RECORD=quest.rec`, then start

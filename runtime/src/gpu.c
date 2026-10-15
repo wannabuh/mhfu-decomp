@@ -173,6 +173,8 @@ void render_prim_world(int on);
 void render_prim_view(const float *screen_from_view, const float *world_from_view);
 void camera_invert(const float *v, float *out);
 void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
+void render_time(double seconds);
+unsigned long present_frame_number(void);
 
 #define SHADOW_HALF 1500.0f         /* the shadow map covers this far each way from what the camera looks at */
 #define SHADOW_RANGE 6000.0f        /* and this far towards and away from the sun */
@@ -1450,6 +1452,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(sb, bones, sizeof sb);
     shown_frames++;
     placed_run = -1;
+    render_time(((double)present_frame_number() - 1.0 + t) / 30.0);
     int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
     camera_frames_late(frames_late);
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
@@ -1466,6 +1469,7 @@ uint32_t gpu_render_frame(float t) {
     }
     recording = 1;
     in_replay = 0;
+    render_time(-1.0);
     memcpy(reg, saved, sizeof reg);
     vaddr = sv;
     iaddr = si;
