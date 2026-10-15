@@ -22,7 +22,7 @@ layout(location = 4) out vec3 out_sun;
 layout(location = 5) out vec3 out_normal;
 layout(location = 6) out vec3 out_world;
 layout(location = 7) out vec4 out_shape;    // (tessellated: the normal that curves it, and which of its triangle's
-                                            // edges stay straight - render.c shape_normals)
+                                            // edges stay straight - render_shading.c shape_normals)
 layout(location = 8) out vec3 out_motion;
 
 void main() {

@@ -13,7 +13,7 @@ layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet
 // The trodden grass (grass.c grass_trail): a window of 256 x 256 cells of 6 units, wrapping, each the way and how far
 // it is pressed (snorm16 x, z); this frame's from trail on
 layout(std430, set = 0, binding = BIND_TRAIL) readonly buffer Trail { uint trail_cells[]; };
-// The world's ambient occlusion (render.c's, at half resolution: the light left, the distance), drawn before the grass
+// The world's ambient occlusion (render_ao.c's, at half resolution: the light left, the distance), drawn before the grass
 layout(set = 0, binding = BIND_AO) uniform sampler2D ao_map;
 
 // camera: the set holding the world to the clip space (dir: its columns), the eye (color[0]), the time, the wind's

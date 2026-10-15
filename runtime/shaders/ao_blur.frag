@@ -1,5 +1,5 @@
 #version 450
-// Ambient occlusion (render.c): blurred one way at half resolution, as much as the neighbours are at the same distance
+// Ambient occlusion (render_ao.c): blurred one way at half resolution, as much as the neighbours are at the same distance
 // (another thing's doesn't mix in).
 #include "ao_common.glsl"
 layout(location = 0) out vec4 out_ao;

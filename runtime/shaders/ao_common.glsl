@@ -1,5 +1,5 @@
 #include "shared.h"
-// Ambient occlusion (render.c): what its passes share - the world's depth and how to place a pixel of it in the
+// Ambient occlusion (render_ao.c): what its passes share - the world's depth and how to place a pixel of it in the
 // camera's space.
 layout(set = 0, binding = 0) uniform sampler2D source;  // the pass's input (the depth, or the occlusion)
 layout(set = 0, binding = 1) uniform sampler2D depth;   // the render target's depth (full resolution)

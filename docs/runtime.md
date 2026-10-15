@@ -19,9 +19,9 @@ for the rest, in the order it is needed to boot.
 - **GE** (`ge.c`): display lists walked (jumps, calls, stalls, FINISH / SIGNAL callbacks), each command to the
   renderer. `gpu.c` draws in software into emulated VRAM: sprites (textured or not, all but the DXT formats), the
   texture functions, alpha test, blending, clear mode, block transfers. No triangles or 3D yet.
-- **Vulkan renderer** (`render.c`, `vk.c`, `runtime/shaders/`): the default. The software GE still decodes,
-  transforms, lights, clips and culls; the GPU rasterizes, textures, blends and depth-tests, at `MHFU_SCALE` times the
-  PSP's resolution (default 2). One pipeline with dynamic state, bindless textures cached by content, render targets
+- **Vulkan renderer** (`render.c` and its parts `render_*.c` - see `render_internal.h` - `vk.c`, `runtime/shaders/`
+  with `shared.h`): the default. The software GE still decodes, transforms, lights, clips and culls; the GPU
+  rasterizes, textures, blends and depth-tests, at `MHFU_SCALE` times the PSP's resolution (default 2). One pipeline with dynamic state, bindless textures cached by content, render targets
   per framebuffer address (render to texture included). `MHFU_RENDERER=soft` draws in software instead;
   `MHFU_VK_VALIDATE=1` turns on the validation layer.
 - **Frames** (`present.c`): written as PNGs (`MHFU_DUMP=N`: every Nth frame, to `build/frames/`); no window yet.

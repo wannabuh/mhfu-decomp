@@ -24,8 +24,8 @@ int post_init(float scale, VkImageView shadow_view, VkSampler shadow_sampler, Po
 int post_on(void);
 int post_motion(void);       /* the motion blur is on */
 float post_frame_step(void);     /* the game's frames between two frames shown */
-VkImg *post_motion_image(void);  /* where render.c draws the hunter's, monsters' and people's motion (world: rgb; a 1) */
-VkImg *post_glow(void);         /* where render.c draws the light the effects add (fw x fh, cleared by it) */
+VkImg *post_motion_image(void);  /* where render_post.c draws the hunter's, monsters' and people's motion (world: rgb; a 1) */
+VkImg *post_glow(void);         /* where render_post.c draws the light the effects add (fw x fh, cleared by it) */
 void post_apply(VkImg *color, VkImg *depth, const PostFrame *f);
 void post_end_frame(void);
 

@@ -2,10 +2,10 @@
  *
  * - Motion blur: each pixel smeared along the way it moved on the screen since the last frame - from the depth,
  *   through the last frame's camera; the hunter, monsters and people by their own motion too (gpu.c places their
- *   vertices a frame earlier, render.c draws it into an image) - as long as the shutter of a camera filming at the
+ *   vertices a frame earlier, render_post.c draws it into an image) - as long as the shutter of a camera filming at the
  *   game's 30 frames a second stays open (MHFU_MOTION_BLUR: the share of the 30th of a second, 0 none). McGuire's
  *   reconstruction: what moves smears over what stands behind it.
- * - Bloom: the light the effects add (fire, glows - render.c draws those again into an image of their own, the glow)
+ * - Bloom: the light the effects add (fire, glows - render_post.c draws those again into an image of their own, the glow)
  *   and the brightest of the picture's own, spread by a chain of ever smaller images (each half the last) and added
  *   back up (MHFU_BLOOM: its strength, 0 none).
  * - Light shafts: the sunlight the air scatters towards the camera, marched through the sun's shadow map at half

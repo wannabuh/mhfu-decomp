@@ -1,233 +1,77 @@
-/* The Vulkan renderer: see render.h.
+/* The Vulkan renderer: see render.h; its parts: render_internal.h.
  *
  * Render targets: one per framebuffer address in VRAM, 512 x 512 PSP pixels at MHFU_SCALE times the resolution
  * (default 2), colour (RGBA8) and depth. Primitives are batched into draws while the GE's state stays the same; a draw's
  * state is set dynamically (one pipeline): blending, depth test and write, colour write mask, scissor; the texture is an
- * index into a bindless array, with the texture function and alpha test in push constants. Textures are decoded on the
- * CPU (by gpu.c) and cached by address, format, size and a hash of their data (checked once a frame); a texture whose
- * address is a render target's samples that render target. Frames are submitted and waited for at each flip.
+ * index into a bindless array (render_texture.c), with the texture function and alpha test in push constants. Frames
+ * are submitted and waited for at each flip.
+ *
+ * As a batch is flushed, the effects take their part: the scenery's normals and the wind (render_shading.c), the feet
+ * (render_scene.c), the shadow maps (render_shadow.c), the glow and motion (render_post.c); as the GE's state changes,
+ * the world's occlusion (render_ao.c, then the grass) and post-processing when the world is drawn.
+ *
+ * Rounder characters: what is lit by the pixel (it has normals: the hunter, monsters, people) is drawn tessellated -
+ * cut finer the longer its edges on the screen, curved by its normals (ge.tesc, ge.tese) - with the world's camera
+ * (clip space from the world) in a light set of its own (MHFU_TESSELLATION=0: none).
+ *
+ * The game's round shadows under the hunter's and monsters' feet: left out while the sun's shadows are drawn
+ * (MHFU_BLOB_SHADOWS=1: kept) - flat quads, blended over the ground without writing its depth, in a 128 x 128 CLUT8
+ * texture, their colour a dark grey (25).
  *
  * Not yet: the framebuffers' contents in VRAM for the CPU (nothing reads them back but frame dumps), block transfers
  * into framebuffers, stencil, logic ops, the blend factors the hardware lacks (doubled alphas). */
-#include "render.h"
+#include "render_internal.h"
 
-#include "hle.h"
 #include "grass.h"
+#include "hle.h"
 #include "post.h"
-#include "shared.h"
-#include "vk.h"
 
 #include <SDL3/SDL.h>
-#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "ge.vert.inc"
 #include "ge.frag.inc"
-#include "grass.vert.inc"
-#include "grass.frag.inc"
 #include "ge.tesc.inc"
 #include "ge.tese.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
-#include "shadow.vert.inc"
-#include "shadow.frag.inc"
-#include "pshadow.vert.inc"
-#include "pshadow.frag.inc"
-#include "ao.frag.inc"
-#include "ao_blur.frag.inc"
-#include "ao_apply.frag.inc"
 
 int render_on;
-
-#define RT_SIZE 512                 /* PSP pixels, square */
-#define MAX_TARGETS 32
-#define MAX_TEXTURES 4096
-#define VERTEX_BYTES (64u << 20)
-#define STAGING_BYTES (64u << 20)
-
-typedef struct GpuVertex {
-    float x, y, z, w, u, v;
-    uint32_t color;
-    float fog, wx, wy, wz;
-    uint32_t sun;
-    int16_t n[4];
-    uint16_t motion[4];                 /* (half floats) its motion in the world since the frame shown before */
-} GpuVertex;
-
-/* Lighting by the pixel: the sets of directional lights draws use (gpu.c gives them), in a storage buffer - half of it
- * each frame in flight - a draw naming its set */
-#define LIGHT_SETS 8192
-static VkBuf light_buf;
-static uint32_t light_sets_used, prim_lights = ~0u;
-static LightSet last_lights;
-
-/* Point lights: the game has none. What it draws adding to the picture in the world (fire, glows) is a light: each such
- * draw's vertices give a place and a colour (with its texture's average colour), those near each other are one light,
- * and the warm ones light the next frame around them (MHFU_POINT_LIGHTS=0: none) */
-#define MAX_EMITTERS 1024
-#define MAX_POINT_LIGHTS 8
-#define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
-#define POINT_LIGHT_RADIUS 900.0f       /* how far a light reaches */
-#define POINT_LIGHT_GAIN 1.0f
-static float point_gain = POINT_LIGHT_GAIN;     /* MHFU_POINT_GAIN: the lights' strength */
-typedef struct { float pos[3], color[3], weight; } Emitter;
-static Emitter emitters[MAX_EMITTERS];
-static int nemitters, emitting, point_lights_on = -1;
-static double emit_sum[7];          /* the draw being batched: weight, weighted position and colour */
-static float tex_average[MAX_TEXTURES][3];
-static uint8_t tex_cutout[MAX_TEXTURES];     /* the texture has holes (the alpha test's: leaves, grass) */
-#define HOLE_GRID 16
-static uint8_t (*tex_holes)[HOLE_GRID * HOLE_GRID];  /* where: each of 16 x 16 parts' share of holes (0-255) - if
-                                                         * it is a plant's colour (green, olive, dry brown), else 0 */
-static LightSet point_lights[2];    /* the lights for the frame being made (two sets of four) */
-static float view_center[3];        /* where the camera looks (the shadow map's centre), in the world */
-
-/* Shadows: the sun's depth over the world around the camera's target (gpu.c places it: SHADOW_SIZE), drawn each frame
- * from what is drawn in the world - the same vertices, in a command buffer of its own submitted before the frame's */
-static int shadow_size = 4096;         /* MHFU_SHADOW_RESOLUTION */
-#define SHADOW_SIZE ((uint32_t)shadow_size)
-
-/* gpu.c: the shadow map's size, to place it */
-int render_shadow_size(void) {
-    return shadow_size;
-}
-static VkImg shadow_img;
-static VkSampler shadow_sampler;
-static VkPipeline shadow_pipeline;
-static VkCommandBuffer shadow_cmd, shadow_cmds[2];
-static int shadow_recording, shadow_on, prim_world;
-static float light_vp[16];
-/* The point lights' shadows: the two strongest lights' cube maps (6 faces each, distance from the light over its
- * reach), drawn in one pass from what casts shadows - each draw once into all twelve faces (instances; the vertex
- * shader picks the face's layer) - in a command buffer of their own before the frame's */
-#define POINT_SHADOW_SIZE 512
-static VkImg point_img;
-static VkImageView point_cube[2];
-static VkSampler point_sampler;
-static VkPipeline point_pipeline;
-static VkCommandBuffer point_cmd, point_cmds[2];
-static int point_recording, point_shadows, point_shadows_next;
-static int point_shadows_on = 1;    /* MHFU_POINT_SHADOWS=0: none */
-/* What clipping at the camera's near plane cut off (behind the camera, it still casts shadows): whole, for the shadow
- * pass only, in a buffer of their own (one a frame in flight) */
-#define SHADOW_EXTRA_BYTES (8u << 20)
-static VkBuf shadow_extra[2], extra;
-static VkDeviceSize extra_used, extra_batch;
-/* The scenery's shading by the sun: it comes lit beforehand, without normals - they are made from its triangles, each
- * batch's (MHFU_SUN_SHADING=0: none): the batch's places in the world and on the screen, kept as they are put */
-static int sun_shading = -1;
-static int relief_on = 1;               /* and its relief from its textures' brightness (MHFU_RELIEF=0: none) */
-/* The game's round shadows under the hunter's and monsters' feet: left out while the sun's shadows are drawn
- * (MHFU_BLOB_SHADOWS=1: kept) - flat quads, blended over the ground without writing its depth, in a 128 x 128 CLUT8
- * texture, their colour a dark grey (25) */
-static int blob_shadows, blob_prim;
-typedef struct { float w[3], sx, sy; } Corner;
-static Corner *corners;
-static size_t corners_cap;
-/* Ambient occlusion: from the depth of the world once it is drawn (before what is drawn over it - the HUD), at half
- * resolution, blurred, multiplied into the picture (MHFU_AO=0: none; MHFU_AO_STRENGTH, MHFU_AO_RADIUS) */
-#define AO_FADE 6000.0f                 /* gone by this far */
-static int ao_on = -1;
-static float ao_strength = 2.0f, ao_radius = 120.0f;
-static VkImg ao_img[2];
-static VkPipeline ao_pipeline, ao_blur_pipeline, ao_apply_pipeline;
-static VkPipelineLayout ao_layout;
-static VkDescriptorSetLayout ao_set_layout;
-static VkDescriptorPool ao_pool;
-#define AO_PER_FRAME 8                  /* times a frame (the frame dumps draw it again) */
-static VkDescriptorSet ao_sets[2][AO_PER_FRAME][4];     /* a frame in flight's: the pass, the two blurs, the picture */
-static VkSampler depth_sampler;
-static float prim_view[16], ao_view[16];    /* the camera's space to the screen: the primitive's, the world's */
-static float prim_world_view[12], ao_world_view[12];    /* and to the world (3 x 4, by columns) */
-static struct Target *ao_target;        /* the solid world was drawn into it, without occlusion yet */
-static struct Target *ao_applied;       /* it has its occlusion (until it is cleared) */
-static int ao_used;                     /* times this frame */
-static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
-/* Post-processing (post.c), once the world is drawn - at the first thing drawn over it that is not in the world (the
- * HUD), or at the flip: the world's camera, the target, and what adds light to the world (fire, glows), drawn again
- * into post.c's glow image at the time */
-#define MAX_GLOW_DRAWS 8192
-static int nglow;
-static VkPipeline glow_pipeline, glow_tess_pipeline;
-/* Ground grass (grass.c): its pipeline, the blade pool (GRASS_SLOTS slots of blades); the scenery's textures, small
- * copies (the ground's colour); the solid world's depth test and fog (last drawn), for the grass to match */
-static VkPipeline grass_pipeline;
-static VkBuf grass_pool, trail_buf;
-static int grass_on;
-static uint32_t *tex_small[MAX_TEXTURES];
-static uint8_t tex_small_w[MAX_TEXTURES], tex_small_h[MAX_TEXTURES];
-static VkCompareOp world_depth_op = VK_COMPARE_OP_GREATER_OR_EQUAL;
-static float world_fog[3];              /* end, slope, on */
-static uint32_t world_fog_color;
-static unsigned long grass_frame_no;
-static struct Target *post_target, *post_done;
-static float post_view[16], post_world_view[12];
-static float sun_rgb[3] = {1, 1, 1};    /* the sun's colour (the GE's light that is the sun) */
-static int shadow_drawn;                /* the shadow map was drawn this frame */
-
-/* Wind: grass, bushes and leaves sway - the triangles of the scenery whose part of the texture is mostly holes and a
- * plant's colour, their corners moved by their height above their feet, placed on the screen again, at flush
- * (MHFU_SWAY: how far, 0 none) */
-static float sway = -1.0f;
-static struct GpuVertex *sway_verts;      /* the batch's vertices as put (the mapped buffer is slow to read) */
-static size_t sway_cap;
-static double sway_clock = -1.0;        /* the moment shown, in seconds (gpu.c), or -1: the game's frame */
-/* and they bend away from those walking through them: where the feet of what the GE lights (the hunter, monsters,
- * people) were in the last frame - each such batch's lowest places */
-#define MAX_FEET 64
-typedef struct { float x, y, z, r, vx, vz; } Foot;     /* (vx, vz: its velocity, units a second) */
-static Foot feet[2][MAX_FEET];          /* this frame's, being found; the last's, used */
-static int nfeet[2];
-static double feet_moment[2] = {-1, -1};  /* the moment shown they were found at (seconds of the game's) */
-static float (*lit_pos)[3];             /* the batch's places, if it is lit (its feet are found at flush) */
-static size_t lit_cap;
-
-/* Rounder characters: what is lit by the pixel (it has normals: the hunter, monsters, people) is drawn tessellated -
- * cut finer the longer its edges on the screen, curved by its normals (ge.tesc, ge.tese) - with the world's
- * camera (clip space from the world) in a light set of its own (MHFU_TESSELLATION=0: none) */
+float render_scale = 2;
+static Target targets[MAX_TARGETS];
+VkBuf vertices, staging;
+static VkBuf frame_vertices[2], frame_staging[2];
+/* images replaced while the GPU may still draw with them: freed when their frame comes round again */
+static VkImg retired[2][64];
+static int nretired[2];
+VkDeviceSize staging_used, batch_start;
+static VkDeviceSize vertex_used;
+static VkPipeline ge_pipeline, present_pipeline;
+VkPipelineLayout ge_layout;
+static VkPipelineLayout present_layout;
+static VkDescriptorSetLayout set_layout, present_set_layout;
+static VkDescriptorPool pool;
+VkDescriptorSet ge_set;
+static VkDescriptorSet present_sets[2];
+VkSampler samplers[8];
+static VkSampler present_sampler;
+unsigned long frame_no = 1;
+VkShaderStageFlags pc_stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 static int tess_on = -1;
 static VkPipeline tess_pipeline, bound_pipeline;
 static VkShaderModule tess_ctrl, tess_eval;
-static VkShaderStageFlags pc_stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-static uint32_t camera_set = ~0u;
-static float camera_clip[16];
+float prim_view[16], prim_world_view[12];
+static int prim_world;
+static int blob_shadows, blob_prim;
 
-typedef struct Target {
-    uint32_t addr;                  /* VRAM address, mirror bits off */
-    VkImg color, depth;
-    int used, cleared;
-    uint32_t sample_slot;           /* its slot in the texture array, when sampled */
-} Target;
+static Target *rendering;            /* the target being rendered into, or NULL */
+static DrawState cur;                /* the current primitive's state */
+static DrawState last;               /* the last draw's, as set in the command buffer */
+static int last_valid;
+static VkBuf readback;
 
-typedef struct {
-    uint64_t key, hash;
-    uint32_t addr;
-    int w, h;
-    VkImg img;
-    int levels;                     /* its mipmaps' */
-    uint32_t slot;
-    unsigned long checked;          /* the frame it was last checked in */
-    unsigned long used;
-} Texture;
-
-/* A draw's state: everything that, changed, needs a new draw */
-typedef struct {
-    Target *target;
-    uint32_t tex_slot;
-    float tex_w, tex_h;
-    uint32_t flags, alpha_test, env_color, fog_color;
-    VkBool32 blend;
-    VkColorBlendEquationEXT eq;
-    float blend_const[4];
-    VkBool32 depth_test, depth_write;
-    VkCompareOp depth_op;
-    VkColorComponentFlags write_mask;
-    VkRect2D scissor;
-    VkCullModeFlags cull;
-    VkFrontFace front;
-    uint32_t lights;                /* its light set (by the pixel), ~0: none */
-} DrawState;
+static void frame_reused(int frame);
 
 /* Whether a draw may sway in the wind: what has holes in its texture in the world, lit beforehand (the scenery) -
  * which of its triangles are a plant's, sway_batch says */
@@ -245,43 +89,18 @@ static int shaded(const DrawState *d) {
                           d->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA));
 }
 
-static float scale = 2;             /* render target pixels a PSP pixel (MHFU_SCALE, or MHFU_RESOLUTION's lines) */
-/* PSP pixels in render target pixels */
-static uint32_t scaled(int psp) {
-    return (uint32_t)lroundf((float)psp * scale);
+/* Whether a draw's feet are found (render_scene.c): what the GE lights in the world (the hunter, monsters, people) -
+ * for the wind's and the grass's bending away from them */
+static int finds_feet(const DrawState *d) {
+    return (sway > 0 || grass_on) && (d->flags & DRAW_KIND) > DRAW_WORLD;
 }
-static Target targets[MAX_TARGETS];
-static Texture *textures;
-static int ntextures;
-static VkBuf vertices, staging;    /* the frame's (one of two: vk.frame) */
-static VkBuf frame_vertices[2], frame_staging[2];
-/* images replaced while the GPU may still draw with them: freed when their frame comes round again */
-static VkImg retired[2][64];
-static int nretired[2];
-static VkDeviceSize vertex_used, staging_used;
-static VkPipeline pipeline, present_pipeline;
-static VkPipelineLayout layout, present_layout;
-static VkDescriptorSetLayout set_layout, present_set_layout;
-static VkDescriptorPool pool;
-static VkDescriptorSet set, present_sets[2];
-static VkSampler samplers[8], present_sampler;
-static int mipmaps = 1;             /* the game's textures get mipmaps (MHFU_MIPMAPS=0: none) */
-static unsigned long frame_no = 1;
-
-static Target *rendering;            /* the target being rendered into, or NULL */
-static DrawState cur;                /* the current primitive's state */
-static DrawState last;               /* the last draw's, as set in the command buffer */
-static int last_valid;
-static VkDeviceSize batch_start;     /* vertices of the batch not drawn yet */
-static VkBuf readback;
-
-static int shadow_finish(VkCommandBuffer *out);
-static void frame_reused(int frame);
 
 /* -- setup -------------------------------------------------------------------------------------------------------- */
 
-static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color,
-                                VkFormat depth, int ge) {
+/* A pipeline: kind 0 a full-screen pass (present.vert), 1 the GE's, 2 the sun's shadow map's, 3 the point lights', 4 a
+ * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades */
+VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
+                         int ge) {
     VkPipelineShaderStageCreateInfo stages[4] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
@@ -387,68 +206,10 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
     return p;
 }
 
-/* post.c's passes: a full-screen triangle (blend: added to what is there) */
-static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat color, int blend) {
-    return make_pipeline(vk_shader(present_vert, sizeof present_vert), fs, pl, color, VK_FORMAT_UNDEFINED,
-                         blend ? 5 : 0);
-}
-
 /* window.c: the internal resolution to use unless MHFU_SCALE says (enough for the screen's lines) */
 void render_default_scale(float s) {
     if (s >= 1 && s <= 12)
-        scale = s;
-}
-
-/* Ambient occlusion's images, pipelines and descriptor sets (each pass's: its input, and the depth) */
-static void ao_init(void) {
-    ao_on = !getenv("MHFU_AO") || atoi(getenv("MHFU_AO")) != 0;
-    if (getenv("MHFU_AO_STRENGTH"))
-        ao_strength = (float)atof(getenv("MHFU_AO_STRENGTH"));
-    if (getenv("MHFU_AO_RADIUS"))
-        ao_radius = (float)atof(getenv("MHFU_AO_RADIUS"));
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(vk.gpu, &props);
-    if (props.limits.maxPushConstantsSize < sizeof(AoPush))
-        ao_on = 0;
-    if (!ao_on)
-        return;
-    for (int i = 0; i < 2; i++)
-        ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-    /* the grass's (grass.vert): the occlusion of the ground its blades grow from */
-    VkDescriptorImageInfo gi = {point_sampler, ao_img[0].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_AO, 0, 1,
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
-    vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
-    VkDescriptorSetLayoutBinding b[2] = {
-        {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-    };
-    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 2, b};
-    vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &ao_set_layout);
-    enum { SETS = 2 * AO_PER_FRAME * 4 };
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * SETS};
-    VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL, 0, SETS, 1, &ps};
-    vkCreateDescriptorPool(vk.device, &dpi, NULL, &ao_pool);
-    VkDescriptorSetLayout layouts[SETS];
-    for (int i = 0; i < SETS; i++)
-        layouts[i] = ao_set_layout;
-    VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, ao_pool, SETS, layouts};
-    vkAllocateDescriptorSets(vk.device, &dai, &ao_sets[0][0][0]);
-    VkPushConstantRange pr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(AoPush)};
-    VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &ao_set_layout, 1, &pr};
-    vkCreatePipelineLayout(vk.device, &pli, NULL, &ao_layout);
-    VkShaderModule vs = vk_shader(present_vert, sizeof present_vert);
-    ao_pipeline = make_pipeline(vs, vk_shader(ao_frag, sizeof ao_frag), ao_layout, VK_FORMAT_R16G16_SFLOAT,
-                                VK_FORMAT_UNDEFINED, 0);
-    ao_blur_pipeline = make_pipeline(vs, vk_shader(ao_blur_frag, sizeof ao_blur_frag), ao_layout,
-                                     VK_FORMAT_R16G16_SFLOAT, VK_FORMAT_UNDEFINED, 0);
-    ao_apply_pipeline = make_pipeline(vs, vk_shader(ao_apply_frag, sizeof ao_apply_frag), ao_layout,
-                                      VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_UNDEFINED, 4);
-    VkSamplerCreateInfo sci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-    sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
-    sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    vkCreateSampler(vk.device, &sci, NULL, &depth_sampler);
+        render_scale = s;
 }
 
 int render_init(void *sdl_window) {
@@ -459,16 +220,16 @@ int render_init(void *sdl_window) {
     if (res && sscanf(res, "%dx%d", &rw, &rh) == 2 && rw > 0 && rh > 0) {
         float r = fminf((float)rw / 480.0f, (float)rh / 272.0f);
         if (r >= 1 && r <= 12)
-            scale = r;
+            render_scale = r;
     } else if (s && atof(s) >= 1 && atof(s) <= 12)
-        scale = (float)atof(s);
+        render_scale = (float)atof(s);
     if (!vk_init(sdl_window))
         return 0;
 
     tess_on = vk.tessellation && (!getenv("MHFU_TESSELLATION") || atoi(getenv("MHFU_TESSELLATION")) != 0);
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
-    /* bindless textures: one array, filled as textures are made */
+    /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
     VkDescriptorSetLayoutBinding b[6] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
@@ -477,19 +238,10 @@ int render_init(void *sdl_window) {
         {BIND_TRAIL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_AO, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[6] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT,
-                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT,
-                                      VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
-                                      VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT};
+    VkDescriptorBindingFlags bf[6];
+    for (int i = 0; i < 6; i++)
+        bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
         VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 6, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
@@ -505,164 +257,68 @@ int render_init(void *sdl_window) {
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
     VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, pool, 1, &set_layout};
-    vkAllocateDescriptorSets(vk.device, &dai, &set);
+    vkAllocateDescriptorSets(vk.device, &dai, &ge_set);
     dai.pSetLayouts = &present_set_layout;
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[0]);
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[1]);
 
     VkPushConstantRange pr = {pc_stages, 0, sizeof(DrawPush)};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
-    vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
+    vkCreatePipelineLayout(vk.device, &pli, NULL, &ge_layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
     VkPipelineLayoutCreateInfo ppli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &present_set_layout,
                                        1, &ppr};
     vkCreatePipelineLayout(vk.device, &ppli, NULL, &present_layout);
 
     VkShaderModule vs = vk_shader(ge_vert, sizeof ge_vert), fs = vk_shader(ge_frag, sizeof ge_frag);
-    pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
+    ge_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
     if (tess_on) {
         tess_ctrl = vk_shader(ge_tesc, sizeof ge_tesc);
         tess_eval = vk_shader(ge_tese, sizeof ge_tese);
-        tess_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 6);
+        tess_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 6);
     }
-    shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), vk_shader(shadow_frag, sizeof shadow_frag),
-                                    layout, VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 2);
-    if (vk.output_layer)
-        point_pipeline = make_pipeline(vk_shader(pshadow_vert, sizeof pshadow_vert),
-                                       vk_shader(pshadow_frag, sizeof pshadow_frag), layout, VK_FORMAT_UNDEFINED,
-                                       VK_FORMAT_D32_SFLOAT, 3);
     if (vk.surface) {
         VkShaderModule pvs = vk_shader(present_vert, sizeof present_vert);
         VkShaderModule pfs = vk_shader(present_frag, sizeof present_frag);
         present_pipeline = make_pipeline(pvs, pfs, present_layout, vk.swap_format, VK_FORMAT_UNDEFINED, 0);
     }
-
-    /* samplers: nearest or linear, each axis repeating or clamped; with mipmaps, made smaller from their levels
-     * (trilinear), and anisotropic where linear */
-    mipmaps = !getenv("MHFU_MIPMAPS") || atoi(getenv("MHFU_MIPMAPS")) != 0;
-    for (int i = 0; i < 8; i++) {
-        VkSamplerCreateInfo sci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-        sci.magFilter = sci.minFilter = (i & 1) ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-        sci.addressModeU = (i & 2) ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sci.addressModeV = (i & 4) ? VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE : VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sci.maxLod = 0;
-        if (mipmaps) {
-            sci.minFilter = VK_FILTER_LINEAR;
-            sci.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            sci.maxLod = VK_LOD_CLAMP_NONE;
-            if (vk.anisotropy && (i & 1)) {
-                sci.anisotropyEnable = VK_TRUE;
-                sci.maxAnisotropy = 16.0f;
-            }
-        }
-        vkCreateSampler(vk.device, &sci, NULL, &samplers[i]);
-    }
-    VkSamplerCreateInfo shi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-    shi.magFilter = shi.minFilter = VK_FILTER_LINEAR;
-    shi.addressModeU = shi.addressModeV = shi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    shi.compareEnable = VK_TRUE;
-    shi.compareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-    vkCreateSampler(vk.device, &shi, NULL, &shadow_sampler);
     VkSamplerCreateInfo psi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     psi.magFilter = psi.minFilter = VK_FILTER_LINEAR;
     psi.addressModeU = psi.addressModeV = psi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     vkCreateSampler(vk.device, &psi, NULL, &present_sampler);
-
     for (int i = 0; i < 2; i++) {
         frame_vertices[i] = vk_buffer(VERTEX_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
         frame_staging[i] = vk_buffer(STAGING_BYTES, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 1);
     }
     vertices = frame_vertices[0];
     staging = frame_staging[0];
-    for (int i = 0; i < 2; i++)
-        shadow_extra[i] = vk_buffer(SHADOW_EXTRA_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
-    extra = shadow_extra[0];
     readback = vk_buffer((VkDeviceSize)scaled(RT_SIZE) * scaled(RT_SIZE) * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
-    textures = calloc(MAX_TEXTURES, sizeof *textures);
-    if (getenv("MHFU_SHADOW_RESOLUTION")) {
-        int r = atoi(getenv("MHFU_SHADOW_RESOLUTION"));
-        if (r >= 512 && r <= 16384)
-            shadow_size = r;
-    }
-    shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
-                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-    VkDescriptorImageInfo sii = {shadow_sampler, shadow_img.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet sw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_SHADOW_MAP, 0, 1,
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &sii, NULL, NULL};
-    vkUpdateDescriptorSets(vk.device, 1, &sw, 0, NULL);
-    point_img = vk_image_layers(POINT_SHADOW_SIZE, POINT_SHADOW_SIZE, 12, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT,
-                                VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                                VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
-    VkSamplerCreateInfo psci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-    psci.magFilter = psci.minFilter = VK_FILTER_NEAREST;
-    psci.addressModeU = psci.addressModeV = psci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    vkCreateSampler(vk.device, &psci, NULL, &point_sampler);
-    VkDescriptorImageInfo pii[2];
-    for (int i = 0; i < 2; i++) {
-        VkImageViewCreateInfo vci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, NULL, 0, point_img.image,
-                                     VK_IMAGE_VIEW_TYPE_CUBE, VK_FORMAT_D32_SFLOAT, {0},
-                                     {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, (uint32_t)(6 * i), 6}};
-        vkCreateImageView(vk.device, &vci, NULL, &point_cube[i]);
-        pii[i] = (VkDescriptorImageInfo){point_sampler, point_cube[i], VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
-    }
-    VkWriteDescriptorSet pw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_POINT_SHADOWS, 0, 2,
-                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, pii, NULL, NULL};
-    vkUpdateDescriptorSets(vk.device, 1, &pw, 0, NULL);
-    light_buf = vk_buffer(2 * LIGHT_SETS * sizeof(LightSet), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
-    VkDescriptorBufferInfo lbi = {light_buf.buffer, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet lw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_LIGHTS, 0, 1,
-                               VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &lbi, NULL};
-    vkUpdateDescriptorSets(vk.device, 1, &lw, 0, NULL);
-    /* the trodden grass's window, a copy each frame in flight */
-    trail_buf = vk_buffer(2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
-    memset(trail_buf.map, 0, 2 * GRASS_TRAIL * GRASS_TRAIL * sizeof(uint32_t));
-    VkDescriptorBufferInfo tbi = {trail_buf.buffer, 0, VK_WHOLE_SIZE};
-    VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_TRAIL, 0, 1,
-                               VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
-    vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
-    VkCommandBufferAllocateInfo cai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, vk.pool,
-                                       VK_COMMAND_BUFFER_LEVEL_PRIMARY, 2};
-    vkAllocateCommandBuffers(vk.device, &cai, shadow_cmds);
-    shadow_cmd = shadow_cmds[0];
-    vkAllocateCommandBuffers(vk.device, &cai, point_cmds);
-    point_cmd = point_cmds[0];
-    tex_holes = calloc(MAX_TEXTURES, sizeof *tex_holes);
+
+    /* the parts (render_internal.h) */
+    texture_init();
+    shadow_init();
+    lights_init();
     ao_init();
-    if (post_init(scale, shadow_img.view, shadow_sampler, post_pipeline)) {
-        glow_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
-        if (tess_pipeline && post_motion())
-            glow_tess_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
-    }
-    grass_on = getenv("MHFU_GRASS") ? atof(getenv("MHFU_GRASS")) > 0 : 1;
-    if (grass_on) {
-        grass_settings(getenv("MHFU_GRASS") ? (float)atof(getenv("MHFU_GRASS")) : 1.0f,
-                       getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 3000.0f);
-        grass_pipeline = make_pipeline(vk_shader(grass_vert, sizeof grass_vert), vk_shader(grass_frag, sizeof grass_frag),
-                                       layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
-        grass_pool = vk_buffer((VkDeviceSize)GRASS_SLOTS * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade),
-                               VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
-    }
-    vk.before_submit = shadow_finish;
+    post_setup(vs, fs, tess_pipeline != VK_NULL_HANDLE);
+    grass_init();
     vk.frame_reused = frame_reused;
     render_on = 1;
     fprintf(stderr, "renderer: Vulkan, %ux%u internal resolution (%.3g times the PSP's)\n", scaled(480), scaled(272),
-            (double)scale);
+            (double)render_scale);
     return 1;
 }
 
 /* -- render targets ----------------------------------------------------------------------------------------------- */
 
-static uint32_t next_slot = 0;
-
-static void write_slot(uint32_t slot, VkImageView view, VkSampler sampler) {
+void write_slot(uint32_t slot, VkImageView view, VkSampler sampler) {
     VkDescriptorImageInfo ii = {sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, set, BIND_TEXTURES, slot, 1,
+    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TEXTURES, slot, 1,
                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
 }
 
-static Target *target(uint32_t addr, int create) {
+/* The render target at a VRAM address (made if create) */
+Target *target_at(uint32_t addr, int create) {
     addr &= 0x041FFFF0u;
     for (int i = 0; i < MAX_TARGETS; i++)
         if (targets[i].used && targets[i].addr == addr)
@@ -682,7 +338,7 @@ static Target *target(uint32_t addr, int create) {
             t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT,
                                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_IMAGE_ASPECT_DEPTH_BIT);
-            t->sample_slot = next_slot++;
+            t->sample_slot = texture_new_slot();
             write_slot(t->sample_slot, t->color.view, samplers[1 | 2 | 4]);
             return t;
         }
@@ -690,9 +346,7 @@ static Target *target(uint32_t addr, int create) {
     exit(1);
 }
 
-static void flush(void);
-
-static void end_rendering(void) {
+void end_rendering(void) {
     if (!rendering)
         return;
     flush();
@@ -700,7 +354,7 @@ static void end_rendering(void) {
     rendering = NULL;
 }
 
-static void begin_rendering(Target *t) {
+void begin_rendering(Target *t) {
     if (rendering == t)
         return;
     end_rendering();
@@ -718,9 +372,9 @@ static void begin_rendering(Target *t) {
     VkCommandBuffer cmd = vk_cmd();
     vkCmdBeginRendering(cmd, &ri);
     t->cleared = 1;
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    bound_pipeline = pipeline;
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_pipeline);
+    bound_pipeline = ge_pipeline;
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_layout, 0, 1, &ge_set, 0, NULL);
     VkDeviceSize zero = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
     VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
@@ -729,22 +383,29 @@ static void begin_rendering(Target *t) {
     last_valid = 0;
 }
 
-/* -- textures ----------------------------------------------------------------------------------------------------- */
-
-static uint64_t hash_bytes(const uint8_t *p, size_t n, uint64_t h) {
-    for (size_t i = 0; i + 8 <= n; i += 8) {
-        uint64_t v;
-        memcpy(&v, p + i, 8);
-        h = (h ^ v) * 0x100000001B3ull;
-        h ^= h >> 29;
-    }
-    for (size_t i = n & ~(size_t)7; i < n; i++)
-        h = (h ^ p[i]) * 0x100000001B3ull;
-    return h;
+Target *rendering_target(void) {
+    return rendering;
 }
 
+/* After drawing something else in the GE's pass (the grass): its pipeline and vertices again, its state to set */
+void ge_rebind(void) {
+    VkCommandBuffer cmd = vk_cmd();
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_pipeline);
+    bound_pipeline = ge_pipeline;
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
+    last_valid = 0;
+}
+
+/* After a pass of something else (post-processing): the GE's state to set again */
+void ge_lost(void) {
+    last_valid = 0;
+}
+
+/* -- textures ----------------------------------------------------------------------------------------------------- */
+
 /* An image the GPU may still be drawing with: freed once the frame comes round again */
-static void retire(VkImg *i) {
+void retire(VkImg *i) {
     if (!i->image)
         return;
     if (nretired[vk.frame] < 64)
@@ -758,237 +419,13 @@ static void retire(VkImg *i) {
 static void frame_reused(int frame) {
     vertices = frame_vertices[frame];
     staging = frame_staging[frame];
-    extra = shadow_extra[frame];
-    shadow_cmd = shadow_cmds[frame];
-    vkResetCommandBuffer(shadow_cmd, 0);
-    point_cmd = point_cmds[frame];
-    vkResetCommandBuffer(point_cmd, 0);
+    shadow_frame_reused(frame);
     for (int i = 0; i < nretired[frame]; i++)
         vk_image_free(&retired[frame][i]);
     nretired[frame] = 0;
 }
 
-/* The current texture's slot: a render target's, or a cached texture's (made or updated as needed) */
-/* A texture's next smaller level (half each way, at least 1): each texel the average of four, its colour weighted by
- * their alpha (holes lend it none). A texture with holes (alpha tested: grass, leaves) keeps as much of itself solid
- * as the full size has - its alpha scaled to that - so that it does not thin away in the distance */
-static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const uint32_t *top, int tw, int th,
-                       int cutout) {
-    int dw = w > 1 ? w / 2 : 1, dh = h > 1 ? h / 2 : 1;
-    int sx = w > 1 ? 2 : 1, sy = h > 1 ? 2 : 1;
-    for (int y = 0; y < dh; y++)
-        for (int x = 0; x < dw; x++) {
-            uint32_t sum[4] = {0, 0, 0, 0}, plain[3] = {0, 0, 0}, n = 0;
-            for (int j = 0; j < sy; j++)
-                for (int i = 0; i < sx; i++) {
-                    uint32_t c = src[(y * sy + j) * w + x * sx + i], a = c >> 24;
-                    for (int k = 0; k < 3; k++) {
-                        sum[k] += ((c >> (8 * k)) & 255) * a;
-                        plain[k] += (c >> (8 * k)) & 255;
-                    }
-                    sum[3] += a;
-                    n++;
-                }
-            uint32_t out = 0;
-            for (int k = 0; k < 3; k++)
-                out |= (sum[3] ? (sum[k] + sum[3] / 2) / sum[3] : (plain[k] + n / 2) / n) << (8 * k);
-            dst[y * dw + x] = out | ((sum[3] + n / 2) / n) << 24;
-        }
-    if (!cutout)
-        return;
-    /* the share solid (alpha at least half) at the full size, and the scale of this level's alpha keeping it */
-    size_t solid = 0, all = (size_t)tw * (size_t)th, n = (size_t)dw * (size_t)dh;
-    for (size_t i = 0; i < all; i++)
-        solid += (top[i] >> 24) >= 128;
-    float want = (float)solid / (float)all, lo = 0.0f, hi = 4.0f;
-    for (int it = 0; it < 10; it++) {
-        float mid = 0.5f * (lo + hi);
-        size_t c = 0;
-        for (size_t i = 0; i < n; i++)
-            c += (float)(dst[i] >> 24) * mid >= 127.5f;
-        if ((float)c / (float)n < want)
-            lo = mid;
-        else
-            hi = mid;
-    }
-    for (size_t i = 0; i < n; i++) {
-        float a = (float)(dst[i] >> 24) * hi;
-        dst[i] = (dst[i] & 0xFFFFFFu) | (uint32_t)(a > 255.0f ? 255.0f : a + 0.5f) << 24;
-    }
-}
-
-static uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
-    int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
-    *w_out = w;
-    *h_out = h;
-    uint32_t addr = (reg[0xA0] & 0xFFFFF0) | ((reg[0xA8] & 0x0F0000) << 8);
-    int fmt = reg[0xC3] & 0xF;
-    uint32_t bw = reg[0xA8] & 0x7FF;
-    int filt = ((reg[0xC6] >> 8) & 1) || (reg[0xC6] & 1);
-    int sampler = filt | ((reg[0xC7] & 1) << 1) | (((reg[0xC7] >> 8) & 1) << 2);
-
-    Target *rt = (addr & 0x0F000000u) == 0x04000000u ? target(addr, 0) : NULL;
-    if (rt) {                       /* render to texture: its size in PSP pixels is the target's */
-        *w_out = *h_out = RT_SIZE;
-        (void)w; (void)h;
-        return rt->sample_slot;
-    }
-
-    uint64_t key = (uint64_t)addr | (uint64_t)fmt << 32 | (uint64_t)(reg[0xB8] & 0xFFFF) << 36 |
-                   (uint64_t)sampler << 52 | (uint64_t)(reg[0xC2] & 1) << 55 | (uint64_t)bw << 56;
-    int bits = fmt == 3 || fmt == 7 ? 32 : fmt == 4 ? 4 : fmt == 5 ? 8 : 16;
-    size_t bytes = (size_t)(bw ? bw : (uint32_t)w) * (size_t)h * (size_t)bits / 8;
-    /* consecutive draws mostly use the same texture: the last one found is tried first */
-    static int last_found = -1;
-    Texture *t = NULL;
-    if (last_found >= 0 && last_found < ntextures && textures[last_found].key == key)
-        t = &textures[last_found];
-    else
-        for (int i = 0; i < ntextures; i++)
-            if (textures[i].key == key) {
-                t = &textures[i];
-                last_found = i;
-                break;
-            }
-    if (t && t->checked == frame_no) {
-        t->used = frame_no;
-        return t->slot;
-    }
-    uint64_t hash = hash_bytes(MEM(addr), bytes, 0xCBF29CE484222325ull);
-    if (fmt >= 4 && fmt <= 7) {     /* the palette too */
-        uint32_t caddr = (reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8);
-        hash = hash_bytes(MEM(caddr), (reg[0xC4] & 0x3F) * 32, hash) ^ reg[0xC5] * 0x9E3779B97F4A7C15ull;
-    }
-    if (t && t->hash == hash) {
-        t->checked = t->used = frame_no;
-        return t->slot;
-    }
-    if (!t) {
-        if (ntextures >= MAX_TEXTURES - MAX_TARGETS - 1) {
-            /* evict the least recently used */
-            int lru = 0;
-            for (int i = 1; i < ntextures; i++)
-                if (textures[i].used < textures[lru].used)
-                    lru = i;
-            t = &textures[lru];
-            retire(&t->img);
-        } else {
-            t = &textures[ntextures++];
-            t->slot = next_slot++;
-        }
-        t->key = key;
-        t->w = t->h = 0;
-    }
-    /* decode and upload */
-    size_t size = (size_t)w * (size_t)h * 4;
-    if (staging_used + size > STAGING_BYTES) {
-        fprintf(stderr, "renderer: out of staging space this frame\n");
-        return t->slot;
-    }
-    gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
-    if (t->slot < MAX_TEXTURES) {      /* its average colour (by alpha), for the lights effects make */
-        const uint32_t *px = (const uint32_t *)((uint8_t *)staging.map + staging_used);
-        double sum[3] = {0, 0, 0}, wsum = 0;
-        int step = w * h > 4096 ? (w * h) / 4096 : 1, n = 0, holes = 0;
-        for (int i = 0; i < w * h; i += step) {
-            uint32_t c = px[i];
-            double a = (double)(c >> 24) / 255.0;
-            n++;
-            holes += (c >> 24) < 128;
-            sum[0] += a * (c & 255);
-            sum[1] += a * ((c >> 8) & 255);
-            sum[2] += a * ((c >> 16) & 255);
-            wsum += a;
-        }
-        for (int k = 0; k < 3; k++)
-            tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
-        tex_cutout[t->slot] = holes * 50 > n;
-        if (grass_on) {                 /* a small copy (the ground's colour, for the grass) */
-            int sw = w < 64 ? w : 64, sh = h < 64 ? h : 64;
-            if (!tex_small[t->slot])
-                tex_small[t->slot] = malloc(64 * 64 * 4);
-            for (int y = 0; y < sh; y++)
-                for (int x = 0; x < sw; x++)
-                    tex_small[t->slot][y * sw + x] = px[(y * h / sh) * w + x * w / sw];
-            tex_small_w[t->slot] = (uint8_t)sw;
-            tex_small_h[t->slot] = (uint8_t)sh;
-        }
-        if (tex_holes) {                /* where the holes are */
-            uint32_t cnt[HOLE_GRID * HOLE_GRID] = {0}, hole[HOLE_GRID * HOLE_GRID] = {0};
-            uint32_t rgb[HOLE_GRID * HOLE_GRID][3] = {{0}};
-            int sx = w > 64 ? w / 64 : 1, sy = h > 64 ? h / 64 : 1;
-            for (int y = 0; y < h; y += sy)
-                for (int x = 0; x < w; x += sx) {
-                    int cell = (y * HOLE_GRID / h) * HOLE_GRID + x * HOLE_GRID / w;
-                    uint32_t c = px[y * w + x];
-                    cnt[cell]++;
-                    if ((c >> 24) < 128) {
-                        hole[cell]++;
-                    } else {
-                        rgb[cell][0] += c & 255;
-                        rgb[cell][1] += (c >> 8) & 255;
-                        rgb[cell][2] += (c >> 16) & 255;
-                    }
-                }
-            for (int c = 0; c < HOLE_GRID * HOLE_GRID; c++) {
-                float k = cnt[c] > hole[c] ? 1.0f / (255.0f * (float)(cnt[c] - hole[c])) : 0;
-                float r = (float)rgb[c][0] * k, g = (float)rgb[c][1] * k, b = (float)rgb[c][2] * k;
-                float hi = fmaxf(r, fmaxf(g, b)), lo = fminf(r, fminf(g, b));
-                /* green (however dark or pale), or olive to dry brown - saturated, and not bright (paper); not grey
-                 * (metal, snow) */
-                int plant = hi > 0 && ((g >= fmaxf(r, b) && hi - lo >= 0.06f * hi) ||
-                                       (g >= 0.55f * r && g >= 0.9f * b && hi - lo >= 0.25f * hi && hi <= 0.75f));
-                tex_holes[t->slot][c] = (uint8_t)(cnt[c] && plant ? hole[c] * 255 / cnt[c] : 0);
-            }
-        }
-    }
-    /* its smaller levels, after it */
-    int levels = 1;
-    if (mipmaps)
-        while ((w >> levels) || (h >> levels))
-            levels++;
-    size_t level_at[16] = {0};
-    size_t total = size;
-    for (int l = 1; l < levels; l++) {
-        int lw = w >> l ? w >> l : 1, lh = h >> l ? h >> l : 1;
-        level_at[l] = total;
-        total += (size_t)lw * (size_t)lh * 4;
-    }
-    if (staging_used + total > STAGING_BYTES)
-        levels = 1;
-    for (int l = 1; l < levels; l++)
-        make_level((uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l - 1]),
-                   (uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l]),
-                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1,
-                   (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h,
-                   t->slot < MAX_TEXTURES && tex_cutout[t->slot]);
-    if (t->w != w || t->h != h || t->levels != levels) {
-        retire(&t->img);
-        t->img = vk_image_mips((uint32_t)w, (uint32_t)h, (uint32_t)levels, VK_FORMAT_R8G8B8A8_UNORM,
-                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-        t->levels = levels;
-        t->w = w;
-        t->h = h;
-    }
-    Target *was = rendering;
-    end_rendering();
-    vk_transition(&t->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    VkBufferImageCopy copies[16];
-    for (int l = 0; l < levels; l++)
-        copies[l] = (VkBufferImageCopy){staging_used + level_at[l], 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, (uint32_t)l, 0, 1},
-            {0, 0, 0}, {w >> l ? (uint32_t)(w >> l) : 1u, h >> l ? (uint32_t)(h >> l) : 1u, 1}};
-    vkCmdCopyBufferToImage(vk_cmd(), staging.buffer, t->img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           (uint32_t)levels, copies);
-    vk_transition(&t->img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    staging_used += (total + 255) & ~(size_t)255;
-    write_slot(t->slot, t->img.view, samplers[sampler]);
-    t->hash = hash;
-    t->addr = addr;
-    t->checked = t->used = frame_no;
-    if (was)
-        begin_rendering(was);
-    return t->slot;
-}
+/* -- state -------------------------------------------------------------------------------------------------------- */
 
 /* -- state -------------------------------------------------------------------------------------------------------- */
 
@@ -998,19 +435,22 @@ static const VkBlendFactor src_factors[16] = {
     VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_FACTOR_DST_ALPHA,
     VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_CONSTANT_COLOR,
     VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE};
+
 static const VkBlendFactor dst_factors[16] = {
     VK_BLEND_FACTOR_SRC_COLOR, VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR, VK_BLEND_FACTOR_SRC_ALPHA,
     VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_FACTOR_DST_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA,
     VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_FACTOR_DST_ALPHA,
     VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA, VK_BLEND_FACTOR_CONSTANT_COLOR,
     VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ZERO, VK_BLEND_FACTOR_ZERO};
+
 static const VkBlendOp blend_ops[8] = {VK_BLEND_OP_ADD, VK_BLEND_OP_SUBTRACT, VK_BLEND_OP_REVERSE_SUBTRACT,
     VK_BLEND_OP_MIN, VK_BLEND_OP_MAX, VK_BLEND_OP_ADD, VK_BLEND_OP_ADD, VK_BLEND_OP_ADD};
+
 static const VkCompareOp depth_ops[8] = {VK_COMPARE_OP_NEVER, VK_COMPARE_OP_ALWAYS, VK_COMPARE_OP_EQUAL,
     VK_COMPARE_OP_NOT_EQUAL, VK_COMPARE_OP_LESS, VK_COMPARE_OP_LESS_OR_EQUAL, VK_COMPARE_OP_GREATER,
     VK_COMPARE_OP_GREATER_OR_EQUAL};
 
-static void unpack_rgb(uint32_t c, float *f) {
+void unpack_rgb(uint32_t c, float *f) {
     f[0] = (float)(c & 255) / 255.0f;
     f[1] = (float)((c >> 8) & 255) / 255.0f;
     f[2] = (float)((c >> 16) & 255) / 255.0f;
@@ -1018,6 +458,7 @@ static void unpack_rgb(uint32_t c, float *f) {
 }
 
 static uint32_t override_slot = 0xFFFFFFFEu;
+
 static int override_w, override_h;
 
 void render_override_texture(uint32_t slot, int w, int h) {
@@ -1030,18 +471,13 @@ uint32_t render_texture(const uint32_t *reg, int *w, int *h) {
     return texture_slot(reg, w, h);
 }
 
-static void flush_emitter(void);
-
-/* -- ambient occlusion -------------------------------------------------------------------------------------------- */
-
 /* gpu.c: the next primitive's camera space to the screen and to the world (if it is in the world) */
 void render_prim_view(const float *screen_from_view, const float *world_from_view) {
     memcpy(prim_view, screen_from_view, sizeof prim_view);
     memcpy(prim_world_view, world_from_view, sizeof prim_world_view);
 }
 
-/* out = a b (4 x 4, by columns) */
-static void mul4(const float *a, const float *b, float *out) {
+void mul4(const float *a, const float *b, float *out) {
     for (int c = 0; c < 4; c++)
         for (int r = 0; r < 4; r++) {
             float v = 0;
@@ -1051,7 +487,7 @@ static void mul4(const float *a, const float *b, float *out) {
         }
 }
 
-static int invert4(const float *m, float *out) {
+int invert4(const float *m, float *out) {
     double a[4][8];
     for (int r = 0; r < 4; r++)
         for (int c = 0; c < 8; c++)
@@ -1084,116 +520,41 @@ static int invert4(const float *m, float *out) {
     return 1;
 }
 
-static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth) {
-    VkDescriptorImageInfo ii[2] = {{sampler, source, layout},
-                                   {depth_sampler, depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
-    VkWriteDescriptorSet w[2] = {
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 0, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[0],
-         NULL, NULL},
-        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 1, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[1],
-         NULL, NULL}};
-    vkUpdateDescriptorSets(vk.device, 2, w, 0, NULL);
-}
-
-/* One of its passes: a triangle over w x h of an image */
-static void ao_draw(VkImageView view, uint32_t w, uint32_t h, VkPipeline p, VkDescriptorSet ds, const AoPush *pc,
-                    int load) {
-    VkCommandBuffer cmd = vk_cmd();
-    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, view,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_DONT_CARE, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {w, h}}, 1, 0, 1, &ca, NULL, NULL};
-    vkCmdBeginRendering(cmd, &ri);
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ao_layout, 0, 1, &ds, 0, NULL);
-    VkViewport vp = {0, 0, (float)w, (float)h, 0, 1};
-    VkRect2D sc = {{0, 0}, {w, h}};
-    vkCmdSetViewport(cmd, 0, 1, &vp);
-    vkCmdSetScissor(cmd, 0, 1, &sc);
-    vkCmdPushConstants(cmd, ao_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof *pc, pc);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
-    vkCmdEndRendering(cmd);
-}
-
-/* The world is drawn into t: its occlusion, multiplied in */
-static void grass_draw(Target *t);
-static void ao_occlude(Target *t);
-
-/* The solid world drawn: its ambient occlusion, then the ground grass (after it: a field of blades is all crevices to
- * the occlusion, which darkened it far below its ground) */
-static void ao_apply(Target *t) {
-    ao_target = NULL;
-    ao_applied = t;
-    ao_fresh = 0;
-    ao_occlude(t);
-    grass_draw(t);
-}
-
-static void ao_occlude(Target *t) {
-    if (ao_on <= 0 || ao_used >= AO_PER_FRAME)
-        return;
-    AoPush pc;
-    if (!invert4(ao_view, pc.to_view))
-        return;
-    end_rendering();
-    uint32_t fw = scaled(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
-    float focal = fabsf(ao_view[0]) * (float)scale;
-    memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)scale, focal}, sizeof pc.params);
-    memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, 0}, sizeof pc.params2);
-    memcpy(pc.area, (float[4]){(float)fw, (float)fh, (float)hw, (float)hh}, sizeof pc.area);
-    /* the point lights (the first four), in the camera's space: where they shine, the occlusion takes nothing - it
-     * takes away the light from all round, not theirs */
-    memset(pc.lights, 0, sizeof pc.lights + sizeof pc.colors);
-    float m4[16] = {0}, inv[16];
+/* The world to the screen (PSP pixels, depth over 65535; by columns), with a camera (view: its space to the screen;
+ * world_view: to the world, 3 x 4) */
+int world_to_screen(const float *view, const float *world_view, float *m) {
+    float wv[16] = {0}, vw[16];
     for (int c = 0; c < 4; c++)
         for (int i = 0; i < 3; i++)
-            m4[4 * c + i] = ao_world_view[3 * c + i];
-    m4[15] = 1;
-    if (point_lights_on > 0 && invert4(m4, inv))
-        for (uint32_t i = 0; i < point_lights[0].count && i < 4; i++) {
-            const float *w = point_lights[0].dir[i];
-            for (int k = 0; k < 3; k++)
-                pc.lights[i][k] = inv[k] * w[0] + inv[4 + k] * w[1] + inv[8 + k] * w[2] + inv[12 + k];
-            pc.lights[i][3] = w[3];
-            memcpy(pc.colors[i], point_lights[0].color[i], sizeof pc.colors[i]);
-        }
-    VkDescriptorSet *sets = ao_sets[vk.frame][ao_used++];
-    VkImageLayout ro = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    ao_set(sets[0], t->depth.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, depth_sampler, t->depth.view);
-    ao_set(sets[1], ao_img[0].view, ro, depth_sampler, t->depth.view);
-    ao_set(sets[2], ao_img[1].view, ro, depth_sampler, t->depth.view);
-    ao_set(sets[3], ao_img[0].view, ro, depth_sampler, t->depth.view);
-    vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
-    vk_transition(&ao_img[0], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    ao_draw(ao_img[0].view, hw, hh, ao_pipeline, sets[0], &pc, 0);
-    for (int pass = 0; pass < 2; pass++) {     /* blurred across, then down: back into the first */
-        VkImg *src = &ao_img[pass], *dst = &ao_img[1 - pass];
-        vk_transition(src, ro);
-        vk_transition(dst, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        pc.params2[1] = pass == 0 ? 1.0f : 0.0f;
-        pc.params2[2] = pass == 0 ? 0.0f : 1.0f;
-        ao_draw(dst->view, hw, hh, ao_blur_pipeline, sets[1 + pass], &pc, 0);
-    }
-    vk_transition(&ao_img[0], ro);
-    vk_transition(&t->color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    ao_draw(t->color.view, fw, fh, ao_apply_pipeline, sets[3], &pc, 1);
-    ao_fresh = 1;
+            wv[4 * c + i] = world_view[3 * c + i];
+    wv[15] = 1;
+    if (!invert4(wv, vw))
+        return 0;
+    mul4(view, vw, m);
+    return 1;
 }
 
-static void post_run(Target *t);
-
-/* gpu.c: the game's frames between two frames shown, for the motion blur's motion (0: none) */
-float render_motion_step(void) {
-    return glow_pipeline && post_motion() ? post_frame_step() : 0.0f;
+/* And to the clip space, as put places vertices (x, y over half the target, less w) */
+int world_to_clip(const float *view, const float *world_view, float *clip) {
+    float m[16];
+    if (!world_to_screen(view, world_view, m))
+        return 0;
+    for (int c = 0; c < 4; c++) {
+        clip[4 * c + 0] = m[4 * c + 0] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 1] = m[4 * c + 1] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 2] = m[4 * c + 2];
+        clip[4 * c + 3] = m[4 * c + 3];
+    }
+    return 1;
 }
 
 void render_prim_begin(const uint32_t *reg) {
     if (emitting)
-        flush_emitter();            /* the last primitive's light (each its own, batched or not) */
+        lights_flush_emitter(cur.tex_slot);            /* the last primitive's light (each its own, batched or not) */
     DrawState s;
     memset(&s, 0, sizeof s);
     uint32_t fb = 0x04000000u | ((reg[0x9C] & 0xFFFFF0) | ((reg[0x9D] & 0xFF0000) << 8)) % 0x200000u;
-    s.target = target(fb, 1);
+    s.target = target_at(fb, 1);
     int clear = reg[0xD3] & 1;
     s.tex_slot = 0xFFFFFFFFu;
     if (!clear && (reg[0x1E] & 1)) {
@@ -1217,8 +578,8 @@ void render_prim_begin(const uint32_t *reg) {
     s.front = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     s.lights = ~0u;
     if (prim_world && !clear) {
-        s.flags |= DRAW_WORLD | ((reg[0x17] & 1) ? (prim_lights != ~0u ? DRAW_LIT_PIXEL : DRAW_LIT_GE) : 0u);
-        s.lights = prim_lights;
+        s.flags |= DRAW_WORLD | ((reg[0x17] & 1) ? (prim_light_set() != ~0u ? DRAW_LIT_PIXEL : DRAW_LIT_GE) : 0u);
+        s.lights = prim_light_set();
         if (reg[0x1D] & 1) {            /* the culling gpu.c leaves to the GPU (the same faces as it would drop) */
             s.cull = VK_CULL_MODE_BACK_BIT;
             s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
@@ -1283,55 +644,30 @@ void render_prim_begin(const uint32_t *reg) {
     if (sx1 < sx0) sx1 = sx0;
     if (sy1 < sy0) sy1 = sy0;
     s.scissor = (VkRect2D){{(int32_t)scaled(sx0), (int32_t)scaled(sy0)}, {scaled(sx1) - scaled(sx0), scaled(sy1) - scaled(sy0)}};
-    /* the solid world drawn, then what is not solid (glows, fire, smoke, the HUD): the world's occlusion first - only
-     * the solid world's colours have it, once (until the picture is cleared) */
+    /* the solid world drawn, then what is not: its occlusion (and the grass), then post-processing; its fog and depth
+     * test noted (the grass's) */
     int solid = (s.flags & DRAW_WORLD) && s.depth_write;
-    if (ao_target && s.target == ao_target && !solid) {
-        flush();
-        ao_apply(ao_target);
-    }
-    if (clear && s.target == ao_applied)
-        ao_applied = NULL;
+    ao_state(s.target, solid, clear);
     if (solid) {
-        world_depth_op = s.depth_op;
+        scene.depth_op = s.depth_op;
         uint32_t fe = reg[0xCD] << 8, fs = reg[0xCE] << 8;
-        memcpy(&world_fog[0], &fe, 4);
-        memcpy(&world_fog[1], &fs, 4);
-        world_fog[2] = (s.flags & DRAW_FOG) ? 1.0f : 0.0f;
-        world_fog_color = s.fog_color;
+        memcpy(&scene.fog[0], &fe, 4);
+        memcpy(&scene.fog[1], &fs, 4);
+        scene.fog[2] = (s.flags & DRAW_FOG) ? 1.0f : 0.0f;
+        scene.fog_color = s.fog_color;
     }
-    if (solid && s.target != ao_applied) {
-        ao_target = s.target;
-        memcpy(ao_view, prim_view, sizeof ao_view);
-        memcpy(ao_world_view, prim_world_view, sizeof ao_world_view);
-    }
-    /* and once the world is drawn, at the first thing over it not in it, the post-processing (once, until cleared) */
-    if (post_target && s.target == post_target && !(s.flags & DRAW_WORLD) && !clear) {
-        flush();
-        post_run(post_target);
-    }
-    if (clear && s.target == post_done)
-        post_done = NULL;
-    if (glow_pipeline && (s.flags & DRAW_WORLD) && s.target != post_done) {
-        post_target = s.target;
-        if (solid) {
-            memcpy(post_view, prim_view, sizeof post_view);
-            memcpy(post_world_view, prim_world_view, sizeof post_world_view);
-        }
-    }
+    post_state(s.target, s.flags, solid, clear);
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;
     }
-    if (point_lights_on < 0) {
-        point_lights_on = !getenv("MHFU_POINT_LIGHTS") || atoi(getenv("MHFU_POINT_LIGHTS")) != 0;
-        point_shadows_on = !getenv("MHFU_POINT_SHADOWS") || atoi(getenv("MHFU_POINT_SHADOWS")) != 0;
-        sun_shading = !getenv("MHFU_SUN_SHADING") || atoi(getenv("MHFU_SUN_SHADING")) != 0;
-        sway = getenv("MHFU_SWAY") ? (float)atof(getenv("MHFU_SWAY")) : 1.0f;
-        relief_on = !getenv("MHFU_RELIEF") || atoi(getenv("MHFU_RELIEF")) != 0;
+    static int settings_read;
+    if (!settings_read) {
+        settings_read = 1;
+        lights_settings();
+        shadow_settings();
+        shading_settings();
         blob_shadows = getenv("MHFU_BLOB_SHADOWS") && atoi(getenv("MHFU_BLOB_SHADOWS")) != 0;
-        if (getenv("MHFU_POINT_GAIN"))
-            point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
     emitting = point_lights_on && (s.flags & DRAW_WORLD) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
                s.eq.colorBlendOp == VK_BLEND_OP_ADD;
@@ -1339,762 +675,24 @@ void render_prim_begin(const uint32_t *reg) {
                 (reg[0xC3] & 0xF) == 5 && (reg[0xB8] & 0xF0F) == 0x707;
 }
 
-
-/* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
- * people's, into the motion blur's image - their motion (1 flat, 2 tessellated) */
-static struct { DrawState s; DrawPush pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
-
-/* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
-static void shadow_begin(void) {
-    if (shadow_recording)
-        return;
-    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
-                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL};
-    vkBeginCommandBuffer(shadow_cmd, &bi);
-    shadow_recording = 1;
-    shadow_drawn = 1;
-    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED, shadow_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}};
-    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
-    vkCmdPipelineBarrier2(shadow_cmd, &d);
-    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, shadow_img.view,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-    da.clearValue.depthStencil.depth = 1.0f;
-    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {SHADOW_SIZE, SHADOW_SIZE}}, 1, 0, 0, NULL,
-                          &da, NULL};
-    vkCmdBeginRendering(shadow_cmd, &ri);
-    vkCmdBindPipeline(shadow_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shadow_pipeline);
-    vkCmdBindDescriptorSets(shadow_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
-    VkDeviceSize zero = 0;
-    vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &vertices.buffer, &zero);
-    VkViewport vp = {0, 0, SHADOW_SIZE, SHADOW_SIZE, 0, 1};
-    VkRect2D sc = {{0, 0}, {SHADOW_SIZE, SHADOW_SIZE}};
-    vkCmdSetViewport(shadow_cmd, 0, 1, &vp);
-    vkCmdSetScissor(shadow_cmd, 0, 1, &sc);
-}
-
-/* The sun's shadow pass, finished (NULL if there was none) */
-static VkCommandBuffer sun_finish(void) {
-    if (!shadow_recording)
-        return VK_NULL_HANDLE;
-    vkCmdEndRendering(shadow_cmd);
-    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED, shadow_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1}};
-    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
-    vkCmdPipelineBarrier2(shadow_cmd, &d);
-    vkEndCommandBuffer(shadow_cmd);
-    shadow_recording = 0;
-    return shadow_cmd;
-}
-
-/* The point lights' shadow pass, begun at the first thing in the world of a frame with shadowed point lights */
-static void point_begin(void) {
-    if (point_recording)
-        return;
-    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
-                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, NULL};
-    vkBeginCommandBuffer(point_cmd, &bi);
-    point_recording = 1;
-    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED, point_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 12}};
-    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
-    vkCmdPipelineBarrier2(point_cmd, &d);
-    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, point_img.view,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-    da.clearValue.depthStencil.depth = 1.0f;
-    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {POINT_SHADOW_SIZE, POINT_SHADOW_SIZE}},
-                          12, 0, 0, NULL, &da, NULL};
-    vkCmdBeginRendering(point_cmd, &ri);
-    vkCmdBindPipeline(point_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, point_pipeline);
-    vkCmdBindDescriptorSets(point_cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
-    VkDeviceSize zero = 0;
-    vkCmdBindVertexBuffers(point_cmd, 0, 1, &vertices.buffer, &zero);
-    VkViewport vp = {0, 0, POINT_SHADOW_SIZE, POINT_SHADOW_SIZE, 0, 1};
-    VkRect2D sc = {{0, 0}, {POINT_SHADOW_SIZE, POINT_SHADOW_SIZE}};
-    vkCmdSetViewport(point_cmd, 0, 1, &vp);
-    vkCmdSetScissor(point_cmd, 0, 1, &sc);
-}
-
-static VkCommandBuffer point_finish(void) {
-    if (!point_recording)
-        return VK_NULL_HANDLE;
-    vkCmdEndRendering(point_cmd);
-    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
-        VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED, point_img.image, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 12}};
-    VkDependencyInfo d = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
-    vkCmdPipelineBarrier2(point_cmd, &d);
-    vkEndCommandBuffer(point_cmd);
-    point_recording = 0;
-    return point_cmd;
-}
-
-/* vk_submit: the shadow passes, finished, to submit before the frame's commands */
-static int shadow_finish(VkCommandBuffer *out) {
-    int n = 0;
-    VkCommandBuffer c = sun_finish();
-    if (c)
-        out[n++] = c;
-    c = point_finish();
-    if (c)
-        out[n++] = c;
-    return n;
-}
-
-/* gpu.c: this frame's shadows - the world to the shadow map (by columns), or off */
-float rt_cull_margin;
-
-void render_shadow_frame(const float *m, int on) {
-    /* with shadows, what is just out of view is drawn too (MHFU_CULL_MARGIN: how far, 1200) */
-    static float margin = -1;
-    if (margin < 0)
-        margin = getenv("MHFU_CULL_MARGIN") ? (float)atof(getenv("MHFU_CULL_MARGIN")) : 1200.0f;
-    rt_cull_margin = on ? margin : 0.0f;
-    if (on && memcmp(m, light_vp, sizeof light_vp)) {
-        flush();                        /* what is batched was placed with the last */
-        memcpy(light_vp, m, sizeof light_vp);
-        /* the map's centre: the point at x = y = 0, depth 0.5 (the light's rows are orthonormal, scaled) */
-        float sx = 1 / (m[0] * m[0] + m[4] * m[4] + m[8] * m[8]), sy = 1 / (m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
-        float sz = 1 / (m[2] * m[2] + m[6] * m[6] + m[10] * m[10]);
-        for (int i = 0; i < 3; i++)
-            view_center[i] = -(m[4 * i] * m[12] * sx + m[4 * i + 1] * m[13] * sy + m[4 * i + 2] * (m[14] - 0.5f) * sz);
-    }
-    if (on != shadow_on)
-        flush();
-    shadow_on = on;
-}
-
-/* gpu.c: the next primitive's directional lights, for the GPU to light it by the pixel (n 0: lit by the vertex) - in
- * the world: direction (to the light; w a power of the diffuse term, 0 none) and colour; which is the sun */
-void render_prim_lights(int n, const float *dirs, const float *colors, int sun) {
-    if (!n) {
-        prim_lights = ~0u;
-        return;
-    }
-    LightSet l;
-    memset(&l, 0, sizeof l);
-    memcpy(l.dir, dirs, sizeof(float) * 4 * (size_t)n);
-    memcpy(l.color, colors, sizeof(float) * 4 * (size_t)n);
-    l.count = (uint32_t)n;
-    l.sun = sun < 0 ? 99u : (uint32_t)sun;
-    if (sun >= 0 && sun < n)
-        memcpy(sun_rgb, colors + 4 * sun, sizeof sun_rgb);
-    if (prim_lights != ~0u && light_sets_used && !memcmp(&l, &last_lights, sizeof l))
-        return;
-    if (light_sets_used >= LIGHT_SETS - 2) {     /* (the last two: the point lights) */
-        prim_lights = ~0u;
-        return;
-    }
-    uint32_t index = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
-    memcpy((LightSet *)light_buf.map + index, &l, sizeof l);
-    last_lights = l;
-    prim_lights = index;
-}
-
 /* gpu.c: the next primitive's vertices have their place in the world (shadows fall on it, and it casts them) */
 void render_prim_world(int on) {
     prim_world = on;
 }
 
-/* The batch's light, if it adds to the picture: an emitter, its colour the vertices' times the texture's */
-static void flush_emitter(void) {
-    if (emit_sum[0] > 0 && nemitters < MAX_EMITTERS) {
-        Emitter *e = &emitters[nemitters++];
-        double w = emit_sum[0];
-        for (int k = 0; k < 3; k++) {
-            e->pos[k] = (float)(emit_sum[1 + k] / w);
-            e->color[k] = (float)(emit_sum[4 + k] / w);
-            if (cur.tex_slot < MAX_TEXTURES)
-                e->color[k] *= tex_average[cur.tex_slot][k];
-        }
-        e->weight = (float)w;
-    }
-    memset(emit_sum, 0, sizeof emit_sum);
-}
-
-/* How much a light matters: how bright it is, less the further it is from what the camera looks at */
-static float light_rank(const float *pos, float power) {
-    float d = sqrtf((pos[0] - view_center[0]) * (pos[0] - view_center[0]) + (pos[1] - view_center[1]) * (pos[1] - view_center[1]) +
-                    (pos[2] - view_center[2]) * (pos[2] - view_center[2]));
-    return power / (1.0f + d / 1000.0f);
-}
-
-/* The frame's emitters to lights: those within 300 units one, the warm (fire) ones kept, the strongest first */
-static void make_point_lights(void) {
-    typedef struct { float pos[3], color[3], weight; } Light;
-    Light l[64];
-    int n = 0;
-    for (int i = 0; i < nemitters; i++) {
-        Emitter *e = &emitters[i];
-        int j = 0;
-        for (; j < n; j++) {
-            float d2 = 0;
-            for (int k = 0; k < 3; k++)
-                d2 += (l[j].pos[k] - e->pos[k]) * (l[j].pos[k] - e->pos[k]);
-            if (d2 < 300.0f * 300.0f)
-                break;
-        }
-        if (j == n) {
-            if (n == 64)
-                continue;
-            memset(&l[n], 0, sizeof l[n]);
-            n++;
-        }
-        float w0 = l[j].weight, w = w0 + e->weight;
-        for (int k = 0; k < 3; k++) {
-            l[j].pos[k] = (l[j].pos[k] * w0 + e->pos[k] * e->weight) / w;
-            l[j].color[k] = (l[j].color[k] * w0 + e->color[k] * e->weight) / w;
-        }
-        l[j].weight = w;
-    }
-    /* the warm ones (fire: red over green over blue) near what the camera looks at, smoothed from frame to frame -
-     * a light found again near where one was eases to its new colour and strength, one gone fades out */
-    typedef struct { float pos[3], color[3], strength, power; int seen; } Smoothed;
-    static Smoothed lit[MAX_POINT_LIGHTS];
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        lit[i].seen = 0;
-    for (int j = 0; j < n; j++) {
-        const float *c = l[j].color;
-        float dc = sqrtf((l[j].pos[0] - view_center[0]) * (l[j].pos[0] - view_center[0]) +
-                         (l[j].pos[1] - view_center[1]) * (l[j].pos[1] - view_center[1]) +
-                         (l[j].pos[2] - view_center[2]) * (l[j].pos[2] - view_center[2]));
-        /* by its hue: a fire's textures can be mostly dark, their average dark (0.14, 0.11, 0.06 in the guild hall) */
-        if (dc > POINT_LIGHT_REACH || !(c[0] > 0.04f && c[0] >= c[1] && c[1] >= c[2] && c[0] > 1.4f * c[2]))
-            continue;
-        float strength = fminf(1.0f, l[j].weight / 40.0f);
-        float m = fmaxf(c[0], 1e-3f);
-        int k = -1;
-        for (int i = 0; i < MAX_POINT_LIGHTS && k < 0; i++) {
-            float d2 = 0;
-            for (int q = 0; q < 3; q++)
-                d2 += (lit[i].pos[q] - l[j].pos[q]) * (lit[i].pos[q] - l[j].pos[q]);
-            if (lit[i].strength > 0 && d2 < 250.0f * 250.0f)
-                k = i;
-        }
-        if (k < 0) {                        /* a new light: in an empty place, or instead of the weakest */
-            k = 0;
-            for (int i = 1; i < MAX_POINT_LIGHTS; i++)
-                if (lit[i].strength < lit[k].strength)
-                    k = i;
-            if (lit[k].strength > strength)
-                continue;
-            memcpy(lit[k].pos, l[j].pos, sizeof lit[k].pos);
-            for (int q = 0; q < 3; q++)
-                lit[k].color[q] = c[q] / m;
-            lit[k].strength = 0;
-            lit[k].power = l[j].weight;
-        }
-        /* a fire stands still: what is drawn of its flames moves about (80 units) as they play and the camera
-         * turns, so its light drifts to it only slowly (a third of a second); it brightens quickly and dims slowly */
-        for (int q = 0; q < 3; q++) {
-            lit[k].pos[q] += (l[j].pos[q] - lit[k].pos[q]) * 0.005f;
-            lit[k].color[q] += (c[q] / m - lit[k].color[q]) * 0.05f;
-        }
-
-        /* (uncapped: which have shadows) - the brightest it has been seen lately: how much of a fire's flames is
-         * drawn changes as the camera turns, the fire does not */
-        lit[k].power = fmaxf(lit[k].power * 0.9995f, l[j].weight);
-        /* its strength by that too (a fire turned from is no dimmer), reached in a fraction of a second */
-        float target = fminf(1.0f, lit[k].power / 40.0f);
-        lit[k].strength += (target - lit[k].strength) * 0.1f;
-        lit[k].seen = 1;
-    }
-    memset(point_lights, 0, sizeof point_lights);
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        if (!lit[i].seen)
-            lit[i].strength *= 0.9995f;     /* (half in ten seconds: out of view the game draws no flames) */
-    /* the brightest first (as they give light, not capped), the nearer the more. The first two (of the first set)
-     * have shadows, and keep them - and their cube maps - until another is half as bright again */
-    static int shadowed[2] = {-1, -1};
-    float rank[MAX_POINT_LIGHTS];
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        rank[i] = lit[i].strength > 0.02f ? light_rank(lit[i].pos, lit[i].power) : 0.0f;
-    for (int slot = 0; slot < 2; slot++) {
-        int best = -1;
-        for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-            if (rank[i] > 0 && i != shadowed[1 - slot] && (best < 0 || rank[i] > rank[best]))
-                best = i;
-        int cur_i = shadowed[slot];
-        if (cur_i < 0 || rank[cur_i] <= 0 || (best >= 0 && best != cur_i && rank[best] > 1.5f * rank[cur_i]))
-            shadowed[slot] = best;
-    }
-    if (shadowed[0] < 0 && shadowed[1] >= 0) {
-        shadowed[0] = shadowed[1];
-        shadowed[1] = -1;
-    }
-    int order[MAX_POINT_LIGHTS], no = 0;
-    for (int slot = 0; slot < 2; slot++)
-        if (shadowed[slot] >= 0)
-            order[no++] = shadowed[slot];
-    for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        if (i != shadowed[0] && i != shadowed[1])
-            order[no++] = i;
-    for (int i = (shadowed[0] >= 0) + (shadowed[1] >= 0) + 1; i < MAX_POINT_LIGHTS; i++)     /* the rest by rank */
-        for (int j = i; j > (shadowed[0] >= 0) + (shadowed[1] >= 0) && rank[order[j]] > rank[order[j - 1]]; j--) {
-            int t = order[j];
-            order[j] = order[j - 1];
-            order[j - 1] = t;
-        }
-    for (int oi = 0; oi < MAX_POINT_LIGHTS; oi++) {
-        int i = order[oi];
-        if (lit[i].strength < 0.02f) {
-            lit[i].strength = 0;
-            continue;
-        }
-        LightSet *ls = &point_lights[point_lights[0].count < 4 ? 0 : 1];
-        uint32_t at = ls->count++;
-        memcpy(ls->dir[at], lit[i].pos, sizeof lit[i].pos);
-        ls->dir[at][1] += 70.0f;            /* a fire's light: in its flames, above where they are drawn on average */
-        ls->dir[at][3] = POINT_LIGHT_RADIUS;
-        /* a fire's light flickers: two slow waves, a light's own (by where it is) */
-        double now = (double)time_us() / 1e6, phase = lit[i].pos[0] * 0.013 + lit[i].pos[2] * 0.017;
-        float flicker = 0.94f + 0.04f * (float)sin(now * 9.1 + phase) + 0.02f * (float)sin(now * 23.7 + 2 * phase);
-        for (int q = 0; q < 3; q++)
-            ls->color[at][q] = lit[i].color[q] * lit[i].strength * point_gain * flicker;
-    }
-    point_shadows_next = (shadowed[0] >= 0 && lit[shadowed[0]].strength >= 0.02f) +
-                         (shadowed[1] >= 0 && lit[shadowed[1]].strength >= 0.02f);
-    if (point_shadows_next > (int)point_lights[0].count)
-        point_shadows_next = (int)point_lights[0].count;
-    if (!vk.output_layer || !shadow_on || !point_shadows_on)
-        point_shadows_next = 0;
-    point_lights[0].pad0 = (uint32_t)point_shadows_next;
-    nemitters = 0;
-}
-
 /* Draw what has been batched with the current state */
-/* The batch's normals (the scenery's): each triangle's, turned towards the camera, summed where corners meet (the same
- * place in the world), each corner taking the sum unless it bends more than 60 degrees from its own (an edge) */
-static void make_normals(size_t n) {
-    static uint32_t *table, *owner;     /* a place's first corner + 1 (0: empty); each corner's first at its place */
-    static float (*sum)[3], (*face)[3];
-    static size_t table_cap, sum_cap;
-    if (n > sum_cap) {
-        sum_cap = n * 2;
-        sum = realloc(sum, sum_cap * sizeof *sum);
-        face = realloc(face, sum_cap * sizeof *face);
-        owner = realloc(owner, sum_cap * sizeof *owner);
-    }
-    size_t tsize = 1024;
-    while (tsize < n * 2)
-        tsize *= 2;
-    if (tsize > table_cap) {
-        table_cap = tsize;
-        table = realloc(table, table_cap * sizeof *table);
-    }
-    memset(table, 0, tsize * sizeof *table);
-    for (size_t t = 0; t + 2 < n; t += 3) {
-        const Corner *a = &corners[t], *b = &corners[t + 1], *c = &corners[t + 2];
-        float e1[3] = {b->w[0] - a->w[0], b->w[1] - a->w[1], b->w[2] - a->w[2]};
-        float e2[3] = {c->w[0] - a->w[0], c->w[1] - a->w[1], c->w[2] - a->w[2]};
-        float f[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
-        float area = (b->sx - a->sx) * (c->sy - a->sy) - (b->sy - a->sy) * (c->sx - a->sx);
-        if (area > 0)                   /* wound the other way on the screen: facing away as wound */
-            f[0] = -f[0], f[1] = -f[1], f[2] = -f[2];
-        for (int k = 0; k < 3; k++)
-            memcpy(face[t + (size_t)k], f, sizeof f);
-    }
-    for (size_t i = 0; i < n; i++) {
-        uint32_t h[3];
-        memcpy(h, corners[i].w, sizeof h);
-        uint32_t x = (h[0] * 0x9E3779B1u ^ h[1] * 0x85EBCA77u ^ h[2] * 0xC2B2AE3Du);
-        x ^= x >> 15;
-        size_t j = x & (tsize - 1);
-        for (;;) {
-            uint32_t e = table[j];
-            if (!e) {
-                table[j] = (uint32_t)i + 1;
-                owner[i] = (uint32_t)i;
-                memcpy(sum[i], face[i], sizeof sum[i]);
-                break;
-            }
-            if (!memcmp(corners[e - 1].w, corners[i].w, sizeof h)) {
-                for (int k = 0; k < 3; k++)
-                    sum[e - 1][k] += face[i][k];
-                owner[i] = e - 1;
-                break;
-            }
-            j = (j + 1) & (tsize - 1);
-        }
-    }
-    GpuVertex *g = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
-    for (size_t i = 0; i < n; i++) {
-        const float *s = sum[owner[i]], *f = face[i];
-        float sl = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]), fl = sqrtf(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]);
-        if (!(fl > 0))
-            continue;
-        const float *use = sl > 0 && (s[0] * f[0] + s[1] * f[1] + s[2] * f[2]) > 0.5f * sl * fl ? s : f;
-        float k = 32767.0f / (use == s ? sl : fl);
-        int16_t nn[4] = {(int16_t)(use[0] * k), (int16_t)(use[1] * k), (int16_t)(use[2] * k), 0};
-        memcpy(g[i].n, nn, sizeof nn);
-    }
-}
-
-/* gpu.c: the moment the frame shows, in seconds (-1: the game's own frame, drawn as it runs) */
-void render_time(double seconds) {
-    sway_clock = seconds;
-}
-
-unsigned long present_frame_number(void);
-
-/* A lit batch's feet (if it has any near the ground): the middle and spread of its lowest corners */
-static void find_feet(size_t n) {
-    float lo = 1e30f;
-    for (size_t i = 0; i < n; i++)
-        lo = fminf(lo, lit_pos[i][1]);
-    float x0 = 1e30f, x1 = -1e30f, z0 = 1e30f, z1 = -1e30f;
-    for (size_t i = 0; i < n; i++)
-        if (lit_pos[i][1] < lo + 25.0f) {
-            x0 = fminf(x0, lit_pos[i][0]);
-            x1 = fmaxf(x1, lit_pos[i][0]);
-            z0 = fminf(z0, lit_pos[i][2]);
-            z1 = fmaxf(z1, lit_pos[i][2]);
-        }
-    float x = 0.5f * (x0 + x1), z = 0.5f * (z0 + z1), r = 0.5f * fmaxf(x1 - x0, z1 - z0);
-    if (!(r <= 250.0f))                 /* (spread too wide to be feet: not something walking) */
-        return;
-    Foot *f = &feet[0][0];
-    for (int i = 0; i < nfeet[0]; i++)  /* (one foot drawn in pieces: one) */
-        if (fabsf(f[i].x - x) < 10.0f && fabsf(f[i].z - z) < 10.0f && fabsf(f[i].y - lo) < 10.0f)
-            return;
-    if (nfeet[0] < MAX_FEET) {
-        if (!nfeet[0])
-            feet_moment[0] = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
-        f[nfeet[0]++] = (Foot){x, lo, z, r, 0, 0};
-    }
-}
-
-/* The world to the screen (PSP pixels, depth over 65535; by columns), with the primitive's camera */
-static int world_to_screen(float *m) {
-    float wv[16] = {0}, vw[16];
-    for (int c = 0; c < 4; c++)
-        for (int i = 0; i < 3; i++)
-            wv[4 * c + i] = prim_world_view[3 * c + i];
-    wv[15] = 1;
-    if (!invert4(wv, vw))
-        return 0;
-    for (int c = 0; c < 4; c++)
-        for (int r = 0; r < 4; r++) {
-            float v = 0;
-            for (int k = 0; k < 4; k++)
-                v += prim_view[4 * k + r] * vw[4 * c + k];
-            m[4 * c + r] = v;
-        }
-    return 1;
-}
-
-/* The light set holding the world to the clip space (as put makes it: x, y over half the target, less w), for the
- * tessellated draws; ~0 if there is no room */
-static uint32_t camera_light_set(void) {
-    float m[16], clip[16];
-    if (!world_to_screen(m))
-        return ~0u;
-    for (int c = 0; c < 4; c++) {
-        clip[4 * c + 0] = m[4 * c + 0] / (RT_SIZE / 2.0f) - m[4 * c + 3];
-        clip[4 * c + 1] = m[4 * c + 1] / (RT_SIZE / 2.0f) - m[4 * c + 3];
-        clip[4 * c + 2] = m[4 * c + 2];
-        clip[4 * c + 3] = m[4 * c + 3];
-    }
-    if (camera_set != ~0u && !memcmp(clip, camera_clip, sizeof clip))
-        return camera_set;
-    if (light_sets_used >= LIGHT_SETS - 2)
-        return ~0u;
-    camera_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
-    memcpy(camera_clip, clip, sizeof clip);
-    LightSet l;
-    memset(&l, 0, sizeof l);
-    memcpy(l.dir, clip, sizeof clip);
-    memcpy((LightSet *)light_buf.map + camera_set, &l, sizeof l);
-    return camera_set;
-}
-
-/* A tessellated batch's shape normals (what curves it, ge.tese): at each place the average of its corners' normals -
- * corners at one place, with normals split for lighting (hard edges, seams), curve alike, and no cracks open between
- * their triangles. Packed into the normal's fourth component (8 + 8 bits, octahedral; 0: none). And its edges that
- * no other of its triangles shares (where another draw goes on: what it curves is not known here) stay straight:
- * in the sun's fourth byte, bit k for the edge facing corner k */
-static void shape_normals(size_t n) {
-    static uint32_t *table, *owner;
-    static float (*pos)[3], (*sum)[3];
-    static int16_t *packed;
-    static struct { uint64_t key; uint32_t uses; } *edges;
-    static size_t cap, table_cap;
-    if (n > cap) {
-        cap = n * 2;
-        owner = realloc(owner, cap * sizeof *owner);
-        pos = realloc(pos, cap * sizeof *pos);
-        sum = realloc(sum, cap * sizeof *sum);
-        packed = realloc(packed, cap * sizeof *packed);
-    }
-    size_t tsize = 1024;
-    while (tsize < n * 2)
-        tsize *= 2;
-    if (tsize > table_cap) {
-        table_cap = tsize;
-        table = realloc(table, table_cap * sizeof *table);
-        edges = realloc(edges, table_cap * 2 * sizeof *edges);
-    }
-    memset(table, 0, tsize * sizeof *table);
-    GpuVertex *g = sway_verts, *out = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
-    /* the places (welded): each corner's first at its place, the normals summed there */
-    uint32_t places = 0;
-    for (size_t i = 0; i < n; i++) {
-        const float *w = &g[i].wx;
-        uint32_t hb[3];
-        memcpy(hb, w, sizeof hb);
-        uint32_t x = (hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du);
-        x ^= x >> 15;
-        size_t j = x & (tsize - 1);
-        for (;;) {
-            uint32_t e = table[j];
-            if (!e) {
-                table[j] = ++places;
-                memcpy(pos[places - 1], w, sizeof pos[0]);
-                sum[places - 1][0] = sum[places - 1][1] = sum[places - 1][2] = 0;
-                owner[i] = places - 1;
-                break;
-            }
-            if (!memcmp(pos[e - 1], w, sizeof pos[0])) {
-                owner[i] = e - 1;
-                break;
-            }
-            j = (j + 1) & (tsize - 1);
-        }
-        float *a = sum[owner[i]];
-        a[0] += g[i].n[0];
-        a[1] += g[i].n[1];
-        a[2] += g[i].n[2];
-    }
-    for (uint32_t p = 0; p < places; p++) {    /* octahedral: onto |x| + |y| + |z| = 1, the lower half folded up */
-        const float *a = sum[p];
-        float l = fabsf(a[0]) + fabsf(a[1]) + fabsf(a[2]);
-        packed[p] = 0;
-        if (l > 1e-3f) {
-            float ox = a[0] / l, oy = a[1] / l;
-            if (a[2] < 0) {
-                float tx = (1 - fabsf(oy)) * (ox >= 0 ? 1 : -1), ty = (1 - fabsf(ox)) * (oy >= 0 ? 1 : -1);
-                ox = tx;
-                oy = ty;
-            }
-            int raw = (int)lrintf(ox * 127) * 256 + (int)lrintf(oy * 127) + 127;
-            packed[p] = (int16_t)(raw ? raw : 1);
-        }
-    }
-    /* the edges, by their two places: counted, then those of one triangle only left straight */
-    size_t esize = tsize * 2;
-    memset(edges, 0, esize * sizeof *edges);
-    size_t ntri = n / 3;
-    for (int pass = 0; pass < 2; pass++)
-        for (size_t t = 0; t < ntri; t++) {
-            const uint32_t *o = &owner[3 * t];
-            uint32_t open = 0;
-            for (int k = 0; k < 3; k++) {
-                uint32_t a = o[(k + 1) % 3], b = o[(k + 2) % 3];
-                uint64_t key = (a < b ? (uint64_t)a << 32 | b : (uint64_t)b << 32 | a) + 1;
-                size_t j = (size_t)((key * 0x9E3779B97F4A7C15ull) >> 40) & (esize - 1);
-                while (edges[j].key && edges[j].key != key)
-                    j = (j + 1) & (esize - 1);
-                if (pass == 0) {
-                    edges[j].key = key;
-                    edges[j].uses++;
-                } else if (edges[j].uses < 2) {
-                    open |= 1u << k;
-                }
-            }
-            if (pass == 1)
-                for (int k = 0; k < 3; k++) {
-                    GpuVertex v = g[3 * t + (size_t)k];
-                    v.n[3] = packed[o[k]];
-                    v.sun = (v.sun & 0xFFFFFFu) | open << 24;
-                    out[3 * t + (size_t)k] = v;
-                }
-        }
-    for (size_t i = ntri * 3; i < n; i++)
-        out[i] = g[i];
-}
-
-/* How large the batch (its CPU copy) is on the screen, in PSP pixels (the larger way; 0 if any of it is behind) */
-static float on_screen_size(size_t n) {
-    float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
-    for (size_t i = 0; i < n; i++) {
-        const GpuVertex *v = &sway_verts[i];
-        if (v->w <= 0)
-            return 0;
-        float x = v->x / v->w, y = v->y / v->w;
-        x0 = fminf(x0, x);
-        x1 = fmaxf(x1, x);
-        y0 = fminf(y0, y);
-        y1 = fmaxf(y1, y);
-    }
-    return fmaxf(x1 - x0, y1 - y0) * (RT_SIZE / 2.0f);
-}
-
-/* The batch's n vertices (triangles) moved by the wind */
-static void sway_batch(size_t n) {
-    float m[16];
-    if (!world_to_screen(m))
-        return;
-    double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
-    float t = (float)fmod(now, 3600.0), amp = 7.0f * sway;
-    const float wind[3] = {0.8f, 0.0f, 0.6f};
-    GpuVertex *g = sway_verts, *out = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
-    const uint8_t *holes = tex_holes[cur.tex_slot];
-    float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
-    /* the corners at one place (welded: a mesh's triangles share them) move as one: by their height above the lowest
-     * foot of their triangles; held where a triangle that is not a plant's meets them (a branch on its trunk) */
-    static uint32_t *table, *owner;
-    static float *foot;
-    static uint8_t *held;
-    static size_t cap, table_cap;
-    if (n > cap) {
-        cap = n * 2;
-        owner = realloc(owner, cap * sizeof *owner);
-        foot = realloc(foot, cap * sizeof *foot);
-        held = realloc(held, cap);
-    }
-    size_t tsize = 1024;
-    while (tsize < n * 2)
-        tsize *= 2;
-    if (tsize > table_cap) {
-        table_cap = tsize;
-        table = realloc(table, table_cap * sizeof *table);
-    }
-    memset(table, 0, tsize * sizeof *table);
-    int any = 0;
-    for (size_t tri = 0; tri + 3 <= n; tri += 3) {
-        /* a plant's: the part of the texture it shows is mostly holes (between blades, leaves) and a plant's colour -
-         * not the bark, rope, wood, paper or cloth sharing the texture with them */
-        float cu = (g[tri].u + g[tri + 1].u + g[tri + 2].u) / 3, cv = (g[tri].v + g[tri + 1].v + g[tri + 2].v) / 3;
-        int share = 0;
-        for (int k = -1; k < 3; k++) {
-            float u = k < 0 ? cu : 0.6f * g[tri + k].u + 0.4f * cu, v = k < 0 ? cv : 0.6f * g[tri + k].v + 0.4f * cv;
-            u /= tw;
-            v /= th;
-            u -= floorf(u);
-            v -= floorf(v);
-            int cx = (int)(u * HOLE_GRID), cy = (int)(v * HOLE_GRID);
-            share += holes[(cy < HOLE_GRID ? cy : HOLE_GRID - 1) * HOLE_GRID + (cx < HOLE_GRID ? cx : HOLE_GRID - 1)];
-        }
-        int plant = share >= 4 * 70;    /* (more than about a quarter holes) */
-        any |= plant;
-        float f = fminf(g[tri].wy, fminf(g[tri + 1].wy, g[tri + 2].wy));
-        for (size_t i = tri; i < tri + 3; i++) {
-            uint32_t hb[3];
-            memcpy(hb, &g[i].wx, sizeof hb);
-            uint32_t x = (hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du);
-            x ^= x >> 15;
-            size_t j = x & (tsize - 1);
-            for (;;) {
-                uint32_t e = table[j];
-                if (!e) {
-                    table[j] = (uint32_t)i + 1;
-                    owner[i] = (uint32_t)i;
-                    foot[i] = f;
-                    held[i] = !plant;
-                    break;
-                }
-                if (!memcmp(&g[e - 1].wx, &g[i].wx, sizeof hb)) {
-                    owner[i] = e - 1;
-                    foot[e - 1] = fminf(foot[e - 1], f);
-                    held[e - 1] |= !plant;
-                    break;
-                }
-                j = (j + 1) & (tsize - 1);
-            }
-        }
-    }
-    if (!any)
-        return;
-    /* the feet near the batch at all */
-    float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f};
-    for (size_t i = 0; i < n; i++) {
-        const float *w = &g[i].wx;
-        for (int k = 0; k < 3; k++) {
-            lo[k] = fminf(lo[k], w[k]);
-            hi[k] = fmaxf(hi[k], w[k]);
-        }
-    }
-    const Foot *near[MAX_FEET];
-    int nnear = 0;
-    for (int f = 0; f < nfeet[1]; f++) {
-        const Foot *ft = &feet[1][f];
-        float reach = ft->r + 45.0f;
-        if (ft->x + reach > lo[0] && ft->x - reach < hi[0] && ft->z + reach > lo[2] && ft->z - reach < hi[2] &&
-            ft->y + 60.0f > lo[1] && ft->y - 60.0f < hi[1])
-            near[nnear++] = ft;
-    }
-    for (size_t i = 0; i < n - n % 3; i++) {
-        GpuVertex *v = &g[i];
-        uint32_t o = owner[i];
-        float h = v->wy - foot[o];
-        if (held[o] || h <= 0.5f || v->w <= 0)
-            continue;
-        float wgt = fminf(fmaxf(h - 10.0f, 0.0f) / 80.0f, 1.0f);      /* (small cards hardly) */
-        wgt *= sqrtf(wgt);
-        float ph = v->wx * 0.0041f + v->wz * 0.0033f;
-        float gust = 0.55f + 0.45f * sinf(t * 0.37f + v->wx * 0.0006f - v->wz * 0.0004f);
-        float sw = 0.7f * sinf(t * 1.9f + ph * 6.2832f) + 0.3f * sinf(t * 3.7f + ph * 11.0f);
-        float d = (sw + 0.4f) * gust * amp * wgt;
-        float dw[3] = {wind[0] * d, -0.1f * fabsf(d), wind[2] * d};
-        /* bent away from feet among them: out and down, the more the nearer (their foot - not the leaves up a tree) */
-        for (int f = 0; f < nnear; f++) {
-            const Foot *ft = near[f];
-            float dx = v->wx - ft->x, dz = v->wz - ft->z, reach = ft->r + 45.0f;
-            if (fabsf(dx) > reach || fabsf(dz) > reach || fabsf(foot[o] - ft->y) > 60.0f)
-                continue;
-            float dist = sqrtf(dx * dx + dz * dz);
-            if (dist >= reach || dist < 1e-3f)
-                continue;
-            float push = (1.0f - dist / reach) * fminf(h, 60.0f) * 0.6f;
-            dw[0] += dx / dist * push;
-            dw[2] += dz / dist * push;
-            dw[1] -= push * 0.5f;
-        }
-        float p[4], q[4];
-        for (int r = 0; r < 4; r++) {
-            p[r] = m[r] * v->wx + m[4 + r] * v->wy + m[8 + r] * v->wz + m[12 + r];
-            q[r] = p[r] + m[r] * dw[0] + m[4 + r] * dw[1] + m[8 + r] * dw[2];
-        }
-        if (p[3] <= 0 || q[3] <= 0)
-            continue;
-        float w = v->w * q[3] / p[3], z = q[2] / q[3];
-        GpuVertex moved = *v;
-        moved.x = (q[0] / q[3] / (RT_SIZE / 2.0f) - 1.0f) * w;
-        moved.y = (q[1] / q[3] / (RT_SIZE / 2.0f) - 1.0f) * w;
-        moved.z = (z < 0 ? 0 : z > 1 ? 1 : z) * w;
-        moved.w = w;
-        moved.wx += dw[0];              /* (its shadow sways too) */
-        moved.wy += dw[1];
-        moved.wz += dw[2];
-        out[i] = moved;
-    }
-}
-
-static void flush(void) {
+void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
     if (!n || !rendering) {
-        extra_batch = extra_used;
+        shadow_skip();
         return;
     }
     if (shaded(&cur))
         make_normals((size_t)n);
     if (swaying(&cur))
-        sway_batch((size_t)n);
-    if (sway > 0 && (cur.flags & DRAW_KIND) > DRAW_WORLD)
-        find_feet((size_t)n);
+        sway_batch(&cur, (size_t)n);
+    if (finds_feet(&cur))
+        scene_lit_batch((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
@@ -2120,8 +718,8 @@ static void flush(void) {
     DrawPush pc = {{s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1}, s->tex_slot,
         shadow_on ? s->flags : s->flags & ~(DRAW_WORLD | DRAW_LIT_GE), s->alpha_test, s->env_color, s->fog_color, s->lights, {0},
         point_lights_on > 0 && (s->flags & DRAW_WORLD) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
-            ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, ~0u, 0, 0};
-    memcpy(pc.light, light_vp, sizeof pc.light);
+            ? point_light_set() : ~0u, ~0u, 0, 0};
+    memcpy(pc.light, scene.sun_vp, sizeof pc.light);
     /* lit by the pixel, opaque: also drawn tessellated (rounder), over itself drawn flat - which shows through any
      * crack the curving opens (and wins where it would curve inwards) */
     uint32_t cam = tess_pipeline && (s->flags & DRAW_LIT_PIXEL) && !s->blend && n % 3 == 0 && on_screen_size((size_t)n) >= 40
@@ -2129,86 +727,30 @@ static void flush(void) {
     if (cam != ~0u)
         shape_normals((size_t)n);
     else if (tess_pipeline && (s->flags & DRAW_LIT_PIXEL))
-        memcpy((uint8_t *)vertices.map + batch_start, sway_verts, (size_t)n * sizeof(GpuVertex));
-    if (bound_pipeline != pipeline) {
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-        bound_pipeline = pipeline;
+        memcpy((uint8_t *)vertices.map + batch_start, shading_kept(), (size_t)n * sizeof(GpuVertex));
+    if (bound_pipeline != ge_pipeline) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_pipeline);
+        bound_pipeline = ge_pipeline;
     }
     pc.camera = cam;
     if (shaded(s))
         pc.flags |= DRAW_SHADED | (relief_on && s->tex_slot < MAX_TEXTURES ? DRAW_RELIEF : 0u);
-    vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof pc, &pc);
+    vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     if (cam != ~0u) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, tess_pipeline);
         bound_pipeline = tess_pipeline;
         vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     }
-    /* what adds light to the world: kept for the glow */
-    if (glow_pipeline && rendering == post_target && (s->flags & DRAW_WORLD) && s->blend &&
-        s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE && s->eq.colorBlendOp == VK_BLEND_OP_ADD &&
-        nglow < MAX_GLOW_DRAWS) {
-        glow_draws[nglow].s = *s;
-        glow_draws[nglow].pc = pc;
-        glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
-        glow_draws[nglow].kind = 0;
-        glow_draws[nglow++].count = (uint32_t)n;
-    }
-    if (glow_pipeline && post_motion() && rendering == post_target && (s->flags & DRAW_KIND) > DRAW_WORLD && !s->blend &&
-        s->depth_write) {
-        for (int kind = 1; kind <= (cam != ~0u ? 2 : 1) && nglow < MAX_GLOW_DRAWS; kind++) {
-            glow_draws[nglow].s = *s;
-            glow_draws[nglow].pc = pc;
-            glow_draws[nglow].pc.flags |= DRAW_MOTION;
-            glow_draws[nglow].first = (uint32_t)(batch_start / sizeof(GpuVertex));
-            glow_draws[nglow].kind = kind;
-            glow_draws[nglow++].count = (uint32_t)n;
-        }
-    }
-    /* what is solid in the world casts shadows: drawn again into the shadow map - blended over what is there by its
-     * alpha too (much of the scenery is), where it is more than half opaque */
-    int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
-                      s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend)) {
-        if (alpha_blend)
-            pc.flags |= DRAW_BLENDED;
-        shadow_begin();
-        vkCmdPushConstants(shadow_cmd, layout, pc_stages, 0, sizeof pc,
-                           &pc);
-        vkCmdDraw(shadow_cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
-        if (extra_used > extra_batch) {
-            VkDeviceSize zero = 0;
-            vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &extra.buffer, &zero);
-            vkCmdDraw(shadow_cmd, (uint32_t)((extra_used - extra_batch) / sizeof(GpuVertex)), 1,
-                      (uint32_t)(extra_batch / sizeof(GpuVertex)), 0);
-            vkCmdBindVertexBuffers(shadow_cmd, 0, 1, &vertices.buffer, &zero);
-        }
-
-    } else if (shadow_on && (s->flags & DRAW_WORLD))
-        shadow_begin();                 /* (it is sampled: made this frame, if empty) */
-    if (point_shadows && shadow_on && (s->flags & DRAW_WORLD)) {
-        point_begin();
-        if (s->depth_write && (!s->blend || alpha_blend)) {
-            if (alpha_blend)
-                pc.flags |= DRAW_BLENDED;
-            vkCmdPushConstants(point_cmd, layout, pc_stages, 0,
-                               sizeof pc, &pc);
-            uint32_t instances = 6u * (uint32_t)point_shadows;
-            vkCmdDraw(point_cmd, (uint32_t)n, instances, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
-            if (extra_used > extra_batch) {
-                VkDeviceSize zero = 0;
-                vkCmdBindVertexBuffers(point_cmd, 0, 1, &extra.buffer, &zero);
-                vkCmdDraw(point_cmd, (uint32_t)((extra_used - extra_batch) / sizeof(GpuVertex)), instances,
-                          (uint32_t)(extra_batch / sizeof(GpuVertex)), 0);
-                vkCmdBindVertexBuffers(point_cmd, 0, 1, &vertices.buffer, &zero);
-            }
-        }
-    }
+    uint32_t first = (uint32_t)(batch_start / sizeof(GpuVertex));
+    post_keep(rendering, s, &pc, first, (uint32_t)n, cam != ~0u);
+    shadow_draw(s, pc, first, (uint32_t)n);
     last = *s;
     last_valid = 1;
     batch_start = vertex_used;
-    extra_batch = extra_used;
 }
+
+/* -- primitives --------------------------------------------------------------------------------------------------- */
 
 /* -- primitives --------------------------------------------------------------------------------------------------- */
 
@@ -2258,43 +800,18 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->motion[1] = half(v->my);
     g->motion[2] = half(v->mz);
     g->motion[3] = 0;
+    /* what the effects take of it (render_shading.c, render_scene.c, render_lights.c) */
+    size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
     int tess = tess_pipeline && (cur.flags & DRAW_LIT_PIXEL);     /* (written at flush, with its shape normals) */
-    if (swaying(&cur) || tess) {
-        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
-        if (i >= sway_cap) {
-            sway_cap = sway_cap ? sway_cap * 2 : 65536;
-            sway_verts = realloc(sway_verts, sway_cap * sizeof *sway_verts);
-        }
-        sway_verts[i] = vert;
-    }
-    if (shaded(&cur)) {
-        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
-        if (i >= corners_cap) {
-            corners_cap = corners_cap ? corners_cap * 2 : 65536;
-            corners = realloc(corners, corners_cap * sizeof *corners);
-        }
-        corners[i] = (Corner){{v->wx, v->wy, v->wz}, x, y};
-    }
-    if (sway > 0 && (cur.flags & DRAW_KIND) > DRAW_WORLD) {   /* (in the world, lit by the GE) */
-        size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
-        if (i >= lit_cap) {
-            lit_cap = lit_cap ? lit_cap * 2 : 65536;
-            lit_pos = realloc(lit_pos, lit_cap * sizeof *lit_pos);
-        }
-        lit_pos[i][0] = v->wx;
-        lit_pos[i][1] = v->wy;
-        lit_pos[i][2] = v->wz;
-    }
-    if (emitting) {
-        double wgt = (double)(r + gg + b) * (double)a / (3.0 * 255.0 * 255.0);
-        emit_sum[0] += wgt;
-        emit_sum[1] += wgt * v->wx;
-        emit_sum[2] += wgt * v->wy;
-        emit_sum[3] += wgt * v->wz;
-        emit_sum[4] += wgt * r / 255.0;
-        emit_sum[5] += wgt * gg / 255.0;
-        emit_sum[6] += wgt * b / 255.0;
-    }
+    const float world[3] = {v->wx, v->wy, v->wz};
+    if (swaying(&cur) || tess)
+        shading_keep(i, &vert);
+    if (shaded(&cur))
+        shading_corner(i, world, x, y);
+    if (finds_feet(&cur))
+        scene_lit_vertex(i, world);
+    if (emitting)
+        lights_emit(world, r, gg, b, a);
     if (!tess)
         memcpy((uint8_t *)vertices.map + vertex_used, &vert, sizeof vert);
     vertex_used += sizeof(GpuVertex);
@@ -2302,51 +819,12 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
 
 /* gpu.c: a triangle of the current primitive clipping cut (some of it is behind the camera): whole, for the shadows */
 void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
-    if (!shadow_on || !(cur.flags & DRAW_WORLD) || extra_used + 3 * sizeof(GpuVertex) > SHADOW_EXTRA_BYTES)
-        return;
-    const RVertex *v[3] = {a, b, c};
-    for (int i = 0; i < 3; i++) {
-        GpuVertex *g = (GpuVertex *)((uint8_t *)extra.map + extra_used);
-        memset(g, 0, sizeof *g);
-        g->u = v[i]->u;
-        g->v = v[i]->v;
-        uint32_t al = v[i]->a < 0 ? 0 : v[i]->a > 255 ? 255 : (uint32_t)v[i]->a;
-        g->color = al << 24;
-        g->wx = v[i]->wx;
-        g->wy = v[i]->wy;
-        g->wz = v[i]->wz;
-        extra_used += sizeof(GpuVertex);
-    }
+    if (shadow_on && (cur.flags & DRAW_WORLD))
+        shadow_extra_triangle(a, b, c);
 }
 
 static int blob_vertex(const RVertex *v) {
     return v->r == 25.0f && v->g == 25.0f && v->b == 25.0f;
-}
-
-/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first) */
-static void grass_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
-    if (grass_frame_no != frame_no) {
-        grass_frame_no = frame_no;
-        grass_frame(&prim_world_view[9], sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0);
-    }
-    const RVertex *v[3] = {a, b, c};
-    float p[3][3], uv[3][2], col[3][3];
-    float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
-    int replace = (cur.flags & DRAW_TFUNC) == 3;
-    for (int i = 0; i < 3; i++) {
-        p[i][0] = v[i]->wx;
-        p[i][1] = v[i]->wy;
-        p[i][2] = v[i]->wz;
-        uv[i][0] = v[i]->u / tw;
-        uv[i][1] = v[i]->v / th;
-        col[i][0] = replace ? 255 : v[i]->r;
-        col[i][1] = replace ? 255 : v[i]->g;
-        col[i][2] = replace ? 255 : v[i]->b;
-    }
-    uint32_t slot = cur.tex_slot;
-    int has = slot < MAX_TEXTURES && tex_small[slot];
-    grass_ground(p, uv, col, has ? tex_small[slot] : NULL, has ? tex_small_w[slot] : 0, has ? tex_small_h[slot] : 0,
-                 (cur.flags & DRAW_DOUBLE) != 0);
 }
 
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
@@ -2357,7 +835,7 @@ void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     put(b, b->x, b->y, b->u, b->v, 0);
     put(c, c->x, c->y, c->u, c->v, 0);
     if (grass_on && shaded(&cur) && ((cur.flags & DRAW_TFUNC) == 0 || (cur.flags & DRAW_TFUNC) == 3))
-        grass_triangle(a, b, c);
+        grass_scenery(&cur, a, b, c);
 }
 
 /* A sprite: the rectangle between two corners, as two triangles, in the second corner's colour and depth */
@@ -2377,315 +855,13 @@ void render_vram_written(uint32_t addr, uint32_t size) {
     (void)addr; (void)size;     /* TODO: upload into a render target the region covers */
 }
 
-/* -- post-processing ---------------------------------------------------------------------------------------------- */
-
-/* The world is drawn into t: what added light to it drawn again into the glow (against its depth), then post.c's
- * passes over it */
-/* The ground grass (grass.c), once the solid world is drawn (before its ambient occlusion): the tiles whose blades are
- * ready uploaded into their slots of the pool, then those in view drawn - each blade an instance (grass.vert) - with
- * the world's camera (the last solid draw's), its depth test, the sun's shadow map, the feet, the fog */
-static void grass_draw(Target *t) {
-    if (!grass_pipeline || !shadow_on)
-        return;
-    end_rendering();
-    int uploaded = 0;
-    for (int k = 0; k < 2; k++) {
-        int slot, n;
-        const GrassBlade *b;
-        size_t size;
-        if (staging_used + (size_t)GRASS_BLADES_PER_SLOT * sizeof(GrassBlade) > STAGING_BYTES ||
-            !grass_build(&slot, &b, &n))
-            break;
-        size = (size_t)n * sizeof(GrassBlade);
-        if (!size)
-            continue;
-        memcpy((uint8_t *)staging.map + staging_used, b, size);
-        VkBufferCopy copy = {staging_used, (VkDeviceSize)slot * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade), size};
-        vkCmdCopyBuffer(vk_cmd(), staging.buffer, grass_pool.buffer, 1, &copy);
-        staging_used += (size + 255) & ~(size_t)255;
-        uploaded = 1;
-    }
-    if (uploaded) {
-        VkMemoryBarrier2 mb = {VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, NULL, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                               VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT,
-                               VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT};
-        VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 1, &mb, 0, NULL, 0, NULL};
-        vkCmdPipelineBarrier2(vk_cmd(), &di);
-    }
-    static GrassDraw tiles[GRASS_SLOTS];
-    int ntiles = grass_tiles(tiles, GRASS_SLOTS);
-    if (!ntiles || light_sets_used + 1 > LIGHT_SETS - 2)
-        return;
-    /* the world to the clip space, with the world's camera */
-    float wv[16] = {0}, vw[16], m[16], clip[16];
-    for (int c = 0; c < 4; c++)
-        for (int i = 0; i < 3; i++)
-            wv[4 * c + i] = ao_world_view[3 * c + i];
-    wv[15] = 1;
-    if (!invert4(wv, vw))
-        return;
-    mul4(ao_view, vw, m);
-    for (int c = 0; c < 4; c++) {
-        clip[4 * c + 0] = m[4 * c + 0] / (RT_SIZE / 2.0f) - m[4 * c + 3];
-        clip[4 * c + 1] = m[4 * c + 1] / (RT_SIZE / 2.0f) - m[4 * c + 3];
-        clip[4 * c + 2] = m[4 * c + 2];
-        clip[4 * c + 3] = m[4 * c + 3];
-    }
-    LightSet cam;
-    memset(&cam, 0, sizeof cam);
-    memcpy(cam.dir, clip, sizeof clip);
-    const float *eye = &ao_world_view[9];
-    double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
-    memcpy(cam.color[0], (float[4]){eye[0], eye[1], eye[2], 0}, 16);
-    memcpy(cam.color[1], (float[4]){(float)fmod(now, 3600.0), sway > 0 ? sway : 0, (float)scaled(RT_SIZE) / 2.0f,
-                                    grass_radius()}, 16);
-    cam.color[0][3] = GRASS_NEAR;
-    memcpy(cam.color[2], (float[4]){world_fog[0], world_fog[1], world_fog[2], 0}, 16);
-    float fc[4];
-    unpack_rgb(world_fog_color, fc);
-    memcpy(cam.color[3], fc, 16);
-    /* the trodden grass: pressed by the feet (the last frame's, found whole) */
-    static float fd[MAX_FEET * GRASS_FOOT];
-    for (int i = 0; i < nfeet[1]; i++)
-        memcpy(fd + i * GRASS_FOOT, (float[GRASS_FOOT]){feet[1][i].x, feet[1][i].y, feet[1][i].z, feet[1][i].r,
-                                                       feet[1][i].vx, feet[1][i].vz}, sizeof(float) * GRASS_FOOT);
-    int ox, oz;
-    uint32_t trail_at = (uint32_t)vk.frame * GRASS_TRAIL * GRASS_TRAIL;
-    grass_trail(fd, nfeet[1], now, (uint32_t *)trail_buf.map + trail_at, &ox, &oz);
-    uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
-    memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
-    GrassPush pc;
-    memcpy(pc.light, light_vp, sizeof pc.light);
-    pc.camera = cam_set;
-    pc.trail = trail_at;
-    pc.trail_x = ox;
-    pc.trail_z = oz;
-    pc.ao = (uint32_t)ao_fresh;
-
-    begin_rendering(t);
-    VkCommandBuffer cmd = vk_cmd();
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, grass_pipeline);
-    VkDeviceSize zero = 0;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &grass_pool.buffer, &zero);
-    uint32_t px = scaled(RT_SIZE);
-    VkRect2D sc = {{0, 0}, {scaled(480), scaled(272)}};
-    vkCmdSetScissor(cmd, 0, 1, &sc);
-    vkCmdSetDepthTestEnable(cmd, VK_TRUE);
-    vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
-    vkCmdSetDepthCompareOp(cmd, world_depth_op);
-    VkBool32 no = VK_FALSE;
-    vk.SetColorBlendEnable(cmd, 0, 1, &no);
-    VkColorComponentFlags all = 0xF;
-    vk.SetColorWriteMask(cmd, 0, 1, &all);
-    VkColorBlendEquationEXT eq = {VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD, VK_BLEND_FACTOR_ONE,
-                                  VK_BLEND_FACTOR_ZERO, VK_BLEND_OP_ADD};
-    vk.SetColorBlendEquation(cmd, 0, 1, &eq);
-    float bc[4] = {0, 0, 0, 0};
-    vkCmdSetBlendConstants(cmd, bc);
-    vkCmdSetCullMode(cmd, VK_CULL_MODE_NONE);
-    vkCmdSetFrontFace(cmd, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-    vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof pc, &pc);
-    (void)px;
-    for (int i = 0; i < ntiles; i++) {
-        /* (out of view: all its corners beyond one side) */
-        int out[5] = {1, 1, 1, 1, 1};
-        for (int k = 0; k < 8; k++) {
-            float p[3] = {tiles[i].box[(k & 1) ? 3 : 0], tiles[i].box[(k & 2) ? 4 : 1], tiles[i].box[(k & 4) ? 5 : 2]};
-            float q[4];
-            for (int r = 0; r < 4; r++)
-                q[r] = clip[r] * p[0] + clip[4 + r] * p[1] + clip[8 + r] * p[2] + clip[12 + r];
-            out[0] &= q[0] < -q[3];
-            out[1] &= q[0] > q[3];
-            out[2] &= q[1] < -q[3];
-            out[3] &= q[1] > q[3];
-            out[4] &= q[3] <= 0;
-        }
-        if (out[0] || out[1] || out[2] || out[3] || out[4])
-            continue;
-        vkCmdDraw(cmd, 18, (uint32_t)tiles[i].count, 0, (uint32_t)tiles[i].slot * GRASS_BLADES_PER_SLOT);
-    }
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    bound_pipeline = pipeline;
-    vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
-    last_valid = 0;
-}
-
-static void post_run(Target *t) {
-    post_target = NULL;
-    post_done = t;
-    if (!glow_pipeline)
-        return;
-    end_rendering();
-    uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
-    vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-    /* the glow (the draws adding light, again); then the motion blur's (the hunter's, monsters' and people's motion) */
-    for (int pass = 0; pass < (post_motion() ? 2 : 1); pass++) {
-        VkImg *g = pass ? post_motion_image() : post_glow();
-        vk_transition(g, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, g->view,
-            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-        VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
-            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-        VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {fw, fh}}, 1, 0, 1, &ca, &da, NULL};
-        VkCommandBuffer cmd = vk_cmd();
-        vkCmdBeginRendering(cmd, &ri);
-        if (nglow) {
-            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, glow_pipeline);
-            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
-            VkDeviceSize zero = 0;
-            vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
-            VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
-            vkCmdSetViewport(cmd, 0, 1, &vp);
-            vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
-            VkBool32 blend = pass ? VK_FALSE : VK_TRUE;
-            vk.SetColorBlendEnable(cmd, 0, 1, &blend);
-            VkColorComponentFlags all = 0xF;
-            vk.SetColorWriteMask(cmd, 0, 1, &all);
-            VkPipeline bound = glow_pipeline;
-            for (int i = 0; i < nglow; i++) {
-                const DrawState *d = &glow_draws[i].s;
-                int kind = glow_draws[i].kind;
-                VkPipeline p = kind == 2 ? glow_tess_pipeline : glow_pipeline;
-                if (!p || (kind != 0) != pass)
-                    continue;
-                if (p != bound)
-                    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound = p);
-                VkRect2D sc = d->scissor;
-                if (sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
-                    continue;
-                if (sc.offset.x + sc.extent.width > fw)
-                    sc.extent.width = fw - (uint32_t)sc.offset.x;
-                if (sc.offset.y + sc.extent.height > fh)
-                    sc.extent.height = fh - (uint32_t)sc.offset.y;
-                vkCmdSetScissor(cmd, 0, 1, &sc);
-                vkCmdSetDepthTestEnable(cmd, d->depth_test);
-                VkCompareOp op = d->depth_op;   /* (the hunter's own depth: drawn again, it passes) */
-                if (kind && op == VK_COMPARE_OP_GREATER)
-                    op = VK_COMPARE_OP_GREATER_OR_EQUAL;
-                if (kind && op == VK_COMPARE_OP_LESS)
-                    op = VK_COMPARE_OP_LESS_OR_EQUAL;
-                vkCmdSetDepthCompareOp(cmd, op);
-                vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
-                vkCmdSetBlendConstants(cmd, d->blend_const);
-                vkCmdSetCullMode(cmd, d->cull);
-                vkCmdSetFrontFace(cmd, d->front);
-                vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof glow_draws[i].pc, &glow_draws[i].pc);
-                vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
-            }
-        }
-        vkCmdEndRendering(cmd);
-    }
-    nglow = 0;
-    last_valid = 0;
-    /* the camera, the sun, the shadow map */
-    PostFrame f;
-    memset(&f, 0, sizeof f);
-    float m4[16] = {0}, inv[16];
-    for (int c = 0; c < 4; c++)
-        for (int i = 0; i < 3; i++)
-            m4[4 * c + i] = post_world_view[3 * c + i];
-    m4[15] = 1;
-    if (invert4(post_view, f.to_view) && invert4(m4, inv)) {
-        f.shadows = shadow_on && shadow_drawn;
-        for (int c = 0; c < 4; c++)
-            for (int r = 0; r < 4; r++) {
-                float v = 0;
-                for (int k = 0; k < 4; k++)
-                    v += light_vp[4 * k + r] * m4[4 * c + k];
-                f.to_shadow[4 * c + r] = v;
-            }
-        float sw[3] = {-light_vp[2], -light_vp[6], -light_vp[10]}, len = 0;
-        for (int k = 0; k < 3; k++) {
-            f.sun[k] = inv[k] * sw[0] + inv[4 + k] * sw[1] + inv[8 + k] * sw[2];
-            len += f.sun[k] * f.sun[k];
-        }
-        len = sqrtf(len);
-        for (int k = 0; k < 3; k++)
-            f.sun[k] = len > 0 ? f.sun[k] / len : 0;
-        if (!(len > 0))
-            f.shadows = 0;
-        /* the focus: the point the camera looks at (the shadow map's centre) */
-        if (shadow_on) {
-            float c[3], fl = 0;
-            for (int k = 0; k < 3; k++) {
-                c[k] = inv[k] * view_center[0] + inv[4 + k] * view_center[1] + inv[8 + k] * view_center[2] + inv[12 + k];
-                fl += c[k] * c[k];
-            }
-            f.focus = sqrtf(fl);
-        }
-    }
-    /* the motion since the last frame: this frame's camera space to the world, to the last's camera, its screen */
-    static float prev_view[16], prev_world_inv[16];
-    static int prev_ok;
-    if (invert4(m4, inv)) {
-        if (prev_ok) {
-            float a[16];
-            mul4(prev_world_inv, m4, a);
-            mul4(prev_view, a, f.to_prev);
-            f.moved = 1;
-        }
-        for (int r = 0; r < 3; r++)
-            for (int c = 0; c < 3; c++)
-                f.to_camera[4 * r + c] = inv[4 * c + r];
-        memcpy(prev_view, post_view, sizeof prev_view);
-        memcpy(prev_world_inv, inv, sizeof prev_world_inv);
-        prev_ok = 1;
-    } else
-        prev_ok = 0;
-    float top = fmaxf(sun_rgb[0], fmaxf(sun_rgb[1], sun_rgb[2]));
-    for (int k = 0; k < 3; k++)                 /* its hue, half way to white */
-        f.sun_color[k] = 0.5f + 0.5f * (top > 0 ? sun_rgb[k] / top : 1.0f);
-    post_apply(&t->color, &t->depth, &f);
-}
-
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
 static void end_frame(void) {
-    ao_target = ao_applied = NULL;
-    ao_used = 0;
-    post_target = post_done = NULL;
-    nglow = 0;
-    if (nfeet[0]) {                     /* (a frame that drew none - the HUD's alone - keeps the last's) */
-        /* each foot's velocity: from the nearest of the last frame's (smoothed); the same moment drawn again keeps it */
-        float dt = feet_moment[1] >= 0 ? (float)(feet_moment[0] - feet_moment[1]) : 0;
-        for (int i = 0; i < nfeet[0]; i++) {
-            Foot *f = &feet[0][i];
-            const Foot *best = NULL;
-            float bd = 40.0f * 40.0f;
-            for (int j = 0; j < nfeet[1]; j++) {
-                float dx = f->x - feet[1][j].x, dz = f->z - feet[1][j].z, d = dx * dx + dz * dz;
-                if (d < bd && fabsf(f->y - feet[1][j].y) < 30.0f)
-                    best = &feet[1][j], bd = d;
-            }
-            if (best && dt > 1e-4f && dt < 0.2f) {
-                f->vx = 0.6f * best->vx + 0.4f * (f->x - best->x) / dt;
-                f->vz = 0.6f * best->vz + 0.4f * (f->z - best->z) / dt;
-            } else if (best) {
-                f->vx = best->vx;
-                f->vz = best->vz;
-            }
-        }
-        feet_moment[1] = feet_moment[0];
-        memcpy(feet[1], feet[0], sizeof feet[0]);
-        nfeet[1] = nfeet[0];
-        nfeet[0] = 0;
-    }
-    shadow_drawn = 0;
-    post_end_frame();
-    extra_used = extra_batch = 0;
-    if (emitting)
-        flush_emitter();
-    emitting = 0;
-    make_point_lights();
-    if (point_lights_on > 0)                /* for the next frame (its half: vk.frame is the next's now) */
-        memcpy((LightSet *)light_buf.map + (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2, point_lights,
-               sizeof point_lights);
-    point_shadows = point_lights_on > 0 ? point_shadows_next : 0;
-    light_sets_used = 0;
-    camera_set = ~0u;
-    prim_lights = ~0u;
+    ao_end_frame();
+    post_frame_done();
+    scene_end_frame();
+    shadow_end_frame(lights_end_frame(cur.tex_slot));
     vertex_used = batch_start = 0;
     staging_used = 0;
     last_valid = 0;
@@ -2694,8 +870,7 @@ static void end_frame(void) {
 
 /* The end of a frame not shown (fast-forwarding): its work submitted, the frame's buffers and checks started again */
 void render_finish_frame(void) {
-    if (ao_target)
-        ao_apply(ao_target);
+    ao_finish();
     end_rendering();
     if (vk.recording)
         vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
@@ -2703,12 +878,10 @@ void render_finish_frame(void) {
 }
 
 void render_flip(uint32_t addr) {
-    if (ao_target)
-        ao_apply(ao_target);
-    if (post_target)
-        post_run(post_target);
+    ao_finish();
+    post_finish();
     end_rendering();
-    Target *t = target(addr, 0);
+    Target *t = target_at(addr, 0);
     if (!vk.surface || !t) {
         if (vk.recording)
             vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
@@ -2767,12 +940,10 @@ void render_flip(uint32_t addr) {
 
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
 uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
-    if (ao_target)
-        ao_apply(ao_target);
-    if (post_target)
-        post_run(post_target);
+    ao_finish();
+    post_finish();
     end_rendering();
-    Target *t = target(addr, 0);
+    Target *t = target_at(addr, 0);
     if (!t)
         return NULL;
     vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -2792,12 +963,10 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
 
 /* The displayed part of a framebuffer, for a frame dump: read back, and scaled down to 480 x 272 */
 void render_readback(uint32_t addr, uint32_t *pixels) {
-    if (ao_target)
-        ao_apply(ao_target);
-    if (post_target)
-        post_run(post_target);
+    ao_finish();
+    post_finish();
     end_rendering();
-    Target *t = target(addr, 0);
+    Target *t = target_at(addr, 0);
     if (!t) {
         memset(pixels, 0, 480 * 272 * 4);
         return;
@@ -2811,5 +980,5 @@ void render_readback(uint32_t addr, uint32_t *pixels) {
     const uint32_t *src = readback.map;
     for (int y = 0; y < 272; y++)
         for (int x = 0; x < 480; x++)
-            pixels[y * 480 + x] = src[(uint32_t)(y * scale) * w + (uint32_t)(x * scale)] | 0xFF000000u;
+            pixels[y * 480 + x] = src[(uint32_t)(y * render_scale) * w + (uint32_t)(x * render_scale)] | 0xFF000000u;
 }

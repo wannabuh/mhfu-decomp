@@ -50,7 +50,7 @@ typedef struct {
     PFN_vkCmdSetColorBlendEnableEXT SetColorBlendEnable;
     PFN_vkCmdSetColorBlendEquationEXT SetColorBlendEquation;
     PFN_vkCmdSetColorWriteMaskEXT SetColorWriteMask;
-    int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render.c: shadows) */
+    int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render_shadow.c: shadows) */
     int output_layer;                /* a vertex shader can choose the layer it draws into */
     int tessellation;                /* tessellation shaders can be used */
     int anisotropy;                  /* anisotropic filtering can be used */

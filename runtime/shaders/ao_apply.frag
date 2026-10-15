@@ -1,5 +1,5 @@
 #version 450
-// Ambient occlusion (render.c) on the picture: multiplied in (the blending), from the half resolution occlusion - of
+// Ambient occlusion (render_ao.c) on the picture: multiplied in (the blending), from the half resolution occlusion - of
 // its 4 nearest, those at this pixel's distance, so that a thing's occlusion doesn't spill onto what is behind it.
 #include "ao_common.glsl"
 layout(location = 0) out vec4 out_color;

@@ -1,4 +1,5 @@
 -Iruntime/include
 -Iruntime/src
+-Iruntime/shaders
 -Ibuild/gen
 -Ibuild/shaders

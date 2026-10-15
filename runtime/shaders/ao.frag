@@ -1,5 +1,5 @@
 #version 450
-// Ambient occlusion (render.c), at half resolution from the world's depth: how much of the hemisphere above each point
+// Ambient occlusion (render_ao.c), at half resolution from the world's depth: how much of the hemisphere above each point
 // the things near it cover (horizon-based, normals from the depth). Out: the light left (1 open) and the distance, for
 // the blur.
 #include "ao_common.glsl"

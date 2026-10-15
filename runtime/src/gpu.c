@@ -158,13 +158,13 @@ static int earlier;
 float render_motion_step(void);     /* the game's frames between two shown (0: no motion blur) */
 static int world_i, view_i, proj_i, bone_i;
 
-/* Shadows (render.c): the GE's world space - which has the camera in it: the game multiplies it into each world
+/* Shadows (render_shadow.c): the GE's world space - which has the camera in it: the game multiplies it into each world
  * matrix - to the world, for the frame; and the light that is the sun among the GE's (-1: none known) */
 static int shadow_world;            /* to_world is known this frame */
 static float to_world[12], game_to_world[12];
 static int sun_light = -1;
 static int prim_world;              /* this primitive's vertices get their place in the world */
-/* Lighting by the pixel (render.c): the primitive's directional lights are left to the GPU - the vertex keeps the rest
+/* Lighting by the pixel (render_lights.c): the primitive's directional lights are left to the GPU - the vertex keeps the rest
  * of the lighting, its material's diffuse colour (in sr, sg, sb) and its normal in the world */
 static int prim_pixel_light;
 static uint32_t pixel_lights;       /* the lights (bits) the GPU does */
@@ -182,7 +182,7 @@ void render_time(double seconds);
 unsigned long present_frame_number(void);
 
 /* The shadow map covers this far each way from what the camera looks at (MHFU_SHADOW_DISTANCE), and this far towards
- * and away from the sun; render.c's size (MHFU_SHADOW_RESOLUTION) */
+ * and away from the sun; render_shadow.c's size (MHFU_SHADOW_RESOLUTION) */
 static float SHADOW_HALF = 3000.0f, SHADOW_RANGE = 6000.0f;
 int render_shadow_size(void);
 #define SHADOW_SIZE render_shadow_size()

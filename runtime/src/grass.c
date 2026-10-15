@@ -1,7 +1,7 @@
 /* Ground grass (MHFU_GRASS): blades of our own over the game's ground, where its texture is grass - after ao-vk's
  * (randy-vk rvk/grass.cpp).
  *
- * The ground: render.c hands over the scenery's triangles (lit beforehand, solid) as they are drawn; those near the
+ * The ground: render_grass.c hands over the scenery's triangles (lit beforehand, solid) as they are drawn; those near the
  * camera that face up are laid into world-aligned tiles of square cells, each keeping the top surface over it - its
  * height, slope and colour as drawn (the vertex colour, which holds the scenery's light, times the texture) - and
  * whether that colour is grass. A triangle is laid once: one seen before (its corners, rounded) is skipped, so once the
@@ -10,7 +10,7 @@
  * The blades: once a tile's ground has settled (nothing new in it for a few frames) its blades are made - scattered in
  * tufts over its grass cells, thinning and shortening towards the edges of the grass, each a 32-byte record - and
  * shuffled, so that drawing the first part of a tile's draws a thinner field of the same look (the distance's level of
- * detail). render.c uploads them into a slot of its blade pool and draws them (grass.vert expands each into a blade).
+ * detail). render_grass.c uploads them into a slot of its blade pool and draws them (grass.vert expands each into a blade).
  *
  * The game's zones have their own ground at the same coordinates: after a while with no scenery drawn (loading), or the
  * camera's jump, the next frame's ground is checked against what is known - mostly new, it is another zone, and all is

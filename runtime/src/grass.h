@@ -1,5 +1,5 @@
-/* Ground grass (grass.c): the ground laid down from the scenery render.c draws, the blades made over it; render.c
- * keeps them in a pool on the GPU and draws them (grass.vert, grass.frag). */
+/* Ground grass (grass.c): the ground laid down from the scenery the renderer draws, the blades made over it;
+ * render_grass.c keeps them in a pool on the GPU and draws them (grass.vert, grass.frag). */
 #ifndef GRASS_H
 #define GRASS_H
 

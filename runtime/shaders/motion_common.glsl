@@ -1,5 +1,5 @@
 // Motion blur (post.c), what its passes share: a pixel's motion on the screen as far as the shutter takes it. Where
-// render.c drew the hunter, monsters and people into the motion image (source2), their own motion in the world since
+// render_post.c drew the hunter, monsters and people into the motion image (source2), their own motion in the world since
 // the frame shown before; everywhere else, the camera's alone. Their place then, through the last frame's camera
 // (to_shadow: the camera's space to its PSP pixels); the sky, a direction, by its turning.
 #include "post_common.glsl"
