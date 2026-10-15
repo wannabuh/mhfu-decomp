@@ -22,6 +22,8 @@
 
 #include "ge.vert.inc"
 #include "ge.frag.inc"
+#include "ge.tesc.inc"
+#include "ge.tese.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
 #include "shadow.vert.inc"
@@ -156,6 +158,16 @@ static int nfeet[2];
 static float (*lit_pos)[3];             /* the batch's places, if it is lit (its feet are found at flush) */
 static size_t lit_cap;
 
+/* Rounder characters: what is lit by the pixel (it has normals: the hunter, monsters, people) is drawn tessellated -
+ * cut finer the longer its edges on the screen, curved by its normals (ge.tesc, ge.tese) - with the world's
+ * camera (clip space from the world) in a light set of its own (MHFU_TESSELLATION=0: none) */
+static int tess_on = -1;
+static VkPipeline tess_pipeline, bound_pipeline;
+static VkShaderModule tess_ctrl, tess_eval;
+static VkShaderStageFlags pc_stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+static uint32_t camera_set = ~0u;
+static float camera_clip[16];
+
 typedef struct Target {
     uint32_t addr;                  /* VRAM address, mirror bits off */
     VkImg color, depth;
@@ -239,9 +251,13 @@ static void frame_reused(int frame);
 
 static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color,
                                 VkFormat depth, int ge) {
-    VkPipelineShaderStageCreateInfo stages[2] = {
+    VkPipelineShaderStageCreateInfo stages[4] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
+        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
+         tess_ctrl, "main", NULL},
+        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
+         tess_eval, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
     VkVertexInputAttributeDescription attrs[7] = {
@@ -253,11 +269,12 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {5, 0, VK_FORMAT_R8G8B8A8_UNORM, 44},
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
     };
-    int verts = ge >= 1 && ge <= 3;
+    int verts = (ge >= 1 && ge <= 3) || ge == 6;   /* (6: the GE's, tessellated) */
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
                                                verts ? 1u : 0u, &bind, verts ? 7u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
-                                                 VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
+        ge == 6 ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
+    VkPipelineTessellationStateCreateInfo ts = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO, NULL, 0, 3};
     VkPipelineViewportStateCreateInfo vp = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
                                             NULL};
     VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
@@ -317,9 +334,9 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         dy.dynamicStateCount = 2;
         dy.pDynamicStates = dyn_present;
     }
-    VkGraphicsPipelineCreateInfo pci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &ri, 0, 2, stages, &vi, &ia,
-                                        NULL, &vp, &rs, &ms, verts ? &ds : NULL, &cb, &dy, pl, VK_NULL_HANDLE, 0,
-                                        VK_NULL_HANDLE, -1};
+    VkGraphicsPipelineCreateInfo pci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &ri, 0, ge == 6 ? 4u : 2u,
+                                        stages, &vi, &ia, ge == 6 ? &ts : NULL, &vp, &rs, &ms, verts ? &ds : NULL, &cb,
+                                        &dy, pl, VK_NULL_HANDLE, 0, VK_NULL_HANDLE, -1};
     VkPipeline p;
     if (vkCreateGraphicsPipelines(vk.device, VK_NULL_HANDLE, 1, &pci, NULL, &p) != VK_SUCCESS) {
         fprintf(stderr, "Vulkan: pipeline creation failed\n");
@@ -394,11 +411,14 @@ int render_init(void *sdl_window) {
     if (!vk_init(sdl_window))
         return 0;
 
+    tess_on = vk.tessellation && (!getenv("MHFU_TESSELLATION") || atoi(getenv("MHFU_TESSELLATION")) != 0);
+    if (tess_on)
+        pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* bindless textures: one array, filled as textures are made */
     VkDescriptorSetLayoutBinding b[4] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
-        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {2, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
         {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
     VkDescriptorBindingFlags bf[4] = {VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
@@ -430,7 +450,7 @@ int render_init(void *sdl_window) {
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[0]);
     vkAllocateDescriptorSets(vk.device, &dai, &present_sets[1]);
 
-    VkPushConstantRange pr = {VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, 112};
+    VkPushConstantRange pr = {pc_stages, 0, 112};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
@@ -440,6 +460,11 @@ int render_init(void *sdl_window) {
 
     VkShaderModule vs = vk_shader(ge_vert, sizeof ge_vert), fs = vk_shader(ge_frag, sizeof ge_frag);
     pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
+    if (tess_on) {
+        tess_ctrl = vk_shader(ge_tesc, sizeof ge_tesc);
+        tess_eval = vk_shader(ge_tese, sizeof ge_tese);
+        tess_pipeline = make_pipeline(vs, fs, layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 6);
+    }
     shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), vk_shader(shadow_frag, sizeof shadow_frag),
                                     layout, VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 2);
     if (vk.output_layer)
@@ -598,6 +623,7 @@ static void begin_rendering(Target *t) {
     vkCmdBeginRendering(cmd, &ri);
     t->cleared = 1;
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    bound_pipeline = pipeline;
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
     VkDeviceSize zero = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
@@ -1536,22 +1562,176 @@ static void find_feet(size_t n) {
         f[nfeet[0]++] = (Foot){x, lo, z, r};
 }
 
-/* The batch's n vertices (triangles) moved by the wind */
-static void sway_batch(size_t n) {
-    float wv[16] = {0}, vw[16], m[16];
+/* The world to the screen (PSP pixels, depth over 65535; by columns), with the primitive's camera */
+static int world_to_screen(float *m) {
+    float wv[16] = {0}, vw[16];
     for (int c = 0; c < 4; c++)
         for (int i = 0; i < 3; i++)
             wv[4 * c + i] = prim_world_view[3 * c + i];
     wv[15] = 1;
     if (!invert4(wv, vw))
-        return;
-    for (int c = 0; c < 4; c++)             /* the world to the screen (PSP pixels, depth over 65535) */
+        return 0;
+    for (int c = 0; c < 4; c++)
         for (int r = 0; r < 4; r++) {
             float v = 0;
             for (int k = 0; k < 4; k++)
                 v += prim_view[4 * k + r] * vw[4 * c + k];
             m[4 * c + r] = v;
         }
+    return 1;
+}
+
+/* The light set holding the world to the clip space (as put makes it: x, y over half the target, less w), for the
+ * tessellated draws; ~0 if there is no room */
+static uint32_t camera_light_set(void) {
+    float m[16], clip[16];
+    if (!world_to_screen(m))
+        return ~0u;
+    for (int c = 0; c < 4; c++) {
+        clip[4 * c + 0] = m[4 * c + 0] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 1] = m[4 * c + 1] / (RT_SIZE / 2.0f) - m[4 * c + 3];
+        clip[4 * c + 2] = m[4 * c + 2];
+        clip[4 * c + 3] = m[4 * c + 3];
+    }
+    if (camera_set != ~0u && !memcmp(clip, camera_clip, sizeof clip))
+        return camera_set;
+    if (light_sets_used >= LIGHT_SETS - 2)
+        return ~0u;
+    camera_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
+    memcpy(camera_clip, clip, sizeof clip);
+    LightSet l;
+    memset(&l, 0, sizeof l);
+    memcpy(l.dir, clip, sizeof clip);
+    memcpy((LightSet *)light_buf.map + camera_set, &l, sizeof l);
+    return camera_set;
+}
+
+/* A tessellated batch's shape normals (what curves it, ge.tese): at each place the average of its corners' normals -
+ * corners at one place, with normals split for lighting (hard edges, seams), curve alike, and no cracks open between
+ * their triangles. Packed into the normal's fourth component (8 + 8 bits, octahedral; 0: none). And its edges that
+ * no other of its triangles shares (where another draw goes on: what it curves is not known here) stay straight:
+ * in the sun's fourth byte, bit k for the edge facing corner k */
+static void shape_normals(size_t n) {
+    static uint32_t *table, *owner;
+    static float (*pos)[3], (*sum)[3];
+    static int16_t *packed;
+    static struct { uint64_t key; uint32_t uses; } *edges;
+    static size_t cap, table_cap;
+    if (n > cap) {
+        cap = n * 2;
+        owner = realloc(owner, cap * sizeof *owner);
+        pos = realloc(pos, cap * sizeof *pos);
+        sum = realloc(sum, cap * sizeof *sum);
+        packed = realloc(packed, cap * sizeof *packed);
+    }
+    size_t tsize = 1024;
+    while (tsize < n * 2)
+        tsize *= 2;
+    if (tsize > table_cap) {
+        table_cap = tsize;
+        table = realloc(table, table_cap * sizeof *table);
+        edges = realloc(edges, table_cap * 2 * sizeof *edges);
+    }
+    memset(table, 0, tsize * sizeof *table);
+    GpuVertex *g = sway_verts, *out = (GpuVertex *)((uint8_t *)vertices.map + batch_start);
+    /* the places (welded): each corner's first at its place, the normals summed there */
+    uint32_t places = 0;
+    for (size_t i = 0; i < n; i++) {
+        const float *w = &g[i].wx;
+        uint32_t hb[3];
+        memcpy(hb, w, sizeof hb);
+        uint32_t x = (hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du);
+        x ^= x >> 15;
+        size_t j = x & (tsize - 1);
+        for (;;) {
+            uint32_t e = table[j];
+            if (!e) {
+                table[j] = ++places;
+                memcpy(pos[places - 1], w, sizeof pos[0]);
+                sum[places - 1][0] = sum[places - 1][1] = sum[places - 1][2] = 0;
+                owner[i] = places - 1;
+                break;
+            }
+            if (!memcmp(pos[e - 1], w, sizeof pos[0])) {
+                owner[i] = e - 1;
+                break;
+            }
+            j = (j + 1) & (tsize - 1);
+        }
+        float *a = sum[owner[i]];
+        a[0] += g[i].n[0];
+        a[1] += g[i].n[1];
+        a[2] += g[i].n[2];
+    }
+    for (uint32_t p = 0; p < places; p++) {    /* octahedral: onto |x| + |y| + |z| = 1, the lower half folded up */
+        const float *a = sum[p];
+        float l = fabsf(a[0]) + fabsf(a[1]) + fabsf(a[2]);
+        packed[p] = 0;
+        if (l > 1e-3f) {
+            float ox = a[0] / l, oy = a[1] / l;
+            if (a[2] < 0) {
+                float tx = (1 - fabsf(oy)) * (ox >= 0 ? 1 : -1), ty = (1 - fabsf(ox)) * (oy >= 0 ? 1 : -1);
+                ox = tx;
+                oy = ty;
+            }
+            int raw = (int)lrintf(ox * 127) * 256 + (int)lrintf(oy * 127) + 127;
+            packed[p] = (int16_t)(raw ? raw : 1);
+        }
+    }
+    /* the edges, by their two places: counted, then those of one triangle only left straight */
+    size_t esize = tsize * 2;
+    memset(edges, 0, esize * sizeof *edges);
+    size_t ntri = n / 3;
+    for (int pass = 0; pass < 2; pass++)
+        for (size_t t = 0; t < ntri; t++) {
+            const uint32_t *o = &owner[3 * t];
+            uint32_t open = 0;
+            for (int k = 0; k < 3; k++) {
+                uint32_t a = o[(k + 1) % 3], b = o[(k + 2) % 3];
+                uint64_t key = (a < b ? (uint64_t)a << 32 | b : (uint64_t)b << 32 | a) + 1;
+                size_t j = (size_t)((key * 0x9E3779B97F4A7C15ull) >> 40) & (esize - 1);
+                while (edges[j].key && edges[j].key != key)
+                    j = (j + 1) & (esize - 1);
+                if (pass == 0) {
+                    edges[j].key = key;
+                    edges[j].uses++;
+                } else if (edges[j].uses < 2) {
+                    open |= 1u << k;
+                }
+            }
+            if (pass == 1)
+                for (int k = 0; k < 3; k++) {
+                    GpuVertex v = g[3 * t + (size_t)k];
+                    v.n[3] = packed[o[k]];
+                    v.sun = (v.sun & 0xFFFFFFu) | open << 24;
+                    out[3 * t + (size_t)k] = v;
+                }
+        }
+    for (size_t i = ntri * 3; i < n; i++)
+        out[i] = g[i];
+}
+
+/* How large the batch (its CPU copy) is on the screen, in PSP pixels (the larger way; 0 if any of it is behind) */
+static float on_screen_size(size_t n) {
+    float x0 = 1e30f, x1 = -1e30f, y0 = 1e30f, y1 = -1e30f;
+    for (size_t i = 0; i < n; i++) {
+        const GpuVertex *v = &sway_verts[i];
+        if (v->w <= 0)
+            return 0;
+        float x = v->x / v->w, y = v->y / v->w;
+        x0 = fminf(x0, x);
+        x1 = fmaxf(x1, x);
+        y0 = fminf(y0, y);
+        y1 = fmaxf(y1, y);
+    }
+    return fmaxf(x1 - x0, y1 - y0) * (RT_SIZE / 2.0f);
+}
+
+/* The batch's n vertices (triangles) moved by the wind */
+static void sway_batch(size_t n) {
+    float m[16];
+    if (!world_to_screen(m))
+        return;
     double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
     float t = (float)fmod(now, 3600.0), amp = 7.0f * sway;
     const float wind[3] = {0.8f, 0.0f, 0.6f};
@@ -1727,10 +1907,28 @@ static void flush(void) {
         point_lights_on > 0 && (s->flags & 256u) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
             ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, {0}};
     memcpy(pc.light, light_vp, sizeof pc.light);
+    /* lit by the pixel, opaque: also drawn tessellated (rounder), over itself drawn flat - which shows through any
+     * crack the curving opens (and wins where it would curve inwards) */
+    uint32_t cam = tess_pipeline && (s->flags & 1024u) && !s->blend && n % 3 == 0 && on_screen_size((size_t)n) >= 40
+                       ? camera_light_set() : ~0u;
+    if (cam != ~0u)
+        shape_normals((size_t)n);
+    else if (tess_pipeline && (s->flags & 1024u))
+        memcpy((uint8_t *)vertices.map + batch_start, sway_verts, (size_t)n * sizeof(GpuVertex));
+    if (bound_pipeline != pipeline) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        bound_pipeline = pipeline;
+    }
+    pc.pad2[0] = cam;
     if (shaded(s))
         pc.flags |= 4096u | (relief_on && s->tex_slot < MAX_TEXTURES ? 8192u : 0u);
-    vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
+    vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+    if (cam != ~0u) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, tess_pipeline);
+        bound_pipeline = tess_pipeline;
+        vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
+    }
     /* what adds light to the world: kept for the glow */
     if (glow_pipeline && rendering == post_target && (s->flags & 256u) && s->blend &&
         s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE && s->eq.colorBlendOp == VK_BLEND_OP_ADD &&
@@ -1748,7 +1946,7 @@ static void flush(void) {
         if (alpha_blend)
             pc.flags |= 2048u;
         shadow_begin();
-        vkCmdPushConstants(shadow_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc,
+        vkCmdPushConstants(shadow_cmd, layout, pc_stages, 0, sizeof pc,
                            &pc);
         vkCmdDraw(shadow_cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
         if (extra_used > extra_batch) {
@@ -1766,7 +1964,7 @@ static void flush(void) {
         if (s->depth_write && (!s->blend || alpha_blend)) {
             if (alpha_blend)
                 pc.flags |= 2048u;
-            vkCmdPushConstants(point_cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+            vkCmdPushConstants(point_cmd, layout, pc_stages, 0,
                                sizeof pc, &pc);
             uint32_t instances = 6u * (uint32_t)point_shadows;
             vkCmdDraw(point_cmd, (uint32_t)n, instances, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
@@ -1816,7 +2014,8 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->n[1] = (int16_t)(v->ny * k);
     g->n[2] = (int16_t)(v->nz * k);
     g->n[3] = 0;
-    if (swaying(&cur)) {
+    int tess = tess_pipeline && (cur.flags & 1024u);     /* (written at flush, with its shape normals) */
+    if (swaying(&cur) || tess) {
         size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
         if (i >= sway_cap) {
             sway_cap = sway_cap ? sway_cap * 2 : 65536;
@@ -1852,7 +2051,8 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
         emit_sum[5] += wgt * gg / 255.0;
         emit_sum[6] += wgt * b / 255.0;
     }
-    memcpy((uint8_t *)vertices.map + vertex_used, &vert, sizeof vert);
+    if (!tess)
+        memcpy((uint8_t *)vertices.map + vertex_used, &vert, sizeof vert);
     vertex_used += sizeof(GpuVertex);
 }
 
@@ -1950,7 +2150,7 @@ static void post_run(Target *t) {
             vkCmdSetBlendConstants(cmd, d->blend_const);
             vkCmdSetCullMode(cmd, d->cull);
             vkCmdSetFrontFace(cmd, d->front);
-            vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+            vkCmdPushConstants(cmd, layout, pc_stages, 0,
                                sizeof glow_draws[i].pc, &glow_draws[i].pc);
             vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
         }
@@ -2025,6 +2225,7 @@ static void end_frame(void) {
                sizeof point_lights);
     point_shadows = point_lights_on > 0 ? point_shadows_next : 0;
     light_sets_used = 0;
+    camera_set = ~0u;
     prim_lights = ~0u;
     vertex_used = batch_start = 0;
     staging_used = 0;

@@ -128,6 +128,8 @@ int vk_init(void *window) {
     vkGetPhysicalDeviceFeatures2(vk.gpu, &have2);
     if (have12.shaderOutputLayer)
         f12.shaderOutputLayer = VK_TRUE, vk.output_layer = 1;
+    if (have2.features.tessellationShader)
+        f2.features.tessellationShader = VK_TRUE, vk.tessellation = 1;
     const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.queue_family, 1, &prio};

@@ -52,6 +52,7 @@ typedef struct {
     PFN_vkCmdSetColorWriteMaskEXT SetColorWriteMask;
     int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render.c: shadows) */
     int output_layer;                /* a vertex shader can choose the layer it draws into */
+    int tessellation;                /* tessellation shaders can be used */
 } VkContext;
 
 extern VkContext vk;

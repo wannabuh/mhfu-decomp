@@ -24,6 +24,8 @@ layout(location = 3) out vec3 out_shadow;
 layout(location = 4) out vec3 out_sun;
 layout(location = 5) out vec3 out_normal;
 layout(location = 6) out vec3 out_world;
+layout(location = 7) out vec4 out_shape;    // (tessellated: the normal that curves it, and which of its triangle's
+                                            // edges stay straight - render.c shape_normals)
 
 void main() {
     gl_Position = in_pos;
@@ -34,4 +36,16 @@ void main() {
     out_sun = in_sun.rgb;
     out_normal = in_normal.xyz;
     out_world = in_world;
+    int raw = int(round(in_normal.w * 32767.0));
+    out_shape.w = round(in_sun.a * 255.0);
+    if (raw == 0) {
+        out_shape.xyz = in_normal.xyz;
+    } else {                                // octahedral, 8 + 8 bits
+        int ex = raw >= 0 ? raw / 256 : -((-raw + 255) / 256);
+        vec2 o = vec2(float(ex), float(raw - ex * 256 - 127)) / 127.0;
+        vec3 n = vec3(o, 1.0 - abs(o.x) - abs(o.y));
+        if (n.z < 0.0)
+            n.xy = (1.0 - abs(n.yx)) * vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+        out_shape.xyz = normalize(n);
+    }
 }

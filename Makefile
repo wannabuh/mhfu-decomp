@@ -23,7 +23,8 @@ build/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
 	@mkdir -p $(@D)
 	@$(CC) $(GENFLAGS) -c $< -o $@
 
-SHADERS := $(patsubst runtime/shaders/%,build/shaders/%.inc,$(wildcard runtime/shaders/*.vert runtime/shaders/*.frag))
+SHADERS := $(patsubst runtime/shaders/%,build/shaders/%.inc,$(wildcard runtime/shaders/*.vert runtime/shaders/*.frag \
+                                                                    runtime/shaders/*.tesc runtime/shaders/*.tese))
 
 # Shaders: SPIR-V as C arrays (ge.vert -> ge_vert[])
 build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl)
