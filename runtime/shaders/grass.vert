@@ -122,10 +122,10 @@ void main() {
     vec2 bend = way * (0.3 * h * t * t * sway * wind);
     // trodden: pressed the way the feet went, the top most
     vec2 push = trodden(root.xz);
-    // (laid down quickly, nearly flat: the length kept bends it down as it goes over)
-    float pl = length(push);
-    if (pl > 1e-3)
-        bend += push / pl * (smoothstep(0.0, 0.45, pl) * 0.95 * h * t * sqrt(t));
+    // (laid over quickly, two thirds of the way down: the length kept bends it down as it goes over)
+    float pl = length(push), lay = smoothstep(0.0, 0.5, pl);
+    vec2 lay_dir = pl > 1e-3 ? push / pl : vec2(0.0);
+    bend += lay_dir * (lay * 0.65 * h * t * sqrt(t));
     axis += keep_length(vec3(bend.x, 0.0, bend.y), h * t);
 
     // across the view, square to the blade
@@ -142,6 +142,14 @@ void main() {
 
     out_color = vec3(float(in_data.x & 255u), float((in_data.x >> 8) & 255u), float((in_data.x >> 16) & 255u)) / 255.0 *
                 mix(0.78, 1.16, t);
+    // trodden: crushed blades a darker, deeper green, in the shade of the grass standing about them; and as a lawn's
+    // stripes, those lying away from the camera showing their lighter backs, those lying towards it their shaded
+    // faces - so a trail shows whichever way it is seen (end-on, laid blades are hardly told from standing ones)
+    if (lay > 0.0) {
+        vec2 away = root.xz - eye.xz;
+        float facing = dot(lay_dir, away / max(length(away), 1e-3));
+        out_color *= mix(vec3(1.0), vec3(0.78, 0.86, 0.74), lay) * (1.0 + lay * (0.2 * facing - 0.1) * (0.5 + 0.5 * t));
+    }
     out_world = p;
     out_t = t;
     out_normal = n;
