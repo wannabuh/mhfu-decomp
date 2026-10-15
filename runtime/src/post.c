@@ -28,7 +28,8 @@
 #include "dof_prefilter.frag.inc"
 #include "dof_gather.frag.inc"
 
-#define LEVELS 6                /* the bloom's images: half the picture, a quarter... */
+#define LEVELS 10               /* the bloom's images, at most: half the picture, a quarter... */
+#define SPREAD 4                /* below the one as wide as the PSP's picture, so many (the same glow at any scale) */
 #define PER_FRAME 8             /* times a frame (the frame dumps draw it again) */
 #define PASSES (2 * LEVELS + 6)
 #define INPUTS 6
@@ -43,6 +44,7 @@ static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
 static float dof = 0.0f, sharpen = 0.4f;
 static uint32_t fw, fh;
+static int first, nlevels;      /* the bloom's: the level as wide as the PSP's picture (it is made up to), how many */
 static VkImg scene, glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
 static VkPipeline p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
 static VkPipelineLayout layout;
@@ -90,7 +92,12 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
     scene = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                      VK_IMAGE_ASPECT_COLOR_BIT);
     glow = vk_image(fw, fh, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
-    for (int i = 0; i < LEVELS; i++)
+    first = 0;                          /* (the level nearest 480 wide) */
+    while (first + 1 < LEVELS - SPREAD && fabsf(log2f((float)(fw >> (first + 2)) / 480.0f)) <
+                                              fabsf(log2f((float)(fw >> (first + 1)) / 480.0f)))
+        first++;
+    nlevels = first + SPREAD + 1;
+    for (int i = 0; i < nlevels; i++)
         levels[i] = vk_image(fw >> (i + 1), fh >> (i + 1), VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     for (int i = 0; i < 2; i++) {
         shaft_img[i] = vk_image(fw / 2, fh / 2, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -205,7 +212,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
     memcpy(pc.sun, (float[4]){f->sun[0], f->sun[1], f->sun[2], shafts_on ? shafts * 3e-5f : 0}, sizeof pc.sun);
     memcpy(pc.sun_color, (float[4]){f->sun_color[0], f->sun_color[1], f->sun_color[2], shafts_contrast},
            sizeof pc.sun_color);
-    memcpy(pc.bloom, (float[4]){bloom / (LEVELS - 1), bloom_threshold, bloom_picture, bloom_glow}, sizeof pc.bloom);
+    memcpy(pc.bloom, (float[4]){bloom / (SPREAD + 1), bloom_threshold, bloom_picture, bloom_glow}, sizeof pc.bloom);
     memcpy(pc.grade, (float[4]){saturation, contrast, warmth, vignette}, sizeof pc.grade);
     int dof_on = dof > 0 && f->focus > 0;
     /* (the blur's largest: a dozen PSP pixels across at full strength) */
@@ -214,7 +221,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
 
     /* bloom: down the levels, then back up, each adding the smaller */
     if (bloom > 0) {
-        for (int i = 0; i < LEVELS; i++) {
+        for (int i = 0; i < nlevels; i++) {
             VkImg *src = i ? &levels[i - 1] : &scene;
             set_inputs(s[k], src, &glow, NULL, NULL, NULL, 0);
             memcpy(pc.texel, (float[4]){1.0f / (float)src->width, 1.0f / (float)src->height, i == 0, 0},
@@ -222,7 +229,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
             draw(&levels[i], levels[i].width, levels[i].height, p_down, s[k++], &pc, 0);
             vk_transition(&levels[i], ro);
         }
-        for (int i = LEVELS - 2; i >= 1; i--) {      /* (the first, the tightest, left out: it whitens the flames) */
+        for (int i = nlevels - 2; i >= first; i--) {    /* (the tighter left out: they whiten the flames) */
             VkImg *src = &levels[i + 1];
             set_inputs(s[k], src, NULL, NULL, NULL, NULL, 0);
             memcpy(pc.texel, (float[4]){1.0f / (float)src->width, 1.0f / (float)src->height, 0, 0}, sizeof pc.texel);
@@ -253,7 +260,7 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
         vk_transition(&dof_img[1], ro);
     }
     /* the picture, back */
-    set_inputs(s[k], &scene, bloom > 0 ? &levels[1] : NULL, shafts_on ? &shaft_img[0] : NULL,
+    set_inputs(s[k], &scene, bloom > 0 ? &levels[first] : NULL, shafts_on ? &shaft_img[0] : NULL,
                dof_on ? &dof_img[1] : NULL, depth, 0);
     draw(color, fw, fh, p_final, s[k++], &pc, 0);
 }
