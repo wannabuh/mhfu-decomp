@@ -9,6 +9,7 @@ layout(location = 3) in float in_fog;
 layout(location = 4) in vec3 in_world;
 layout(location = 5) in vec4 in_sun;
 layout(location = 6) in vec4 in_normal;
+layout(location = 7) in vec4 in_motion;   // its motion in the world since the frame shown before (the motion blur's)
 
 layout(push_constant) uniform Draw {
     vec2 tex_size;
@@ -26,6 +27,7 @@ layout(location = 5) out vec3 out_normal;
 layout(location = 6) out vec3 out_world;
 layout(location = 7) out vec4 out_shape;    // (tessellated: the normal that curves it, and which of its triangle's
                                             // edges stay straight - render.c shape_normals)
+layout(location = 8) out vec3 out_motion;
 
 void main() {
     gl_Position = in_pos;
@@ -36,6 +38,7 @@ void main() {
     out_sun = in_sun.rgb;
     out_normal = in_normal.xyz;
     out_world = in_world;
+    out_motion = in_motion.xyz;
     int raw = int(round(in_normal.w * 32767.0));
     out_shape.w = round(in_sun.a * 255.0);
     if (raw == 0) {

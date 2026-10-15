@@ -55,6 +55,7 @@ layout(location = 3) in vec3 in_shadow;
 layout(location = 4) in vec3 in_sun;
 layout(location = 5) in vec3 in_normal;
 layout(location = 6) in vec3 in_world;
+layout(location = 8) in vec3 in_motion;
 layout(location = 0) out vec4 out_color;
 
 // How much the sun is hidden here (0 lit, 1 in shadow): the shadow map's depths compared around the point (3 x 3),
@@ -203,7 +204,9 @@ void main() {
         if (!pass)
             discard;
     }
-    if ((draw.flags & 16384u) != 0u)    // drawn again into the motion blur's mask (post.c): covered
-        c.a = 1.0;
+    if ((draw.flags & 16384u) != 0u) {  // drawn again into the motion blur's (post.c): its motion in the world, covered
+        out_color = vec4(in_motion, 1.0);
+        return;
+    }
     out_color = c;
 }

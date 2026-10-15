@@ -7,8 +7,9 @@
 
 /* As gpu.c's Vertex: screen position (PSP pixels), depth (0-65535), 1/w, texture coordinates (texels), colour (0-255),
  * fog (1 none, 0 all fog), position in the world, the sun's part of the colour (0-255) - or, lit by the pixel, the
- * material's diffuse colour - and the normal in the world */
-typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz; } RVertex;
+ * material's diffuse colour - the normal in the world, and its motion in the world since the frame shown before (the
+ * motion blur's: the hunter, monsters and people) */
+typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz, mx, my, mz; } RVertex;
 
 extern int render_on;                       /* the Vulkan renderer draws (else gpu.c does, in software) */
 int render_init(void *sdl_window);          /* NULL: offscreen. 0 if Vulkan cannot be used */

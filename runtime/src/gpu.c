@@ -144,13 +144,18 @@ void gpu_decode_texture(uint32_t *out, int w, int h) {
  * perspective-correct interpolation, texture coordinates (texels), colour (0-255 a channel), fog (1 none, 0 all fog);
  * for the renderer's shadows, its position in the world (the camera taken out) and the part of its colour the sun gave
  * (0-255, in the colour) */
-typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz; } Vertex;
+typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz, mx, my, mz; } Vertex;
 
 /* Before the viewport: clip-space position and the rest */
-typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz; } ClipVertex;
-#define VERTEX_FLOATS 20
+typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz, mx, my, mz; } ClipVertex;
+#define VERTEX_FLOATS 23
 
 static float world[12], view[12], proj[16], bones[8][12];
+/* Motion blur (render.c): a replayed draw's world and bones a frame shown earlier - its vertices' motion in the world
+ * since (mx, my, mz) */
+static float earlier_world[12], earlier_bones[8][12];
+static int earlier;
+float render_motion_step(void);     /* the game's frames between two shown (0: no motion blur) */
 static int world_i, view_i, proj_i, bone_i;
 
 /* Shadows (render.c): the GE's world space - which has the camera in it: the game multiplies it into each world
@@ -551,6 +556,7 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
     out->wx = out->wy = out->wz = 0;
     out->sr = out->sg = out->sb = 0;
     out->nx = out->ny = out->nz = 0;
+    out->mx = out->my = out->mz = 0;
 
     if (through) {
         out->cx = p[0];
@@ -572,6 +578,27 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
                 nr[i] = -nr[i];
     }
     float m[3];
+    if (earlier && prim_world) {        /* where it was a frame shown earlier */
+        float q[3] = {0, 0, 0}, em[3], ew[3];
+        if (wt) {
+            static const int tsz[4] = {0, 1, 2, 4};
+            for (int b = 0; b < nweights; b++) {
+                float w = read_comp(v + l->wo + (uint32_t)(b * tsz[wt]), wt, 0, 0);
+                if (wt == 1) w = LBU(v + l->wo + (uint32_t)b) / 128.0f;
+                if (wt == 2) w = LHU(v + l->wo + (uint32_t)(b * 2)) / 32768.0f;
+                float t[3];
+                mul43(earlier_bones[b], p, t);
+                for (int i = 0; i < 3; i++)
+                    q[i] += t[i] * w;
+            }
+        } else
+            memcpy(q, p, sizeof q);
+        mul43(earlier_world, q, em);
+        mul43(to_world, em, ew);
+        out->mx = ew[0];                /* (the motion, once its place now is known) */
+        out->my = ew[1];
+        out->mz = ew[2];
+    }
     if (wt) {                           /* skinning: the weighted sum of the bones' transforms */
         static const int tsz[4] = {0, 1, 2, 4};
         float acc[3] = {0, 0, 0}, nacc[3] = {0, 0, 0};
@@ -591,8 +618,14 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         memcpy(nr, nacc, sizeof nr);
     }
     mul43(world, p, m);
-    if (prim_world)
+    if (prim_world) {
         mul43(to_world, m, &out->wx);
+        if (earlier) {
+            out->mx = out->wx - out->mx;
+            out->my = out->wy - out->my;
+            out->mz = out->wz - out->mz;
+        }
+    }
     if (reg[0x17] & 1) {                /* lighting, in world space */
         float wn[3];
         mul33(world, nr, wn);
@@ -636,7 +669,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
     s->b = c->b;
     s->a = c->a;
     s->fog = c->fog;
-    memcpy(&s->wx, &c->wx, 9 * sizeof(float));
+    memcpy(&s->wx, &c->wx, 12 * sizeof(float));
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */
@@ -1104,8 +1137,21 @@ static int placed_run = -1;         /* the run whose vertices are in the scratch
 /* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
 static int draw_bones(const Draw *d);
 
-static void replay(const Draw *d, const Draw *prev, float t) {
+static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
+    /* the hunter, monsters and people (lit by the GE, in the world, matched): where they were a frame shown earlier */
+    float step = render_motion_step();
+    earlier = 0;
+    if (step > 0 && moved && native_camera && d->proj[11] != 0 && (d->reg[0x17] & 1)) {
+        int late = stale_known && stale[d - latest->draws];
+        float wl[12], wp[12], we[12];
+        compose43(late ? prev_inv : latest_inv, d->world, wl);
+        compose43(late ? before_inv : prev_inv, moved->world, wp);
+        lerp(we, wp, wl, 12, t - step);
+        compose43(shown_view, we, earlier_world);
+        lerp(&earlier_bones[0][0], &moved->bones[0][0], &d->bones[0][0], 12 * draw_bones(d), t - step);
+        earlier = 1;
+    }
     if (native_camera && d->proj[11] != 0) {
         /* the game multiplied its camera into the world matrix: take each frame's out, interpolate in the world, and
          * put the camera shown in */
@@ -1453,10 +1499,12 @@ uint32_t gpu_render_frame(float t) {
     shown_frames++;
     placed_run = -1;
     render_time(((double)present_frame_number() - 1.0 + t) / 30.0);
-    int interpolate = previous->n && t < 1.0f && !camera_cut(previous, latest);
+    int matched_frames = previous->n && !camera_cut(previous, latest);
+    int interpolate = matched_frames && t < 1.0f;
     camera_frames_late(frames_late);
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
-    int *m = interpolate ? match(native_camera) : NULL;
+    /* (matched for the motion blur too, at the frame's end) */
+    int *m = interpolate || (matched_frames && native_camera && render_motion_step() > 0) ? match(native_camera) : NULL;
     stale_known = m && native_camera;
     shadow_frame(native_camera ? shown_view : NULL);
     recording = 0;
@@ -1465,8 +1513,9 @@ uint32_t gpu_render_frame(float t) {
         const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
         if (m)
             prev ? matched++ : unmatched++;
-        replay(&latest->draws[i], prev, t);
+        replay(&latest->draws[i], interpolate ? prev : NULL, prev, t);
     }
+    earlier = 0;
     recording = 1;
     in_replay = 0;
     render_time(-1.0);

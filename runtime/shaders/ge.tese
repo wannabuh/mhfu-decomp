@@ -28,6 +28,7 @@ layout(location = 4) in vec3 in_sun[];
 layout(location = 5) in vec3 in_normal[];
 layout(location = 6) in vec3 in_world[];
 layout(location = 7) in vec4 in_shape[];
+layout(location = 8) in vec3 in_motion[];
 layout(location = 0) out vec2 out_uv;
 layout(location = 1) out vec4 out_color;
 layout(location = 2) out float out_fog;
@@ -35,6 +36,7 @@ layout(location = 3) out vec3 out_shadow;
 layout(location = 4) out vec3 out_sun;
 layout(location = 5) out vec3 out_normal;
 layout(location = 6) out vec3 out_world;
+layout(location = 8) out vec3 out_motion;
 
 const float ROUNDNESS = 0.6;
 
@@ -62,5 +64,6 @@ void main() {
     out_sun = b.x * in_sun[0] + b.y * in_sun[1] + b.z * in_sun[2];
     out_normal = b.x * in_normal[0] + b.y * in_normal[1] + b.z * in_normal[2];
     out_world = world;
+    out_motion = b.x * in_motion[0] + b.y * in_motion[1] + b.z * in_motion[2];
     out_shadow = (draw.light * vec4(world, 1.0)).xyz;
 }

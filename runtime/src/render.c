@@ -48,6 +48,7 @@ typedef struct GpuVertex {
     float fog, wx, wy, wz;
     uint32_t sun;
     int16_t n[4];
+    uint16_t motion[4];                 /* (half floats) its motion in the world since the frame shown before */
 } GpuVertex;
 
 /* Lighting by the pixel: the sets of directional lights draws use (gpu.c gives them), in a storage buffer - half of it
@@ -264,7 +265,7 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
          tess_eval, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
-    VkVertexInputAttributeDescription attrs[7] = {
+    VkVertexInputAttributeDescription attrs[8] = {
         {0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0},
         {1, 0, VK_FORMAT_R32G32_SFLOAT, 16},
         {2, 0, VK_FORMAT_R8G8B8A8_UNORM, 24},
@@ -272,10 +273,11 @@ static VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipeline
         {4, 0, VK_FORMAT_R32G32B32_SFLOAT, 32},
         {5, 0, VK_FORMAT_R8G8B8A8_UNORM, 44},
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
+        {7, 0, VK_FORMAT_R16G16B16A16_SFLOAT, 56},
     };
     int verts = (ge >= 1 && ge <= 3) || ge == 6;   /* (6: the GE's, tessellated) */
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
-                                               verts ? 1u : 0u, &bind, verts ? 7u : 0u, attrs};
+                                               verts ? 1u : 0u, &bind, verts ? 8u : 0u, attrs};
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
         ge == 6 ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
     VkPipelineTessellationStateCreateInfo ts = {VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO, NULL, 0, 3};
@@ -999,6 +1001,11 @@ static void ao_apply(Target *t) {
 
 static void post_run(Target *t);
 
+/* gpu.c: the game's frames between two frames shown, for the motion blur's motion (0: none) */
+float render_motion_step(void) {
+    return glow_pipeline && post_motion() ? post_frame_step() : 0.0f;
+}
+
 void render_prim_begin(const uint32_t *reg) {
     if (emitting)
         flush_emitter();            /* the last primitive's light (each its own, batched or not) */
@@ -1151,7 +1158,7 @@ typedef struct {
 } PushConstants;
 
 /* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
- * people's, into its alpha - where the motion blur leaves the picture sharp (1 flat, 2 tessellated) */
+ * people's, into the motion blur's image - their motion (1 flat, 2 tessellated) */
 static struct { DrawState s; PushConstants pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
 
 /* The shadow map's pass, begun at the first thing in the world of a frame: cleared to the farthest */
@@ -2019,6 +2026,19 @@ static void flush(void) {
 
 /* -- primitives --------------------------------------------------------------------------------------------------- */
 
+/* a float as a half float (rounded towards zero; too large: the largest) */
+static uint16_t half(float f) {
+    uint32_t x;
+    memcpy(&x, &f, 4);
+    uint16_t sign = (uint16_t)((x >> 16) & 0x8000);
+    int e = (int)((x >> 23) & 255) - 127 + 15;
+    if (e <= 0)
+        return sign;
+    if (e >= 31)
+        return sign | 0x7BFF;
+    return sign | (uint16_t)(e << 10) | (uint16_t)((x >> 13) & 0x3FF);
+}
+
 static void put(const RVertex *v, float x, float y, float u, float vv, int sprite) {
     if (vertex_used + sizeof(GpuVertex) > VERTEX_BYTES)
         return;
@@ -2048,6 +2068,10 @@ static void put(const RVertex *v, float x, float y, float u, float vv, int sprit
     g->n[1] = (int16_t)(v->ny * k);
     g->n[2] = (int16_t)(v->nz * k);
     g->n[3] = 0;
+    g->motion[0] = half(v->mx);
+    g->motion[1] = half(v->my);
+    g->motion[2] = half(v->mz);
+    g->motion[3] = 0;
     int tess = tess_pipeline && (cur.flags & 1024u);     /* (written at flush, with its shape normals) */
     if (swaying(&cur) || tess) {
         size_t i = (size_t)((vertex_used - batch_start) / sizeof(GpuVertex));
@@ -2149,65 +2173,67 @@ static void post_run(Target *t) {
     if (!glow_pipeline)
         return;
     end_rendering();
-    VkImg *g = post_glow();
     uint32_t fw = 480u * (uint32_t)scale, fh = 272u * (uint32_t)scale, px = (uint32_t)(RT_SIZE * scale);
-    vk_transition(g, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
-    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, g->view,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
-        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
-    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {fw, fh}}, 1, 0, 1, &ca, &da, NULL};
-    VkCommandBuffer cmd = vk_cmd();
-    vkCmdBeginRendering(cmd, &ri);
-    if (nglow) {
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, glow_pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
-        VkDeviceSize zero = 0;
-        vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
-        VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
-        vkCmdSetViewport(cmd, 0, 1, &vp);
-        vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
-        VkBool32 yes = VK_TRUE, no = VK_FALSE;
-        VkColorComponentFlags rgb = 0x7, alpha = 0x8;
-        VkPipeline bound = glow_pipeline;
-        for (int i = 0; i < nglow; i++) {
-            const DrawState *d = &glow_draws[i].s;
-            int kind = glow_draws[i].kind;
-            VkPipeline p = kind == 2 ? glow_tess_pipeline : glow_pipeline;
-            if (!p)
-                continue;
-            if (p != bound)
-                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound = p);
-            vk.SetColorBlendEnable(cmd, 0, 1, kind ? &no : &yes);
-            vk.SetColorWriteMask(cmd, 0, 1, kind ? &alpha : &rgb);
-            VkRect2D sc = d->scissor;
-            if (sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
-                continue;
-            if (sc.offset.x + sc.extent.width > fw)
-                sc.extent.width = fw - (uint32_t)sc.offset.x;
-            if (sc.offset.y + sc.extent.height > fh)
-                sc.extent.height = fh - (uint32_t)sc.offset.y;
-            vkCmdSetScissor(cmd, 0, 1, &sc);
-            vkCmdSetDepthTestEnable(cmd, d->depth_test);
-            VkCompareOp op = d->depth_op;       /* (the hunter's own depth: drawn again, it passes) */
-            if (kind && op == VK_COMPARE_OP_GREATER)
-                op = VK_COMPARE_OP_GREATER_OR_EQUAL;
-            if (kind && op == VK_COMPARE_OP_LESS)
-                op = VK_COMPARE_OP_LESS_OR_EQUAL;
-            vkCmdSetDepthCompareOp(cmd, op);
-            vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
-            vkCmdSetBlendConstants(cmd, d->blend_const);
-            vkCmdSetCullMode(cmd, d->cull);
-            vkCmdSetFrontFace(cmd, d->front);
-            vkCmdPushConstants(cmd, layout, pc_stages, 0,
-                               sizeof glow_draws[i].pc, &glow_draws[i].pc);
-            vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
+    /* the glow (the draws adding light, again); then the motion blur's (the hunter's, monsters' and people's motion) */
+    for (int pass = 0; pass < (post_motion() ? 2 : 1); pass++) {
+        VkImg *g = pass ? post_motion_image() : post_glow();
+        vk_transition(g, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, g->view,
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+        VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
+            VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+        VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {fw, fh}}, 1, 0, 1, &ca, &da, NULL};
+        VkCommandBuffer cmd = vk_cmd();
+        vkCmdBeginRendering(cmd, &ri);
+        if (nglow) {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, glow_pipeline);
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, 1, &set, 0, NULL);
+            VkDeviceSize zero = 0;
+            vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
+            VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
+            vkCmdSetViewport(cmd, 0, 1, &vp);
+            vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
+            VkBool32 blend = pass ? VK_FALSE : VK_TRUE;
+            vk.SetColorBlendEnable(cmd, 0, 1, &blend);
+            VkColorComponentFlags all = 0xF;
+            vk.SetColorWriteMask(cmd, 0, 1, &all);
+            VkPipeline bound = glow_pipeline;
+            for (int i = 0; i < nglow; i++) {
+                const DrawState *d = &glow_draws[i].s;
+                int kind = glow_draws[i].kind;
+                VkPipeline p = kind == 2 ? glow_tess_pipeline : glow_pipeline;
+                if (!p || (kind != 0) != pass)
+                    continue;
+                if (p != bound)
+                    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound = p);
+                VkRect2D sc = d->scissor;
+                if (sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
+                    continue;
+                if (sc.offset.x + sc.extent.width > fw)
+                    sc.extent.width = fw - (uint32_t)sc.offset.x;
+                if (sc.offset.y + sc.extent.height > fh)
+                    sc.extent.height = fh - (uint32_t)sc.offset.y;
+                vkCmdSetScissor(cmd, 0, 1, &sc);
+                vkCmdSetDepthTestEnable(cmd, d->depth_test);
+                VkCompareOp op = d->depth_op;   /* (the hunter's own depth: drawn again, it passes) */
+                if (kind && op == VK_COMPARE_OP_GREATER)
+                    op = VK_COMPARE_OP_GREATER_OR_EQUAL;
+                if (kind && op == VK_COMPARE_OP_LESS)
+                    op = VK_COMPARE_OP_LESS_OR_EQUAL;
+                vkCmdSetDepthCompareOp(cmd, op);
+                vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
+                vkCmdSetBlendConstants(cmd, d->blend_const);
+                vkCmdSetCullMode(cmd, d->cull);
+                vkCmdSetFrontFace(cmd, d->front);
+                vkCmdPushConstants(cmd, layout, pc_stages, 0, sizeof glow_draws[i].pc, &glow_draws[i].pc);
+                vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
+            }
         }
+        vkCmdEndRendering(cmd);
     }
-    vkCmdEndRendering(cmd);
     nglow = 0;
     last_valid = 0;
     /* the camera, the sun, the shadow map */
@@ -2257,6 +2283,9 @@ static void post_run(Target *t) {
             mul4(prev_view, a, f.to_prev);
             f.moved = 1;
         }
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++)
+                f.to_camera[4 * r + c] = inv[4 * c + r];
         memcpy(prev_view, post_view, sizeof prev_view);
         memcpy(prev_world_inv, inv, sizeof prev_world_inv);
         prev_ok = 1;

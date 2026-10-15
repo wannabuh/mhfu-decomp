@@ -11,6 +11,7 @@ layout(location = 4) in vec3 in_sun[];
 layout(location = 5) in vec3 in_normal[];
 layout(location = 6) in vec3 in_world[];
 layout(location = 7) in vec4 in_shape[];
+layout(location = 8) in vec3 in_motion[];
 layout(location = 0) out vec2 out_uv[];
 layout(location = 1) out vec4 out_color[];
 layout(location = 2) out float out_fog[];
@@ -19,6 +20,7 @@ layout(location = 4) out vec3 out_sun[];
 layout(location = 5) out vec3 out_normal[];
 layout(location = 6) out vec3 out_world[];
 layout(location = 7) out vec4 out_shape[];
+layout(location = 8) out vec3 out_motion[];
 
 const float SEGMENT = 2.5;      // PSP pixels a piece of an edge, at most (the screen is 512 across its -1..1)
 
@@ -41,6 +43,7 @@ void main() {
     out_normal[gl_InvocationID] = in_normal[i];
     out_world[gl_InvocationID] = in_world[i];
     out_shape[gl_InvocationID] = in_shape[i];
+    out_motion[gl_InvocationID] = in_motion[i];
     if (i == 0) {
         vec4 p0 = gl_in[0].gl_Position, p1 = gl_in[1].gl_Position, p2 = gl_in[2].gl_Position;
         bool normals = dot(in_shape[0].xyz, in_shape[0].xyz) > 0.0 && dot(in_shape[1].xyz, in_shape[1].xyz) > 0.0 &&
