@@ -1,7 +1,7 @@
 #version 450
 #include "shared.h"
-// Ground grass (grass.c): each instance a blade, its 18 vertices a strip of three quads from the root to the tip
-// (gl_VertexIndex: quad v / 6, its corner v % 6) - tapering, arching over its own way, bent by the wind (waves of
+// Ground grass (grass.c): each instance a blade, its 8 vertices a triangle strip of three quads from the root to the
+// tip (gl_VertexIndex: level v / 2, side v % 2) - tapering, arching over its own way, bent by the wind (waves of
 // different lengths crossing the field, gusts passing over it, each blade swaying in its own measure) and pressed down
 // where it is trodden (grass.c's trail: smooth, the way the feet went, springing back), turned to face the camera. Towards the field's edge it thins out (by its place in its tile's shuffled order) and shrinks away;
 // a blade thinner than a pixel is drawn a pixel wide (it would flicker).
@@ -72,8 +72,6 @@ layout(location = 5) out float out_fog;
 
 const float T[4] = float[4](0.0, 0.4, 0.75, 1.0);
 const float W[4] = float[4](1.0, 0.82, 0.48, 0.0);
-const int LEVEL[6] = int[6](0, 0, 1, 0, 1, 1);
-const float SIDE[6] = float[6](-1.0, 1.0, -1.0, 1.0, 1.0, -1.0);
 
 // a sideways bend b of a point above units up its blade, keeping its length: the point comes down as it goes over
 vec3 keep_length(vec3 b, float above) {
@@ -89,8 +87,8 @@ void main() {
     mat4 to_clip = mat4(cam.dir[0], cam.dir[1], cam.dir[2], cam.dir[3]);
     vec3 eye = cam.color[0].xyz;
     float time = cam.color[1].x, wind = cam.color[1].y, px = cam.color[1].z, reach = cam.color[1].w;
-    int level = gl_VertexIndex / 6 + LEVEL[gl_VertexIndex % 6];
-    float side = SIDE[gl_VertexIndex % 6], t = T[level];
+    int level = gl_VertexIndex >> 1;
+    float side = (gl_VertexIndex & 1) != 0 ? 1.0 : -1.0, t = T[level];
 
     vec3 root = in_root;
     uint shape = in_data.y;
@@ -106,6 +104,10 @@ void main() {
     float dist = length(root.xz - eye.xz), near = cam.color[0].w;
     float keep = dist < near ? 1.0 : (near / dist) * (near / dist);
     float fade = clamp((keep - rank) / max(0.06 * keep, 0.004), 0.0, 1.0) * (1.0 - smoothstep(0.85 * reach, reach, dist));
+    if (fade <= 0.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);    // thinned out: nothing (all its corners one point, out of view)
+        return;
+    }
     half_w *= min(inversesqrt(max(keep, 1e-3)), 3.0);
     float h = height * fade;
 

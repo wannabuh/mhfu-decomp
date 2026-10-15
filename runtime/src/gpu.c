@@ -1182,8 +1182,14 @@ static int to_rotation(const float *m, float *q, float *s) {
  * lerped as they are, a half turn would pass through a matrix that flattens what it places. Matrices that are not
  * rotations and scales (or mirror differently) are lerped as they are. */
 static void interp43(float *out, const float *a, const float *b, float t) {
+    /* (turning little, lerped as they are: it shrinks them by a part in 8 of the angle squared - nothing) */
+    float most = 0, change = 0;
+    for (int i = 0; i < 9; i++) {
+        most = fmaxf(most, fabsf(a[i]));
+        change = fmaxf(change, fabsf(b[i] - a[i]));
+    }
     float qa[4], qb[4], sa[3], sb[3];
-    if (!to_rotation(a, qa, sa) || !to_rotation(b, qb, sb) || (sa[0] < 0) != (sb[0] < 0)) {
+    if (change <= 0.02f * most || !to_rotation(a, qa, sa) || !to_rotation(b, qb, sb) || (sa[0] < 0) != (sb[0] < 0)) {
         lerp(out, a, b, 12, t);
         return;
     }

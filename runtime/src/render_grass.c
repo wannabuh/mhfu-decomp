@@ -44,12 +44,22 @@ void grass_init(void) {
                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
 }
 
-/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first) */
+unsigned long present_frame_number(void);
+
+/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first). Laid once a frame of
+ * the game's: the frames shown between its draw the same scenery again */
 void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c) {
+    static unsigned long game_frame;
+    static int laying;
     if (grass_frame_no != frame_no) {
         grass_frame_no = frame_no;
-        grass_frame(&prim_world_view[9], scene_time());
+        laying = present_frame_number() != game_frame;
+        game_frame = present_frame_number();
+        if (laying)
+            grass_frame(&prim_world_view[9], scene_time());
     }
+    if (!laying)
+        return;
     const RVertex *v[3] = {a, b, c};
     float p[3][3], uv[3][2], col[3][3];
     float tw = d->tex_w > 0 ? d->tex_w : 1, th = d->tex_h > 0 ? d->tex_h : 1;
@@ -177,7 +187,7 @@ void grass_draw(Target *t) {
         }
         if (out[0] || out[1] || out[2] || out[3] || out[4])
             continue;
-        vkCmdDraw(cmd, 18, (uint32_t)tiles[i].count, 0, (uint32_t)tiles[i].slot * GRASS_BLADES_PER_SLOT);
+        vkCmdDraw(cmd, 8, (uint32_t)tiles[i].count, 0, (uint32_t)tiles[i].slot * GRASS_BLADES_PER_SLOT);
     }
     ge_rebind();
 }
