@@ -58,7 +58,7 @@ void window_mouse(float *dx, float *dy) {
     mouse_dx = mouse_dy = 0;
 }
 
-void render_default_scale(int s);
+void render_default_scale(float s);
 
 void window_init(void) {
     int headless = getenv("MHFU_HEADLESS") != NULL;

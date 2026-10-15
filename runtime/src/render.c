@@ -225,7 +225,11 @@ static int shaded(const DrawState *d) {
                           d->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA));
 }
 
-static int scale = 2;
+static float scale = 2;             /* render target pixels a PSP pixel (MHFU_SCALE, or MHFU_RESOLUTION's lines) */
+/* PSP pixels in render target pixels */
+static uint32_t scaled(int psp) {
+    return (uint32_t)lroundf((float)psp * scale);
+}
 static Target targets[MAX_TARGETS];
 static Texture *textures;
 static int ntextures;
@@ -360,8 +364,8 @@ static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat
 }
 
 /* window.c: the internal resolution to use unless MHFU_SCALE says (enough for the screen's lines) */
-void render_default_scale(int s) {
-    if (s >= 1 && s <= 8)
+void render_default_scale(float s) {
+    if (s >= 1 && s <= 12)
         scale = s;
 }
 
@@ -379,7 +383,7 @@ static void ao_init(void) {
     if (!ao_on)
         return;
     for (int i = 0; i < 2; i++)
-        ao_img[i] = vk_image(240u * (uint32_t)scale, 136u * (uint32_t)scale, VK_FORMAT_R16G16_SFLOAT,
+        ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     VkDescriptorSetLayoutBinding b[2] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
@@ -413,9 +417,16 @@ static void ao_init(void) {
 }
 
 int render_init(void *sdl_window) {
-    const char *s = getenv("MHFU_SCALE");
-    if (s && atoi(s) >= 1 && atoi(s) <= 8)
-        scale = atoi(s);
+    /* the internal resolution: MHFU_RESOLUTION=WxH (its lines, or as wide as it is if that is less: 2560x1440 is 5.29
+     * times the PSP's), or MHFU_SCALE times the PSP's (fractions too) - 1 to 12 times */
+    const char *s = getenv("MHFU_SCALE"), *res = getenv("MHFU_RESOLUTION");
+    int rw, rh;
+    if (res && sscanf(res, "%dx%d", &rw, &rh) == 2 && rw > 0 && rh > 0) {
+        float r = fminf((float)rw / 480.0f, (float)rh / 272.0f);
+        if (r >= 1 && r <= 12)
+            scale = r;
+    } else if (s && atof(s) >= 1 && atof(s) <= 12)
+        scale = (float)atof(s);
     if (!vk_init(sdl_window))
         return 0;
 
@@ -526,7 +537,7 @@ int render_init(void *sdl_window) {
     for (int i = 0; i < 2; i++)
         shadow_extra[i] = vk_buffer(SHADOW_EXTRA_BYTES, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
     extra = shadow_extra[0];
-    readback = vk_buffer((VkDeviceSize)RT_SIZE * scale * RT_SIZE * scale * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
+    readback = vk_buffer((VkDeviceSize)scaled(RT_SIZE) * scaled(RT_SIZE) * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
     textures = calloc(MAX_TEXTURES, sizeof *textures);
     shadow_img = vk_image(SHADOW_SIZE, SHADOW_SIZE, VK_FORMAT_D32_SFLOAT,
                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
@@ -573,7 +584,8 @@ int render_init(void *sdl_window) {
     vk.before_submit = shadow_finish;
     vk.frame_reused = frame_reused;
     render_on = 1;
-    fprintf(stderr, "renderer: Vulkan, %dx internal resolution\n", scale);
+    fprintf(stderr, "renderer: Vulkan, %ux%u internal resolution (%.3g times the PSP's)\n", scaled(480), scaled(272),
+            (double)scale);
     return 1;
 }
 
@@ -598,7 +610,7 @@ static Target *target(uint32_t addr, int create) {
     for (int i = 0; i < MAX_TARGETS; i++)
         if (!targets[i].used) {
             Target *t = &targets[i];
-            uint32_t px = (uint32_t)(RT_SIZE * scale);
+            uint32_t px = scaled(RT_SIZE);
             t->used = 1;
             t->addr = addr;
             t->color = vk_image(px, px, VK_FORMAT_R8G8B8A8_UNORM,
@@ -639,7 +651,7 @@ static void begin_rendering(Target *t) {
     da.imageView = t->depth.view;
     da.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
     da.clearValue.depthStencil.depth = 0.0f;
-    uint32_t px = (uint32_t)(RT_SIZE * scale);
+    uint32_t px = scaled(RT_SIZE);
     VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {px, px}}, 1, 0, 1, &ca, &da, NULL};
     VkCommandBuffer cmd = vk_cmd();
     vkCmdBeginRendering(cmd, &ri);
@@ -1041,7 +1053,7 @@ static void ao_apply(Target *t) {
     if (!invert4(ao_view, pc.to_view))
         return;
     end_rendering();
-    uint32_t fw = 480u * (uint32_t)scale, fh = 272u * (uint32_t)scale, hw = fw / 2, hh = fh / 2;
+    uint32_t fw = scaled(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
     float focal = fabsf(ao_view[0]) * (float)scale;
     memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)scale, focal}, sizeof pc.params);
     memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, 0}, sizeof pc.params2);
@@ -1186,7 +1198,7 @@ void render_prim_begin(const uint32_t *reg) {
     if (sy1 > RT_SIZE) sy1 = RT_SIZE;
     if (sx1 < sx0) sx1 = sx0;
     if (sy1 < sy0) sy1 = sy0;
-    s.scissor = (VkRect2D){{sx0 * scale, sy0 * scale}, {(uint32_t)((sx1 - sx0) * scale), (uint32_t)((sy1 - sy0) * scale)}};
+    s.scissor = (VkRect2D){{(int32_t)scaled(sx0), (int32_t)scaled(sy0)}, {scaled(sx1) - scaled(sx0), scaled(sy1) - scaled(sy0)}};
     /* the solid world drawn, then what is not solid (glows, fire, smoke, the HUD): the world's occlusion first - only
      * the solid world's colours have it, once (until the picture is cleared) */
     int solid = (s.flags & 256u) && s.depth_write;
@@ -2258,7 +2270,7 @@ static void post_run(Target *t) {
     if (!glow_pipeline)
         return;
     end_rendering();
-    uint32_t fw = 480u * (uint32_t)scale, fh = 272u * (uint32_t)scale, px = (uint32_t)(RT_SIZE * scale);
+    uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
     /* the glow (the draws adding light, again); then the motion blur's (the hunter's, monsters' and people's motion) */
     for (int pass = 0; pass < (post_motion() ? 2 : 1); pass++) {
@@ -2498,7 +2510,7 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
     if (!t)
         return NULL;
     vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    uint32_t w = 480u * (uint32_t)scale, h = 272u * (uint32_t)scale;
+    uint32_t w = scaled(480), h = scaled(272);
     VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {w, h, 1}};
     vkCmdCopyImageToBuffer(vk_cmd(), t->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1, &copy);
     vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
@@ -2525,7 +2537,7 @@ void render_readback(uint32_t addr, uint32_t *pixels) {
         return;
     }
     vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    uint32_t w = 480u * (uint32_t)scale, h = 272u * (uint32_t)scale;
+    uint32_t w = scaled(480), h = scaled(272);
     VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {w, h, 1}};
     vkCmdCopyImageToBuffer(vk_cmd(), t->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1, &copy);
     vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);

@@ -20,7 +20,7 @@ typedef struct {
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */
 typedef VkPipeline (*PostPipeline)(VkShaderModule fs, VkPipelineLayout layout, VkFormat color, int blend);
 
-int post_init(int scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
+int post_init(float scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
 int post_on(void);
 int post_motion(void);       /* the motion blur is on */
 float post_frame_step(void);     /* the game's frames between two frames shown */

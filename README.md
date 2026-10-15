@@ -65,7 +65,8 @@ mouse_sens = 0.15
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
 120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_SCALE=4` (internal resolution, times the
-PSP's; by default as many lines as the screen has: 6 at 1440p), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
+PSP's, 1 to 12, fractions too; by default as many lines as the screen has: 6 at 1440p), `MHFU_RESOLUTION=2560x1440` (the
+internal resolution by its size instead: the scale that fits it, 5.29 here; above the screen's it is averaged down), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
 `MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_SHADOWS=0`, `MHFU_SUN_SHADING=0`, `MHFU_RELIEF=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`,
 `MHFU_POINT_SHADOWS=0`, `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, its

@@ -94,7 +94,7 @@ VkImg *post_glow(void) {
     return &glow;
 }
 
-int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
+int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
     on = !getenv("MHFU_POST") || atoi(getenv("MHFU_POST")) != 0;
     bloom = env("MHFU_BLOOM", bloom);
     shafts = env("MHFU_SHAFTS", shafts);
@@ -114,8 +114,8 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
         return 0;
     shadow_view = shadow;
     shadow_sampler = shadow_s;
-    fw = 480u * (uint32_t)scale;
-    fh = 272u * (uint32_t)scale;
+    fw = (uint32_t)lroundf(480.0f * scale);
+    fh = (uint32_t)lroundf(272.0f * scale);
     VkImageUsageFlags rt = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     scene = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                      VK_IMAGE_ASPECT_COLOR_BIT);
