@@ -74,10 +74,11 @@ from the game's fires and their shadows, ambient occlusion: all on otherwise), `
 strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's strength, and how far it looks, in the
 game's units), `MHFU_SWAY=1` (how far grass, bushes and leaves sway in the wind - and bend away from the hunter and
 monsters walking through them; 0 none), `MHFU_POST=0` (none of the
-picture's post-processing: bloom, light shafts, colour grading), `MHFU_BLOOM=3` (the glow round fires and effects, and
+picture's post-processing: bloom, light shafts, depth of field, sharpening, colour grading), `MHFU_BLOOM=3` (the glow round fires and effects, and
 the brightest light; 0 none), `MHFU_SHAFTS=0` (light shafts: the sunlight the air scatters past what shades it, e.g. 1;
 the game's sun stands high, so they show little), `MHFU_DOF=0` (depth of field: what is beyond the hunter blurred, the more the
-farther; e.g. 0.5 or 1), `MHFU_SATURATION=1.08`, `MHFU_CONTRAST=1.05`, `MHFU_WARMTH=0`
+farther; e.g. 0.5 or 1), `MHFU_SHARPEN=0.4` (texture detail
+crisper; 0 none .. 1), `MHFU_SATURATION=1.08`, `MHFU_CONTRAST=1.05`, `MHFU_WARMTH=0`
 (below 0 cooler, above warmer), `MHFU_VIGNETTE=0.2` (the corners darkened), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
 

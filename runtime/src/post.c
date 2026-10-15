@@ -7,6 +7,7 @@
  *   resolution - shafts through gaps, a glow of haze towards the sun (MHFU_SHAFTS: their strength, 0 none).
  * - Depth of field: what is beyond the point the camera looks at (the hunter) blurred, the more the farther (a disc at
  *   half resolution; MHFU_DOF: how much, 0 none - the default).
+ * - Sharpening, contrast adaptive (MHFU_SHARPEN: 0 none .. 1).
  * - Colour grading: saturation, contrast, warmth, vignette (MHFU_SATURATION, MHFU_CONTRAST, MHFU_WARMTH,
  *   MHFU_VIGNETTE).
  *
@@ -40,7 +41,7 @@ static int on = -1;
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
 static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
-static float dof = 0.0f;
+static float dof = 0.0f, sharpen = 0.4f;
 static uint32_t fw, fh;
 static VkImg scene, glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
 static VkPipeline p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
@@ -74,6 +75,7 @@ int post_init(int scale, VkImageView shadow, VkSampler shadow_s, PostPipeline ma
     warmth = env("MHFU_WARMTH", warmth);
     vignette = env("MHFU_VIGNETTE", vignette);
     dof = env("MHFU_DOF", dof);
+    sharpen = env("MHFU_SHARPEN", sharpen);
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.gpu, &props);
     if (props.limits.maxPushConstantsSize < sizeof(Push))
@@ -207,7 +209,8 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
     memcpy(pc.grade, (float[4]){saturation, contrast, warmth, vignette}, sizeof pc.grade);
     int dof_on = dof > 0 && f->focus > 0;
     /* (the blur's largest: a dozen PSP pixels across at full strength) */
-    memcpy(pc.dof, (float[4]){f->focus, 0.35f, dof_on ? dof * 3.0f * (float)fw / 480.0f : 0, 0}, sizeof pc.dof);
+    memcpy(pc.dof, (float[4]){f->focus, 0.35f, dof_on ? dof * 3.0f * (float)fw / 480.0f : 0, sharpen},
+           sizeof pc.dof);
 
     /* bloom: down the levels, then back up, each adding the smaller */
     if (bloom > 0) {

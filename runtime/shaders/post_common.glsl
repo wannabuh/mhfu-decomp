@@ -16,7 +16,7 @@ layout(push_constant) uniform Post {
     vec4 bloom;         // strength, the threshold of the picture's own light, how much of it, the glow's gain
     vec4 grade;         // saturation, contrast, warmth, vignette
     vec4 dof;           // the focus distance, the share of it beyond which the blur begins, the largest blur (half
-                        // resolution pixels; 0: none)
+                        // resolution pixels; 0: none); the sharpening (w: 0 none .. 1)
 } pc;
 
 float luma(vec3 c) {
