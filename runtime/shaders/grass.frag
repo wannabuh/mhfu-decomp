@@ -11,7 +11,7 @@ struct LightSet {
 layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; };
 layout(push_constant) uniform Grass {
     mat4 light;
-    uint camera, feet, nfeet;
+    uint camera, feet, nfeet, velocity;
 } g;
 
 layout(location = 0) in vec3 in_color;

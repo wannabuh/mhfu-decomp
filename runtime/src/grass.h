@@ -23,7 +23,7 @@ typedef struct {
 
 void grass_settings(float density, float radius);
 float grass_radius(void);
-void grass_frame(const float camera[3]);
+void grass_frame(const float camera[3], double now);    /* (now: the moment shown, seconds of the game's) */
 /* A triangle of the scenery: its corners in the world, texture coordinates (0..1 a repeat), vertex colours (0-255);
  * its texture (a small copy, w x h ABGR8888; NULL: none), doubled (the GE's colour doubling) */
 void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], const uint32_t *tex, int w, int h,

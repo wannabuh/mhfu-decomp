@@ -171,9 +171,10 @@ static double sway_clock = -1.0;        /* the moment shown, in seconds (gpu.c),
 /* and they bend away from those walking through them: where the feet of what the GE lights (the hunter, monsters,
  * people) were in the last frame - each such batch's lowest places */
 #define MAX_FEET 64
-typedef struct { float x, y, z, r; } Foot;
+typedef struct { float x, y, z, r, vx, vz; } Foot;     /* (vx, vz: its velocity, units a second) */
 static Foot feet[2][MAX_FEET];          /* this frame's, being found; the last's, used */
 static int nfeet[2];
+static double feet_moment[2] = {-1, -1};  /* the moment shown they were found at (seconds of the game's) */
 static float (*lit_pos)[3];             /* the batch's places, if it is lit (its feet are found at flush) */
 static size_t lit_cap;
 
@@ -1745,8 +1746,11 @@ static void find_feet(size_t n) {
     for (int i = 0; i < nfeet[0]; i++)  /* (one foot drawn in pieces: one) */
         if (fabsf(f[i].x - x) < 10.0f && fabsf(f[i].z - z) < 10.0f && fabsf(f[i].y - lo) < 10.0f)
             return;
-    if (nfeet[0] < MAX_FEET)
-        f[nfeet[0]++] = (Foot){x, lo, z, r};
+    if (nfeet[0] < MAX_FEET) {
+        if (!nfeet[0])
+            feet_moment[0] = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
+        f[nfeet[0]++] = (Foot){x, lo, z, r, 0, 0};
+    }
 }
 
 /* The world to the screen (PSP pixels, depth over 65535; by columns), with the primitive's camera */
@@ -2299,7 +2303,7 @@ static int blob_vertex(const RVertex *v) {
 static void grass_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     if (grass_frame_no != frame_no) {
         grass_frame_no = frame_no;
-        grass_frame(&prim_world_view[9]);
+        grass_frame(&prim_world_view[9], sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0);
     }
     const RVertex *v[3] = {a, b, c};
     float p[3][3], uv[3][2], col[3][3];
@@ -2386,7 +2390,7 @@ static void grass_draw(Target *t) {
     }
     static GrassDraw tiles[GRASS_SLOTS];
     int ntiles = grass_tiles(tiles, GRASS_SLOTS);
-    if (!ntiles || light_sets_used + 2 > LIGHT_SETS - 2)
+    if (!ntiles || light_sets_used + 3 > LIGHT_SETS - 2)
         return;
     /* the world to the clip space, with the world's camera */
     float wv[16] = {0}, vw[16], m[16], clip[16];
@@ -2403,9 +2407,10 @@ static void grass_draw(Target *t) {
         clip[4 * c + 2] = m[4 * c + 2];
         clip[4 * c + 3] = m[4 * c + 3];
     }
-    LightSet cam, fl;
+    LightSet cam, fl, fv;               /* (fv: the feet's velocities, two a vector) */
     memset(&cam, 0, sizeof cam);
     memset(&fl, 0, sizeof fl);
+    memset(&fv, 0, sizeof fv);
     memcpy(cam.dir, clip, sizeof clip);
     const float *eye = &ao_world_view[9];
     double now = sway_clock >= 0 ? sway_clock : (double)present_frame_number() / 30.0;
@@ -2432,17 +2437,21 @@ static void grass_draw(Target *t) {
         taken[best] = 1;
         float *dst = nf < 4 ? fl.dir[nf] : fl.color[nf - 4];
         memcpy(dst, (float[4]){feet[1][best].x, feet[1][best].y, feet[1][best].z, feet[1][best].r}, 16);
+        fv.dir[nf / 2][(nf & 1) * 2] = feet[1][best].vx;
+        fv.dir[nf / 2][(nf & 1) * 2 + 1] = feet[1][best].vz;
     }
     uint32_t cam_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     uint32_t feet_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
+    uint32_t vel_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
     memcpy((LightSet *)light_buf.map + feet_set, &fl, sizeof fl);
-    struct { float light[16]; uint32_t camera, feet, nfeet, pad; } pc;
+    memcpy((LightSet *)light_buf.map + vel_set, &fv, sizeof fv);
+    struct { float light[16]; uint32_t camera, feet, nfeet, velocity; } pc;
     memcpy(pc.light, light_vp, sizeof pc.light);
     pc.camera = cam_set;
     pc.feet = feet_set;
     pc.nfeet = nf;
-    pc.pad = 0;
+    pc.velocity = vel_set;
 
     begin_rendering(t);
     VkCommandBuffer cmd = vk_cmd();
@@ -2630,6 +2639,26 @@ static void end_frame(void) {
     post_target = post_done = NULL;
     nglow = 0;
     if (nfeet[0]) {                     /* (a frame that drew none - the HUD's alone - keeps the last's) */
+        /* each foot's velocity: from the nearest of the last frame's (smoothed); the same moment drawn again keeps it */
+        float dt = feet_moment[1] >= 0 ? (float)(feet_moment[0] - feet_moment[1]) : 0;
+        for (int i = 0; i < nfeet[0]; i++) {
+            Foot *f = &feet[0][i];
+            const Foot *best = NULL;
+            float bd = 40.0f * 40.0f;
+            for (int j = 0; j < nfeet[1]; j++) {
+                float dx = f->x - feet[1][j].x, dz = f->z - feet[1][j].z, d = dx * dx + dz * dz;
+                if (d < bd && fabsf(f->y - feet[1][j].y) < 30.0f)
+                    best = &feet[1][j], bd = d;
+            }
+            if (best && dt > 1e-4f && dt < 0.2f) {
+                f->vx = 0.6f * best->vx + 0.4f * (f->x - best->x) / dt;
+                f->vz = 0.6f * best->vz + 0.4f * (f->z - best->z) / dt;
+            } else if (best) {
+                f->vx = best->vx;
+                f->vz = best->vz;
+            }
+        }
+        feet_moment[1] = feet_moment[0];
         memcpy(feet[1], feet[0], sizeof feet[0]);
         nfeet[1] = nfeet[0];
         nfeet[0] = 0;

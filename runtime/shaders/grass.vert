@@ -16,10 +16,11 @@ layout(std430, set = 0, binding = 2) readonly buffer Lights { LightSet sets[]; }
 
 // camera: the set holding the world to the clip space (dir: its columns), the eye (color[0]), the time, the wind's
 // strength, render target pixels a clip unit, the field's reach (color[1]), the fog's end, slope, on (color[2]) and
-// colour (color[3]); feet: the set holding the feet (x, y, z, radius: dir then color), nfeet of them
+// colour (color[3]); feet: the set holding the feet (x, y, z, radius: dir then color), nfeet of them; velocity: the
+// set holding their velocities (units a second, x, z: two a dir)
 layout(push_constant) uniform Grass {
     mat4 light;
-    uint camera, feet, nfeet;
+    uint camera, feet, nfeet, velocity;
 } g;
 
 layout(location = 0) out vec3 out_color;
@@ -75,7 +76,7 @@ void main() {
     float sway = 0.45 + 0.35 * sin(along * 0.012 - time * 2.4 + 0.7 * sin(phase)) +
                  0.15 * sin(across * 0.006 + along * 0.008 - time * 1.7 + 1.3) + 0.12 * sin(time * 5.3 + phase * 1.7);
     vec2 bend = wd * (0.3 * h * t * t * sway * wind);
-    // the feet walking through: bent away from each, the top most
+    // the feet walking through: trodden the way each goes (standing, pushed aside), the top most
     vec2 push = vec2(0.0);
     for (uint i = 0u; i < g.nfeet; i++) {
         vec4 f = i < 4u ? sets[g.feet].dir[i] : sets[g.feet].color[i - 4u];
@@ -85,7 +86,12 @@ void main() {
         float l = length(d), r = 30.0 + f.w;
         if (l >= r)
             continue;
-        push += (l > 1e-3 ? d / l : vec2(0.7071)) * (1.0 - smoothstep(0.2 * r, r, l));
+        vec4 vv = sets[g.velocity].dir[i / 2u];
+        vec2 v = (i & 1u) != 0u ? vv.zw : vv.xy;
+        float speed = length(v), going = smoothstep(15.0, 80.0, speed);
+        vec2 aside = l > 1e-3 ? d / l : vec2(0.7071);
+        vec2 way = normalize(aside * (1.0 - 0.85 * going) + (speed > 1e-3 ? v / speed : vec2(0.0)) * going);
+        push += way * (1.0 - smoothstep(0.2 * r, r, l));
     }
     float pl = length(push);
     if (pl > 1.0)

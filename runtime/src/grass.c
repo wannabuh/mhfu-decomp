@@ -12,8 +12,9 @@
  * shuffled, so that drawing the first part of a tile's draws a thinner field of the same look (the distance's level of
  * detail). render.c uploads them into a slot of its blade pool and draws them (grass.vert expands each into a blade).
  *
- * The game's zones have their own ground at the same coordinates: all is forgotten when the ground laid down disagrees
- * with what is known (another zone), or none has been drawn for a while (loading). */
+ * The game's zones have their own ground at the same coordinates: after a while with no scenery drawn (loading), or the
+ * camera's jump, the next frame's ground is checked against what is known - mostly new, it is another zone, and all is
+ * forgotten. */
 #include "grass.h"
 
 #include <math.h>
@@ -51,8 +52,8 @@ static int index_size;
 static uint64_t *seen;              /* the triangles laid: their corners, rounded, hashed (0: empty) */
 static size_t seen_size, seen_used;
 static unsigned long frame;
-static unsigned long last_ground;   /* the frame ground was last drawn */
-static int conflicts;               /* this frame's: ground laid well off the known */
+static double last_call = -1;       /* the moment (seconds of the game's) scenery was last drawn */
+static int probing, probe_known, probe_new;     /* after a gap: the ground drawn, known or new */
 static int slot_used[GRASS_SLOTS];
 static float eye[3];
 static float radius = 1500.0f, density = 1.0f;
@@ -175,15 +176,16 @@ static int green(int r, int g, int b) {
     return g > 24 && g * 100 >= r * 96 && g * 100 > b * 122;
 }
 
-void grass_frame(const float camera[3]) {
+void grass_frame(const float camera[3], double now) {
     frame++;
-    memcpy(eye, camera, sizeof eye);
-    /* another zone (what is laid disagrees with what is known), or a long while with no ground: all forgotten */
-    if (conflicts > 64 || (last_ground && frame - last_ground > 60)) {
+    /* the frame after a gap: its ground mostly new - another zone - all is forgotten */
+    if (probing && probe_new > 32 && probe_new > probe_known)
         forget();
-        last_ground = 0;
-    }
-    conflicts = 0;
+    float jump = fabsf(camera[0] - eye[0]) + fabsf(camera[2] - eye[2]);
+    probing = last_call >= 0 && (fabs(now - last_call) > 0.4 || jump > 1500.0f);
+    probe_known = probe_new = 0;
+    last_call = now;
+    memcpy(eye, camera, sizeof eye);
 }
 
 void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], const uint32_t *tex, int tw,
@@ -211,8 +213,10 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
     float reach = radius + TILE;
     if (x1 < eye[0] - reach || x0 > eye[0] + reach || z1 < eye[2] - reach || z0 > eye[2] + reach)
         return;
-    last_ground = frame;
-    if (seen_before(p))
+    int known = seen_before(p);
+    if (probing)
+        known ? probe_known++ : probe_new++;
+    if (known)
         return;
     x0 = fmaxf(x0, eye[0] - reach);
     x1 = fminf(x1, eye[0] + reach);
@@ -240,8 +244,6 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
             if (c->state) {
                 if (y < c->y + 2.0f)        /* (the top surface wins: under it, or the same, kept) */
                     continue;
-                if (y > c->y + 300.0f)
-                    conflicts++;
             }
             /* its colour as drawn: the vertex colour (the scenery's light) times the texture's there */
             float u = b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0], v = b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1];
