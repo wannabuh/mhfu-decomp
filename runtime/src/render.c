@@ -105,6 +105,7 @@ static VkDeviceSize extra_used, extra_batch;
 /* The scenery's shading by the sun: it comes lit beforehand, without normals - they are made from its triangles, each
  * batch's (MHFU_SUN_SHADING=0: none): the batch's places in the world and on the screen, kept as they are put */
 static int sun_shading = -1;
+static int relief_on = 1;               /* and its relief from its textures' brightness (MHFU_RELIEF=0: none) */
 typedef struct { float w[3], sx, sy; } Corner;
 static Corner *corners;
 static size_t corners_cap;
@@ -1087,6 +1088,7 @@ void render_prim_begin(const uint32_t *reg) {
         point_shadows_on = !getenv("MHFU_POINT_SHADOWS") || atoi(getenv("MHFU_POINT_SHADOWS")) != 0;
         sun_shading = !getenv("MHFU_SUN_SHADING") || atoi(getenv("MHFU_SUN_SHADING")) != 0;
         sway = getenv("MHFU_SWAY") ? (float)atof(getenv("MHFU_SWAY")) : 1.0f;
+        relief_on = !getenv("MHFU_RELIEF") || atoi(getenv("MHFU_RELIEF")) != 0;
         if (getenv("MHFU_POINT_GAIN"))
             point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
@@ -1726,7 +1728,7 @@ static void flush(void) {
             ? (uint32_t)vk.frame * LIGHT_SETS + LIGHT_SETS - 2 : ~0u, {0}};
     memcpy(pc.light, light_vp, sizeof pc.light);
     if (shaded(s))
-        pc.flags |= 4096u;
+        pc.flags |= 4096u | (relief_on && s->tex_slot < MAX_TEXTURES ? 8192u : 0u);
     vkCmdPushConstants(cmd, layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, &pc);
     vkCmdDraw(cmd, (uint32_t)n, 1, (uint32_t)(batch_start / sizeof(GpuVertex)), 0);
     /* what adds light to the world: kept for the glow */

@@ -38,7 +38,8 @@ layout(push_constant) uniform Draw {
     uint flags;          // bits 0-2 texture function, 3 texture alpha, 4 colour doubling, 5 alpha test, 6 clear mode,
                          // 7 fog, 8 in the world (shadows fall on it), 9 lit by the GE (its sun part is known),
                          // 10 lit by the pixel (light_set), 11 (shadow passes) blended, 12 lit beforehand with
-                         // normals made from its triangles (shaded by the sun)
+                         // normals made from its triangles (shaded by the sun), 13 relief from its texture's
+                         // brightness
     uint alpha_test;     // function (bits 0-2), reference (8-15), mask (16-23)
     uint env_color;      // RGB, for the blend texture function
     uint fog_color;      // RGB
@@ -104,8 +105,27 @@ vec3 point_light(vec3 n, bool has_normal) {
     return sum;
 }
 
+// Relief: the normal tilted by the texture's brightness as a height (its slope on the screen, carried onto the surface:
+// Mikkelsen, "Bump Mapping Unparametrized Surfaces on the GPU")
+const float RELIEF_HEIGHT = 4.0;       // world units, black to white
+
+vec3 relief_normal(vec3 n, float h) {
+    vec3 dpdx = dFdx(in_world), dpdy = dFdy(in_world);
+    float dhdx = dFdx(h) * RELIEF_HEIGHT, dhdy = dFdy(h) * RELIEF_HEIGHT;
+    vec3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
+    float det = dot(dpdx, r1);
+    vec3 grad = sign(det) * (dhdx * r1 + dhdy * r2);
+    vec3 b = abs(det) * n - grad;
+    return dot(b, b) > 0.0 ? normalize(b) : n;
+}
+
 void main() {
     vec4 c = in_color;
+    // the texture (sampled here: its slopes on the screen need every pixel's, before any is discarded)
+    bool textured = (draw.flags & 64u) == 0u && draw.tex_index != 0xFFFFFFFFu;
+    vec4 t = textured ? texture(textures[nonuniformEXT(draw.tex_index)], in_uv / draw.tex_size) : vec4(1.0);
+    vec3 bumped = (draw.flags & 8192u) != 0u ? relief_normal(normalize(in_normal + vec3(0.0, 1e-6, 0.0)),
+                                                             dot(t.rgb, vec3(0.299, 0.587, 0.114))) : vec3(0.0);
     bool points = draw.points != 0xFFFFFFFFu && (draw.flags & 256u) != 0u;
     float sh = (draw.flags & 256u) != 0u ? shadow() : 0.0;
     if ((draw.flags & 512u) != 0u)          // lit: the sun's part goes in shadow
@@ -130,8 +150,7 @@ void main() {
         if (points)
             c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
     }
-    if ((draw.flags & 64u) == 0u && draw.tex_index != 0xFFFFFFFFu) {
-        vec4 t = texture(textures[nonuniformEXT(draw.tex_index)], in_uv / draw.tex_size);
+    if (textured) {
         uint fn = draw.flags & 7u;
         bool use_alpha = (draw.flags & 8u) != 0u;
         vec3 env = vec3(float(draw.env_color & 255u), float((draw.env_color >> 8) & 255u),
@@ -153,12 +172,17 @@ void main() {
     if ((draw.flags & 1536u) == 0u) {       // lit beforehand (the scenery's colours): darker in shadow - and turned
         float dark = sh;                    // away from the sun, as dark as in shadow
         float nl = length(in_normal);
+        float relief = 1.0;
         if ((draw.flags & 4096u) != 0u && nl > 0.0) {
             vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));
-            float facing = smoothstep(-0.1, 0.3, dot(in_normal / nl, sun));
+            float lambert = dot(in_normal / nl, sun);
+            float facing = smoothstep(-0.1, 0.3, lambert);
             dark = 1.0 - (1.0 - sh) * facing;
+            // the relief, in the sun: lighter where it turns towards it, darker where away
+            if ((draw.flags & 8192u) != 0u)
+                relief = mix(1.0, clamp(dot(bumped, sun) / max(lambert, 0.25), 0.65, 1.35), 1.0 - dark);
         }
-        c.rgb *= 1.0 - 0.45 * dark;
+        c.rgb *= (1.0 - 0.45 * dark) * relief;
     }
     if (points && (draw.flags & 1024u) == 0u)   // not lit by the pixel: the point lights brighten its colour
     {
