@@ -108,6 +108,10 @@ static VkDeviceSize extra_used, extra_batch;
  * batch's (MHFU_SUN_SHADING=0: none): the batch's places in the world and on the screen, kept as they are put */
 static int sun_shading = -1;
 static int relief_on = 1;               /* and its relief from its textures' brightness (MHFU_RELIEF=0: none) */
+/* The game's round shadows under the hunter's and monsters' feet: left out while the sun's shadows are drawn
+ * (MHFU_BLOB_SHADOWS=1: kept) - flat quads, blended over the ground without writing its depth, in a 128 x 128 CLUT8
+ * texture, their colour a dark grey (25) */
+static int blob_shadows, blob_prim;
 typedef struct { float w[3], sx, sy; } Corner;
 static Corner *corners;
 static size_t corners_cap;
@@ -1115,11 +1119,14 @@ void render_prim_begin(const uint32_t *reg) {
         sun_shading = !getenv("MHFU_SUN_SHADING") || atoi(getenv("MHFU_SUN_SHADING")) != 0;
         sway = getenv("MHFU_SWAY") ? (float)atof(getenv("MHFU_SWAY")) : 1.0f;
         relief_on = !getenv("MHFU_RELIEF") || atoi(getenv("MHFU_RELIEF")) != 0;
+        blob_shadows = getenv("MHFU_BLOB_SHADOWS") && atoi(getenv("MHFU_BLOB_SHADOWS")) != 0;
         if (getenv("MHFU_POINT_GAIN"))
             point_gain = (float)atof(getenv("MHFU_POINT_GAIN"));
     }
     emitting = point_lights_on && (s.flags & 256u) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
                s.eq.colorBlendOp == VK_BLEND_OP_ADD;
+    blob_prim = !blob_shadows && (s.flags & 1792u) == 256u && s.blend && !s.depth_write && (reg[0xDF] & 0xFFF) == 0x32 &&
+                (reg[0xC3] & 0xF) == 5 && (reg[0xB8] & 0xF0F) == 0x707;
 }
 
 typedef struct {
@@ -2075,7 +2082,13 @@ void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c
     }
 }
 
+static int blob_vertex(const RVertex *v) {
+    return v->r == 25.0f && v->g == 25.0f && v->b == 25.0f;
+}
+
 void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
+    if (blob_prim && shadow_on && blob_vertex(a) && blob_vertex(b) && blob_vertex(c))
+        return;
     begin_rendering(cur.target);
     put(a, a->x, a->y, a->u, a->v, 0);
     put(b, b->x, b->y, b->u, b->v, 0);

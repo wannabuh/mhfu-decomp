@@ -72,7 +72,7 @@ game turns the camera away from walls itself, as on the PSP: otherwise it stays 
 relief in the sun from its textures, lighting by the pixel, lights
 from the game's fires and their shadows, ambient occlusion: all on otherwise), `MHFU_POINT_GAIN=1` (the fires' lights'
 strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's strength, and how far it looks, in the
-game's units), `MHFU_TESSELLATION=0` (the hunter, monsters and people drawn
+game's units), `MHFU_BLOB_SHADOWS=1` (the game's round shadows under the hunter's and monsters' feet kept: left out otherwise, while the sun's shadows are drawn), `MHFU_TESSELLATION=0` (the hunter, monsters and people drawn
 rounder: their triangles cut finer up close and curved by their normals; on otherwise), `MHFU_SWAY=1` (how far grass, bushes and leaves sway in the wind - and bend away from the hunter and
 monsters walking through them; 0 none), `MHFU_POST=0` (none of the
 picture's post-processing: bloom, light shafts, depth of field, sharpening, colour grading), `MHFU_BLOOM=3` (the glow round fires and effects, and
