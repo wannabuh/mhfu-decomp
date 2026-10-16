@@ -99,6 +99,8 @@ static VTimer *vtimers[MAX_VTIMERS];
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
 float rt_time_scale = 1;
 int rt_tick30 = 1;
+int rt_frame30 = 1;
+static float tick_scale = 1;        /* 30 / the game's frames a second */
 static float tick30_phase;           /* 30ths of a second gone by, since the last whole one */
 static uint64_t now_us;
 static uint64_t wall_base;          /* the wall clock (us) when the game's clock was 0, for pacing */
@@ -185,16 +187,44 @@ void set_tick_hz(int hz) {
     vblank_base_us = next_vblank;
     vblank_base_count = vblank_count;
     vblank_den = (unsigned)(2 * hz);
-    rt_time_scale = 30.0f / (float)hz;
+    tick_scale = 30.0f / (float)hz;
+    tick30_phase = 1 - tick_scale;      /* the next frame a 30th's (as the frame before took it to be) */
 }
 
-/* present.c, each game frame: the rate switch of MHFU_TICK_HZ=N@frame */
-void tick_frame(unsigned long frame) {
-    /* this frame is a 30th's if, with it, another whole 30th has gone by */
-    tick30_phase += rt_time_scale;
-    rt_tick30 = tick30_phase >= 0.999f;
-    if (rt_tick30)
+void native_frame_start(void);
+
+/* The game's main loop, each game frame, as it wakes (patches.py): whether a 30th falls on this frame - if, with it,
+ * another whole 30th has gone by - and the time scale it runs at */
+void rt_frame_start(void) {
+    tick30_phase += tick_scale;
+    rt_frame30 = tick30_phase >= 0.999f;
+    if (rt_frame30)
         tick30_phase -= 1;
+    rt_time_scale = tick_scale;
+    rt_tick30 = rt_frame30;
+    native_frame_start();
+}
+
+/* Whether the next game frame is one a 30th falls on (native.c) */
+int rt_next_frame30(void) {
+    return tick30_phase + tick_scale >= 0.999f;
+}
+
+/* The game's time in 30ths of a second (its frames, at its own rate), as of the last frame presented; and the 30ths a
+ * frame (the renderer's clocks: render_scene.c, gpu.c) */
+static double game_30ths;
+
+double rt_game_30ths(void) {
+    return game_30ths;
+}
+
+float rt_frame_30ths(void) {
+    return tick_scale;
+}
+
+/* present.c, each game frame: the game's time on; the rate switch of MHFU_TICK_HZ=N@frame */
+void tick_frame(unsigned long frame) {
+    game_30ths += tick_scale;
     if (tick_switch_frame && frame == tick_switch_frame) {
         set_tick_hz(tick_switch_hz);
         fprintf(stderr, "frame %lu: %d game frames a second\n", frame, tick_switch_hz);

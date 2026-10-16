@@ -180,6 +180,8 @@ void camera_invert(const float *v, float *out);
 void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
 void render_time(double seconds);
 unsigned long present_frame_number(void);
+double rt_game_30ths(void);         /* thread.c: the game's time in 30ths of a second; a frame's */
+float rt_frame_30ths(void);
 
 /* The shadow map covers this far each way from what the camera looks at (MHFU_SHADOW_DISTANCE), and this far towards
  * and away from the sun; render_shadow.c's size (MHFU_SHADOW_RESOLUTION) */
@@ -1022,6 +1024,22 @@ typedef struct {
 } Frame;
 
 static int recording;               /* primitives are recorded, not drawn */
+/* What gated code drew at the last 30th, kept for the frames between (gpu_held_draw): its chunks' commands in order,
+ * each a command or a primitive (its draw in held) */
+typedef struct { uint32_t cmd, addr; int chunk, draw; } HeldCommand;
+static Frame held;
+static HeldCommand *held_cmds;
+static int held_n, held_cap;
+static int held_chunk = -1;         /* the gated chunk the commands come from, or -1 */
+static int held_drawing;
+
+static void held_command(uint32_t cmd, uint32_t addr, int draw) {
+    if (held_n == held_cap) {
+        held_cap = held_cap ? held_cap * 2 : 4096;
+        held_cmds = realloc(held_cmds, sizeof *held_cmds * (size_t)held_cap);
+    }
+    held_cmds[held_n++] = (HeldCommand){cmd, addr, held_chunk, draw};
+}
 static int in_replay;               /* drawing a recorded frame (gpu_render_frame) */
 static unsigned frame_generation_direct = 1, shadow_generation;    /* frames drawn as the game draws them */
 static unsigned frame_generation;   /* counts the frames recorded: what is worked out from the last two keeps until it changes */
@@ -1050,7 +1068,7 @@ static void close_run(Frame *f) {
     f->open = 0;
 }
 
-static void record(uint32_t data, const Layout *l) {
+static void record(Frame *rec, uint32_t data, const Layout *l) {
     int count = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
     if (rec->n == rec->cap) {
         rec->cap = rec->cap ? rec->cap * 2 : 1024;
@@ -1099,7 +1117,7 @@ static void record(uint32_t data, const Layout *l) {
     }
     d->run = rec->nruns - 1;
     d->tex_slot = 0xFFFFFFFFu;
-    if (!(reg[0xD3] & 1) && (reg[0x1E] & 1))
+    if (render_on && !(reg[0xD3] & 1) && (reg[0x1E] & 1))
         d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
 }
 
@@ -1668,7 +1686,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(sb, bones, sizeof sb);
     shown_frames++;
     placed_run = -1;
-    render_time(((double)present_frame_number() - 1.0 + t) / 30.0);
+    render_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
     int matched_frames = previous->n && !camera_cut(previous, latest);
     int interpolate = matched_frames && t < 1.0f;
     camera_frames_late(frames_late);
@@ -1699,6 +1717,69 @@ uint32_t gpu_render_frame(float t) {
     return latest->display_addr;
 }
 
+/* -- what gated code drew, kept for the frames between 30ths (native.c) --------------------------------------------
+ *
+ * The GE's commands from the chunks gated code linked at the last 30th (ge.c tells which) are kept, the primitives with
+ * their vertices as recorded frames keep them, and run again where a chunk in its place says (gpu_held_draw): the
+ * state they set as they set it, the primitives drawn from the copies. What moves the list on (jumps, calls, BASE), or
+ * reads memory then (CLUT loads, transfers), is left out. */
+
+void gpu_held_clear(void) {
+    held.n = held.nruns = held.open = 0;
+    held.used = 0;
+    held_n = 0;
+}
+
+void gpu_held_chunk(int chunk) {
+    if (chunk != held_chunk)
+        close_run(&held);           /* (its vertices copied while they are there) */
+    held_chunk = chunk;
+}
+
+static int held_kept(uint32_t op) {
+    switch (op) {
+    case 0x00: case 0x01: case 0x02: case 0x04: case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0E:
+    case 0x0F: case 0x10: case 0x13: case 0x14: case 0xC4: case 0xEA:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+void gpu_held_draw(int chunk) {
+    close_run(&held);
+    uint32_t sv = vaddr, si = iaddr;
+    held_drawing = 1;
+    for (int i = 0; i < held_n; i++) {
+        const HeldCommand *h = &held_cmds[i];
+        if (h->chunk != chunk)
+            continue;
+        if (h->draw < 0) {
+            gpu_command(h->cmd, h->addr);
+            continue;
+        }
+        const Draw *d = &held.draws[h->draw];
+        const Run *r = &held.runs[d->run];
+        memcpy(PTR(SCRATCH_VERTICES + r->lo), held.bytes + r->copy, r->hi - r->lo);
+        if (d->ibytes)
+            memcpy(PTR(SCRATCH_INDICES), held.bytes + d->icopy, d->ibytes);
+        vaddr = SCRATCH_VERTICES;
+        iaddr = SCRATCH_INDICES;
+        reg[0x04] = d->data;
+        if (render_on)
+            render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
+        prim(d->data);
+        if (render_on)
+            render_override_texture(0xFFFFFFFEu, 0, 0);
+        if (recording)
+            close_run(rec);         /* (its copy made now: the scratch area is used again) */
+    }
+    placed_run = -1;
+    held_drawing = 0;
+    vaddr = sv;
+    iaddr = si;
+}
+
 /* How much the last frames' primitives matched (for MHFU_FPS_STATS) */
 void gpu_match_stats(unsigned long *m, unsigned long *u) {
     *m = matched;
@@ -1715,8 +1796,12 @@ static void prim(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
+        record(&held, data, &l);
+        held_command(0x04000000u | data, 0, held.n - 1);
+    }
     if (recording && count > 0) {
-        record(data, &l);
+        record(rec, data, &l);
         if (idx)
             iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
         else
@@ -1793,6 +1878,8 @@ static void transfer(uint32_t data) {
 /* One command of a display list; addr is its data as an address (BASE and OFFSET applied) */
 void gpu_command(uint32_t cmd, uint32_t addr) {
     uint32_t op = cmd >> 24, data = cmd & 0xFFFFFF;
+    if (held_chunk >= 0 && !held_drawing && held_kept(op))
+        held_command(cmd, addr, -1);
     reg[op] = data;
     switch (op) {
     case 0x01: vaddr = addr; break;

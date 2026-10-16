@@ -44,17 +44,17 @@ void grass_init(void) {
                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
 }
 
-unsigned long present_frame_number(void);
+double rt_game_30ths(void);         /* thread.c: the game's time in 30ths of a second */
 
-/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first). Laid once a frame of
- * the game's: the frames shown between its draw the same scenery again */
+/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first). Laid once a 30th of a
+ * second (a frame of the game's at its own rate): the frames shown between draw the same scenery again */
 void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c) {
-    static unsigned long game_frame;
+    static double game_30th = -1;
     static int laying;
     if (grass_frame_no != frame_no) {
         grass_frame_no = frame_no;
-        laying = present_frame_number() != game_frame;
-        game_frame = present_frame_number();
+        laying = floor(rt_game_30ths()) != game_30th;
+        game_30th = floor(rt_game_30ths());
         if (laying)
             grass_frame(&prim_world_view[9], scene_time());
     }

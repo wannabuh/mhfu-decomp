@@ -22,7 +22,7 @@ import rabbitizer  # noqa: E402
 rabbitizer.config.pseudos_enablePseudos = False
 
 import modules  # noqa: E402
-from patches import PATCHES  # noqa: E402
+from patches import GATES, PATCHES  # noqa: E402
 
 ROOT = modules.ROOT
 
@@ -73,6 +73,7 @@ def vfpu_op(name):
 class Translator:
     def __init__(self, mods, functions):
         self.patched = 0
+        self.gated = 0
         self.mods = mods
         self.by_name = {m.name: m for m in mods}
         self.main = mods[0]
@@ -300,7 +301,14 @@ class Translator:
             elif a in tables:
                 labels.update(t for t in tables[a] if inside(t))
 
-        out = [f"void {self.fname(mod, start)}(Ctx *c) {{"]
+        # a gated function (patches.py's GATES): its body behind rt_gate, which runs it on the frames a 30th falls on
+        gated = (mod.name, start) in GATES
+        if gated:
+            self.gated += 1
+            if GATES[(mod.name, start)][1] != "on":
+                raise SystemExit(f"gate at {mod.name} {start:#x}: a function's gate is \"on\" (the others are calls')")
+        out = [f"static void {self.fname(mod, start)}_gated(Ctx *c) {{" if gated else
+               f"void {self.fname(mod, start)}(Ctx *c) {{"]
         emit = out.append
         a = start
         while a < end:
@@ -333,6 +341,9 @@ class Translator:
         else:
             emit(f"    rt_unreachable(c, {hx(end)});")
         emit("}")
+        if gated:
+            emit(f"void {self.fname(mod, start)}(Ctx *c) {{ rt_gate(c, {self.fname(mod, start)}_gated, 0, {hx(start)}); }}"
+                 " /* gated (recomp/patches.py) */")
         return "\n".join(out)
 
     def transfer(self, mod, a, delay, inside, goto, tables, unresolved):
@@ -354,15 +365,26 @@ class Translator:
             if i.isBranchLikely():
                 return f"if ({cond}) {{ {delay} {dest} }}"
             return f"{{ int t = {cond}; {delay} if (t) {dest} }}"
+        gate = (mod.name, a) in GATES   # a gated call (patches.py's GATES): rt_gate runs it as at 30 a second
+        if gate:
+            self.gated += 1
         if i.isJumpWithAddress():
             t = i.getInstrIndexAsVram()
             if i.doesLink():
+                if gate:
+                    fn = self.call(mod, t)
+                    if not fn.startswith("f_"):
+                        raise SystemExit(f"gate at {mod.name} {a:#x}: a call to {t:#x}, not to a function")
+                    gfn = "rt_gate_before" if GATES[(mod.name, a)][1] == "before" else "rt_gate"
+                    return f"c->r[31] = {hx(a + 8)}; {delay} {gfn}(c, {fn[:-len('(c);')]}, 0, {hx(a)}); /* gated */"
                 return f"c->r[31] = {hx(a + 8)}; {delay} {self.call(mod, t)}"
             return f"{delay} " + (goto(t) if inside(t) else tail(t))
         n = i.uniqueId.name
         if n == "cpu_jalr":
             return (f"{{ uint32_t t = {R(rs)}; " + ("" if rd == 0 else f"{R(rd)} = {hx(a + 8)}; ") +
-                    f"{delay} rt_call(c, t); }}")
+                    (f"{delay} rt_gate(c, 0, t, {hx(a)}); }} /* gated */" if gate else f"{delay} rt_call(c, t); }}"))
+        if gate:
+            raise SystemExit(f"gate at {mod.name} {a:#x}: not a call")
         if n == "cpu_jr":
             if rs == 31:
                 return f"{delay} return;"
@@ -437,9 +459,12 @@ def main():
         out.write("const RecompImport recomp_imports[] = {\n")
         out.write("".join(f"    {{{hx(a)}, \"{lib}\", {hx(nid)}}},\n" for a, (lib, nid) in imps))
         out.write(f"}};\nconst int recomp_nimports = {len(imps)};\n")
-    print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched", file=sys.stderr)
+    print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched, {tr.gated} gated",
+          file=sys.stderr)
     if not args.modules and tr.patched != len(PATCHES):
         raise SystemExit(f"{len(PATCHES) - tr.patched} patches in recomp/patches.py were not applied")
+    if not args.modules and tr.gated != len(GATES):
+        raise SystemExit(f"{len(GATES) - tr.gated} gates in recomp/patches.py are neither a function's start nor a call")
     return 1 if errors else 0
 
 

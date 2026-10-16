@@ -461,6 +461,22 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    /* MHFU_FPS_STATS without a frame rate of the display's own: the game's (each of its frames shown) */
+    static uint64_t stats_wall;
+    static unsigned long stats_frame;
+    if (!display_fps() && !fast_forward() && getenv("MHFU_FPS_STATS")) {
+        if (!stats_wall)
+            stats_wall = wall, stats_frame = frame;
+        if (wall - stats_wall > 5000000) {
+            double secs = (double)(wall - stats_wall) / 1e6;
+            fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%\n",
+                    (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
+                    (double)time_slept_us() / 1e4 / secs);
+            stats_wall = wall;
+            stats_frame = frame;
+            longest_frame_us = 0;
+        }
+    }
     static long debug_frame = -1;
     if (debug_frame < 0)
         debug_frame = getenv("MHFU_DEBUG_FRAME") ? atol(getenv("MHFU_DEBUG_FRAME")) : 0;
@@ -471,7 +487,10 @@ void present_frame(void) {
     watch();
     snapshots();
     uint32_t *pixels = window_pixels();
-    int dump = dump_every && frame % (unsigned long)dump_every == 0;
+    static long dump_from = -1;     /* MHFU_DUMP_FROM=N: none before frame N */
+    if (dump_from < 0)
+        dump_from = getenv("MHFU_DUMP_FROM") ? atol(getenv("MHFU_DUMP_FROM")) : 0;
+    int dump = dump_every && frame % (unsigned long)dump_every == 0 && (long)frame >= dump_from;
     if (fast_forward()) {
         if (display_fps())
             gpu_frame_end(display_fb_addr, time_us());

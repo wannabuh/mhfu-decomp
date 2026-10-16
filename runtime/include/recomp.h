@@ -52,8 +52,15 @@ void rt_unreachable(Ctx *c, uint32_t at);
  * whether this game frame is one where a frame at 30 a second falls (always, at the game's own rate) */
 extern float rt_time_scale;
 extern int rt_tick30;
-extern int rt_camera_free;
-extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
+extern int rt_frame30;          /* this game frame is one a 30th falls on (rt_tick30 is 1 within gated code) */
+void rt_frame_start(void);      /* the main loop's top, each game frame */
+int rt_next_frame30(void);      /* the next game frame is one a 30th falls on */
+/* gated code (fn, or a call to addr; at: the call, or the function gated): as at 30 a second */
+void rt_gate(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);
+void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer);  /* a display list chunk linked */
+void rt_gate_before(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* on the frames before a 30th */
+extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
+extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
 
 /* Instructions done by the runtime */
 void vfpu_exec(Ctx *c, uint32_t instr, uint32_t at);    /* any VFPU instruction but a branch */

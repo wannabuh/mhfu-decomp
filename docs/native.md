@@ -56,6 +56,33 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
   that move by a constant a tick (the motion frames: +2.0); `tools/watch.py ADDR --frame N` finds the code that writes
   them; a recording (`MHFU_REPLAY`) gets there the same way every time.
 
+## Gates: what is not converted runs as at 30
+
+Everything the game's main loop (`0888FD38`) runs but the render pass (`0884BB58`) is behind a **gate**
+(`recomp/patches.py`'s `GATES`, `runtime/src/native.c`): at any rate it runs on the frames a 30th falls on
+(`rt_frame30`), with the time scale 1 - as at 30 a second - and is skipped on the frames between. The render pass draws
+every frame. So at `MHFU_TICK_HZ=N` the game is the game at 30, each of its frames shown N / 30 times - exactly: at 60 and
+144 every frame shown is the same picture, to the pixel, as one at 30 (reference settings: the hunt, the camp, the
+grass field, the guild hall, the hunt's menu). Converting is opening gates.
+
+- A gate is on a function (its start: every caller) or a call (`jal` / `jalr`: that call). The generated code marks
+  them `/* gated */`; the build fails if one is neither. `"before"` gates run on the frame before a 30th instead: the
+  render queues (`0884BB00` empties what the logic queued) are emptied just before the logic fills them again, so the
+  frames between draw what was queued.
+- Much is drawn by the logic itself - the HUD (`0883F270`, the hunt's tick's last call), the text (`08891B14`), the
+  screen's state for the render pass (`0884C22C`) - into display list chunks it links into the frame's list by layer
+  (`088596C8`, patched to tell `rt_list_link`). The chunks linked from gated code at a 30th are noted; the GE keeps the
+  commands it runs from them (`gpu.c`: state, and primitives with copies of their vertices); on the frames between, the
+  skipped gate links a three-word chunk in each one's place (`NOP 0xA5nnnn`) where the GE runs them again. What a chunk
+  drew stays on screen, in its place among the layers, until its code runs again.
+- A word the logic sets each frame for the render pass, which clears it once drawn, is cleared only before a 30th
+  (`"once"` patches: the screen's tint, `088CACD4`).
+- The display lists are double-buffered (`08859224` flips them, the GE runs the one made the frame before): the
+  primitives kept are drawn into this frame's buffers.
+- The renderer's clocks (wind, grass, the moment shown) go by the game's time (`rt_game_30ths`), not its frame count.
+- `MHFU_UNGATE=addr,...` leaves gates open (what they gate runs every frame), to try one; `MHFU_DUMP_FROM=N` with
+  `MHFU_DUMP=1` dumps every frame from N, to compare a run at N a second with one at 30.
+
 ## Converted
 
 | system | patch | at 60 ticks |
@@ -63,33 +90,38 @@ pointer at +0x180 (`08886E50` the hunt's, `08888B98` the village's fixed one), c
 | motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: about 500 units a second at either rate) |
 | motion blends | the weight's step (`08863894`), the count of frames (`088638A0`, on `rt_tick30`) | blends take their time |
 
-Not yet: everything else - movement that is not
-root motion, the hunter's and monsters' state timers (attack windows, invulnerability, AI decisions), effects and
-particles, sounds started by ticks, the camera's easing, the UI's animations and fades, menus' waits. At 60 ticks a
-second those run twice as fast; menus and transitions too, so a recording made at one rate does not replay at another.
+Not yet: everything else - movement that is not root motion, the hunter's and monsters' state timers (attack
+windows, invulnerability, AI decisions), effects and particles, sounds started by ticks, the camera's easing, the UI's
+animations and fades, menus' waits. Behind the gates these run as at 30 (the motion player too, under them: its
+patches see the time scale 1).
 
 ## How to carry on
 
-1. Pick what looks wrong at `MHFU_TICK_HZ=60@N` (twice as fast) - with a recording to get there and a few lines
-   added to it for the input to try (`<frame> <buttons> <stick x> <stick y> 0 0`).
+1. Open a gate (`MHFU_UNGATE`, then in `GATES`) and see what goes wrong at `MHFU_TICK_HZ=60@N` (twice as fast) -
+   with a recording to get there and a few lines added to it for the input to try
+   (`<frame> <buttons> <stick x> <stick y> 0 0`).
 2. Find its variable: snapshots a tick or two apart, `tools/ramdiff.py` for what changes by a constant.
 3. `tools/watch.py` for the code that advances it; the add (or count down) is the place.
 4. Patch it in `recomp/patches.py`: what adds a float, to add it times `rt_time_scale`; an integer count of frames, to
    count only when `rt_tick30` is 1 (the frames where a frame at 30 a second falls: the same time, in steps of a
    30th).
-5. Check at 30 that a recording replays to the same RAM (the patches must change nothing there).
+5. Check at 30 that a recording replays to the same RAM (the patches must change nothing there), and that at 60 what
+   is still gated is the same as at 30 (frames dumped at both rates from the switch, compared).
 
 The shared helpers come first - one patch fixes every caller: the motion player was one function for every character.
 Timers in the objects' state functions are the long tail.
 
 ## Where it is going
 
-Converting every timer before anything is playable at a higher rate would take long. Instead, the conversion can go
-object by object:
+The gates go down the call tree as things are converted: a gate is opened, and what is under it that is not converted
+yet gated in its place (its calls), so that at every step the game at N a second is the game at 30 but for what is
+converted. Down to the hunt's objects:
 
-- An object's tick is `08864634` (its state function, then its vtable's +0x18 and +0x1C). Patched there, an object
-  not converted yet ticks only on `rt_tick30` - its timers right, at 30 a second - while a converted one ticks every
-  frame. The same for the systems outside the objects (effects, the camera's easing, the UI).
+- `08895538` (the game states) → a state's run (`09A60298` in a hunt) → `09A62740` → `09A627B8` (the hunt's tick:
+  the objects, the cameras `08812BD0`, the HUD `0883F270`...) → `088DB068` → the object list → an object's tick,
+  `08864634` (its state function, then its vtable's +0x18 and +0x1C): gated there, an object not converted yet ticks
+  at 30 while a converted one (by its vtable) ticks every frame.
 - The render pass draws every frame. What ticks at 30 changes only every few frames, so its draws need the
   interpolation `MHFU_FPS` does now, across its own 30ths, while what is converted is drawn as it is.
-- The hunter first (what the player feels), then monsters, effects, the rest; the motion player is done for all.
+- The hunter first (what the player feels), with the camera; then monsters, effects, the rest; the motion player is
+  done for all.

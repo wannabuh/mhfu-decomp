@@ -15,7 +15,7 @@ static double found_moment = -1, feet_moment = -1;
 static float (*lit_pos)[3];             /* the batch's places, if it is lit (its feet are found at flush) */
 static size_t lit_cap;
 
-unsigned long present_frame_number(void);
+double rt_game_30ths(void);
 
 /* gpu.c: the moment the frame shows, in seconds (-1: the game's own frame, drawn as it runs) */
 void render_time(double seconds) {
@@ -23,7 +23,7 @@ void render_time(double seconds) {
 }
 
 double scene_time(void) {
-    return clock_s >= 0 ? clock_s : (double)present_frame_number() / 30.0;
+    return clock_s >= 0 ? clock_s : rt_game_30ths() / 30.0;
 }
 
 void scene_lit_vertex(size_t i, const float *w) {

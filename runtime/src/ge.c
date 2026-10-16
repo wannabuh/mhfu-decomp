@@ -14,7 +14,12 @@ typedef struct {
     uint32_t base, offset;
     uint32_t stack[32];
     int depth;
+    int chunk[11];                  /* each call's: the gated chunk it was made from (native.c), or -1 */
 } GeList;
+
+int native_chunk_at(uint32_t at);
+void gpu_held_chunk(int chunk);
+void gpu_held_draw(int chunk);
 
 static GeList lists[MAX_LISTS];
 static uint32_t next_id = 0x35000000u;     /* as the PSP numbers them */
@@ -62,6 +67,13 @@ static void run_list(GeList *l) {
         uint32_t cmd = LW(l->pc), op = cmd >> 24, data = cmd & 0xFFFFFF;
         uint32_t at = l->pc;
         l->pc += 4;
+        /* drawn by gated code at a 30th (its draws kept for the frames between: native.c), or a chunk's in its place */
+        int chunk = native_chunk_at(at);
+        if (chunk < 0 && l->depth >= 3)
+            chunk = l->chunk[l->depth / 3 - 1];
+        gpu_held_chunk(chunk);
+        if (op == 0x00 && (data >> 16) == 0xA5)
+            gpu_held_draw((int)(data & 0xFFFF));
         cmd_count[op]++;
         if (op == 0x04)
             prim_count[(data >> 16) & 7]++;
@@ -71,6 +83,7 @@ static void run_list(GeList *l) {
             break;
         case 0x0A:                                  /* CALL */
             if (l->depth + 3 <= 32) {
+                l->chunk[l->depth / 3] = chunk;
                 l->stack[l->depth++] = l->pc;
                 l->stack[l->depth++] = l->base;
                 l->stack[l->depth++] = l->offset;
