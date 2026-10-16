@@ -5,9 +5,9 @@
 
 #include <stdint.h>
 
-#define GRASS_SLOTS 512                 /* the pool's: a tile's blades each */
 #define GRASS_NEAR 700.0f               /* the field's full density this near; beyond, as the square of it over the distance */
-#define GRASS_BLADES_PER_SLOT 8192
+#define GRASS_BLADES_PER_SLOT 8192      /* a tile's, at most (a near slot's) */
+#define GRASS_FAR_BLADES 1024           /* a far slot's: the first of its tile's (all the distance draws there) */
 
 /* A blade (grass.vert's instance): its root in the world; its colour (RGB); height (quarter units), half width
  * (64ths), yaw (256ths of a turn), its place in its tile's order (255ths: the distance thins by it); the ground's
@@ -24,6 +24,11 @@ typedef struct {
 
 void grass_settings(float density, float radius);
 float grass_radius(void);
+/* The blade pool: near slots of GRASS_BLADES_PER_SLOT, then far ones of GRASS_FAR_BLADES, as many as the reach needs
+ * (known from grass_settings); its size in blades, how many slots, and a slot's first blade */
+uint32_t grass_pool_blades(void);
+int grass_slots(void);
+uint32_t grass_slot_base(int slot);
 void grass_frame(const float camera[3], double now);    /* (now: the moment shown, seconds of the game's) */
 /* A triangle of the scenery: its corners in the world, texture coordinates (0..1 a repeat), vertex colours (0-255);
  * its texture (a small copy, w x h ABGR8888; NULL: none), doubled (the GE's colour doubling) */

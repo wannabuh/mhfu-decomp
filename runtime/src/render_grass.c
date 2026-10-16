@@ -1,6 +1,6 @@
 /* The ground grass's drawing (render_internal.h; grass.c makes the blades from the scenery's triangles given it here):
  * once the solid world is drawn and its occlusion applied (render_ao.c), the tiles whose blades are ready uploaded into
- * their slots of the pool (GRASS_SLOTS slots of blades), then those in view drawn - each blade an instance (grass.vert)
+ * their slots of the pool (near slots and far ones, grass.h), then those in view drawn - each blade an instance (grass.vert)
  * - with the world's camera, its depth test, the sun's shadow map, the trodden grass, the occlusion, the fog
  * (MHFU_GRASS: density, 0 none; MHFU_GRASS_DISTANCE). Only with the sun's shadows (the scenery's sun shading). */
 #include "render_internal.h"
@@ -44,7 +44,7 @@ void grass_init(void) {
                    getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 3000.0f);
     grass_pipeline = make_pipeline(vk_shader(grass_vert, sizeof grass_vert), vk_shader(grass_frag, sizeof grass_frag),
                                    ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
-    grass_pool = vk_buffer((VkDeviceSize)GRASS_SLOTS * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade),
+    grass_pool = vk_buffer((VkDeviceSize)grass_pool_blades() * sizeof(GrassBlade),
                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
 }
 
@@ -89,8 +89,10 @@ void grass_draw(Target *t) {
     if (!grass_pipeline || !shadow_on)
         return;
     end_rendering();
+    /* the tiles made ready: two a frame, or more of the far ones (an eighth of the blades each) */
     int uploaded = 0;
-    for (int k = 0; k < 2; k++) {
+    size_t budget = 2 * (size_t)GRASS_BLADES_PER_SLOT;
+    for (int k = 0; k < 16 && budget; k++) {
         int slot, n;
         const GrassBlade *b;
         size_t size;
@@ -98,10 +100,11 @@ void grass_draw(Target *t) {
             !grass_build(&slot, &b, &n))
             break;
         size = (size_t)n * sizeof(GrassBlade);
+        budget -= (size_t)n < budget ? (size_t)n : budget;
         if (!size)
             continue;
         memcpy((uint8_t *)staging.map + staging_used, b, size);
-        VkBufferCopy copy = {staging_used, (VkDeviceSize)slot * GRASS_BLADES_PER_SLOT * sizeof(GrassBlade), size};
+        VkBufferCopy copy = {staging_used, (VkDeviceSize)grass_slot_base(slot) * sizeof(GrassBlade), size};
         vkCmdCopyBuffer(vk_cmd(), staging.buffer, grass_pool.buffer, 1, &copy);
         staging_used += (size + 255) & ~(size_t)255;
         uploaded = 1;
@@ -113,8 +116,10 @@ void grass_draw(Target *t) {
         VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 1, &mb, 0, NULL, 0, NULL};
         vkCmdPipelineBarrier2(vk_cmd(), &di);
     }
-    static GrassDraw tiles[GRASS_SLOTS];
-    int ntiles = grass_tiles(tiles, GRASS_SLOTS);
+    static GrassDraw *tiles;
+    if (!tiles)
+        tiles = malloc((size_t)grass_slots() * sizeof *tiles);
+    int ntiles = grass_tiles(tiles, grass_slots());
     if (!ntiles || light_sets_used + 1 > LIGHT_SETS - 2)
         return;
     /* the world to the clip space, with the world's camera */
@@ -195,7 +200,7 @@ void grass_draw(Target *t) {
         }
         if (out[0] || out[1] || out[2] || out[3] || out[4])
             continue;
-        vkCmdDraw(cmd, 8, (uint32_t)tiles[i].count, 0, (uint32_t)tiles[i].slot * GRASS_BLADES_PER_SLOT);
+        vkCmdDraw(cmd, 8, (uint32_t)tiles[i].count, 0, grass_slot_base(tiles[i].slot));
     }
     ge_rebind();
 }
