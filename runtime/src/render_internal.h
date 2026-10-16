@@ -185,6 +185,7 @@ void sway_batch(const DrawState *d, size_t n);
 
 /* -- render_ao.c -------------------------------------------------------------------------------------------------- */
 void ao_init(void);
+void ao_rescale(void);              /* the internal resolution changed (the GPU idle): its images again */
 void ao_state(Target *t, int solid, int clear);    /* a primitive drawn into t (solid: of the solid world) */
 void ao_finish(void);               /* the frame shown or read: any occlusion still to apply */
 int ao_ready(void);                 /* its image holds the occlusion of the picture being drawn (for the grass) */
@@ -194,6 +195,7 @@ void ao_end_frame(void);
 /* -- render_grass.c ----------------------------------------------------------------------------------------------- */
 extern int grass_on;
 void grass_init(void);
+void grass_bind_ao(void);           /* render_ao.c's image (re-made) bound for the blades */
 void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c);
 void grass_draw(Target *t);
 

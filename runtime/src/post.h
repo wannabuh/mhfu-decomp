@@ -21,6 +21,7 @@ typedef struct {
 typedef VkPipeline (*PostPipeline)(VkShaderModule fs, VkPipelineLayout layout, VkFormat color, int blend);
 
 int post_init(float scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
+void post_rescale(float scale);   /* the internal resolution changed (the GPU idle): its images again */
 int post_on(void);
 int post_motion(void);       /* the motion blur is on */
 float post_frame_step(void);     /* the game's frames between two frames shown */

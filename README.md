@@ -45,6 +45,7 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 | Tab | reset camera (L) | Esc | menu (START) |
 | Arrows | D-pad: menus, camera | Enter / Backspace | confirm / back in menus (× / ○) |
 | C | SELECT | F10 | release / capture the mouse |
+| F11 | fullscreen on / off | | |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
@@ -65,8 +66,9 @@ mouse_sens = 0.15
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
 120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_SCALE=4` (internal resolution, times the
-PSP's, 1 to 12, fractions too; by default as many lines as the screen has: 6 at 1440p), `MHFU_RESOLUTION=2560x1440` (the
-internal resolution by its size instead: the scale that fits it, 5.29 here; above the screen's it is averaged down), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
+PSP's, 1 to 12, fractions too; by default the window's own, followed as it is resized, so the picture is shown pixel for
+pixel), `MHFU_RESOLUTION=2560x1440` (the internal resolution by its size instead: the scale that fits it, 5.29 here;
+larger than the window it is filtered down to it), `MHFU_FULLSCREEN=1` (the whole screen from the start; F11 toggles it), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
 `MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_SHADOWS=0`, `MHFU_SUN_SHADING=0`, `MHFU_RELIEF=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`,
 `MHFU_POINT_SHADOWS=0`, `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, its

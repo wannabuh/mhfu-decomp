@@ -18,6 +18,16 @@ static VkPipeline grass_pipeline;
 static VkBuf grass_pool, trail_buf;
 static unsigned long grass_frame_no;    /* the frame the grass was last told of (grass_frame) */
 
+/* The occlusion of the ground its blades grow from (render_ao.c's; again when its image is re-made) */
+void grass_bind_ao(void) {
+    if (!ao_image())
+        return;
+    VkDescriptorImageInfo gi = {point_sampler, ao_image(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_AO, 0, 1,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
+}
+
 void grass_init(void) {
     grass_on = getenv("MHFU_GRASS") ? atof(getenv("MHFU_GRASS")) > 0 : 1;
     /* the trodden grass's window, a copy each frame in flight */
@@ -27,13 +37,7 @@ void grass_init(void) {
     VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TRAIL, 0, 1,
                                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
-    /* the occlusion of the ground its blades grow from (render_ao.c's) */
-    if (ao_image()) {
-        VkDescriptorImageInfo gi = {point_sampler, ao_image(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-        VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_AO, 0, 1,
-                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
-        vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
-    }
+    grass_bind_ao();
     if (!grass_on)
         return;
     grass_settings(getenv("MHFU_GRASS") ? (float)atof(getenv("MHFU_GRASS")) : 1.0f,

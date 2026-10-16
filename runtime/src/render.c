@@ -207,25 +207,39 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
     return p;
 }
 
-/* window.c: the internal resolution to use unless MHFU_SCALE says (enough for the screen's lines) */
-void render_default_scale(float s) {
-    if (s >= 1 && s <= 12)
-        render_scale = s;
+/* The internal resolution follows the window's (MHFU_SCALE, MHFU_RESOLUTION: fixed); the window was resized */
+static int follow_window, window_resized;
+
+void render_window_resized(void) {
+    window_resized = 1;
+}
+
+/* The scale that fits a window of w x h exactly (letterboxed), 1 to 12 */
+static float fit_scale(uint32_t w, uint32_t h) {
+    float s = fminf((float)w / 480.0f, (float)h / 272.0f);
+    return s < 1 ? 1 : s > 12 ? 12 : s;
 }
 
 int render_init(void *sdl_window) {
-    /* the internal resolution: MHFU_RESOLUTION=WxH (its lines, or as wide as it is if that is less: 2560x1440 is 5.29
-     * times the PSP's), or MHFU_SCALE times the PSP's (fractions too) - 1 to 12 times */
+    /* the internal resolution: by default the window's, its pixels as they are (the picture drawn 1:1, re-made as
+     * the window is resized); or MHFU_RESOLUTION=WxH (its lines, or as wide as it is if that is less: 2560x1440 is
+     * 5.29 times the PSP's), or MHFU_SCALE times the PSP's (fractions too) - 1 to 12 times, above the window's
+     * filtered down to it */
     const char *s = getenv("MHFU_SCALE"), *res = getenv("MHFU_RESOLUTION");
     int rw, rh;
+    follow_window = 0;
     if (res && sscanf(res, "%dx%d", &rw, &rh) == 2 && rw > 0 && rh > 0) {
         float r = fminf((float)rw / 480.0f, (float)rh / 272.0f);
         if (r >= 1 && r <= 12)
             render_scale = r;
     } else if (s && atof(s) >= 1 && atof(s) <= 12)
         render_scale = (float)atof(s);
+    else
+        follow_window = sdl_window != NULL;
     if (!vk_init(sdl_window))
         return 0;
+    if (follow_window && vk.surface)
+        render_scale = fit_scale(vk.swap_extent.width, vk.swap_extent.height);
 
     tess_on = vk.tessellation && (!getenv("MHFU_TESSELLATION") || atoi(getenv("MHFU_TESSELLATION")) != 0);
     if (tess_on)
@@ -266,7 +280,7 @@ int render_init(void *sdl_window) {
     VkPushConstantRange pr = {pc_stages, 0, sizeof(DrawPush)};
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &ge_layout);
-    VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 8};
+    VkPushConstantRange ppr = {VK_SHADER_STAGE_FRAGMENT_BIT, 0, 6 * sizeof(float)};
     VkPipelineLayoutCreateInfo ppli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &present_set_layout,
                                        1, &ppr};
     vkCreatePipelineLayout(vk.device, &ppli, NULL, &present_layout);
@@ -318,6 +332,75 @@ void write_slot(uint32_t slot, VkImageView view, VkSampler sampler) {
     vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
 }
 
+/* A render target's images, at the internal resolution, and its slot for sampling them */
+static void target_images(Target *t) {
+    uint32_t px = scaled(RT_SIZE);
+    t->color = vk_image(px, px, VK_FORMAT_R8G8B8A8_UNORM,
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                        VK_IMAGE_ASPECT_COLOR_BIT);
+    t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT,
+                        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                        VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                        VK_IMAGE_ASPECT_DEPTH_BIT);
+    write_slot(t->sample_slot, t->color.view, samplers[1 | 2 | 4]);
+}
+
+/* A new internal resolution (between frames): everything its size made again, the targets' pictures scaled across
+ * (their depth cleared) */
+static void render_rescale(float scale) {
+    if (scale == render_scale)
+        return;
+    vkDeviceWaitIdle(vk.device);
+    uint32_t old_px = scaled(RT_SIZE);
+    render_scale = scale;
+    uint32_t px = scaled(RT_SIZE);
+    static VkImg old[2 * MAX_TARGETS];
+    int nold = 0;
+    VkCommandBuffer cmd = vk_cmd();
+    for (int i = 0; i < MAX_TARGETS; i++) {
+        Target *t = &targets[i];
+        if (!t->used)
+            continue;
+        VkImg color = t->color;
+        old[nold++] = t->color;
+        old[nold++] = t->depth;
+        target_images(t);
+        if (!t->cleared)
+            continue;
+        vk_transition(&color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageBlit b = {{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {{0, 0, 0}, {(int32_t)old_px, (int32_t)old_px, 1}},
+                         {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {{0, 0, 0}, {(int32_t)px, (int32_t)px, 1}}};
+        vkCmdBlitImage(cmd, color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, t->color.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &b, VK_FILTER_LINEAR);
+        vk_transition(&t->depth, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkClearDepthStencilValue far = {0.0f, 0};
+        VkImageSubresourceRange r = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+        vkCmdClearDepthStencilImage(cmd, t->depth.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &far, 1, &r);
+    }
+    vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    vk_finish();
+    for (int i = 0; i < nold; i++)
+        vk_image_free(&old[i]);
+    vk_buffer_free(&readback);
+    readback = vk_buffer((VkDeviceSize)px * px * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
+    ao_rescale();
+    grass_bind_ao();
+    post_rescale(render_scale);
+    fprintf(stderr, "renderer: %ux%u internal resolution (%.3g times the PSP's), the window's\n", scaled(480),
+            scaled(272), (double)render_scale);
+}
+
+/* The window's size changed (or its swapchain is out of date): the swapchain again, and the internal resolution
+ * with it if it follows the window */
+static void window_changed(void) {
+    window_resized = 0;
+    vk_recreate_swapchain();
+    if (follow_window)
+        render_rescale(fit_scale(vk.swap_extent.width, vk.swap_extent.height));
+}
+
 /* The render target at a VRAM address (made if create) */
 Target *target_at(uint32_t addr, int create) {
     addr &= 0x041FFFF0u;
@@ -329,18 +412,10 @@ Target *target_at(uint32_t addr, int create) {
     for (int i = 0; i < MAX_TARGETS; i++)
         if (!targets[i].used) {
             Target *t = &targets[i];
-            uint32_t px = scaled(RT_SIZE);
             t->used = 1;
             t->addr = addr;
-            t->color = vk_image(px, px, VK_FORMAT_R8G8B8A8_UNORM,
-                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                                VK_IMAGE_ASPECT_COLOR_BIT);
-            t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT,
-                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                VK_IMAGE_ASPECT_DEPTH_BIT);
             t->sample_slot = texture_new_slot();
-            write_slot(t->sample_slot, t->color.view, samplers[1 | 2 | 4]);
+            target_images(t);
             return t;
         }
     fprintf(stderr, "renderer: too many render targets\n");
@@ -878,6 +953,33 @@ void render_finish_frame(void) {
     end_frame();
 }
 
+/* The picture onto an image of w x h being drawn into (the window's): letterboxed to 480:272; its own size there when
+ * that is within a pixel of what fits (as the window's when the internal resolution follows it), at a whole pixel */
+static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorSet set, uint32_t w, uint32_t h) {
+    float sw = (float)w, sh = (float)h, src[2] = {(float)scaled(480), (float)scaled(272)};
+    float vw = sw, vh = sw * 272.0f / 480.0f;
+    if (vh > sh) {
+        vh = sh;
+        vw = sh * 480.0f / 272.0f;
+    }
+    if (fabsf(vw - src[0]) < 1.5f && fabsf(vh - src[1]) < 1.5f) {
+        vw = src[0];
+        vh = src[1];
+    } else {
+        vw = roundf(vw);
+        vh = roundf(vh);
+    }
+    float pc[6] = {src[0], src[1], floorf((sw - vw) / 2), floorf((sh - vh) / 2), vw, vh};
+    VkViewport vp = {pc[2], pc[3], vw, vh, 0, 1};
+    VkRect2D sc = {{0, 0}, {w, h}};
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_layout, 0, 1, &set, 0, NULL);
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+    vkCmdSetScissor(cmd, 0, 1, &sc);
+    vkCmdPushConstants(cmd, present_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof pc, pc);
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+}
+
 void render_flip(uint32_t addr) {
     ao_finish();
     post_finish();
@@ -887,14 +989,23 @@ void render_flip(uint32_t addr) {
         if (vk.recording)
             vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
         end_frame();
+        /* MHFU_TEST_RESCALE=frame,scale: as if the window were resized there (headless) */
+        static int rescaled;
+        unsigned long at;
+        float to;
+        if (!rescaled && getenv("MHFU_TEST_RESCALE") &&
+            sscanf(getenv("MHFU_TEST_RESCALE"), "%lu,%f", &at, &to) == 2 && frame_no >= at) {
+            rescaled = 1;
+            render_rescale(to);
+        }
         return;
     }
     uint32_t index;
     VkResult r = vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquired, VK_NULL_HANDLE, &index);
     if (r == VK_ERROR_OUT_OF_DATE_KHR) {
         vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
-        vk_recreate_swapchain();
         end_frame();
+        window_changed();
         return;
     }
     vk.rendered = vk.rendered_s[index % 8];
@@ -913,30 +1024,15 @@ void render_flip(uint32_t addr) {
     VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, vk.swap_extent}, 1, 0, 1, &ca, NULL,
                           NULL};
     vkCmdBeginRendering(cmd, &ri);
-    /* letterboxed to 480:272 */
-    float sw = (float)vk.swap_extent.width, sh = (float)vk.swap_extent.height;
-    float vw = sw, vh = sw * 272.0f / 480.0f;
-    if (vh > sh) {
-        vh = sh;
-        vw = sh * 480.0f / 272.0f;
-    }
-    VkViewport vp = {(sw - vw) / 2, (sh - vh) / 2, vw, vh, 0, 1};
-    VkRect2D sc = {{0, 0}, vk.swap_extent};
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_pipeline);
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, present_layout, 0, 1, &present_sets[vk.frame], 0, NULL);
-    vkCmdSetViewport(cmd, 0, 1, &vp);
-    vkCmdSetScissor(cmd, 0, 1, &sc);
-    float region[2] = {480.0f / RT_SIZE, 272.0f / RT_SIZE};
-    vkCmdPushConstants(cmd, present_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof region, region);
-    vkCmdDraw(cmd, 3, 1, 0, 0);
+    present_draw(cmd, present_pipeline, present_sets[vk.frame], vk.swap_extent.width, vk.swap_extent.height);
     vkCmdEndRendering(cmd);
     vk_transition(&swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vk_submit(vk.acquired, vk.rendered);
     VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL, 1, &vk.rendered, 1, &vk.swapchain, &index, NULL};
     r = vkQueuePresentKHR(vk.queue, &pi);
-    if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR)
-        vk_recreate_swapchain();
     end_frame();
+    if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || window_resized)
+        window_changed();
 }
 
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
@@ -959,6 +1055,49 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
         p[i] = src[i] | 0xFF000000u;
     *w_out = (int)w;
     *h_out = (int)h;
+    return p;
+}
+
+/* The displayed part of a framebuffer as the window shows it at w x h (MHFU_DUMP_PRESENT): malloc'd */
+uint32_t *render_readback_present(uint32_t addr, int w, int h) {
+    static VkPipeline pipeline;
+    ao_finish();
+    post_finish();
+    end_rendering();
+    Target *t = target_at(addr, 0);
+    if (!t)
+        return NULL;
+    if (!pipeline)
+        pipeline = make_pipeline(vk_shader(present_vert, sizeof present_vert),
+                                 vk_shader(present_frag, sizeof present_frag), present_layout,
+                                 VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_UNDEFINED, 0);
+    VkImg out = vk_image((uint32_t)w, (uint32_t)h, VK_FORMAT_R8G8B8A8_UNORM,
+                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    VkBuf buf = vk_buffer((VkDeviceSize)w * h * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
+    VkCommandBuffer cmd = vk_cmd();
+    vk_transition(&t->color, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    VkDescriptorImageInfo ii = {present_sampler, t->color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+    VkWriteDescriptorSet wr = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, present_sets[vk.frame], 0, 0, 1,
+                               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii, NULL, NULL};
+    vkUpdateDescriptorSets(vk.device, 1, &wr, 0, NULL);
+    vk_transition(&out, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, out.view,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0, 0, 0, 1}}}};
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {(uint32_t)w, (uint32_t)h}}, 1, 0, 1,
+                          &ca, NULL, NULL};
+    vkCmdBeginRendering(cmd, &ri);
+    present_draw(cmd, pipeline, present_sets[vk.frame], (uint32_t)w, (uint32_t)h);
+    vkCmdEndRendering(cmd);
+    vk_transition(&out, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {(uint32_t)w, (uint32_t)h, 1}};
+    vkCmdCopyImageToBuffer(cmd, out.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buf.buffer, 1, &copy);
+    vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    vk_finish();
+    uint32_t *p = malloc((size_t)w * h * 4);
+    memcpy(p, buf.map, (size_t)w * h * 4);
+    vk_image_free(&out);
+    vk_buffer_free(&buf);
     return p;
 }
 

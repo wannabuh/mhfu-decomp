@@ -58,8 +58,6 @@ void window_mouse(float *dx, float *dy) {
     mouse_dx = mouse_dy = 0;
 }
 
-void render_default_scale(float s);
-
 void window_init(void) {
     int headless = getenv("MHFU_HEADLESS") != NULL;
     const char *r = getenv("MHFU_RENDERER");
@@ -73,13 +71,9 @@ void window_init(void) {
         if (!headless) {
             window = SDL_CreateWindow("Monster Hunter Freedom Unite", 480 * 2, 272 * 2,
                                       SDL_WINDOW_RESIZABLE | SDL_WINDOW_VULKAN);
-            /* the internal resolution: by default as many lines as the screen has, or more (the picture is never
-             * stretched up, even maximised) */
-            const SDL_DisplayMode *mode = window ? SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window)) : NULL;
-            if (mode && mode->h > 0) {
-                float lines = (float)mode->h * (mode->pixel_density > 0 ? mode->pixel_density : 1.0f);
-                render_default_scale((int)((lines + 271) / 272));
-            }
+            /* MHFU_FULLSCREEN=1: the whole screen from the start (F11 toggles it) */
+            if (window && getenv("MHFU_FULLSCREEN") && atoi(getenv("MHFU_FULLSCREEN")))
+                SDL_SetWindowFullscreen(window, true);
         }
         if (render_init(window)) {
             capture_mouse(1);
@@ -206,6 +200,10 @@ int window_poll(void) {
             ram_snapshot();
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F10 && !e.key.repeat)
             capture_mouse(!mouse_captured);
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F11 && !e.key.repeat && window)
+            SDL_SetWindowFullscreen(window, !(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN));
+        if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
+            render_window_resized();
         if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
             capture_mouse(0);
         if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)

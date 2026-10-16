@@ -28,6 +28,18 @@ static Target *ao_applied;              /* it has its occlusion (until it is cle
 static int ao_used;                     /* times this frame */
 static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
 
+/* Its images, at half the internal resolution (again when that changes: render_rescale, the GPU idle) */
+void ao_rescale(void) {
+    if (ao_on <= 0)
+        return;
+    for (int i = 0; i < 2; i++) {
+        vk_image_free(&ao_img[i]);
+        ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
+                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    }
+    ao_fresh = 0;
+}
+
 /* Ambient occlusion's images, pipelines and descriptor sets (each pass's: its input, and the depth) */
 void ao_init(void) {
     ao_on = !getenv("MHFU_AO") || atoi(getenv("MHFU_AO")) != 0;
@@ -41,9 +53,7 @@ void ao_init(void) {
         ao_on = 0;
     if (!ao_on)
         return;
-    for (int i = 0; i < 2; i++)
-        ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
-                             VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+    ao_rescale();
     VkDescriptorSetLayoutBinding b[2] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},

@@ -298,6 +298,7 @@ static void write_png(const char *path, const uint32_t *frame) {
 }
 
 uint32_t *render_readback_full(uint32_t addr, int *w, int *h);
+uint32_t *render_readback_present(uint32_t addr, int w, int h);
 
 /* MHFU_WATCH="addr,addr,...": log each watched word (hex addresses) when it changes, checked every frame */
 static void watch(void) {
@@ -387,6 +388,15 @@ uint64_t present_pump(void) {
                     snprintf(path, sizeof path, "build/frames/g%06lu-full.png", frame);
                     write_png_size(path, full, w, h);
                     free(full);
+                }
+            }
+            int pw, ph;                                     /* and as the window shows it at that size */
+            if (k == 4 && getenv("MHFU_DUMP_PRESENT") && sscanf(getenv("MHFU_DUMP_PRESENT"), "%dx%d", &pw, &ph) == 2) {
+                uint32_t *shown = render_readback_present(addr, pw, ph);
+                if (shown) {
+                    snprintf(path, sizeof path, "build/frames/g%06lu-present.png", frame);
+                    write_png_size(path, shown, pw, ph);
+                    free(shown);
                 }
             }
         }

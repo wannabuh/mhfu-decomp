@@ -93,26 +93,8 @@ VkImg *post_glow(void) {
     return &glow;
 }
 
-int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
-    on = !getenv("MHFU_POST") || atoi(getenv("MHFU_POST")) != 0;
-    bloom = env("MHFU_BLOOM", bloom);
-    shafts = env("MHFU_SHAFTS", shafts);
-    saturation = env("MHFU_SATURATION", saturation);
-    contrast = env("MHFU_CONTRAST", contrast);
-    warmth = env("MHFU_WARMTH", warmth);
-    vignette = env("MHFU_VIGNETTE", vignette);
-    dof = env("MHFU_DOF", dof);
-    sharpen = env("MHFU_SHARPEN", sharpen);
-    motion = env("MHFU_MOTION_BLUR", motion);
-    fps = (int)env("MHFU_FPS", 0);
-    VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(vk.gpu, &props);
-    if (props.limits.maxPushConstantsSize < sizeof(Push))
-        on = 0;
-    if (!on)
-        return 0;
-    shadow_view = shadow;
-    shadow_sampler = shadow_s;
+/* The images the size of the picture (or its halves...) */
+static void make_images(float scale) {
     fw = (uint32_t)lroundf(480.0f * scale);
     fh = (uint32_t)lroundf(272.0f * scale);
     VkImageUsageFlags rt = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -138,6 +120,42 @@ int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline 
         shaft_img[i] = vk_image(fw / 2, fh / 2, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
         dof_img[i] = vk_image(fw / 2, fh / 2, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     }
+}
+
+/* The internal resolution changed (render_rescale, the GPU idle): its images again */
+void post_rescale(float scale) {
+    if (on <= 0)
+        return;
+    VkImg *all[] = {&scene, &moved, &motion_img, &tiles[0], &tiles[1], &glow, &shaft_img[0], &shaft_img[1],
+                    &dof_img[0], &dof_img[1]};
+    for (size_t i = 0; i < sizeof all / sizeof *all; i++)
+        vk_image_free(all[i]);
+    for (int i = 0; i < nlevels; i++)
+        vk_image_free(&levels[i]);
+    make_images(scale);
+}
+
+int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
+    on = !getenv("MHFU_POST") || atoi(getenv("MHFU_POST")) != 0;
+    bloom = env("MHFU_BLOOM", bloom);
+    shafts = env("MHFU_SHAFTS", shafts);
+    saturation = env("MHFU_SATURATION", saturation);
+    contrast = env("MHFU_CONTRAST", contrast);
+    warmth = env("MHFU_WARMTH", warmth);
+    vignette = env("MHFU_VIGNETTE", vignette);
+    dof = env("MHFU_DOF", dof);
+    sharpen = env("MHFU_SHARPEN", sharpen);
+    motion = env("MHFU_MOTION_BLUR", motion);
+    fps = (int)env("MHFU_FPS", 0);
+    VkPhysicalDeviceProperties props;
+    vkGetPhysicalDeviceProperties(vk.gpu, &props);
+    if (props.limits.maxPushConstantsSize < sizeof(Push))
+        on = 0;
+    if (!on)
+        return 0;
+    shadow_view = shadow;
+    shadow_sampler = shadow_s;
+    make_images(scale);
     dummy = vk_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     dummy_depth = vk_image(1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                            VK_IMAGE_ASPECT_DEPTH_BIT);
