@@ -2,7 +2,7 @@
  * once the solid world is drawn and its occlusion applied (render_ao.c), the tiles whose blades are ready uploaded into
  * their slots of the pool (near slots and far ones, grass.h), then those in view drawn - each blade an instance (grass.vert)
  * - with the world's camera, its depth test, the sun's shadow map, the trodden grass, the occlusion, the fog
- * (MHFU_GRASS: density, 0 none; MHFU_GRASS_DISTANCE). Only with the sun's shadows (the scenery's sun shading). */
+ * (MHFU_GRASS=0: none; MHFU_GRASS_DENSITY, MHFU_GRASS_FULL: full density this near, MHFU_GRASS_DISTANCE: the reach). Only with the sun's shadows (the scenery's sun shading). */
 #include "render_internal.h"
 
 #include "grass.h"
@@ -40,8 +40,11 @@ void grass_init(void) {
     grass_bind_ao();
     if (!grass_on)
         return;
-    grass_settings(getenv("MHFU_GRASS") ? (float)atof(getenv("MHFU_GRASS")) : 1.0f,
-                   getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 3000.0f);
+    /* (MHFU_GRASS, other than 1, is the density too, as before MHFU_GRASS_DENSITY) */
+    const char *dens = getenv("MHFU_GRASS_DENSITY") ? getenv("MHFU_GRASS_DENSITY") : getenv("MHFU_GRASS");
+    grass_settings(dens ? (float)atof(dens) : 1.0f,
+                   getenv("MHFU_GRASS_DISTANCE") ? (float)atof(getenv("MHFU_GRASS_DISTANCE")) : 3000.0f,
+                   getenv("MHFU_GRASS_FULL") ? (float)atof(getenv("MHFU_GRASS_FULL")) : 700.0f);
     grass_pipeline = make_pipeline(vk_shader(grass_vert, sizeof grass_vert), vk_shader(grass_frag, sizeof grass_frag),
                                    ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
     grass_pool = vk_buffer((VkDeviceSize)grass_pool_blades() * sizeof(GrassBlade),
@@ -91,12 +94,12 @@ void grass_draw(Target *t) {
     end_rendering();
     /* the tiles made ready: two a frame, or more of the far ones (an eighth of the blades each) */
     int uploaded = 0;
-    size_t budget = 2 * (size_t)GRASS_BLADES_PER_SLOT;
+    size_t budget = 2 * (size_t)grass_slot_blades();
     for (int k = 0; k < 16 && budget; k++) {
         int slot, n;
         const GrassBlade *b;
         size_t size;
-        if (staging_used + (size_t)GRASS_BLADES_PER_SLOT * sizeof(GrassBlade) > STAGING_BYTES ||
+        if (staging_used + (size_t)grass_slot_blades() * sizeof(GrassBlade) > STAGING_BYTES ||
             !grass_build(&slot, &b, &n))
             break;
         size = (size_t)n * sizeof(GrassBlade);
@@ -138,7 +141,7 @@ void grass_draw(Target *t) {
     memcpy(cam.color[0], (float[4]){eye[0], eye[1], eye[2], 0}, 16);
     memcpy(cam.color[1], (float[4]){(float)fmod(now, 3600.0), sway > 0 ? sway : 0, (float)scaled(RT_SIZE) / 2.0f,
                                     grass_radius()}, 16);
-    cam.color[0][3] = GRASS_NEAR;
+    cam.color[0][3] = grass_full();
     memcpy(cam.color[2], (float[4]){scene.fog[0], scene.fog[1], scene.fog[2], 0}, 16);
     float fc[4];
     unpack_rgb(scene.fog_color, fc);

@@ -24,8 +24,10 @@
 #define CELL 10.0f                  /* world units (about centimetres) */
 #define TILE_CELLS 32
 #define TILE (CELL * TILE_CELLS)
-#define BLADES_PER_CELL 8
+#define BLADES_PER_CELL 8           /* tried at density 1 */
 #define SETTLE 8                    /* frames without anything new before a tile's blades are made */
+#define SETTLE_FULL 2               /* (nearer than the full density's reach: the field there made at once - a blade
+                                     * made before is not grown again when its tile is made again) */
 #define PROBE_FRAMES 15
 
 typedef struct {
@@ -33,6 +35,7 @@ typedef struct {
     uint8_t r, g, b;
     int8_t nx, nz;                  /* its slope: the normal's x, z (times 127) */
     uint8_t state;                  /* 0 unknown, 1 ground, 2 grass */
+    float born;                     /* when its blades were first made (the game's seconds modulo 3600; 0 not yet) */
 } Cell;
 
 typedef struct {
@@ -57,14 +60,23 @@ static int probing, probe_known, probe_new;     /* after a gap: frames left to t
 static int near_slots, far_slots;  /* the pool's (grass_settings: enough for the reach) */
 static uint8_t *slot_used;
 static float eye[3];
-static float radius = 3000.0f, density = 1.0f;
-static GrassBlade build_buf[GRASS_BLADES_PER_SLOT];
+static float radius = 3000.0f, density = 1.0f, full_reach = 700.0f;
+static int tries;                   /* blades tried a cell (BLADES_PER_CELL times the density, rounded up) */
+static uint32_t slot_blades;        /* a near slot's: TILE_CELLS^2 tries; a far slot's an eighth */
+#define FAR_SHARE 8
+static GrassBlade *build_buf;
 
-/* Tiles this far (their nearest point) draw no more than a far slot holds (the density there, as grass_tiles draws
- * it, at most GRASS_FAR_BLADES / GRASS_BLADES_PER_SLOT); nearer, a near slot. A tile changes kind a little past it
- * either way (so that one on the line is not made again and again) */
+/* The share of a tile's blades drawn at a distance d (its nearest point): those dense enough there, and those coming
+ * in (grass.vert) */
+static float drawn_share(float d) {
+    float k = d < full_reach * GRASS_BAND ? 1.0f : (full_reach * GRASS_BAND / d) * (full_reach * GRASS_BAND / d);
+    return fminf(fmaxf(k, 0.02f), 1.0f);
+}
+
+/* Tiles this far (their nearest point) draw no more than a far slot holds (drawn_share at most 1 / FAR_SHARE); nearer,
+ * a near slot. A tile changes kind a little past it either way (so that one on the line is not made again and again) */
 static float far_from(void) {
-    return GRASS_NEAR * sqrtf((float)GRASS_BLADES_PER_SLOT / GRASS_FAR_BLADES * fmaxf(density, 1.0f)) + 50.0f;
+    return full_reach * GRASS_BAND * sqrtf((float)FAR_SHARE) + 50.0f;
 }
 #define FAR_MARGIN 300.0f
 
@@ -74,9 +86,15 @@ static int tiles_within(float r) {
     return (int)ceilf(3.14159f * a * a / (TILE * TILE)) + 32;
 }
 
-void grass_settings(float d, float r) {
+void grass_settings(float d, float r, float f) {
     density = d;
     radius = r;
+    full_reach = fmaxf(f, 0.0f);
+    tries = (int)ceilf(BLADES_PER_CELL * fmaxf(d, 0.0f));
+    tries = tries < 1 ? 1 : tries > 4 * BLADES_PER_CELL ? 4 * BLADES_PER_CELL : tries;
+    slot_blades = (uint32_t)(TILE_CELLS * TILE_CELLS * tries);
+    free(build_buf);
+    build_buf = malloc(slot_blades * sizeof *build_buf);
     float near = fminf(far_from() + FAR_MARGIN, r);
     near_slots = tiles_within(near);
     far_slots = r > far_from() ? tiles_within(r) : 0;
@@ -86,8 +104,16 @@ void grass_settings(float d, float r) {
         max_tiles = 3 * tiles_within(r);
 }
 
+float grass_full(void) {
+    return full_reach;
+}
+
+uint32_t grass_slot_blades(void) {
+    return slot_blades;
+}
+
 uint32_t grass_pool_blades(void) {
-    return (uint32_t)near_slots * GRASS_BLADES_PER_SLOT + (uint32_t)far_slots * GRASS_FAR_BLADES;
+    return (uint32_t)near_slots * slot_blades + (uint32_t)far_slots * (slot_blades / FAR_SHARE);
 }
 
 int grass_slots(void) {
@@ -95,8 +121,8 @@ int grass_slots(void) {
 }
 
 uint32_t grass_slot_base(int slot) {
-    return slot < near_slots ? (uint32_t)slot * GRASS_BLADES_PER_SLOT
-                             : (uint32_t)near_slots * GRASS_BLADES_PER_SLOT + (uint32_t)(slot - near_slots) * GRASS_FAR_BLADES;
+    return slot < near_slots ? (uint32_t)slot * slot_blades
+                             : (uint32_t)near_slots * slot_blades + (uint32_t)(slot - near_slots) * (slot_blades / FAR_SHARE);
 }
 
 float grass_radius(void) {
@@ -234,7 +260,7 @@ void grass_frame(const float camera[3], double now) {
 
 void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], const uint32_t *tex, int tw,
                   int th, int doubled) {
-    if (density <= 0)
+    if (density <= 0 || !build_buf)
         return;
     /* facing up, near */
     float e1[3], e2[3], n[3];
@@ -344,26 +370,32 @@ static uint32_t pack_rgb(float r, float g, float b) {
     return (uint32_t)ri | (uint32_t)gi << 8 | (uint32_t)bi << 16;
 }
 
-/* A tile's blades: scattered over its grass cells in tufts, shorter and fewer towards the grass's edges */
+/* A tile's blades: scattered over its grass cells in tufts, shorter and fewer towards the grass's edges; those of a
+ * cell made for the first time born now */
 static int build(Tile *t) {
     int n = 0;
+    float now = (float)fmod(last_call > 0 ? last_call : 0.0, 3600.0), share = BLADES_PER_CELL * density / (float)tries;
+    if (now == 0.0f)
+        now = 1e-3f;                    /* (0: not born yet) */
     for (int cz = 0; cz < TILE_CELLS; cz++)
         for (int cx = 0; cx < TILE_CELLS; cx++) {
-            const Cell *c = &t->cells[cz * TILE_CELLS + cx];
+            Cell *c = &t->cells[cz * TILE_CELLS + cx];
             if (c->state != 2)
                 continue;
+            if (c->born == 0.0f)
+                c->born = now;
             int around = grass_cell(t, cx - 1, cz) + grass_cell(t, cx + 1, cz) + grass_cell(t, cx, cz - 1) +
                          grass_cell(t, cx, cz + 1);
             int wx = t->tx * TILE_CELLS + cx, wz = t->tz * TILE_CELLS + cz;
             float ny = sqrtf(fmaxf(1.0f - ((float)c->nx * c->nx + (float)c->nz * c->nz) / (127.0f * 127.0f), 0.1f));
             float nx = (float)c->nx / 127.0f, nz = (float)c->nz / 127.0f;
-            for (int k = 0; k < BLADES_PER_CELL && n < GRASS_BLADES_PER_SLOT; k++) {
+            for (int k = 0; k < tries && n < (int)slot_blades; k++) {
                 uint32_t h = hash2(wx, wz, (uint32_t)k * 0x51ED27u);
                 float ox = unit(h) - 0.5f, oz = unit(h >> 7 ^ h << 11) - 0.5f;
                 float x = ((float)wx + 0.5f + ox) * CELL, z = ((float)wz + 0.5f + oz) * CELL;
                 /* tufts: the clump noise thins the field in patches; the edges of the grass thin it more */
                 float clump = 0.7f * noise(x * 0.012f, z * 0.012f, 3) + 0.3f * noise(x * 0.04f, z * 0.04f, 5);
-                float keep = 0.25f + 1.1f * clump - 0.15f * (float)(4 - around);
+                float keep = (0.25f + 1.1f * clump - 0.15f * (float)(4 - around)) * share;
                 if (unit(mix64(h)) > keep)
                     continue;
                 float tall = noise(x * 0.008f, z * 0.008f, 11);
@@ -382,7 +414,7 @@ static int build(Tile *t) {
                 bl->shape = (uint32_t)fminf(height * 4.0f, 255.0f) | (uint32_t)fminf(half * 64.0f, 255.0f) << 8 |
                             (h >> 24 & 255) << 16;
                 bl->normal = (uint32_t)(uint8_t)c->nx | (uint32_t)(uint8_t)c->nz << 8 | (h >> 16 & 255) << 16;
-                bl->extra = 0;
+                memcpy(&bl->extra, &c->born, sizeof bl->extra);
                 bl->pad = 0;
             }
         }
@@ -424,7 +456,7 @@ int grass_build(int *slot, const GrassBlade **blades, int *count) {
         if (d >= radius || d >= best_d)
             continue;
         int moved = t->slot >= 0 && (t->slot < near_slots) != wants_near(t, d);
-        if ((t->dirty && frame - t->changed >= SETTLE) || moved)
+        if ((t->dirty && frame - t->changed >= (d < full_reach ? SETTLE_FULL : SETTLE)) || moved)
             best = t, best_d = d;
     }
     if (!best)
@@ -453,7 +485,8 @@ int grass_build(int *slot, const GrassBlade **blades, int *count) {
     best->slot = s;
     best->dirty = 0;
     best->full = build(best);
-    best->nblades = near ? best->full : best->full < GRASS_FAR_BLADES ? best->full : GRASS_FAR_BLADES;
+    int far_blades = (int)(slot_blades / FAR_SHARE);
+    best->nblades = near ? best->full : best->full < far_blades ? best->full : far_blades;
     *slot = s;
     *blades = build_buf;
     *count = best->nblades;
@@ -471,8 +504,7 @@ int grass_tiles(GrassDraw *out, int max) {
             continue;
         /* drawn: as many of its blades as the field's density at its nearest point (grass.vert thins each by its
          * own distance) */
-        float k = d < GRASS_NEAR ? 1.0f : (GRASS_NEAR / d) * (GRASS_NEAR / d);
-        int count = (int)ceilf((float)t->full * fminf(fmaxf(k * density, 0.02f), 1.0f));
+        int count = (int)ceilf((float)t->full * drawn_share(d));
         if (count > t->nblades)
             count = t->nblades;
         out[n].slot = t->slot;

@@ -5,13 +5,18 @@
 
 #include <stdint.h>
 
-#define GRASS_NEAR 700.0f               /* the field's full density this near; beyond, as the square of it over the distance */
-#define GRASS_BLADES_PER_SLOT 8192      /* a tile's, at most (a near slot's) */
-#define GRASS_FAR_BLADES 1024           /* a far slot's: the first of its tile's (all the distance draws there) */
+/* The field's density, by the distance d: full to grass_full(), then as the square of it over d. A blade comes in as
+ * that falls to its place in its tile's order, growing from nothing over GRASS_BAND times the distance it is full at
+ * (grass.vert); the field shrinks away over the last GRASS_EDGE of the reach. A blade new to a tile grows in over
+ * GRASS_GROW seconds */
+#define GRASS_BAND 1.35f
+#define GRASS_EDGE 0.25f
+#define GRASS_GROW 0.5f
 
 /* A blade (grass.vert's instance): its root in the world; its colour (RGB); height (quarter units), half width
  * (64ths), yaw (256ths of a turn), its place in its tile's order (255ths: the distance thins by it); the ground's
- * normal x, z (snorm8) and its wind phase (256ths) */
+ * normal x, z (snorm8) and its wind phase (256ths); when it was first made (extra: a float, the game's seconds
+ * modulo 3600, as grass.vert's time) */
 typedef struct {
     float x, y, z;
     uint32_t color, shape, normal, extra, pad;
@@ -22,10 +27,14 @@ typedef struct {
     float box[6];                       /* its bounds: x, y, z low, then high */
 } GrassDraw;
 
-void grass_settings(float density, float radius);
+/* density: blades a cell (1: 8 tried, the tufts keeping some), radius: the reach, full: the full density's */
+void grass_settings(float density, float radius, float full);
 float grass_radius(void);
-/* The blade pool: near slots of GRASS_BLADES_PER_SLOT, then far ones of GRASS_FAR_BLADES, as many as the reach needs
- * (known from grass_settings); its size in blades, how many slots, and a slot's first blade */
+float grass_full(void);
+/* The blade pool: near slots of grass_slot_blades(), then far ones of an eighth of that (the first of a tile's: all
+ * the distance draws there), as many as the reach needs (known from grass_settings); its size in blades, how many
+ * slots, and a slot's first blade */
+uint32_t grass_slot_blades(void);
 uint32_t grass_pool_blades(void);
 int grass_slots(void);
 uint32_t grass_slot_base(int slot);

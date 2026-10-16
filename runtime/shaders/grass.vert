@@ -6,7 +6,7 @@
 // where it is trodden (grass.c's trail: smooth, the way the feet went, springing back), turned to face the camera. Towards the field's edge it thins out (by its place in its tile's shuffled order) and shrinks away;
 // a blade thinner than a pixel is drawn a pixel wide (it would flicker).
 layout(location = 0) in vec3 in_root;
-layout(location = 1) in uvec4 in_data;      // colour, shape, normal, (none)
+layout(location = 1) in uvec4 in_data;      // colour, shape, normal, born (a float)
 
 layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 
@@ -98,12 +98,18 @@ void main() {
     vec3 n = vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.0)), nxz.y);
     float phase = float((in_data.z >> 16) & 255u) * (6.2831853 / 256.0);
 
-    // the distance: thinned by the order (a blade goes when the density there - full near, then as the square of the
-    // near distance over it - falls below its place), the rest wider to keep the field's look; at the reach shrinking
-    // away
+    // the distance: thinned by the order (a blade is full where the density - full near, then as the square of the
+    // near distance over it - is above its place, and grows in over BAND times that distance beyond), the rest wider
+    // to keep the field's look; over the last EDGE of the reach shrinking away. And a blade new to the field (its
+    // ground just seen) grows in over GROW seconds (as grass.h's)
+    const float BAND = 1.35, EDGE = 0.25, GROW = 0.5;
     float dist = length(root.xz - eye.xz), near = cam.color[0].w;
     float keep = dist < near ? 1.0 : (near / dist) * (near / dist);
-    float fade = clamp((keep - rank) / max(0.06 * keep, 0.004), 0.0, 1.0) * (1.0 - smoothstep(0.85 * reach, reach, dist));
+    float full_at = rank > 0.0 ? near * inversesqrt(rank) : 1e9;
+    float age = time - uintBitsToFloat(in_data.w);
+    age += age < 0.0 ? 3600.0 : 0.0;
+    float fade = (1.0 - smoothstep(full_at, full_at * BAND, dist)) * (1.0 - smoothstep((1.0 - EDGE) * reach, reach, dist)) *
+                 smoothstep(0.0, GROW, age);
     if (fade <= 0.0) {
         gl_Position = vec4(2.0, 2.0, 2.0, 1.0);    // thinned out: nothing (all its corners one point, out of view)
         return;
