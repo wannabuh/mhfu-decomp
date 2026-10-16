@@ -92,9 +92,14 @@ vec3 point_light(vec3 n, bool has_normal) {
 // Mikkelsen, "Bump Mapping Unparametrized Surfaces on the GPU")
 const float RELIEF_HEIGHT = 4.0;       // world units, black to white
 
+// Faded out as the texture is shrunk on the screen (more than a texel a pixel, along either way: far, or seen at a low
+// angle) - there its slopes between neighbouring pixels are noise, which shimmered as the camera moved
 vec3 relief_normal(vec3 n, float h) {
-    vec3 dpdx = dFdx(in_world), dpdy = dFdy(in_world);
-    float dhdx = dFdx(h) * RELIEF_HEIGHT, dhdy = dFdy(h) * RELIEF_HEIGHT;
+    vec3 dpdx = dFdxFine(in_world), dpdy = dFdyFine(in_world);
+    vec2 duvdx = dFdxFine(in_uv), duvdy = dFdyFine(in_uv);
+    float texels = sqrt(max(dot(duvdx, duvdx), dot(duvdy, duvdy)));
+    float k = RELIEF_HEIGHT * (1.0 - smoothstep(0.5, 1.5, texels));
+    float dhdx = dFdxFine(h) * k, dhdy = dFdyFine(h) * k;
     vec3 r1 = cross(dpdy, n), r2 = cross(n, dpdx);
     float det = dot(dpdx, r1);
     vec3 grad = sign(det) * (dhdx * r1 + dhdy * r2);
