@@ -79,6 +79,7 @@ extern VkShaderStageFlags pc_stages;    /* the stages the push constants are for
 extern VkBuf vertices, staging;     /* the frame's (one of two: vk.frame) */
 extern VkDeviceSize staging_used, batch_start;  /* the staging buffer's used; the batch not drawn yet's first */
 extern VkSampler samplers[8];       /* nearest or linear (bit 0), clamped across (1), down (2); else repeating */
+extern float render_jitter[2];     /* the world drawn this far off this frame (pixels; the anti-aliasing's) */
 extern unsigned long frame_no;      /* the frames made, counted from 1 */
 extern float prim_view[16], prim_world_view[12];   /* the primitive's camera: its space to the screen, to the world */
 

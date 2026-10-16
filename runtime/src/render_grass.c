@@ -121,6 +121,10 @@ void grass_draw(Target *t) {
     float clip[16];
     if (!world_to_clip(scene.view, scene.world_view, clip))
         return;
+    for (int c = 0; c < 4; c++) {           /* (the anti-aliasing's offset, as the GE's world has it) */
+        clip[4 * c] += render_jitter[0] * 2.0f / (float)scaled(RT_SIZE) * clip[4 * c + 3];
+        clip[4 * c + 1] += render_jitter[1] * 2.0f / (float)scaled(RT_SIZE) * clip[4 * c + 3];
+    }
     LightSet cam;
     memset(&cam, 0, sizeof cam);
     memcpy(cam.dir, clip, sizeof clip);

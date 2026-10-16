@@ -809,6 +809,11 @@ void flush(void) {
         bound_pipeline = ge_pipeline;
     }
     pc.camera = cam;
+    if (s->flags & DRAW_WORLD) {
+        float j[2] = {render_jitter[0] * 2.0f / (float)scaled(RT_SIZE), render_jitter[1] * 2.0f / (float)scaled(RT_SIZE)};
+        memcpy(&pc.pad0, &j[0], 4);
+        memcpy(&pc.pad1, &j[1], 4);
+    }
     if (shaded(s))
         pc.flags |= DRAW_SHADED | (relief_on && s->tex_slot < MAX_TEXTURES ? DRAW_RELIEF : 0u);
     vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof pc, &pc);
@@ -933,6 +938,28 @@ void render_vram_written(uint32_t addr, uint32_t size) {
 
 /* -- frames ------------------------------------------------------------------------------------------------------- */
 
+/* The anti-aliasing's offset of the world this frame, render target pixels: eight places in turn (Halton 2, 3), none
+ * without it */
+float render_jitter[2];
+
+static float halton(int i, int b) {
+    float f = 1, r = 0;
+    for (; i > 0; i /= b) {
+        f /= (float)b;
+        r += f * (float)(i % b);
+    }
+    return r;
+}
+
+static void next_jitter(void) {
+    static int on = -1;
+    if (on < 0)                     /* (MHFU_TAA_JITTER=0: none, for checking the anti-aliasing's reprojection) */
+        on = !getenv("MHFU_TAA_JITTER") || atoi(getenv("MHFU_TAA_JITTER")) != 0;
+    int i = (int)(frame_no % 8) + 1;
+    render_jitter[0] = post_taa() && on ? halton(i, 2) - 0.5f : 0.0f;
+    render_jitter[1] = post_taa() && on ? halton(i, 3) - 0.5f : 0.0f;
+}
+
 static void end_frame(void) {
     ao_end_frame();
     post_frame_done();
@@ -942,6 +969,7 @@ static void end_frame(void) {
     staging_used = 0;
     last_valid = 0;
     frame_no++;
+    next_jitter();
 }
 
 /* The end of a frame not shown (fast-forwarding): its work submitted, the frame's buffers and checks started again */

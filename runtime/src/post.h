@@ -15,6 +15,7 @@ typedef struct {
     float to_prev[16];      /* the camera's space to the last frame's PSP pixels (x, y, depth, w; by columns) */
     float to_camera[12];    /* the world to the camera's space: its rotation's rows (x, y, z, 0) */
     int moved;              /* to_prev is known (a frame before, the same camera's) */
+    float jitter[2];        /* the world drawn this far off (render target pixels; the anti-aliasing's) */
 } PostFrame;
 
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */
@@ -23,7 +24,8 @@ typedef VkPipeline (*PostPipeline)(VkShaderModule fs, VkPipelineLayout layout, V
 int post_init(float scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
 void post_rescale(float scale);   /* the internal resolution changed (the GPU idle): its images again */
 int post_on(void);
-int post_motion(void);       /* the motion blur is on */
+int post_motion(void);       /* the motion image is drawn (for the motion blur, or the anti-aliasing) */
+int post_taa(void);          /* the anti-aliasing is on: the world is drawn jittered */
 float post_frame_step(void);     /* the game's frames between two frames shown */
 VkImg *post_motion_image(void);  /* where render_post.c draws the hunter's, monsters' and people's motion (world: rgb; a 1) */
 VkImg *post_glow(void);         /* where render_post.c draws the light the effects add (fw x fh, cleared by it) */

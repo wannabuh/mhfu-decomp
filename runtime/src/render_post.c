@@ -168,6 +168,8 @@ static void post_run(Target *t) {
     float top = fmaxf(scene.sun_rgb[0], fmaxf(scene.sun_rgb[1], scene.sun_rgb[2]));
     for (int k = 0; k < 3; k++)                 /* its hue, half way to white */
         f.sun_color[k] = 0.5f + 0.5f * (top > 0 ? scene.sun_rgb[k] / top : 1.0f);
+    f.jitter[0] = render_jitter[0];
+    f.jitter[1] = render_jitter[1];
     post_apply(&t->color, &t->depth, &f);
 }
 

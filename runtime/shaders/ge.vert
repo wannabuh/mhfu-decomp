@@ -26,7 +26,8 @@ layout(location = 7) out vec4 out_shape;    // (tessellated: the normal that cur
 layout(location = 8) out vec3 out_motion;
 
 void main() {
-    gl_Position = in_pos;
+    // (the world: this frame's offset for the anti-aliasing, a fraction of a pixel - pad0, pad1: its clip-space x, y)
+    gl_Position = in_pos + vec4(uintBitsToFloat(uvec2(draw.pad0, draw.pad1)) * in_pos.w, 0.0, 0.0);
     out_uv = in_uv;
     out_color = in_color;
     out_fog = in_fog;
