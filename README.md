@@ -86,6 +86,17 @@ crisper; 0 none .. 1), `MHFU_SATURATION=1.08`, `MHFU_CONTRAST=1.05`, `MHFU_WARMT
 (below 0 cooler, above warmer), `MHFU_VIGNETTE=0.2` (the corners darkened), `MHFU_INTRO=1` (play the intros:
 otherwise English is chosen and the logos are skipped, to the title in about two seconds).
 
+### Texture packs
+
+PPSSPP's texture packs work as they are: put the pack (its folder, with its `textures.ini`) at
+`~/.local/share/mhfu-recomp/TEXTURES/ULUS10391`, or leave it where PPSSPP has it (`~/.config/ppsspp/PSP/TEXTURES/ULUS10391`),
+or name it with `textures = /path/to/pack`. Its images are drawn in place of the game's textures, at their own
+resolution (with mipmaps); they are read in the background, so a texture can show as the game has it for a moment
+first. PNG images, the `quick`, `xxh32` and `xxh64` hashes, `[hashes]`, `[hashranges]`, `[filtering]`,
+`[reducehashranges]` and `ignoreAddress` are understood; a zipped pack (`textures.zip`), DDS / KTX2 images and
+`[indexed]` are not yet. `texture_dump = 1` writes each texture the game uses to the pack's `new/` under the name a pack
+gives it (as PPSSPP's "save new textures"), to make a pack from.
+
 To get back somewhere quickly - into a quest, say - record playing there once, `MHFU_RECORD=quest.rec`, then start
 with `MHFU_REPLAY=quest.rec`: the game replays it in seconds and hands over (saving in the game since can change where
 it ends up). Both together, the same file, replay it and carry on recording into it; an existing recording is never

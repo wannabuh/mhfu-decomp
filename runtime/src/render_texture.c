@@ -5,6 +5,7 @@
 #include "render_internal.h"
 
 #include "hle.h"
+#include "texpack.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,10 @@ typedef struct {
     uint32_t slot;
     unsigned long checked;          /* the frame it was last checked in */
     unsigned long used;
+    int sampler;
+    int pending;                    /* its texture pack image is being read */
+    uint64_t pack_key;              /* (its key in the pack) */
+    uint32_t pack_hash;
 } Texture;
 
 static Texture *textures;
@@ -55,6 +60,7 @@ void texture_init(void) {
     }
     textures = calloc(MAX_TEXTURES, sizeof *textures);
     tex_holes = calloc(MAX_TEXTURES, sizeof *tex_holes);
+    texpack_init();
 }
 
 uint32_t texture_new_slot(void) {
@@ -123,6 +129,99 @@ static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const u
     }
 }
 
+/* Level 0 (w x h, in the staging buffer at staging_used) to the texture, with its smaller levels made after it */
+static void upload(Texture *t, int w, int h) {
+    int sampler = t->sampler;
+    size_t size = (size_t)w * (size_t)h * 4;
+    /* its smaller levels, after it */
+    int levels = 1;
+    if (mipmaps)
+        while ((w >> levels) || (h >> levels))
+            levels++;
+    size_t level_at[16] = {0};
+    size_t total = size;
+    for (int l = 1; l < levels; l++) {
+        int lw = w >> l ? w >> l : 1, lh = h >> l ? h >> l : 1;
+        level_at[l] = total;
+        total += (size_t)lw * (size_t)lh * 4;
+    }
+    if (staging_used + total > STAGING_BYTES)
+        levels = 1;
+    for (int l = 1; l < levels; l++)
+        make_level((uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l - 1]),
+                   (uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l]),
+                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1,
+                   (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h,
+                   t->slot < MAX_TEXTURES && tex_cutout[t->slot]);
+    if (t->w != w || t->h != h || t->levels != levels) {
+        retire(&t->img);
+        t->img = vk_image_mips((uint32_t)w, (uint32_t)h, (uint32_t)levels, VK_FORMAT_R8G8B8A8_UNORM,
+                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+        t->levels = levels;
+        t->w = w;
+        t->h = h;
+    }
+    Target *was = rendering_target();
+    end_rendering();
+    vk_transition(&t->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkBufferImageCopy copies[16];
+    for (int l = 0; l < levels; l++)
+        copies[l] = (VkBufferImageCopy){staging_used + level_at[l], 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, (uint32_t)l, 0, 1},
+            {0, 0, 0}, {w >> l ? (uint32_t)(w >> l) : 1u, h >> l ? (uint32_t)(h >> l) : 1u, 1}};
+    vkCmdCopyBufferToImage(vk_cmd(), staging.buffer, t->img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           (uint32_t)levels, copies);
+    vk_transition(&t->img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    staging_used += (total + 255) & ~(size_t)255;
+    write_slot(t->slot, t->img.view, samplers[sampler]);
+    if (was)
+        begin_rendering(was);
+}
+
+/* A texture pack's image for the texture, if it has one and it is in: to the staging buffer in place of the game's
+ * texture. 0 if not (pending: not read yet) */
+static int pack_image(Texture *t, int w, int h, int *iw, int *ih) {
+    TexpackImage im;
+    int r = texpack_find(t->pack_key, t->pack_hash, w, h, &im);
+    t->pending = r == 0;
+    if (r <= 0)
+        return 0;
+    size_t size = (size_t)im.w * (size_t)im.h * 4;
+    if (staging_used + size * 4 / 3 + 1024 > STAGING_BYTES) {
+        free(im.pixels);
+        t->pending = 1;             /* (no room this frame: read again) */
+        return 0;
+    }
+    memcpy((uint8_t *)staging.map + staging_used, im.pixels, size);
+    free(im.pixels);
+    if (im.filter == TEXPACK_FILTER_LINEAR)
+        t->sampler |= 1;
+    else if (im.filter == TEXPACK_FILTER_NEAREST)
+        t->sampler &= ~1;
+    *iw = im.w;
+    *ih = im.h;
+    return 1;
+}
+
+/* The game's texture decoded (in the staging buffer): its key in a texture pack worked out, it written out (dumping),
+ * and uploaded - or the pack's image in its place */
+static void upload_pack(Texture *t, const uint32_t *reg, int w, int h) {
+    int uw = w, uh = h;
+    t->pending = 0;
+    if (texpack_active()) {
+        texpack_key(reg, texpack_draw_v, &t->pack_key, &t->pack_hash);
+            texpack_dump(t->pack_key, t->pack_hash, (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
+        pack_image(t, w, h, &uw, &uh);
+    }
+    upload(t, uw, uh);
+}
+
+/* A texture whose pack image was being read: uploaded once it is in */
+static void pack_arrived(Texture *t, int w, int h) {
+    int iw, ih;
+    if (pack_image(t, w, h, &iw, &ih))
+        upload(t, iw, ih);
+}
+
 /* The current texture's slot: a render target's, or a cached texture's (made or updated as needed) */
 uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
@@ -161,6 +260,8 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         t->used = frame_no;
         return t->slot;
     }
+    if (t && t->pending)
+        pack_arrived(t, w, h);
     uint64_t hash = hash_bytes(MEM(addr), bytes, 0xCBF29CE484222325ull);
     if (fmt >= 4 && fmt <= 7) {     /* the palette too */
         uint32_t caddr = (reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8);
@@ -249,50 +350,10 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
             }
         }
     }
-    /* its smaller levels, after it */
-    int levels = 1;
-    if (mipmaps)
-        while ((w >> levels) || (h >> levels))
-            levels++;
-    size_t level_at[16] = {0};
-    size_t total = size;
-    for (int l = 1; l < levels; l++) {
-        int lw = w >> l ? w >> l : 1, lh = h >> l ? h >> l : 1;
-        level_at[l] = total;
-        total += (size_t)lw * (size_t)lh * 4;
-    }
-    if (staging_used + total > STAGING_BYTES)
-        levels = 1;
-    for (int l = 1; l < levels; l++)
-        make_level((uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l - 1]),
-                   (uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l]),
-                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1,
-                   (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h,
-                   t->slot < MAX_TEXTURES && tex_cutout[t->slot]);
-    if (t->w != w || t->h != h || t->levels != levels) {
-        retire(&t->img);
-        t->img = vk_image_mips((uint32_t)w, (uint32_t)h, (uint32_t)levels, VK_FORMAT_R8G8B8A8_UNORM,
-                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-        t->levels = levels;
-        t->w = w;
-        t->h = h;
-    }
-    Target *was = rendering_target();
-    end_rendering();
-    vk_transition(&t->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    VkBufferImageCopy copies[16];
-    for (int l = 0; l < levels; l++)
-        copies[l] = (VkBufferImageCopy){staging_used + level_at[l], 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, (uint32_t)l, 0, 1},
-            {0, 0, 0}, {w >> l ? (uint32_t)(w >> l) : 1u, h >> l ? (uint32_t)(h >> l) : 1u, 1}};
-    vkCmdCopyBufferToImage(vk_cmd(), staging.buffer, t->img.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           (uint32_t)levels, copies);
-    vk_transition(&t->img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    staging_used += (total + 255) & ~(size_t)255;
-    write_slot(t->slot, t->img.view, samplers[sampler]);
+    t->sampler = sampler;
+    upload_pack(t, reg, w, h);
     t->hash = hash;
     t->addr = addr;
     t->checked = t->used = frame_no;
-    if (was)
-        begin_rendering(was);
     return t->slot;
 }

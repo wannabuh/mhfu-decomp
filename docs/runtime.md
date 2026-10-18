@@ -24,6 +24,11 @@ for the rest, in the order it is needed to boot.
   rasterizes, textures, blends and depth-tests, at `MHFU_SCALE` times the PSP's resolution (default 2). One pipeline with dynamic state, bindless textures cached by content, render targets
   per framebuffer address (render to texture included). `MHFU_RENDERER=soft` draws in software instead;
   `MHFU_VK_VALIDATE=1` turns on the validation layer.
+- **Texture packs** (`texpack.c`): PPSSPP's - each texture's key worked out as PPSSPP does (its address, size and
+  palette - the palette hashed as PPSSPP keeps it, bytes left from an earlier, bigger load included - and the `quick` /
+  `xxh32` / `xxh64` hash of its data), checked against PPSSPP 1.20's own dumps of the same textures (names and pixels
+  the same); the pack's PNGs read by background threads and uploaded in the texture's place, the effects still learning
+  from the game's texture (its colour, its holes).
 - **Frames** (`present.c`): written as PNGs (`MHFU_DUMP=N`: every Nth frame, to `build/frames/`); no window yet.
   Input can be scripted (`MHFU_INPUT="first-last:buttons,..."`, frames and PSP button bits in hex).
 - **Audio** (`audio.c`, `atrac.c`): output channels timed as the hardware plays them, heard through SDL (one stream

@@ -8,6 +8,7 @@
  * dithering. */
 #include "hle.h"
 #include "render.h"
+#include "texpack.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -69,6 +70,8 @@ static uint32_t clut[256];
 static void clut_load(void) {
     uint32_t addr = (reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8);
     uint32_t bytes = (reg[0xC4] & 0x3F) * 32;
+    if (texpack_active())           /* (as PPSSPP loads it: 0x40 blocks are 0x40, not 0) */
+        texpack_clut_loaded(addr, (reg[0xC4] & 0x7F) == 0x40 ? 0x40 * 32 : bytes);
     int fmt = reg[0xC5] & 3;
     uint32_t n = fmt == 3 ? bytes / 4 : bytes / 2;
     for (uint32_t i = 0; i < n && i < 256; i++)
@@ -2008,11 +2011,31 @@ static int blend_place(int count) {
     return 1;
 }
 
+/* For texture packs, as PPSSPP has it: how far down a 512-tall texture a 2D draw reaches (at least 272), else all */
+static void seen_v(int count, const Layout *l) {
+    uint32_t vt = reg[0x12];
+    int tc = vt & 3, idx = (vt >> 11) & 3;
+    texpack_draw_v = 512;
+    if (!((vt >> 23) & 1) || ((reg[0xB8] >> 8) & 0xF) != 9 || !tc)
+        return;
+    float most = 0;
+    for (int i = 0; i < count; i++) {
+        int n = idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i;
+        uint32_t at = vaddr + (uint32_t)(n * l->size) + (uint32_t)l->to;
+        float v = tc == 1 ? (float)LBU(at + 1) : tc == 2 ? (float)LHU(at + 2) : read_comp(at + 4, 3, 0, 0);
+        if (v > most)
+            most = v;
+    }
+    texpack_draw_v = most > 272 ? (int)most : 272;
+}
+
 static void prim(uint32_t data) {
     int type = (data >> 16) & 7, count = data & 0xFFFF;
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (texpack_active() && !in_replay && !held_drawing && count > 0)
+        seen_v(count, &l);
     if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
         record(&held, data, &l);
         held_command(0x04000000u | data, 0, held.n - 1);
