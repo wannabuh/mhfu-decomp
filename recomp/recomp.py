@@ -24,6 +24,9 @@ rabbitizer.config.pseudos_enablePseudos = False
 import modules  # noqa: E402
 from patches import GATES, PATCHES  # noqa: E402
 
+# a gate's kind (patches.py's GATES) -> the runtime's function for it (runtime/src/native.c)
+GATE_FUNCTIONS = {"on": "rt_gate", "before": "rt_gate_before", "object": "rt_gate_object", "native": "rt_gate_native"}
+
 ROOT = modules.ROOT
 
 
@@ -375,14 +378,14 @@ class Translator:
                     fn = self.call(mod, t)
                     if not fn.startswith("f_"):
                         raise SystemExit(f"gate at {mod.name} {a:#x}: a call to {t:#x}, not to a function")
-                    gfn = "rt_gate_before" if GATES[(mod.name, a)][1] == "before" else "rt_gate"
+                    gfn = GATE_FUNCTIONS[GATES[(mod.name, a)][1]]
                     return f"c->r[31] = {hx(a + 8)}; {delay} {gfn}(c, {fn[:-len('(c);')]}, 0, {hx(a)}); /* gated */"
                 return f"c->r[31] = {hx(a + 8)}; {delay} {self.call(mod, t)}"
             return f"{delay} " + (goto(t) if inside(t) else tail(t))
         n = i.uniqueId.name
         if n == "cpu_jalr":
             return (f"{{ uint32_t t = {R(rs)}; " + ("" if rd == 0 else f"{R(rd)} = {hx(a + 8)}; ") +
-                    (f"{delay} rt_gate(c, 0, t, {hx(a)}); }} /* gated */" if gate else f"{delay} rt_call(c, t); }}"))
+                    (f"{delay} {GATE_FUNCTIONS[GATES[(mod.name, a)][1]]}(c, 0, t, {hx(a)}); }} /* gated */" if gate else f"{delay} rt_call(c, t); }}"))
         if gate:
             raise SystemExit(f"gate at {mod.name} {a:#x}: not a call")
         if n == "cpu_jr":

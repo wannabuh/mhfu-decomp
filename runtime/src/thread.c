@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 #include "hle.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -99,6 +100,7 @@ static VTimer *vtimers[MAX_VTIMERS];
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
 float rt_time_scale = 1;
 int rt_tick30 = 1;
+int rt_ticks60 = 2;
 int rt_frame30 = 1;
 static float tick_scale = 1;        /* 30 / the game's frames a second */
 static float tick30_phase;           /* 30ths of a second gone by, since the last whole one */
@@ -196,6 +198,7 @@ void native_frame_start(void);
 /* The game's main loop, each game frame, as it wakes (patches.py): whether a 30th falls on this frame - if, with it,
  * another whole 30th has gone by - and the time scale it runs at */
 void rt_frame_start(void) {
+    rt_ticks60 = (int)floorf(2 * (tick30_phase + tick_scale) + 0.002f) - (int)floorf(2 * tick30_phase + 0.002f);
     tick30_phase += tick_scale;
     rt_frame30 = tick30_phase >= 0.999f;
     if (rt_frame30)

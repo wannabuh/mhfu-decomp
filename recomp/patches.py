@@ -11,6 +11,12 @@ and every frame a 30th, so the patches change nothing then. docs/native.md keeps
 # The motion player (EBOOT 088637C4): each layer's frame (+0x10) advances by its speed (+0x14) a game frame - 2.0 for
 # the 60 frames a second the motions are made at. The speed is loaded in four places; each load is scaled.
 MOTION = "the motion player: a layer's speed (frames a game frame), times the time scale"
+# The root motion's step (EBOOT 08863B70, before the player): the motion's displacement from a layer's frame to the
+# frame its speed takes it to - each load of the speed scaled, so the step is the one the player then takes
+ROOT = "the root motion's step: over a layer's speed (frames a game frame) times the time scale"
+# A character's tick (EBOOT 08865934, before its state's function): the ticks in its state (+0x3F4) and another
+# count (+0x45C) go up by 2 a game frame (in 60ths), a byte (+0x276) counts game frames down
+COUNTS = "a character's counts: in 60ths of a second (rt_ticks60) and 30ths (rt_tick30), not game frames"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
@@ -39,7 +45,9 @@ ONCE = "a one-frame flag the render pass clears after drawing: cleared before a 
 
 # Gates: (module, a function's start or a call) -> (why, when). What has not been converted yet runs as at 30 frames a
 # second (rt_gate): on the frames a 30th falls on, with the time scale 1; skipped on the others. "before": on the frames
-# before those instead (what makes ready for the 30th's logic).
+# before those instead (what makes ready for the 30th's logic). "object": an object's tick (a call, a0 the object):
+# every frame if the object is converted, gated otherwise (what it drew kept for it alone). "native": a converted call
+# made by gated code: made every frame - on the frames between by the gate it is under, as it was made at the 30th.
 GATES = {
     # the main loop's calls (EBOOT 0888FD38): all but the render pass (0884BB58), which draws every game frame
     ("EBOOT", 0x0888FD5C): ("the pad", "on"),
@@ -58,6 +66,20 @@ GATES = {
     ("EBOOT", 0x088590F8): ("?", "on"),
     ("EBOOT", 0x08859104): ("?", "on"),
     ("EBOOT", 0x08859110): ("?", "on"),
+    # the hunt's objects (EBOOT 088DB250, the object manager's run): the loop over them (088666B4, list 2) and the local
+    # player's (088DB424) made every frame, each object's tick gated by itself - converted objects (by their vtable)
+    # ticking every frame
+    ("EBOOT", 0x088DB264): ("the local player's (088DB424), every frame", "native"),
+    ("EBOOT", 0x088DB474): ("the local player's (088D61CC)", "object"),
+    ("EBOOT", 0x088DB274): ("the objects' ticks (088666B4), every frame", "native"),
+    ("EBOOT", 0x088666E4): ("an object's tick (its vtable's +0x14)", "object"),
+    # the hunt's tick (game_task 09A627B8), after the objects: the players' world matrices and poses (EBOOT 088DB338 ->
+    # 088D2894), more of theirs (088DB39C -> 088D2E04), the cameras (08812BD0) - every frame, each player's by itself
+    ("game_task", 0x09A62838): ("the players' matrices and poses (088DB338), every frame", "native"),
+    ("EBOOT", 0x088DB370): ("a player's matrices and pose (088D2894)", "object"),
+    ("game_task", 0x09A62844): ("the players' (088DB39C), every frame", "native"),
+    ("EBOOT", 0x088DB3F8): ("a player's (088D2E04)", "object"),
+    ("game_task", 0x09A62850): ("the cameras", "native"),
 }
 
 
@@ -72,6 +94,12 @@ PATCHES = {
     ("EBOOT", 0x08863978): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),
     ("EBOOT", 0x08863994): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),
     # a blend between motions: its weight (+0x34) steps by +0x24 a game frame, while its count of frames (+0x30) runs out
+    ("EBOOT", 0x08863BE8): ("lwc1 $f0, 0x14($s1)", scaled_load(0, 17, 0x14), ROOT),
+    ("EBOOT", 0x08863C44): ("lwc1 $f0, 0x14($s1)", scaled_load(0, 17, 0x14), ROOT),
+    ("EBOOT", 0x08863CFC): ("lwc1 $f0, 0x14($s1)", scaled_load(0, 17, 0x14), ROOT),
+    ("EBOOT", 0x08865964): ("addiu $v0, $v0, 0x2", "c->r[2] = c->r[2] + (uint32_t)rt_ticks60;", COUNTS),
+    ("EBOOT", 0x08865978): ("addiu $v1, $v1, 0x2", "c->r[3] = c->r[3] + (uint32_t)rt_ticks60;", COUNTS),
+    ("EBOOT", 0x0886599C): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTS),
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
