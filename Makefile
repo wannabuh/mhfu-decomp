@@ -5,6 +5,10 @@ CC      := clang
 CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
 GLSLC   := glslc
 GENFLAGS := $(CFLAGS) -w
+# The runtime (its renderer does the GE's vertex work on the CPU) for this machine's CPU: vectorised, but no
+# multiply-add fused (-ffp-contract=off) - what it works out for the game (the VFPU) stays as the PSP's. `make
+# RUNTIME_OPT=` for a build for any x86-64.
+RUNTIME_OPT ?= -O3 -march=native -ffp-contract=off
 
 RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
@@ -35,7 +39,7 @@ build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl runtime
 build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.h) runtime/src/nids.inc runtime/include/recomp.h \
                    build/gen/.stamp $(SHADERS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
+	$(CC) $(CFLAGS) $(RUNTIME_OPT) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
 
 build/game.a: build/gen/.stamp
 	@$(MAKE) --no-print-directory $(GEN_OBJ)
