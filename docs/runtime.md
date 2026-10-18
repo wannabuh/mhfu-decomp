@@ -66,7 +66,12 @@ frame's matching primitive (same vertex and index addresses, format, type and co
 moment shown
 trailing the game by a frame (about 33 ms). A camera cut - the camera moving over 600 units or turning
 over 60 degrees in a frame - turns the interpolation off for that frame. In the village
-98-100% of primitives match and 144 fps holds. What the game animates by rewriting vertices, and the 2D, move at 30.
+98-100% of primitives match and 144 fps holds. What the game writes the vertices of each frame - the 2D (the HUD, menus,
+text, fades, the loading screen) in the frame's display list, and its own grass in a ring of three buffers, a different
+place every frame - is matched by what it is instead (vertex format, primitive, count, texture) in the order drawn: the
+next of its kind if it shows the same picture nearby, else the nearest showing it, else the next of its kind nearby (64
+pixels in 2D, 150 units in the world). Matched, its vertices are blended too - positions and colours; what they show is
+the latest frame's. So the 2D moves with the rest, in step (it used to be drawn a frame ahead, at 30).
 Running the game itself faster - the native frame rate - is in `docs/native.md` (`MHFU_TICK_HZ`, an experiment).
 The display's frames are drawn while the game waits (one host thread); when the game's clock falls behind the wall
 clock by more than a frame shown, frames are left out rather than the game slowed. Each primitive keeps only the span

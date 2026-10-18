@@ -202,8 +202,7 @@ static int align_up(int x, int a) { return (x + a - 1) & ~(a - 1); }
 typedef struct { int size, wo, to, co, no, po; } Layout;
 
 /* The vertex format's layout: weights, texture coordinates, colour, normal, position, each aligned to its size */
-static Layout layout(void) {
-    uint32_t vt = reg[0x12];
+static Layout layout_of(uint32_t vt) {
     int tc = vt & 3, col = (vt >> 2) & 7, nrm = (vt >> 5) & 3, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
     int nweights = ((vt >> 14) & 7) + 1;
     static const int tsz[4] = {0, 1, 2, 4}, csz[8] = {0, 0, 0, 0, 2, 2, 2, 4}, psz[4] = {0, 1, 2, 4};
@@ -220,6 +219,8 @@ static Layout layout(void) {
     l.size = align_up(off, maxal);
     return l;
 }
+
+static Layout layout(void) { return layout_of(reg[0x12]); }
 
 static float read_comp(uint32_t a, int fmt, int through, int is_pos) {
     switch (fmt) {
@@ -534,16 +535,9 @@ static void light(const float *pos, const float *normal, uint32_t vcol, int has_
     out->a = a * 255.0f;
 }
 
-/* Decode vertex n and run it through the vertex stage up to clip space (through mode: straight to the screen, w 1) */
-static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *through_out) {
-    uint32_t vt = reg[0x12];
-    int tc = vt & 3, col = (vt >> 2) & 7, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
-    int nweights = ((vt >> 14) & 7) + 1;
-    int through = (vt >> 23) & 1;
-    uint32_t v = base + (uint32_t)(n * l->size);
-    *through_out = through;
-
-    float p[3];
+/* A vertex's position and colour as the game gave them */
+static void read_position(uint32_t v, const Layout *l, uint32_t vt, float *p) {
+    int pos = (vt >> 7) & 3, through = (vt >> 23) & 1;
     if (through && pos == 2) {          /* screen x, y (signed), depth (unsigned) */
         p[0] = (float)(int16_t)LHU(v + l->po);
         p[1] = (float)(int16_t)LHU(v + l->po + 2);
@@ -552,6 +546,48 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         static const int psz[4] = {0, 1, 2, 4};
         for (int i = 0; i < 3; i++)
             p[i] = read_comp(v + l->po + (uint32_t)(i * psz[pos]), pos, through, 1);
+    }
+}
+
+static uint32_t read_color(uint32_t v, const Layout *l, uint32_t vt, const uint32_t *regs) {
+    int col = (vt >> 2) & 7;
+    if (col >= 4)
+        return col == 7 ? LW(v + l->co) : to_rgba(LHU(v + l->co), col - 4);
+    return (regs[0x55] & 0xFFFFFF) | ((regs[0x58] & 0xFF) << 24);     /* the material's ambient colour */
+}
+
+/* Vertices blended between frames (gpu_render_frame): the previous frame's match's registers, its vertex (the index of
+ * the one blended with), how far along */
+static const uint32_t *blend_reg;
+static uint32_t blend_vertex;
+static float blend_by;
+#define SCRATCH_BLEND_VERTICES 0x08700000u
+#define SCRATCH_BLEND_INDICES  0x08780000u
+
+/* Decode vertex n and run it through the vertex stage up to clip space (through mode: straight to the screen, w 1) */
+static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *through_out) {
+    uint32_t vt = reg[0x12];
+    int tc = vt & 3, col = (vt >> 2) & 7, wt = (vt >> 9) & 3;
+    int nweights = ((vt >> 14) & 7) + 1;
+    int through = (vt >> 23) & 1;
+    uint32_t v = base + (uint32_t)(n * l->size);
+    *through_out = through;
+
+    float p[3];
+    read_position(v, l, vt, p);
+    uint32_t c = read_color(v, l, vt, reg);
+    if (blend_reg) {                    /* where it was, and its colour then, towards where it is */
+        uint32_t bv = SCRATCH_BLEND_VERTICES + blend_vertex * (uint32_t)l->size;
+        float q[3];
+        read_position(bv, l, vt, q);
+        for (int i = 0; i < 3; i++)
+            p[i] = q[i] + (p[i] - q[i]) * blend_by;
+        uint32_t d = read_color(bv, l, vt, blend_reg), mixed = 0;
+        for (int k = 0; k < 32; k += 8) {
+            float a = (float)((d >> k) & 255), b = (float)((c >> k) & 255);
+            mixed |= (uint32_t)(a + (b - a) * blend_by + 0.5f) << k;
+        }
+        c = mixed;
     }
 
     out->u = out->v = 0;
@@ -572,11 +608,6 @@ static void vertex(uint32_t base, int n, const Layout *l, ClipVertex *out, int *
         out->v = vv;
     }
 
-    uint32_t c;
-    if (col >= 4)
-        c = col == 7 ? LW(v + l->co) : to_rgba(LHU(v + l->co), col - 4);
-    else
-        c = (reg[0x55] & 0xFFFFFF) | ((reg[0x58] & 0xFF) << 24);     /* the material's ambient colour */
     out->r = (float)(c & 255);
     out->g = (float)((c >> 8) & 255);
     out->b = (float)((c >> 16) & 255);
@@ -1324,6 +1355,9 @@ static void compose43(const float *a, const float *b, float *out) {
 }
 
 static int placed_run = -1;         /* the run whose vertices are in the scratch area */
+static const Draw *blend_from;      /* a draw's match in the previous frame, its vertices blended in (vertex()) */
+static float blend_t;
+static uint8_t *loose_near;
 
 /* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
 static int draw_bones(const Draw *d);
@@ -1381,9 +1415,12 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         memcpy(PTR(SCRATCH_INDICES), f->bytes + d->icopy, d->ibytes);
     vaddr = SCRATCH_VERTICES;
     iaddr = SCRATCH_INDICES;
+    blend_from = prev && loose_near[d - latest->draws] ? prev : NULL;
+    blend_t = t;
     render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
     prim(d->data);
     render_override_texture(0xFFFFFFFEu, 0, 0);
+    blend_from = NULL;
 }
 
 /* A primitive's identity across frames: where its vertices (and indices: strips share a model's vertices) are, their
@@ -1475,6 +1512,165 @@ static int latest_count(uint64_t k) {
     while (lo + n < latest_n && latest_keys[lo + n] == k)
         n++;
     return n;
+}
+
+/* -- what the game writes the vertices of -------------------------------------------------------------------------
+ * The HUD, the menus, the text and fades (2D: in screen space), and particles (3D): drawn from vertices the game writes
+ * each frame into the frame's display list or a ring of buffers - a different place each frame - so not matched by where
+ * they are, but by what they are (vertex format, primitive, count, texture) in the order they are drawn: the next of
+ * the kind if it shows the same picture (texture coordinates) nearby, else the nearest with that picture, else the next
+ * of the kind nearby. Matched, their matrices are interpolated as any draw's, and their vertices blended (vertex()):
+ * the 2D's corners and colours (a fade), the game's own grass. */
+#define LOOSE_2D_DISTANCE 64.0f     /* PSP pixels a corner may move in a frame */
+#define LOOSE_BEHIND 32             /* how far from the order drawn a match is looked for (windows come in any order) */
+#define LOOSE_AHEAD 64
+
+typedef struct { float box[4], at[3]; uint32_t uvs; int ok; } Shape;
+
+static int through_draw(const Draw *d) { return (d->reg[0x12] >> 23) & 1; }
+
+/* A draw's vertices as recorded: their box on the screen (2D), or their middle (3D, in the model), and what they show
+ * (a hash of their texture coordinates) */
+static Shape shape(const Frame *f, const Draw *d) {
+    Shape s = {{1e30f, 1e30f, -1e30f, -1e30f}, {0, 0, 0}, 2166136261u, 0};
+    uint32_t vt = d->reg[0x12];
+    Layout l = layout_of(vt);
+    int tc = vt & 3, pos = (vt >> 7) & 3, idx = (vt >> 11) & 3, count = d->data & 0xFFFF, through = (vt >> 23) & 1;
+    static const int sz[4] = {0, 1, 2, 4};
+    const Run *r = &f->runs[d->run];
+    for (int i = 0; i < count; i++) {
+        int n = i;
+        if (idx == 1) n = f->bytes[d->icopy + (size_t)i];
+        else if (idx == 2) { uint16_t x; memcpy(&x, f->bytes + d->icopy + 2 * (size_t)i, 2); n = x; }
+        uint32_t at = (uint32_t)(n * l.size);
+        if (at < r->lo || at + (uint32_t)l.size > r->hi)
+            return s;
+        const uint8_t *v = f->bytes + r->copy + (at - r->lo);
+        float p[3];
+        for (int k = 0; k < 3; k++) {
+            const uint8_t *c = v + l.po + k * sz[pos];
+            if (pos == 1) p[k] = through ? (float)(int8_t)c[0] : (float)(int8_t)c[0] / 127.0f;
+            else if (pos == 2) { int16_t x; memcpy(&x, c, 2); p[k] = through ? (float)x : (float)x / 32767.0f; }
+            else memcpy(&p[k], c, 4);
+            s.at[k] += p[k] / (float)count;
+        }
+        if (p[0] < s.box[0]) s.box[0] = p[0];
+        if (p[1] < s.box[1]) s.box[1] = p[1];
+        if (p[0] > s.box[2]) s.box[2] = p[0];
+        if (p[1] > s.box[3]) s.box[3] = p[1];
+        for (int k = 0; k < 2 * sz[tc]; k++)
+            s.uvs = (s.uvs ^ v[l.to + k]) * 16777619u;
+    }
+    s.ok = count > 0;
+    return s;
+}
+
+/* The same kind of draw: vertex format, primitive and count, texture */
+static int same_kind(const Draw *a, const Draw *b) {
+    if ((a->reg[0x12] ^ b->reg[0x12]) & 0xFFFFFF || (a->data ^ b->data) & 0x7FFFFF || (a->reg[0x1E] ^ b->reg[0x1E]) & 1)
+        return 0;
+    return !(a->reg[0x1E] & 1) ||
+           (!((a->reg[0xA0] ^ b->reg[0xA0]) & 0xFFFFFF) && !((a->reg[0xA8] ^ b->reg[0xA8]) & 0xFF0000));
+}
+
+/* How far a draw moved between frames, against how far it may (below 1: near): in 2D the most any side of its box
+ * moved, in 3D its middle in the world (its world matrix, and the frame's camera taken out of it) */
+static float apart(const Draw *d, const Shape *a, const Draw *e, const Shape *b, int in_world) {
+    if (through_draw(d)) {
+        float m = 0;
+        for (int k = 0; k < 4; k++)
+            m = fmaxf(m, fabsf(a->box[k] - b->box[k]));
+        return m / LOOSE_2D_DISTANCE;
+    }
+    float p[3], q[3];
+    mul43(d->world, a->at, p);
+    mul43(e->world, b->at, q);
+    if (in_world) {
+        to_frame_world(latest_inv, p);
+        to_frame_world(prev_inv, q);
+        return sqrtf(dist2(p, q)) / MATCH_DISTANCE_WORLD;
+    }
+    return sqrtf(dist2(p, q)) / (MATCH_DISTANCE + MATCH_TURN * camera_distance(d, p));
+}
+
+static uint8_t *loose_near;         /* for each draw of the latest frame: its vertices blend with its match's */
+
+/* The draws of one kind (2D or 3D) not matched where they are, matched by what they are */
+static void match_loose(int *m, uint8_t *taken, int through, int in_world) {
+    static int *pick, pcap;
+    static Shape *pshape;
+    if (previous->n > pcap) {
+        pcap = previous->n * 2;
+        pick = realloc(pick, sizeof *pick * (size_t)pcap);
+        pshape = realloc(pshape, sizeof *pshape * (size_t)pcap);
+    }
+    int np = 0;
+    for (int j = 0; j < previous->n; j++)
+        if (!taken[j] && through_draw(&previous->draws[j]) == through && (through || !draw_bones(&previous->draws[j])))
+            pick[np++] = j;
+    if (!np)
+        return;
+    for (int k = 0; k < np; k++)
+        pshape[k].ok = -1;              /* (worked out when first needed) */
+    int cursor = 0;
+    for (int i = 0; i < latest->n; i++) {
+        const Draw *d = &latest->draws[i];
+        if (through_draw(d) != through || (!through && draw_bones(d)))
+            continue;
+        if (m[i] >= 0) {                /* matched where it is: blended if it changed (2D: the HUD's own vertices) */
+            if (through) {
+                const Draw *e = &previous->draws[m[i]];
+                Shape a = shape(latest, d), b = shape(previous, e);
+                loose_near[i] = a.ok && b.ok && apart(d, &a, e, &b, in_world) < 1;
+            }
+            continue;
+        }
+        Shape sh = shape(latest, d);
+        if (!sh.ok)
+            continue;
+        int lo = cursor - LOOSE_BEHIND > 0 ? cursor - LOOSE_BEHIND : 0;
+        int hi = cursor + LOOSE_AHEAD < np ? cursor + LOOSE_AHEAD : np;
+        int best = -1, first = -1;
+        float best_d = 1;
+        /* the next in order first (copies of one picture - blades of grass - may stand nearer each other than they
+         * move) */
+        int next = cursor;
+        while (next < hi && (taken[pick[next]] || !same_kind(d, &previous->draws[pick[next]])))
+            next++;
+        if (next < hi) {
+            if (pshape[next].ok < 0)
+                pshape[next] = shape(previous, &previous->draws[pick[next]]);
+            if (pshape[next].ok && pshape[next].uvs == sh.uvs &&
+                apart(d, &sh, &previous->draws[pick[next]], &pshape[next], in_world) < 1)
+                best = next;
+        }
+        for (int k = lo; k < hi && best != next; k++) {
+            const Draw *e = &previous->draws[pick[k]];
+            if (taken[pick[k]] || !same_kind(d, e))
+                continue;
+            if (pshape[k].ok < 0)
+                pshape[k] = shape(previous, e);
+            if (!pshape[k].ok)
+                continue;
+            float a = apart(d, &sh, e, &pshape[k], in_world);
+            if (a >= 1)
+                continue;
+            if (pshape[k].uvs == sh.uvs && a < best_d) {
+                best_d = a;
+                best = k;
+            }
+            if (first < 0 && k >= cursor)
+                first = k;
+        }
+        if (best < 0)
+            best = first;
+        if (best < 0)
+            continue;
+        m[i] = pick[best];
+        taken[pick[best]] = 1;
+        loose_near[i] = 1;
+        cursor = best + 1;
+    }
 }
 
 /* Match each draw of the latest frame to the previous frame's: the previous draw with the same key (vertex address,
@@ -1617,6 +1813,14 @@ static int *match(int in_world) {
                 vote(i, best_fresh, best_late);
         }
     }
+    static int ncap;
+    if (latest->n > ncap) {
+        ncap = latest->n * 2;
+        loose_near = realloc(loose_near, (size_t)ncap);
+    }
+    memset(loose_near, 0, (size_t)latest->n);
+    match_loose(m, taken, 1, in_world);
+    match_loose(m, taken, 0, in_world);
     /* the frame's camera: as most of its draws say; a draw says otherwise only on clear evidence of its own (its move
      * with one camera a tenth of that with the other, and over 5 units) */
     if (in_world) {
@@ -1791,6 +1995,19 @@ void gpu_match_stats(unsigned long *m, unsigned long *u) {
     cuts = shown_frames = 0;
 }
 
+/* A draw blended between frames: its match's vertices (and indices) where vertex() reads them; 0 if they do not fit */
+static int blend_place(int count) {
+    const Draw *p = blend_from;
+    const Run *r = &previous->runs[p->run];
+    if (r->hi > 0x80000u || p->ibytes > 0x40000u || (p->data & 0xFFFF) != (uint32_t)count)
+        return 0;
+    memcpy(PTR(SCRATCH_BLEND_VERTICES + r->lo), previous->bytes + r->copy, r->hi - r->lo);
+    if (p->ibytes)
+        memcpy(PTR(SCRATCH_BLEND_INDICES), previous->bytes + p->icopy, p->ibytes);
+    blend_by = blend_t;
+    return 1;
+}
+
 static void prim(uint32_t data) {
     int type = (data >> 16) & 7, count = data & 0xFFFF;
     uint32_t vt = reg[0x12];
@@ -1818,13 +2035,19 @@ static void prim(uint32_t data) {
     }
     if (count > 0) {
         ClipVertex *v = malloc(sizeof *v * (size_t)count);
-        int through = 0;
+        int through = 0, blend = blend_from && blend_place(count);
         for (int i = 0; i < count; i++) {
             int n = i;
             if (idx == 1) n = LBU(iaddr + (uint32_t)i);
             else if (idx == 2) n = LHU(iaddr + 2 * (uint32_t)i);
+            if (blend) {
+                blend_reg = blend_from->reg;
+                blend_vertex = (uint32_t)(idx == 1 ? LBU(SCRATCH_BLEND_INDICES + (uint32_t)i)
+                                          : idx == 2 ? LHU(SCRATCH_BLEND_INDICES + 2 * (uint32_t)i) : i);
+            }
             vertex(vaddr, n, &l, &v[i], &through);
         }
+        blend_reg = NULL;
         switch (type) {
         case 3:                                     /* triangles */
             for (int i = 0; i + 2 < count; i += 3)
