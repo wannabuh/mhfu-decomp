@@ -67,13 +67,37 @@ void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer) 
 }
 
 /* ge.c: the chunk (its number) a command is in, if the list run was made at a 30th with gates; else -1 */
+static int by_start[MAX_CHUNKS], nsorted = -1, by_start_n;    /* the chunks (not the calls) by where they start, once linked */
+
+static int cmp_start(const void *a, const void *b) {
+    uint32_t x = chunks[*(const int *)a].start, y = chunks[*(const int *)b].start;
+    return x < y ? -1 : x > y;
+}
+
 int native_chunk_at(uint32_t at) {
-    if (!rt_frame30)
+    if (!rt_frame30 || !nchunks)
         return -1;
-    for (int i = 0; i < nchunks; i++)
-        if (at >= chunks[i].start && at < chunks[i].end)
-            return i;
-    return -1;
+    if (nsorted != nchunks) {           /* (sorted again when more are linked) */
+        int n = 0;
+        for (int i = 0; i < nchunks; i++)
+            if (chunks[i].end > chunks[i].start)
+                by_start[n++] = i;
+        qsort(by_start, (size_t)n, sizeof *by_start, cmp_start);
+        for (int i = n; i < MAX_CHUNKS && i < nchunks; i++)
+            by_start[i] = -1;
+        nsorted = nchunks;
+        by_start_n = n;
+    }
+    int lo = 0, hi = by_start_n;        /* the last starting at or before it */
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (chunks[by_start[mid]].start <= at) lo = mid + 1;
+        else hi = mid;
+    }
+    if (lo == 0)
+        return -1;
+    int i = by_start[lo - 1];
+    return at < chunks[i].end ? i : -1;
 }
 
 /* A chunk of three words linked in a chunk's place: the GE draws again what it drew (a NOP: 0x00A5 and its number) */
@@ -126,14 +150,24 @@ static void trace(void) {
     fflush(f);
 }
 
+/* Whether a 30th fell on each of the last game frames (gpu.c) */
+static uint32_t frames30;           /* bit 0 the latest */
+
+/* back frames before the latest (0: the latest - the one being drawn, as the GE draws it) */
+int native_frame30(int back) {
+    return back < 32 && (frames30 >> back & 1);
+}
+
 /* rt_frame_start (thread.c): a 30th with gates - its gated code will link its chunks anew */
 void native_frame_start(void) {
     trace();
+    frames30 = frames30 << 1 | (uint32_t)rt_frame30;
     real_scale = rt_time_scale;
     real_tick30 = rt_tick30;
     real_ticks60 = rt_ticks60;
     if (rt_frame30 && rt_time_scale != 1) {
         nchunks = 0;
+        nsorted = -1;
         gpu_held_clear();
     }
 }

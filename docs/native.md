@@ -83,16 +83,61 @@ grass field, the guild hall, the hunt's menu). Converting is opening gates.
 - `MHFU_UNGATE=addr,...` leaves gates open (what they gate runs every frame), to try one; `MHFU_DUMP_FROM=N` with
   `MHFU_DUMP=1` dumps every frame from N, to compare a run at N a second with one at 30.
 
+### Down to the objects: converted calls and object gates
+
+Opening the gates above the objects would not do: the hunt's state run (`game_task 09A60298`) counts its own timers
+inline (`*0x089CC558 + 0x488`, counted down as it goes), and so would every caller on the way. Instead what is
+converted is made again, under the gate it is in:
+
+- A **"native"** gate is on a call made by gated code. At a 30th the call is made (at the frame's own time scale, not
+  the gate's 1) and noted, with its arguments, in order among the chunks the gate's code links; on the frames between,
+  the skipped gate makes the noted calls again, in that order, where it would have linked those chunks. So only those
+  calls run every frame, not the code around them.
+- An **"object"** gate is on an object's call (a0 the object): every frame if the object's vtable is converted
+  (`MHFU_NATIVE_VT=hex,...` for now), else gated as any other - what it drew noted and drawn again for it alone (the
+  chunks are keyed by gate and object).
+
+In a hunt the native calls are the object manager's loop over its objects (`088DB250` → `088666B4`, list 2: the
+hunter, and a few more; each object's tick, its vtable's +0x14, an object gate), the local player's input
+(`088DB424` → `088D61CC`, an object gate), and in the hunt's tick (`09A627B8`) the players' world matrices and poses
+(`088DB338` → `088D2894`: without it the hunter is drawn a step behind between 30ths), more of theirs (`088DB39C` →
+`088D2E04`) and the cameras (`08812BD0`). The monsters tick elsewhere (still gated whole). With nothing converted
+every frame at 60 and 144 is still a frame at 30, to the pixel (`MHFU_NATIVE_SMOOTH=0`, below).
+
+`rt_ticks60` is the 60ths of a second a game frame takes up (2 at 30, 1 at 60, 0 or 1 at 144; 2 under a gate): what
+counts in 60ths steps by it. `MHFU_NATIVE_TRACE=file` writes, each game frame, the hunter's place, state, ticks in it
+and motion frame and the camera's eye and target (`MHFU_TRACE_VT` for another vtable; `MHFU_TRACE_VIEW=1` adds the
+view's words) - compared at the same game times between a run at 30 and one at N. `MHFU_NATIVE_LOG=1` names the
+objects the object gates see.
+
+### What still ticks at 30, smoothed (gpu.c)
+
+With the hunter and the camera every frame, the rest - stepping at its 30ths - would judder against them. The render
+pass places everything anew each frame, the frame's camera multiplied into each world matrix (the GE keeps 24 bits
+of a float: at 20000 units a matrix is good to half a unit), so what ticks at 30 is told by what stays between 30ths:
+its bones (no camera in them) and its place with the camera taken out. Each frame's draws in the world are noted as
+the GE draws them - key, place, bones - and matched to the last 30th's (in the order copies of a model come, else the
+nearest); one that ticks at 30 and moved between the last two 30ths is drawn between those places by how far the frame
+is into the 30th (one 30th behind, as `MHFU_FPS` shows the game), with the frame's camera; at a 30th, as the frame
+before told. What gated code drew at the 30th and the GE draws again has that 30th's camera in it, taken out as such.
+The rest is drawn as the game drew it. (A frame's display list is that game frame's own, made after its cameras: the
+camera is the game's as it is drawn, and the 30th that frame's.) `MHFU_NATIVE_SMOOTH=0`: frames as the game draws
+them. `MHFU_FPS_STATS` gives the share of draws smoothed.
+
 ## Converted
 
 | system | patch | at 60 ticks |
 |---|---|---|
 | motion frames | the four loads of a layer's speed in `088637C4` | motions play at their speed; walking too (root motion: about 500 units a second at either rate) |
 | motion blends | the weight's step (`08863894`), the count of frames (`088638A0`, on `rt_tick30`) | blends take their time |
+| root motion | the three loads of a layer's speed in `08863B70` (the step from a layer's frame to the next, before the player) | the displacement is the frame's, not a tick's |
+| a character's counts | `08865934`: ticks in its state (+0x3F4) and +0x45C by `rt_ticks60`, the byte +0x276 down on `rt_tick30` | its state's timing |
+| the hunter (`MHFU_NATIVE_VT=089bb3cc`) | object gates; its input, matrices, pose (above) | walks as at 30: the same distance and state timing (within a 60th) |
+| the hunt's cameras | a native call (`08812BD0`) | follow every frame |
 
-Not yet: everything else - movement that is not root motion, the hunter's and monsters' state timers (attack
-windows, invulnerability, AI decisions), effects and particles, sounds started by ticks, the camera's easing, the UI's
-animations and fades, menus' waits. Behind the gates these run as at 30 (the motion player too, under them: its
+Not yet: the hunter's other actions (attacks, rolls, items: their timers in its state functions), the monsters' state
+timers (attack windows, invulnerability, AI decisions), effects and particles, sounds started by ticks, the camera's
+easing, the UI's animations and fades, menus' waits. Behind the gates these run as at 30 (the motion player too, under them: its
 patches see the time scale 1).
 
 ## How to carry on
@@ -113,15 +158,10 @@ Timers in the objects' state functions are the long tail.
 
 ## Where it is going
 
-The gates go down the call tree as things are converted: a gate is opened, and what is under it that is not converted
-yet gated in its place (its calls), so that at every step the game at N a second is the game at 30 but for what is
-converted. Down to the hunt's objects:
-
-- `08895538` (the game states) → a state's run (`09A60298` in a hunt) → `09A62740` → `09A627B8` (the hunt's tick:
-  the objects, the cameras `08812BD0`, the HUD `0883F270`...) → `088DB068` → the object list → an object's tick,
-  `08864634` (its state function, then its vtable's +0x18 and +0x1C): gated there, an object not converted yet ticks
-  at 30 while a converted one (by its vtable) ticks every frame.
-- The render pass draws every frame. What ticks at 30 changes only every few frames, so its draws need the
-  interpolation `MHFU_FPS` does now, across its own 30ths, while what is converted is drawn as it is.
-- The hunter first (what the player feels), with the camera; then monsters, effects, the rest; the motion player is
-  done for all.
+- The hunter's actions one at a time (a recording, lines added for the input), each timer in its state functions
+  converted; hits between a hunter ticking every frame and a monster at 30 checked (no double or missed hits).
+- The camera's easing (its height and distance over slopes) at the frame's rate; the mouse's camera (`camera.c`)
+  with it.
+- The CPU: at 144 the GE's vertex stage (on the CPU) fills the frame already, as with `MHFU_FPS=144`; the smoothing
+  costs a tenth more. The GE's work is to be spread over threads.
+- Then the monsters, effects, the rest; the motion player is done for all.

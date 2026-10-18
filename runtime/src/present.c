@@ -457,6 +457,7 @@ static void snapshots(void) {
 }
 
 void gpu_frame_tick(void);
+void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn);
 
 void present_frame(void) {
     static uint64_t frame_wall;
@@ -479,9 +480,11 @@ void present_frame(void) {
             stats_wall = wall, stats_frame = frame;
         if (wall - stats_wall > 5000000) {
             double secs = (double)(wall - stats_wall) / 1e6;
-            fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%\n",
+            unsigned long smoothed, drawn;
+            gpu_native_stats(&smoothed, &drawn);
+            fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%, %.0f%% of draws smoothed\n",
                     (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
-                    (double)time_slept_us() / 1e4 / secs);
+                    (double)time_slept_us() / 1e4 / secs, drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0);
             stats_wall = wall;
             stats_frame = frame;
             longest_frame_us = 0;

@@ -1058,6 +1058,7 @@ typedef struct {
 } Frame;
 
 static int recording;               /* primitives are recorded, not drawn */
+static const Draw *held_texture;    /* (a kept draw being drawn again: gpu_held_draw) */
 /* What gated code drew at the last 30th, kept for the frames between (gpu_held_draw): its chunks' commands in order,
  * each a command or a primitive (its draw in held) */
 typedef struct { uint32_t cmd, addr; int chunk, draw; } HeldCommand;
@@ -1151,7 +1152,11 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
     }
     d->run = rec->nruns - 1;
     d->tex_slot = 0xFFFFFFFFu;
-    if (render_on && !(reg[0xD3] & 1) && (reg[0x1E] & 1))
+    if (held_texture) {                 /* a kept draw drawn again: the texture it had (since written over, perhaps) */
+        d->tex_slot = held_texture->tex_slot;
+        d->tex_w = held_texture->tex_w;
+        d->tex_h = held_texture->tex_h;
+    } else if (render_on && !(reg[0xD3] & 1) && (reg[0x1E] & 1))
         d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
 }
 
@@ -1940,6 +1945,241 @@ uint32_t gpu_render_frame(float t) {
     return latest->display_addr;
 }
 
+/* -- the native frame rate: what still ticks at 30, smoothed between its 30ths (native.c) ---------------------------
+ *
+ * At MHFU_TICK_HZ above 30 the game draws every frame, but what is not converted yet moves at its 30ths alone. The
+ * render pass places everything anew each frame - the frame's camera multiplied into each world matrix - so a thing
+ * ticking at 30 is told by what does not change between 30ths: its bones (the camera is not in them) and its place in
+ * the world (the camera taken out: as far as the GE's 24-bit floats keep it). Each frame's draws in the world are noted
+ * as they are drawn - their key, place and bones - and matched to the last 30th's (to the frame before's, at a 30th):
+ * a draw ticking at 30 that moved between the last two 30ths is drawn between its places there, by how far the frame
+ * is into the 30th - one 30th behind, as MHFU_FPS shows the game - with the frame's camera; at a 30th, at the last's.
+ * The rest is drawn as the game drew it. What gated code drew at the 30th and is drawn again (gpu_held_draw) has that
+ * 30th's camera in it: it is taken out as such. (A frame's list is the game's frame's own, made after its cameras: drawn
+ * with the camera the game has as it is drawn.) MHFU_NATIVE_SMOOTH=0: every frame as the game draws it (each the same
+ * as a frame at 30 a second, with nothing converted). */
+int native_frame30(int back);
+
+typedef struct { uint64_t key; int i; } Keyed;
+typedef struct {
+    uint64_t key;
+    float w[12], bones[8][12], pos[3];  /* in the world */
+    int nb, match;                      /* its bones; its match in the frame it was told by (-1: none) */
+    uint8_t slow;                       /* ticking at 30 */
+} Placing;
+typedef struct {
+    Placing *p;
+    Keyed *k;                           /* by key (and as they came), once the frame is done */
+    int *used;                          /* matching into it: of each key's, how many in order */
+    uint8_t *taken;
+    int *ba;                            /* (a 30th's) each draw's match in the 30th before (-1: none), once known */
+    int n, cap, ba_known;
+    float cam[12], inv[12];             /* the camera it was drawn with, and undone */
+    int is30, cams;
+} Placings;
+static Placings pls[4];
+static Placings *nat_c, *nat_p, *nat_b, *nat_a;    /* this frame, the one before it, the last two 30ths' */
+static int nat_on = -1, since30;
+static unsigned nat_generation;
+static unsigned long nat_slow, nat_drawn;      /* (for MHFU_FPS_STATS) */
+static int nat_override;                        /* this draw's matrices are smoothed: as they were, to put back */
+static float nat_world[12], nat_bones[8][12];
+
+/* Whether frames are smoothed (the game at a rate above 30, MHFU_FPS off: present.c) */
+int gpu_native_smoothing(void) {
+    if (nat_on < 0)
+        nat_on = !getenv("MHFU_NATIVE_SMOOTH") || atoi(getenv("MHFU_NATIVE_SMOOTH")) != 0;
+    return nat_on && render_on && !recording && rt_frame_30ths() < 0.999f;
+}
+
+/* How many draws were smoothed, of those in the world (for MHFU_FPS_STATS) */
+void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn) {
+    *smoothed = nat_slow;
+    *drawn = nat_drawn;
+    nat_slow = nat_drawn = 0;
+}
+
+static int cmp_keyed(const void *a, const void *b) {
+    const Keyed *x = a, *y = b;
+    return x->key < y->key ? -1 : x->key > y->key ? 1 : x->i - y->i;
+}
+
+static int first_keyed(const Keyed *k, int n, uint64_t key) {
+    int lo = 0, hi = n;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (k[mid].key < key) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
+
+/* Of r's draws with this key, the one coming as this does among them (copies of a model come in the same order,
+ * mostly) or else the nearest not taken - within reach: its index, or -1 */
+static int find(Placings *r, int *used, uint8_t *taken, uint64_t key, const float *pos) {
+    int g = first_keyed(r->k, r->n, key);
+    if (g == r->n || r->k[g].key != key)
+        return -1;
+    const float reach = MATCH_DISTANCE_WORLD * MATCH_DISTANCE_WORLD;
+    int o = g + used[g]++;
+    if (o < r->n && r->k[o].key == key && !taken[r->k[o].i] && dist2(pos, r->p[r->k[o].i].pos) <= reach) {
+        taken[r->k[o].i] = 1;
+        return r->k[o].i;
+    }
+    int best = -1;
+    float best_d = reach;
+    int from = o - 16 > g ? o - 16 : g;     /* (near where it would come: copies come in thousands - grass) */
+    for (int j = from; j < r->n && j < o + 16 && r->k[j].key == key; j++) {
+        int i = r->k[j].i;
+        float dd = taken[i] ? reach * 2 : dist2(pos, r->p[i].pos);
+        if (dd <= best_d) {
+            best_d = dd;
+            best = i;
+        }
+    }
+    if (best >= 0)
+        taken[best] = 1;
+    return best;
+}
+
+/* A frame is done: its draws by key */
+static void placings_done(Placings *f) {
+    f->k = realloc(f->k, sizeof *f->k * (size_t)(f->n ? f->n : 1));
+    f->used = realloc(f->used, sizeof *f->used * (size_t)(f->n ? f->n : 1));
+    f->taken = realloc(f->taken, (size_t)(f->n ? f->n : 1));
+    for (int i = 0; i < f->n; i++)
+        f->k[i] = (Keyed){f->p[i].key, i};
+    qsort(f->k, (size_t)f->n, sizeof *f->k, cmp_keyed);
+    f->ba_known = 0;
+}
+
+static void ready_to_match(Placings *r) {
+    memset(r->used, 0, sizeof *r->used * (size_t)r->n);
+    memset(r->taken, 0, (size_t)r->n);
+}
+
+/* The first draw of a frame: the one before is done, and this one's camera and 30th known (the game's camera now;
+ * native.c: whether a 30th fell on the game frame, the one whose drawing this is) */
+static void native_frame(void) {
+    if (nat_c) {
+        placings_done(nat_c);
+        nat_p = nat_c;
+        if (nat_c->is30) {
+            nat_a = nat_b;
+            nat_b = nat_c;
+        }
+    }
+    nat_c = NULL;
+    for (int i = 0; i < 4 && !nat_c; i++)
+        if (&pls[i] != nat_p && &pls[i] != nat_b && &pls[i] != nat_a)
+            nat_c = &pls[i];
+    nat_c->n = 0;
+    float target[3];
+    nat_c->is30 = native_frame30(0);
+    nat_c->cams = camera_game(nat_c->inv, target);
+    if (nat_c->cams)
+        camera_invert(nat_c->inv, nat_c->cam);
+    since30 = nat_c->is30 ? 0 : since30 + 1;
+    Placings *ref = nat_c->is30 ? nat_p : nat_b;
+    if (ref)
+        ready_to_match(ref);
+}
+
+/* A 30th's draws matched to the 30th before's (once) */
+static int *b_to_a(void) {
+    if (!nat_b->ba_known) {
+        nat_b->ba = realloc(nat_b->ba, sizeof *nat_b->ba * (size_t)(nat_b->n ? nat_b->n : 1));
+        int *used = malloc(sizeof *used * (size_t)(nat_a->n ? nat_a->n : 1));
+        uint8_t *taken = calloc((size_t)(nat_a->n ? nat_a->n : 1), 1);
+        memset(used, 0, sizeof *used * (size_t)nat_a->n);
+        for (int i = 0; i < nat_b->n; i++)
+            nat_b->ba[i] = find(nat_a, used, taken, nat_b->p[i].key, nat_b->p[i].pos);
+        free(used);
+        free(taken);
+        nat_b->ba_known = 1;
+    }
+    return nat_b->ba;
+}
+
+/* Two places in the world the same, as far as the GE's floats keep them (the camera, at up to some 20000 units, is
+ * multiplied in with 16 bits of mantissa): each axis against its length, the translation within a unit */
+static int same_world(const float *a, const float *b) {
+    for (int c = 0; c < 3; c++) {
+        float len = fabsf(a[3 * c]) + fabsf(a[3 * c + 1]) + fabsf(a[3 * c + 2]);
+        for (int i = 3 * c; i < 3 * c + 3; i++)
+            if (fabsf(a[i] - b[i]) > 0.001f * len + 1e-4f)
+                return 0;
+    }
+    for (int i = 9; i < 12; i++)
+        if (fabsf(a[i] - b[i]) > 1.0f)
+            return 0;
+    return 1;
+}
+
+static int same_place(const Placing *a, const Placing *b) {
+    return a->nb == b->nb && same_world(a->w, b->w) && !memcmp(a->bones, b->bones, sizeof(float) * 12 * (size_t)a->nb);
+}
+
+/* prim: a draw in the world about to be drawn (key: its draw_key) - noted, and its matrices smoothed if it ticks at
+ * 30 (nat_override: they are put back after) */
+static void native_place(uint64_t key) {
+    if (nat_generation != frame_generation_direct) {
+        nat_generation = frame_generation_direct;
+        native_frame();
+    }
+    Placings *f = nat_c;
+    if (!f->cams)
+        return;
+    if (f->n == f->cap) {
+        f->cap = f->cap ? f->cap * 2 : 4096;
+        f->p = realloc(f->p, sizeof *f->p * (size_t)f->cap);
+    }
+    Placing *q = &f->p[f->n++];
+    q->key = key;
+    q->nb = (reg[0x12] >> 9) & 3 ? (int)((reg[0x12] >> 14) & 7) + 1 : 0;
+    /* drawn again from the last 30th: with its camera */
+    compose43(held_drawing && nat_b && nat_b->cams ? nat_b->inv : f->inv, world, q->w);
+    memcpy(q->bones, bones, sizeof(float) * 12 * (size_t)q->nb);
+    if (q->nb)
+        mul43(q->w, &q->bones[0][9], q->pos);
+    else
+        memcpy(q->pos, &q->w[9], sizeof q->pos);
+    q->match = -1;
+    q->slow = 0;
+    nat_drawn++;
+    const Placing *from = q, *to = q;   /* drawn between from (its place at the 30th before) and to (the last's) */
+    float t = 1;
+    Placings *ref = f->is30 ? nat_p : nat_b;
+    int j = ref && ref->cams ? find(ref, ref->used, ref->taken, key, q->pos) : -1;
+    q->match = j;
+    if (j >= 0 && !f->is30) {
+        q->slow = same_place(q, &ref->p[j]);
+        int k = q->slow && nat_a && nat_a->cams ? b_to_a()[j] : -1;
+        if (k >= 0) {
+            from = &nat_a->p[k];
+            to = &ref->p[j];
+            t = (float)since30 * rt_frame_30ths();
+            if (t > 1)
+                t = 1;
+        }
+    } else if (j >= 0) {
+        q->slow = ref->p[j].slow && !ref->is30;
+        if (q->slow && nat_b && nat_b->cams && ref->p[j].match >= 0) {
+            from = &nat_b->p[ref->p[j].match];
+            t = 0;
+        }
+    }
+    /* as it is, if it moves every frame or not at all - unless drawn again from the last 30th (its camera that one's) */
+    if (same_place(from, to) && !held_drawing)
+        return;
+    memcpy(nat_world, world, sizeof world);
+    memcpy(nat_bones, bones, sizeof(float) * 12 * (size_t)q->nb);
+    nat_override = 1;
+    interp_model(world, &bones[0][0], from->w, to->w, &from->bones[0][0], &to->bones[0][0], q->nb, t);
+    compose43(f->cam, world, world);
+    nat_slow += from != to;
+}
+
 /* -- what gated code drew, kept for the frames between 30ths (native.c) --------------------------------------------
  *
  * The GE's commands from the chunks gated code linked at the last 30th (ge.c tells which) are kept, the primitives with
@@ -1991,7 +2231,9 @@ void gpu_held_draw(int chunk) {
         reg[0x04] = d->data;
         if (render_on)
             render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
+        held_texture = d;
         prim(d->data);
+        held_texture = NULL;
         if (render_on)
             render_override_texture(0xFFFFFFFEu, 0, 0);
         if (recording)
@@ -2026,6 +2268,9 @@ static int blend_place(int count) {
     blend_by = blend_t;
     return 1;
 }
+
+static void native_place(uint64_t key);
+int gpu_native_smoothing(void);
 
 /* For texture packs, as PPSSPP has it: how far down a 512-tall texture a 2D draw reaches (at least 272), else all */
 static void seen_v(int count, const Layout *l) {
@@ -2069,6 +2314,8 @@ static void prim(uint32_t data) {
             shadow_generation = frame_generation_direct;
             shadow_frame(NULL);
         }
+        if (!in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing())
+            native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
         shadow_prim();
         render_prim_begin(reg);
     }
@@ -2116,6 +2363,11 @@ static void prim(uint32_t data) {
             break;
         }
         free(v);
+    }
+    if (nat_override) {                 /* (the matrices as the game gave them, for what comes after) */
+        nat_override = 0;
+        memcpy(world, nat_world, sizeof world);
+        memcpy(bones, nat_bones, sizeof nat_bones);
     }
     /* the vertex (or index) address moves past what was drawn */
     if (idx)
