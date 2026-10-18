@@ -1960,20 +1960,30 @@ uint32_t gpu_render_frame(float t) {
  * as a frame at 30 a second, with nothing converted). */
 int native_frame30(int back);
 
-typedef struct { uint64_t key; int i; } Keyed;
+typedef struct {                        /* (in a cache line) */
+    float w[12];                        /* its place in the world */
+    uint64_t bones_hash;                /* its bones, told apart by their hash */
+    int32_t match;                      /* its match in the frame it was told by (-1: none) */
+    int8_t nb, slow;                    /* how many bones; ticking at 30 */
+} Placing;
+/* A frame's draws in the world, and once it is done, by key: a table of the keys (open addressing), each with its
+ * draws in the order they came */
 typedef struct {
     uint64_t key;
-    float w[12], bones[8][12], pos[3];  /* in the world */
-    int nb, match;                      /* its bones; its match in the frame it was told by (-1: none) */
-    uint8_t slow;                       /* ticking at 30 */
-} Placing;
+    int start, count;
+} Slot;
 typedef struct {
     Placing *p;
-    Keyed *k;                           /* by key (and as they came), once the frame is done */
-    int *used;                          /* matching into it: of each key's, how many in order */
+    float (*bones)[8][12];              /* each draw's bones */
+    uint64_t *keys;                     /* each draw's key and where it is (read in turn, matching) */
+    float (*pos)[3];
+    int n, cap;
+    Slot *slots;
+    int *order, nslots, scap, ocap;
+    int next;                           /* matching into it: the draw after the last matched */
     uint8_t *taken;
     int *ba;                            /* (a 30th's) each draw's match in the 30th before (-1: none), once known */
-    int n, cap, ba_known;
+    int ba_known;
     float cam[12], inv[12];             /* the camera it was drawn with, and undone */
     int is30, cams;
 } Placings;
@@ -1999,62 +2009,88 @@ void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn) {
     nat_slow = nat_drawn = 0;
 }
 
-static int cmp_keyed(const void *a, const void *b) {
-    const Keyed *x = a, *y = b;
-    return x->key < y->key ? -1 : x->key > y->key ? 1 : x->i - y->i;
+/* The slot of a key in f's table (an empty one if it has none) */
+static int slot_of(const Placings *f, uint64_t key) {
+    int mask = f->nslots - 1, s = (int)((key ^ key >> 29) * 0x9E3779B97F4A7C15ull >> 40) & mask;
+    while (f->slots[s].count && f->slots[s].key != key)
+        s = (s + 1) & mask;
+    return s;
 }
 
-static int first_keyed(const Keyed *k, int n, uint64_t key) {
-    int lo = 0, hi = n;
-    while (lo < hi) {
-        int mid = (lo + hi) / 2;
-        if (k[mid].key < key) lo = mid + 1;
-        else hi = mid;
-    }
-    return lo;
-}
-
-/* Of r's draws with this key, the one coming as this does among them (copies of a model come in the same order,
- * mostly) or else the nearest not taken - within reach: its index, or -1 */
-static int find(Placings *r, int *used, uint8_t *taken, uint64_t key, const float *pos) {
-    int g = first_keyed(r->k, r->n, key);
-    if (g == r->n || r->k[g].key != key)
-        return -1;
+/* Of r's draws with this key: the one after the last matched if it has it (the draws come in the same order, mostly),
+ * else the nearest not taken - within reach: its index, or -1 */
+static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const float *pos) {
     const float reach = MATCH_DISTANCE_WORLD * MATCH_DISTANCE_WORLD;
-    int o = g + used[g]++;
-    if (o < r->n && r->k[o].key == key && !taken[r->k[o].i] && dist2(pos, r->p[r->k[o].i].pos) <= reach) {
-        taken[r->k[o].i] = 1;
-        return r->k[o].i;
+    int c = *next;
+    if (c < r->n && r->keys[c] == key && !taken[c] && dist2(pos, r->pos[c]) <= reach) {
+        taken[c] = 1;
+        *next = c + 1;
+        return c;
     }
+    if (!r->nslots)
+        return -1;
+    const Slot *s = &r->slots[slot_of(r, key)];
     int best = -1;
     float best_d = reach;
-    int from = o - 16 > g ? o - 16 : g;     /* (near where it would come: copies come in thousands - grass) */
-    for (int j = from; j < r->n && j < o + 16 && r->k[j].key == key; j++) {
-        int i = r->k[j].i;
-        float dd = taken[i] ? reach * 2 : dist2(pos, r->p[i].pos);
+    for (int j = s->start; j < s->start + s->count && j < s->start + 256; j++) {   /* (grass comes in thousands) */
+        int i = r->order[j];
+        float dd = taken[i] ? reach * 2 : dist2(pos, r->pos[i]);
         if (dd <= best_d) {
             best_d = dd;
             best = i;
         }
     }
-    if (best >= 0)
+    if (best >= 0) {
         taken[best] = 1;
+        *next = best + 1;
+    }
     return best;
+}
+
+/* (the slot of a key that has one, counts or not: placings_done) */
+static int slot_of_filled(const Placings *f, uint64_t key) {
+    int mask = f->nslots - 1, s = (int)((key ^ key >> 29) * 0x9E3779B97F4A7C15ull >> 40) & mask;
+    while (f->slots[s].key != key)
+        s = (s + 1) & mask;
+    return s;
 }
 
 /* A frame is done: its draws by key */
 static void placings_done(Placings *f) {
-    f->k = realloc(f->k, sizeof *f->k * (size_t)(f->n ? f->n : 1));
-    f->used = realloc(f->used, sizeof *f->used * (size_t)(f->n ? f->n : 1));
-    f->taken = realloc(f->taken, (size_t)(f->n ? f->n : 1));
-    for (int i = 0; i < f->n; i++)
-        f->k[i] = (Keyed){f->p[i].key, i};
-    qsort(f->k, (size_t)f->n, sizeof *f->k, cmp_keyed);
+    int ns = 16;
+    while (ns < 2 * f->n)
+        ns *= 2;
+    if (ns > f->scap) {
+        f->scap = ns;
+        f->slots = realloc(f->slots, sizeof *f->slots * (size_t)ns);
+    }
+    if (f->n > f->ocap) {
+        f->ocap = f->n * 2;
+        f->order = realloc(f->order, sizeof *f->order * (size_t)f->ocap);
+        f->taken = realloc(f->taken, (size_t)f->ocap);
+    }
+    f->nslots = ns;
+    memset(f->slots, 0, sizeof *f->slots * (size_t)ns);
+    for (int i = 0; i < f->n; i++) {
+        Slot *t = &f->slots[slot_of(f, f->keys[i])];
+        t->key = f->keys[i];
+        t->count++;
+    }
+    int at = 0;
+    for (int i = 0; i < ns; i++) {
+        f->slots[i].start = at;
+        at += f->slots[i].count;
+        f->slots[i].count = 0;          /* (counted again as they are put in order) */
+    }
+    for (int i = 0; i < f->n; i++) {
+        Slot *t = &f->slots[slot_of_filled(f, f->keys[i])];
+        f->order[t->start + t->count++] = i;
+    }
     f->ba_known = 0;
 }
 
 static void ready_to_match(Placings *r) {
-    memset(r->used, 0, sizeof *r->used * (size_t)r->n);
+    r->next = 0;
     memset(r->taken, 0, (size_t)r->n);
 }
 
@@ -2089,12 +2125,10 @@ static void native_frame(void) {
 static int *b_to_a(void) {
     if (!nat_b->ba_known) {
         nat_b->ba = realloc(nat_b->ba, sizeof *nat_b->ba * (size_t)(nat_b->n ? nat_b->n : 1));
-        int *used = malloc(sizeof *used * (size_t)(nat_a->n ? nat_a->n : 1));
+        int next = 0;
         uint8_t *taken = calloc((size_t)(nat_a->n ? nat_a->n : 1), 1);
-        memset(used, 0, sizeof *used * (size_t)nat_a->n);
         for (int i = 0; i < nat_b->n; i++)
-            nat_b->ba[i] = find(nat_a, used, taken, nat_b->p[i].key, nat_b->p[i].pos);
-        free(used);
+            nat_b->ba[i] = find(nat_a, &next, taken, nat_b->keys[i], nat_b->pos[i]);
         free(taken);
         nat_b->ba_known = 1;
     }
@@ -2117,7 +2151,7 @@ static int same_world(const float *a, const float *b) {
 }
 
 static int same_place(const Placing *a, const Placing *b) {
-    return a->nb == b->nb && same_world(a->w, b->w) && !memcmp(a->bones, b->bones, sizeof(float) * 12 * (size_t)a->nb);
+    return a->nb == b->nb && a->bones_hash == b->bones_hash && same_world(a->w, b->w);
 }
 
 /* prim: a draw in the world about to be drawn (key: its draw_key) - noted, and its matrices smoothed if it ticks at
@@ -2133,39 +2167,53 @@ static void native_place(uint64_t key) {
     if (f->n == f->cap) {
         f->cap = f->cap ? f->cap * 2 : 4096;
         f->p = realloc(f->p, sizeof *f->p * (size_t)f->cap);
+        f->bones = realloc(f->bones, sizeof *f->bones * (size_t)f->cap);
+        f->keys = realloc(f->keys, sizeof *f->keys * (size_t)f->cap);
+        f->pos = realloc(f->pos, sizeof *f->pos * (size_t)f->cap);
     }
-    Placing *q = &f->p[f->n++];
-    q->key = key;
-    q->nb = (reg[0x12] >> 9) & 3 ? (int)((reg[0x12] >> 14) & 7) + 1 : 0;
+    int qi = f->n++;
+    Placing *q = &f->p[qi];
+    f->keys[qi] = key;
+    q->nb = (int8_t)((reg[0x12] >> 9) & 3 ? (int)((reg[0x12] >> 14) & 7) + 1 : 0);
     /* drawn again from the last 30th: with its camera */
     compose43(held_drawing && nat_b && nat_b->cams ? nat_b->inv : f->inv, world, q->w);
-    memcpy(q->bones, bones, sizeof(float) * 12 * (size_t)q->nb);
+    memcpy(f->bones[qi], bones, sizeof(float) * 12 * (size_t)q->nb);
+    uint64_t h = 0x9E3779B97F4A7C15ull;
+    const uint32_t *u = (const uint32_t *)f->bones[qi];
+    for (int i = 0; i < 12 * q->nb; i++)
+        h = (h ^ u[i]) * 0x100000001B3ull;
+    q->bones_hash = h;
     if (q->nb)
-        mul43(q->w, &q->bones[0][9], q->pos);
+        mul43(q->w, &f->bones[qi][0][9], f->pos[qi]);
     else
-        memcpy(q->pos, &q->w[9], sizeof q->pos);
+        memcpy(f->pos[qi], &q->w[9], sizeof f->pos[qi]);
     q->match = -1;
     q->slow = 0;
     nat_drawn++;
-    const Placing *from = q, *to = q;   /* drawn between from (its place at the 30th before) and to (the last's) */
+    /* drawn between from (its place at the 30th before) and to (the last's) */
+    const Placing *from = q, *to = q;
+    const float *from_bones = &f->bones[qi][0][0], *to_bones = from_bones;
     float t = 1;
     Placings *ref = f->is30 ? nat_p : nat_b;
-    int j = ref && ref->cams ? find(ref, ref->used, ref->taken, key, q->pos) : -1;
+    int j = ref && ref->cams ? find(ref, &ref->next, ref->taken, key, f->pos[qi]) : -1;
     q->match = j;
     if (j >= 0 && !f->is30) {
-        q->slow = same_place(q, &ref->p[j]);
+        q->slow = (int8_t)same_place(q, &ref->p[j]);
         int k = q->slow && nat_a && nat_a->cams ? b_to_a()[j] : -1;
         if (k >= 0) {
             from = &nat_a->p[k];
+            from_bones = &nat_a->bones[k][0][0];
             to = &ref->p[j];
+            to_bones = &ref->bones[j][0][0];
             t = (float)since30 * rt_frame_30ths();
             if (t > 1)
                 t = 1;
         }
     } else if (j >= 0) {
-        q->slow = ref->p[j].slow && !ref->is30;
+        q->slow = (int8_t)(ref->p[j].slow && !ref->is30);
         if (q->slow && nat_b && nat_b->cams && ref->p[j].match >= 0) {
             from = &nat_b->p[ref->p[j].match];
+            from_bones = &nat_b->bones[ref->p[j].match][0][0];
             t = 0;
         }
     }
@@ -2175,7 +2223,7 @@ static void native_place(uint64_t key) {
     memcpy(nat_world, world, sizeof world);
     memcpy(nat_bones, bones, sizeof(float) * 12 * (size_t)q->nb);
     nat_override = 1;
-    interp_model(world, &bones[0][0], from->w, to->w, &from->bones[0][0], &to->bones[0][0], q->nb, t);
+    interp_model(world, &bones[0][0], from->w, to->w, from_bones, to_bones, q->nb, t);
     compose43(f->cam, world, world);
     nat_slow += from != to;
 }
