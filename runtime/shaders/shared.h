@@ -32,6 +32,8 @@
 #define BIND_POINT_SHADOWS 3    /* samplerCube[2]: the two strongest point lights' */
 #define BIND_TRAIL 4            /* uint[]: the trodden grass (grass.c grass_trail) */
 #define BIND_AO 5               /* sampler2D: the world's ambient occlusion, for the grass */
+#define BIND_SCENE_COLOR 6      /* sampler2D: the picture under the water (render_water.c), and its depth */
+#define BIND_SCENE_DEPTH 7
 
 /* -- a draw's flags (DrawPush.flags) ------------------------------------------------------------------------------ */
 #define DRAW_TFUNC 7u           /* the texture function (the GE's: modulate, decal, blend, replace, add) */
@@ -49,6 +51,7 @@
 #define DRAW_SHADED 4096u       /* the scenery, shaded by the sun with normals made from its triangles */
 #define DRAW_RELIEF 8192u       /* and relief from its texture's brightness */
 #define DRAW_MOTION 16384u      /* (the motion blur's pass) its motion, not its colour */
+#define DRAW_WATER 32768u       /* water (render_water.c): DrawPush.camera its light sets */
 
 /* -- push constants ----------------------------------------------------------------------------------------------- */
 /* The GE's draws (ge.*, shadow.*, pshadow.*): the texture's size (texels) and index (~0u: none), the flags, the alpha

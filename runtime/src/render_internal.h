@@ -200,6 +200,12 @@ void grass_bind_ao(void);           /* render_ao.c's image (re-made) bound for t
 void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c);
 void grass_draw(Target *t);
 
+/* -- render_water.c ----------------------------------------------------------------------------------------------- */
+extern int water_on;                /* MHFU_WATER */
+void water_init(void);
+int water_prim(const uint32_t *reg, const DrawState *s);   /* the primitive is water (its picture copied if first) */
+uint32_t water_light_set(void);     /* the water's light sets (two), ~0: none */
+
 /* -- render_post.c ------------------------------------------------------------------------------------------------ */
 void post_setup(VkShaderModule vs, VkShaderModule fs, int tess);
 void post_state(Target *t, uint32_t flags, int solid, int clear);  /* a primitive drawn into t */

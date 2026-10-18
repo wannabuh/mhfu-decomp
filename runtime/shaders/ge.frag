@@ -30,6 +30,10 @@ float point_lit(uint i, vec3 v, float reach) {
 
 layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
+// Water (render_water.c): the picture under it as it was before the water, colour and depth
+layout(set = 0, binding = BIND_SCENE_COLOR) uniform sampler2D scene_color;
+layout(set = 0, binding = BIND_SCENE_DEPTH) uniform sampler2D scene_depth;
+
 layout(location = 0) in vec2 in_uv;
 layout(location = 1) in vec4 in_color;
 layout(location = 2) in float in_fog;
@@ -107,6 +111,145 @@ vec3 relief_normal(vec3 n, float h) {
     return dot(b, b) > 0.0 ? normalize(b) : n;
 }
 
+// -- water ---------------------------------------------------------------------------------------------------------
+// Its light sets (draw.camera): the world to the clip space and back; the eye (w: nearer is a greater depth), the
+// sun's colour, the time and the picture's visible part
+
+mat4 water_to_clip() { uint s = draw.camera; return mat4(sets[s].dir[0], sets[s].dir[1], sets[s].dir[2], sets[s].dir[3]); }
+mat4 water_to_world() { uint s = draw.camera; return mat4(sets[s].color[0], sets[s].color[1], sets[s].color[2], sets[s].color[3]); }
+
+// A point of the picture (0..1 across the render target, its depth) in the world
+vec3 picture_world(mat4 to_world, vec2 uv, float depth) {
+    vec4 p = to_world * vec4(uv * 2.0 - 1.0, depth, 1.0);
+    return p.xyz / p.w;
+}
+
+// Gradient noise and its slope (Quilez's, with a hash for the gradients)
+vec2 ripple_hash(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return -1.0 + 2.0 * fract(sin(p) * 43758.5453);
+}
+
+vec3 ripple_noise(vec2 p) {         // (value, d/dx, d/dy)
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0), du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+    vec2 ga = ripple_hash(i), gb = ripple_hash(i + vec2(1.0, 0.0));
+    vec2 gc = ripple_hash(i + vec2(0.0, 1.0)), gd = ripple_hash(i + vec2(1.0, 1.0));
+    float va = dot(ga, f), vb = dot(gb, f - vec2(1.0, 0.0));
+    float vc = dot(gc, f - vec2(0.0, 1.0)), vd = dot(gd, f - vec2(1.0, 1.0));
+    return vec3(va + u.x * (vb - va) + u.y * (vc - va) + u.x * u.y * (va - vb - vc + vd),
+                ga + u.x * (gb - ga) + u.y * (gc - ga) + u.x * u.y * (ga - gb - gc + gd) +
+                    du * (u.yx * (va - vb - vc + vd) + vec2(vb, vc) - va));
+}
+
+// The ripples: two long swells, and noise over them in layers drifting different ways - the surface's normal. What is
+// shorter than a few pixels (far) fades out, so it does not shimmer
+vec3 water_normal(vec2 p, float t, float far) {
+    vec2 g = vec2(0.0);
+    const vec4 swells[2] = vec4[2](vec4(0.80, 0.60, 340.0, 40.0), vec4(-0.50, 0.87, 210.0, 31.0));
+    for (int i = 0; i < 2; i++) {
+        float k = 6.2831853 / swells[i].z;
+        g += swells[i].xy * 0.05 * cos(dot(swells[i].xy, p) * k - t * swells[i].w * k) *
+             (1.0 - smoothstep(0.12, 0.3, far / swells[i].z));
+    }
+    const vec4 layers[4] = vec4[4](     // size (world units), drift (units a second, x and z), strength
+        vec4(160.0, 14.0, 9.0, 0.10), vec4(90.0, -11.0, 13.0, 0.08), vec4(48.0, 8.0, -12.0, 0.06),
+        vec4(25.0, -9.0, -7.0, 0.045));
+    for (int i = 0; i < 4; i++) {
+        float size = layers[i].x;
+        vec3 nz = ripple_noise((p + t * layers[i].yz) / size + float(i) * 17.0);
+        g += nz.yz * layers[i].w * (1.0 - smoothstep(0.12, 0.3, far / size));
+    }
+    return normalize(vec3(-g.x, 1.0, -g.y));
+}
+
+// The water's colour here: what is under it (bent by the ripples, tinted the deeper it is), what is above reflected,
+// the sun's glint - given the game's colour for it (its tint) and whether the sun is hidden
+vec3 water(vec3 tint, float hidden, float far) {
+    uint s = draw.camera;
+    vec3 eye = sets[s + 1u].dir[0].xyz;
+    bool greater = sets[s + 1u].dir[0].w > 0.5;
+    vec3 sun_rgb = sets[s + 1u].dir[1].rgb;
+    float t = sets[s + 1u].dir[2].x;
+    vec2 visible = sets[s + 1u].dir[2].yz;
+    mat4 to_clip = water_to_clip(), to_world = water_to_world();
+    vec3 p = in_world;
+    vec3 v = eye - p;
+    float dist = length(v);
+    v /= dist;
+    vec3 n = water_normal(p.xz, t, far);
+    vec2 size = vec2(textureSize(scene_color, 0));
+    vec2 uv = gl_FragCoord.xy / size;
+
+    // under it: the picture bent by the ripples (not where that would take something in front of the water)
+    vec2 bent = uv + n.xz * 0.035 * clamp(300.0 / dist, 0.15, 1.0);
+    bent = clamp(bent, vec2(0.0), visible);
+    float bd = texture(scene_depth, bent).r;
+    if (greater ? bd > gl_FragCoord.z : bd < gl_FragCoord.z) {
+        bent = uv;
+        bd = texture(scene_depth, uv).r;
+    }
+    vec3 under = texture(scene_color, bent).rgb;
+    vec3 bottom = picture_world(to_world, bent, bd);
+    float depth = (greater ? bd <= 0.0 : bd >= 1.0) ? 1e5 : length(bottom - p);
+    vec3 body = tint * 0.75;
+    float murk = 1.0 - exp(-depth / 220.0);
+    under = mix(under * mix(vec3(1.0), tint * 1.4, 0.35), body, murk * 0.85);
+
+    // above it: the reflection, followed through the picture (marching along it, a hit refined by halving)
+    vec3 r = reflect(-v, n);
+    if (r.y < 0.02)
+        r = normalize(vec3(r.x, 0.02, r.z));
+    vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
+                    float((draw.fog_color >> 16) & 255u)) / 255.0;
+    vec3 sky = mix(fog, vec3(0.62, 0.72, 0.85), 0.35);
+    vec3 above = sky;
+    float step = max(dist * 0.035, 6.0);
+    vec3 q = p + n * 2.0;
+    float found = 0.0;
+    for (int i = 0; i < 40; i++) {
+        vec3 next = q + r * step;
+        vec4 c = to_clip * vec4(next, 1.0);
+        if (c.w <= 0.0)
+            break;
+        vec3 ndc = c.xyz / c.w;
+        vec2 at = ndc.xy * 0.5 + 0.5;
+        if (any(lessThan(at, vec2(0.0))) || any(greaterThan(at, visible)))
+            break;
+        float sd = texture(scene_depth, at).r;
+        bool behind = greater ? ndc.z < sd : ndc.z > sd;
+        if (behind) {
+            float sdist = length(picture_world(to_world, at, sd) - eye);
+            if (length(next - eye) - sdist < step * 2.5) {      // behind it, not far behind (not passing under it)
+                vec3 a = q, b = next;
+                for (int k = 0; k < 5; k++) {
+                    vec3 m = 0.5 * (a + b);
+                    vec4 mc = to_clip * vec4(m, 1.0);
+                    vec3 mn = mc.xyz / mc.w;
+                    float md = texture(scene_depth, mn.xy * 0.5 + 0.5).r;
+                    if (greater ? mn.z < md : mn.z > md) b = m; else a = m;
+                }
+                vec4 bc = to_clip * vec4(b, 1.0);
+                vec2 hit = bc.xy / bc.w * 0.5 + 0.5;
+                vec2 edge = min(hit, visible - hit) / visible;
+                found = clamp(min(edge.x, edge.y) * 12.0, 0.0, 1.0) * (1.0 - float(i) / 40.0);
+                above = mix(sky, texture(scene_color, hit).rgb, found);
+                break;
+            }
+        }
+        q = next;
+        step *= 1.07;
+    }
+
+    float fresnel = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+    vec3 col = mix(under, above, clamp(fresnel * 1.15, 0.0, 1.0));
+    // the sun's glint
+    vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));
+    float glint = pow(max(dot(r, sun), 0.0), 380.0) * 4.0 + pow(max(dot(r, sun), 0.0), 40.0) * 0.12;
+    col += sun_rgb * glint * (1.0 - hidden);
+    return col;
+}
+
 void main() {
     vec4 c = in_color;
     // the texture (sampled here: its slopes on the screen need every pixel's, before any is discarded)
@@ -176,6 +319,14 @@ void main() {
     {
         c.rgb = min(c.rgb * (vec3(1.0) + point_light(vec3(0.0), false)), vec3(1.0));
         c.rgb *= 1.0 - clamp(point_shadow_dark * 0.6, 0.0, 0.6);
+    }
+    if ((draw.flags & DRAW_WATER) != 0u && draw.camera != 0xFFFFFFFFu) {
+        // water where the surface faces up, below the eye; its shore (the game fading it out) kept
+        vec3 ng = cross(dFdx(in_world), dFdy(in_world));
+        float far = length(fwidth(in_world.xz));    // world units a pixel spans here (the short waves fade out)
+        vec3 eye = sets[draw.camera + 1u].dir[0].xyz;
+        if (dot(ng, ng) > 0.0 && abs(normalize(ng).y) > 0.8 && in_world.y < eye.y)
+            c = vec4(water(c.rgb, sh, far), clamp(c.a * 3.0, 0.0, 1.0));
     }
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),

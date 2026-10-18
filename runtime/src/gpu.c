@@ -1361,12 +1361,28 @@ static int placed_run = -1;         /* the run whose vertices are in the scratch
 static const Draw *blend_from;      /* a draw's match in the previous frame, its vertices blended in (vertex()) */
 static float blend_t;
 static uint8_t *loose_near;
+static int through_draw(const Draw *d);
 
 /* Replay a draw of the latest frame; with its match in the previous (or NULL), its matrices interpolated by t */
 static int draw_bones(const Draw *d);
 
+/* A GE float register's value (its 24 bits: a float's top) */
+static uint32_t to_ge_float(float f) {
+    uint32_t u;
+    memcpy(&u, &f, 4);
+    return u >> 8;
+}
+
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
+    /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
+     * wrapping round) */
+    if (prev && !through_draw(d) && (d->reg[0x4A] != prev->reg[0x4A] || d->reg[0x4B] != prev->reg[0x4B]))
+        for (int k = 0x4A; k <= 0x4B; k++) {
+            float a = ge_float(prev->reg[k]), b = ge_float(d->reg[k]);
+            if (fabsf(b - a) < 0.1f)
+                reg[k] = to_ge_float(a + (b - a) * t);
+        }
     /* the hunter, monsters and people (lit by the GE, in the world, matched): where they were a frame shown earlier */
     float step = render_motion_step();
     earlier = 0;

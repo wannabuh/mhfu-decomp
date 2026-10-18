@@ -245,28 +245,30 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
-    VkDescriptorSetLayoutBinding b[6] = {
+    VkDescriptorSetLayoutBinding b[8] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
         {BIND_POINT_SHADOWS, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_TRAIL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_AO, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
+        {BIND_SCENE_COLOR, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_SCENE_DEPTH, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[6];
-    for (int i = 0; i < 6; i++)
+    VkDescriptorBindingFlags bf[8];
+    for (int i = 0; i < 8; i++)
         bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 6, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 8, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 6, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 8, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
-    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 6},
+    VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 8},
                                   {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
@@ -311,6 +313,7 @@ int render_init(void *sdl_window) {
 
     /* the parts (render_internal.h) */
     texture_init();
+    water_init();
     shadow_init();
     lights_init();
     ao_init();
@@ -341,7 +344,7 @@ static void target_images(Target *t) {
                         VK_IMAGE_ASPECT_COLOR_BIT);
     t->depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT,
                         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                        VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                         VK_IMAGE_ASPECT_DEPTH_BIT);
     write_slot(t->sample_slot, t->color.view, samplers[1 | 2 | 4]);
 }
@@ -733,6 +736,8 @@ void render_prim_begin(const uint32_t *reg) {
         scene.fog_color = s.fog_color;
     }
     post_state(s.target, s.flags, solid, clear);
+    if (!clear && water_prim(reg, &s))
+        s.flags |= DRAW_WATER;
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;
@@ -809,6 +814,8 @@ void flush(void) {
         bound_pipeline = ge_pipeline;
     }
     pc.camera = cam;
+    if (s->flags & DRAW_WATER)
+        pc.camera = water_light_set();
     if (s->flags & DRAW_WORLD) {
         float j[2] = {render_jitter[0] * 2.0f / (float)scaled(RT_SIZE), render_jitter[1] * 2.0f / (float)scaled(RT_SIZE)};
         memcpy(&pc.pad0, &j[0], 4);

@@ -24,6 +24,11 @@ for the rest, in the order it is needed to boot.
   rasterizes, textures, blends and depth-tests, at `MHFU_SCALE` times the PSP's resolution (default 2). One pipeline with dynamic state, bindless textures cached by content, render targets
   per framebuffer address (render to texture included). `MHFU_RENDERER=soft` draws in software instead;
   `MHFU_VK_VALIDATE=1` turns on the validation layer.
+- **Water** (`render_water.c`, `ge.frag`): the game's lakes and rivers - blended by their alpha, in the world, their
+  texture scrolling, flat, facing up and below the eye - drawn as water: at the first one drawn into a picture its
+  colour and depth are copied, and the water reads them - the picture under it bent by ripples (swells and drifting
+  noise) and tinted by depth, the picture above reflected (marched through the depth, screen space; the sky where it
+  leaves the picture), Fresnel, the sun's glint. Interpolated frames move scrolled textures' offsets on too.
 - **Texture packs** (`texpack.c`): PPSSPP's - each texture's key worked out as PPSSPP does (its address, size and
   palette - the palette hashed as PPSSPP keeps it, bytes left from an earlier, bigger load included - and the `quick` /
   `xxh32` / `xxh64` hash of its data), checked against PPSSPP 1.20's own dumps of the same textures (names and pixels
