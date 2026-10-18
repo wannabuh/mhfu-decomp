@@ -91,7 +91,8 @@
  * shafts' strength (w; 0: none); its colour, the shafts' contrast (w); the bloom's strength, the threshold of the
  * picture's own light, how much of it, the glow's gain; saturation, contrast, warmth, vignette; the depth of field's
  * focus distance, the share of it beyond which the blur begins, the largest blur (half resolution pixels; 0: none),
- * the sharpening (w: 0 none .. 1) */
+ * the sharpening (w: 0 none .. 1); the world's up in the camera's space, and (w, its bits) the haze's colour (RGB, 8 bits
+ * each) and strength (the top byte, 64 to 1; 0: none) */
 #define POST_PUSH                                                                                                      \
     MAT4(to_view);                                                                                                     \
     MAT4(to_shadow);                                                                                                   \
@@ -101,7 +102,8 @@
     VEC4(sun_color);                                                                                                   \
     VEC4(bloom);                                                                                                       \
     VEC4(grade);                                                                                                       \
-    VEC4(dof);
+    VEC4(dof);                                                                                                         \
+    VEC4(haze);
 
 /* -- light sets (BIND_LIGHTS) ------------------------------------------------------------------------------------- */
 /* A draw's directional lights, in the world: the direction to the light (w: a power of the diffuse term, 0 none) and
@@ -124,7 +126,7 @@ typedef struct { LIGHT_SET } LightSet;
 _Static_assert(sizeof(DrawPush) == 112, "DrawPush: as GLSL lays it out");
 _Static_assert(sizeof(GrassPush) == 84, "GrassPush: as GLSL lays it out");
 _Static_assert(sizeof(AoPush) == 240, "AoPush: as GLSL lays it out");
-_Static_assert(sizeof(PostPush) == 240, "PostPush: as GLSL lays it out");
+_Static_assert(sizeof(PostPush) == 256, "PostPush: as GLSL lays it out");
 _Static_assert(sizeof(LightSet) == 144, "LightSet: as GLSL lays it out");
 #endif
 

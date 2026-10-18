@@ -64,4 +64,9 @@ void main() {
         out_color = vec4(texture(source2, uv).rgb * pc.bloom.x, 1.0);
     else if (pc.area.w == 2.0)
         out_color = vec4(texture(source3, uv).rgb * 4.0, 1.0);
+    else if (pc.area.w == 6.0) {        // (the distance: 10000 world units a step of brightness)
+        ivec2 pix = ivec2(gl_FragCoord.xy);
+        float d = texelFetch(depth, pix, 0).r;
+        out_color = vec4(vec3(d > 0.0 ? length(view_pos(pix, d)) / 60000.0 : 1.0), 1.0);
+    }
 }

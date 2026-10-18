@@ -1,5 +1,8 @@
 /* Post-processing of the world's picture: run by the renderer (render.c) once the world is drawn, before the HUD.
  *
+ * - Haze, first: the air between the camera and what it sees, thicker the lower it lies (integrated along the way from
+ *   the eye), the world's fog colour lit towards the sun; none within 2000 units (rooms, caves). MHFU_HAZE: its
+ *   strength, 0 none.
  * - Anti-aliasing, temporal: the world drawn a fraction of a pixel off each frame shown (eight places in turn), each
  *   pixel blended into what it showed the frame before, found as the motion blur finds the motion (MHFU_TAA=0: none;
  *   MHFU_TAA_BLEND: the share of the new frame, default 0.1). What it showed before is kept to the colours about the
@@ -42,11 +45,12 @@
 #include "motion_tiles.frag.inc"
 #include "motion_neighbours.frag.inc"
 #include "taa.frag.inc"
+#include "haze.frag.inc"
 
 #define LEVELS 10               /* the bloom's images, at most: half the picture, a quarter... */
 #define SPREAD 4                /* below the one as wide as the PSP's picture, so many (the same glow at any scale) */
 #define PER_FRAME 8             /* times a frame (the frame dumps draw it again) */
-#define PASSES (2 * LEVELS + 11)
+#define PASSES (2 * LEVELS + 12)
 #define INPUTS 6
 
 typedef PostPush Push;          /* (shared.h) */
@@ -55,13 +59,13 @@ static int on = -1;
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
 static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
-static float dof = 0.0f, sharpen = 0.4f, motion = 0.5f, taa = 0.1f;
+static float dof = 0.0f, sharpen = 0.4f, motion = 0.5f, taa = 0.1f, haze = 1.0f;
 static int fps;
 static uint32_t fw, fh;
 static int first, nlevels;      /* the bloom's: the level as wide as the PSP's picture (it is made up to), how many */
-static VkImg history[2], taa_debug, scene, moved, motion_img, tiles[2], glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
+static VkImg history[2], taa_debug, scene, hazed, moved, motion_img, tiles[2], glow, levels[LEVELS], shaft_img[2], dof_img[2], dummy, dummy_depth;
 static int history_now, history_ok;    /* the one written last; it holds the last frame shown */
-static VkPipeline p_taa, p_motion, p_tiles, p_neighbours, p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
+static VkPipeline p_haze, p_taa, p_motion, p_tiles, p_neighbours, p_down, p_up, p_shafts, p_blur, p_final, p_dof_prefilter, p_dof_gather;
 static VkPipelineLayout layout;
 static VkDescriptorSetLayout set_layout;
 static VkDescriptorPool pool;
@@ -113,6 +117,8 @@ static void make_images(float scale) {
     scene = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                      VK_IMAGE_ASPECT_COLOR_BIT);
     moved = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, rt, VK_IMAGE_ASPECT_COLOR_BIT);
+    if (haze > 0)
+        hazed = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     for (int i = 0; i < 2 && taa > 0; i++)
         history[i] = vk_image(fw, fh, VK_FORMAT_R16G16B16A16_SFLOAT, rt, VK_IMAGE_ASPECT_COLOR_BIT);
     if (taa > 0 && env("MHFU_POST_DEBUG", 0) >= 3)
@@ -144,7 +150,7 @@ static void make_images(float scale) {
 void post_rescale(float scale) {
     if (on <= 0)
         return;
-    VkImg *all[] = {&history[0], &history[1], &taa_debug, &scene, &moved, &motion_img, &tiles[0], &tiles[1], &glow, &shaft_img[0], &shaft_img[1],
+    VkImg *all[] = {&history[0], &history[1], &taa_debug, &scene, &hazed, &moved, &motion_img, &tiles[0], &tiles[1], &glow, &shaft_img[0], &shaft_img[1],
                     &dof_img[0], &dof_img[1]};
     for (size_t i = 0; i < sizeof all / sizeof *all; i++)
         vk_image_free(all[i]);
@@ -163,6 +169,7 @@ int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline 
     vignette = env("MHFU_VIGNETTE", vignette);
     dof = env("MHFU_DOF", dof);
     sharpen = env("MHFU_SHARPEN", sharpen);
+    haze = env("MHFU_HAZE", haze);
     motion = env("MHFU_MOTION_BLUR", motion);
     taa = env("MHFU_TAA", 1.0f) > 0 ? env("MHFU_TAA_BLEND", taa) : 0.0f;
     fps = (int)env("MHFU_FPS", 0);
@@ -200,6 +207,7 @@ int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline 
     VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &set_layout, 1, &pr};
     vkCreatePipelineLayout(vk.device, &pli, NULL, &layout);
     VkFormat hdr = VK_FORMAT_R16G16B16A16_SFLOAT;
+    p_haze = make(vk_shader(haze_frag, sizeof haze_frag), layout, VK_FORMAT_R8G8B8A8_UNORM, 0);
     p_taa = make(vk_shader(taa_frag, sizeof taa_frag), layout, VK_FORMAT_R16G16B16A16_SFLOAT, 0);
     p_motion = make(vk_shader(motion_frag, sizeof motion_frag), layout, VK_FORMAT_R8G8B8A8_UNORM, 0);
     p_tiles = make(vk_shader(motion_tiles_frag, sizeof motion_tiles_frag), layout, hdr, 0);
@@ -294,11 +302,25 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
     /* (the blur's largest: a dozen PSP pixels across at full strength) */
     memcpy(pc.dof, (float[4]){f->focus, 0.35f, dof_on ? dof * 3.0f * (float)fw / 480.0f : 0, sharpen},
            sizeof pc.dof);
+    /* the haze: the world's up (the camera's rotation's second column), its colour and strength packed */
+    float h = haze < 0 ? 0 : haze > 3.98f ? 3.98f : haze;
+    uint32_t packed = (f->fog_color & 0xFFFFFFu) | (uint32_t)(h * 64.0f + 0.5f) << 24;
+    float packed_f;
+    memcpy(&packed_f, &packed, 4);
+    memcpy(pc.haze, (float[4]){f->to_camera[1], f->to_camera[5], f->to_camera[9], packed_f}, sizeof pc.haze);
 
     /* anti-aliasing: the picture blended into the last frame's (the camera not cut; whichever of the game's two
      * framebuffers it was drawn into), into the other of the two; the rest made from it */
     VkImg *picture = &scene;
+    /* the haze, first: from the picture as drawn, where each pixel's depth is its own */
+    if (haze > 0) {
+        set_inputs(s[k], &scene, NULL, NULL, NULL, depth, 0);
+        draw(&hazed, fw, fh, p_haze, s[k++], &pc, 0);
+        vk_transition(&hazed, ro);
+        picture = &hazed;
+    }
     if (taa > 0) {
+        VkImg *drawn = picture;
         Push tp = pc;
         memcpy(tp.to_shadow, f->to_prev, sizeof tp.to_shadow);
         memcpy(tp.sun, f->to_camera, 4 * sizeof(float));
@@ -310,14 +332,14 @@ void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
         VkImg *before = &history[history_now], *after = &history[1 - history_now];
         vk_transition(before, ro);
         vk_transition(&motion_img, ro);
-        set_inputs(s[k], &scene, &motion_img, valid ? before : NULL, NULL, depth, 0);
+        set_inputs(s[k], drawn, &motion_img, valid ? before : NULL, NULL, depth, 0);
         draw(after, fw, fh, p_taa, s[k++], &tp, 0);
         vk_transition(after, ro);
         picture = after;
         if (pc.area[3] >= 3 && taa_debug.image) {          /* (MHFU_POST_DEBUG=3...: the anti-aliasing's view of it instead, kept out of its
                                          * history) */
             tp.area[3] = pc.area[3];
-            set_inputs(s[k], &scene, &motion_img, valid ? before : NULL, NULL, depth, 0);
+            set_inputs(s[k], drawn, &motion_img, valid ? before : NULL, NULL, depth, 0);
             draw(&taa_debug, fw, fh, p_taa, s[k++], &tp, 0);
             vk_transition(&taa_debug, ro);
             picture = &taa_debug;

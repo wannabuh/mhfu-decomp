@@ -16,6 +16,7 @@ typedef struct {
     float to_camera[12];    /* the world to the camera's space: its rotation's rows (x, y, z, 0) */
     int moved;              /* to_prev is known (a frame before, the same camera's) */
     float jitter[2];        /* the world drawn this far off (render target pixels; the anti-aliasing's) */
+    uint32_t fog_color;     /* the world's fog colour (the game's: RGB), for the haze */
 } PostFrame;
 
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */
