@@ -134,8 +134,17 @@ them. `MHFU_FPS_STATS` gives the share of draws smoothed.
 | a character's counts | `08865934`: ticks in its state (+0x3F4) and +0x45C by `rt_ticks60`, the byte +0x276 down on `rt_tick30` | its state's timing |
 | the hunter (`MHFU_NATIVE_VT=089bb3cc`) | object gates; its input, matrices, pose (above) | walks as at 30: the same distance and state timing (within a 60th) |
 | the hunt's cameras | a native call (`08812BD0`) | follow every frame |
+| the local player's buttons | `088D61CC`'s copies of the pad's pressed and released: at 30ths only (the pad is read at 30ths) | a press is seen once, not again between 30ths as a second press (combinations) |
+| the attack buttons' combination | the wait for a second button (`09A68DB0`, +0x1128) counts 30ths | special attacks as at 30 |
+| a character's upkeep | gated whole (the call of its vtable's +0x3C, `088659AC`): stamina, hunger (a 6-minute count, +0x632), status and skills' timers | as at 30 |
 
-Not yet: the hunter's other actions (attacks, rolls, items: their timers in its state functions), the monsters' state
+Checked at 60 and 144 (`MHFU_NATIVE_TRACE` with `MHFU_TRACE_WORDS=684,1`, the hunter's action at +0x684, its kind
+at +0x685): walking, a roll, drawing with an attack, a second attack, circle's, sheathing - each starts at the same
+game time as at 30 (but for where the input lines fall) and takes as long, within a 30th; the hunter is where it is at
+30 within a few units. Its integer counts compared field by field (+0 to +0x2000) at the same game times agree, but a
+blend's count (+0xB0), which starts one later between 30ths (its blend takes up to half a 30th longer).
+
+Not yet: the hunter's other weapons' moves and items (checked: the one in the test, its basic moves), the monsters' state
 timers (attack windows, invulnerability, AI decisions), effects and particles, sounds started by ticks, the camera's
 easing, the UI's animations and fades, menus' waits. Behind the gates these run as at 30 (the motion player too, under them: its
 patches see the time scale 1).

@@ -17,6 +17,13 @@ ROOT = "the root motion's step: over a layer's speed (frames a game frame) times
 # A character's tick (EBOOT 08865934, before its state's function): the ticks in its state (+0x3F4) and another
 # count (+0x45C) go up by 2 a game frame (in 60ths), a byte (+0x276) counts game frames down
 COUNTS = "a character's counts: in 60ths of a second (rt_ticks60) and 30ths (rt_tick30), not game frames"
+# The hunter's attack buttons (game_task 09A68DB0): one pressed waits two game frames (+0x1128) for another to make a
+# combination - counted in 30ths
+COMBINE = "the attack buttons' wait for a second one: in 30ths of a second (rt_tick30), not game frames"
+# The local player's buttons (EBOOT 088D61CC: the pad's, *0x08A62D88 held, +4 pressed, +8 released, copied into
+# the player): the pad is read at 30ths, so its pressed and released are seen at a 30th only - not again on the frames
+# between, as a second press
+EDGES = "the buttons pressed and released, seen at 30ths only (the pad is read at 30ths: not pressed again between)"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
@@ -80,6 +87,9 @@ GATES = {
     ("game_task", 0x09A62844): ("the players' (088DB39C), every frame", "native"),
     ("EBOOT", 0x088DB3F8): ("a player's (088D2E04)", "object"),
     ("game_task", 0x09A62850): ("the cameras", "native"),
+    # a character's upkeep (EBOOT 08865934's call of its vtable's +0x3C; the hunter's game_task 09A68FC8): stamina,
+    # hunger (a 6-minute count), status and skills' timers - as at 30, a converted character's too
+    ("EBOOT", 0x088659AC): ("a character's upkeep (its vtable's +0x3C)", "on"),
 }
 
 
@@ -100,6 +110,11 @@ PATCHES = {
     ("EBOOT", 0x08865964): ("addiu $v0, $v0, 0x2", "c->r[2] = c->r[2] + (uint32_t)rt_ticks60;", COUNTS),
     ("EBOOT", 0x08865978): ("addiu $v1, $v1, 0x2", "c->r[3] = c->r[3] + (uint32_t)rt_ticks60;", COUNTS),
     ("EBOOT", 0x0886599C): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTS),
+    ("game_task", 0x09A68E3C): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", COMBINE),
+    ("EBOOT", 0x088D61F0): ("lw $a1, 0x2D8C($v0)", "c->r[5] = rt_tick30 ? LW((c->r[2] + 0x2D8Cu)) : 0;", EDGES),
+    ("EBOOT", 0x088D6200): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
+    ("EBOOT", 0x088D6230): ("lw $a1, 0x2D8C($a1)", "c->r[5] = rt_tick30 ? LW((c->r[5] + 0x2D8Cu)) : 0;", EDGES),
+    ("EBOOT", 0x088D6238): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),

@@ -143,6 +143,14 @@ static void trace(void) {
     if (scene)                      /* the camera: its eye and target */
         for (int i = 0; i < 6; i++)
             fprintf(f, " %.2f", (double)LWF(scene + 0xB40 + 4 * (i % 3) + (i < 3 ? 0 : 0x10)));
+    static int w_off = -1, w_n;             /* MHFU_TRACE_WORDS=offset,count (hex): the object's words there */
+    if (w_off < 0) {
+        w_off = 0;
+        if (getenv("MHFU_TRACE_WORDS"))
+            sscanf(getenv("MHFU_TRACE_WORDS"), "%x,%x", (unsigned *)&w_off, (unsigned *)&w_n);
+    }
+    for (int i = 0; i < w_n; i++)
+        fprintf(f, " %08x", LW(traced + (uint32_t)w_off + 4 * (uint32_t)i));
     if (scene && getenv("MHFU_TRACE_VIEW"))     /* the view in use, its words */
         for (uint32_t v = scene + 0xB0 + 0x1A0 * LBU(scene + 0xA8D), i = 0; i < 0x1A0; i += 4)
             fprintf(f, " %08x", LW(v + i));
