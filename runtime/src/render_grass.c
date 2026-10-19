@@ -53,9 +53,9 @@ void grass_init(void) {
 
 double rt_game_30ths(void);         /* thread.c: the game's time in 30ths of a second */
 
-/* The scenery's triangle, for the grass's ground (the camera's place noted at a frame's first). Laid once a 30th of a
- * second (a frame of the game's at its own rate): the frames shown between draw the same scenery again */
-void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c) {
+/* Whether this frame lays the grass's ground (the camera's place noted at its first ask). Once a 30th of a second (a
+ * frame of the game's at its own rate): the frames shown between draw the same scenery again */
+int grass_laying(void) {
     static double game_30th = -1;
     static int laying;
     if (grass_frame_no != frame_no) {
@@ -65,7 +65,12 @@ void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const
         if (laying)
             grass_frame(&prim_world_view[9], scene_time());
     }
-    if (!laying)
+    return laying;
+}
+
+/* The scenery's triangle, for the grass's ground (as the frame lays it) */
+void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c) {
+    if (!grass_laying())
         return;
     const RVertex *v[3] = {a, b, c};
     float p[3][3], uv[3][2], col[3][3];

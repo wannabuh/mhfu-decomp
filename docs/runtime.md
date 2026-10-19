@@ -140,9 +140,16 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   draws their motion again; what is lit by the pixel is tessellated as the CPU's batches are, its shape normals and
   straight edges made as a frame is recorded (each group's corners welded by their place as given; the edges on each
   triangle's third corner, the one it ends with). The feet of what is lit (for the wind and the grass) come from each lit group's
-  lowest vertices - chosen once a frame recorded, placed in the world on the CPU each frame shown. So `1` has all
-  the effects; `2` lacks the scenery's (sun shading, sway, grass from its triangles). Frames match the CPU's within a
-  few pixels (tessellated: half a percent, the welding not quite the same). (Between frames, point lights differ from run to run: they flicker by the
+  lowest vertices - chosen once a frame recorded, placed in the world on the CPU each frame shown. The scenery's
+  effects are made by the renderer as a batch is flushed (`render.c` `tl_scenery`, from its draws' vertices kept on
+  the CPU; once a recorded frame for a slot's): each vertex's sun shading normal (the faces summed where corners meet,
+  as `make_normals`) or its height above its feet for the wind, into a buffer the shaders read by the vertex
+  (`BIND_TL_EXTRA`, after each frame's wind and feet); `tl_common.glsl` `tl_sway` moves it (shadows too), and
+  `ge_tl.frag` - `ge.frag` reading its triangle's corners (`VK_KHR_fragment_shader_barycentric`) - takes a triangle's
+  own face where the sum bends more than 60 degrees from it, per corner as the CPU's batches do (without the extension:
+  per pixel, `ge.frag`). The grass's ground is laid from the same triangles. So `1` and `2` have all the effects
+  (Popo field at 60 shown at 144, every effect, scale 1: a frame shown 6.6-7.4 ms on the CPU, 4.9-5.3 with `1`,
+  3.7-4.1 with `2`). Frames match the CPU's within a few pixels (tessellated: half a percent, the welding not quite the same). (Between frames, point lights differ from run to run: they flicker by the
   wall clock and ease in by frames shown - compare with `MHFU_POINT_LIGHTS=0`.) `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
   and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
   once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are

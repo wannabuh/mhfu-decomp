@@ -13,6 +13,7 @@ layout(location = 5) out vec3 out_normal;
 layout(location = 6) out vec3 out_world;
 layout(location = 7) out vec4 out_shape;
 layout(location = 8) out vec3 out_motion;
+layout(location = 9) out vec3 out_corner;   // (the scenery's normal again, for ge_tl.frag's corners)
 out gl_PerVertex {
     vec4 gl_Position;
     float gl_ClipDistance[1];
@@ -96,12 +97,12 @@ void main() {
     }
     tl_skin(i, false, unused, shape);   // (the shape normal: as the normal)
     tl_skin(i, false, p, nr);           // skinning: the weighted sum of the bones' transforms
-    vec3 m = xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p);
+    vec3 still = xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p), m = tl_sway(i, still);
     vec3 world = vec3(0.0), motion = vec3(0.0);
     if ((flags & TL_WORLD) != 0u) {
         world = tl_world(i, m);
-        if ((flags & TL_EARLIER) != 0u)
-            motion = world - ew;
+        if ((flags & TL_EARLIER) != 0u) // (the wind's move not in it, as the CPU's)
+            motion = tl_world(i, still) - ew;
     }
     vec4 color = in_color;
     vec3 sun = vec3(0.0), normal = vec3(0.0);
@@ -135,7 +136,9 @@ void main() {
     out_color = color;
     out_shadow = (draw.light * vec4(world, 1.0)).xyz;
     out_sun = floor(clamp(sun, 0.0, 255.0)) / 255.0;
-    out_normal = normal;
+    // (the scenery shaded by the sun: its normal, made from its triangles - render.c tl_scenery)
+    out_normal = (draw.flags & DRAW_SHADED) != 0u ? extra[2u * TL_WIND + uint(gl_VertexIndex)].xyz : normal;
+    out_corner = out_normal;
     out_world = world;
     // (tessellated: the shape normal in the world as the normal is, and its triangle's straight edges)
     vec3 sw = xf3(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2],

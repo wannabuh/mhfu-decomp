@@ -12,6 +12,7 @@ layout(location = 6) in vec3 in_shape;
 layout(location = 7) in uint in_edges;
 
 layout(std430, set = 0, binding = BIND_TL) readonly buffer Draws { TlDraw draws[]; };
+layout(std430, set = 0, binding = BIND_TL_EXTRA) readonly buffer Extra { vec4 extra[]; };
 layout(push_constant) uniform Draw { DRAW_PUSH } draw;
 
 // (3 x 4 by rows) a point, a direction
@@ -49,14 +50,49 @@ void tl_skin(uint i, bool earlier, inout vec3 p, inout vec3 nr) {
     nr = nacc;
 }
 
-// Where the vertex is in the GE's world space (the world matrix's: the game's camera in it), and in the world
+vec3 tl_world(uint i, vec3 m) {
+    return xf(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2], m);
+}
+
+// The wind (render_shading.c sway_batch): the vertex at m (the GE's world space) moved, if the draw sways - by its
+// height above its feet (BIND_TL_EXTRA), and bent away from the feet among the plants
+vec3 tl_sway(uint i, vec3 m) {
+    if ((draw.flags & DRAW_SWAY) == 0u)
+        return m;
+    float h = extra[2u * TL_WIND + uint(gl_VertexIndex)].x;
+    if (h <= 0.5)
+        return m;
+    vec3 w = tl_world(i, m);
+    vec4 wind = extra[draw.camera];     // (time, how far, how many feet)
+    float t = wind.x, foot = w.y - h;
+    float wgt = min(max(h - 10.0, 0.0) / 80.0, 1.0);     // (small cards hardly)
+    wgt *= sqrt(wgt);
+    float ph = w.x * 0.0041 + w.z * 0.0033;
+    float gust = 0.55 + 0.45 * sin(t * 0.37 + w.x * 0.0006 - w.z * 0.0004);
+    float sw = 0.7 * sin(t * 1.9 + ph * 6.2832) + 0.3 * sin(t * 3.7 + ph * 11.0);
+    float d = (sw + 0.4) * gust * wind.y * wgt;
+    vec3 dw = vec3(0.8 * d, -0.1 * abs(d), 0.6 * d);
+    for (uint f = 0u; f < uint(wind.z); f++) {  // bent away from feet among them: out and down, the more the nearer
+        vec4 ft = extra[draw.camera + 1u + f];
+        float dx = w.x - ft.x, dz = w.z - ft.z, reach = ft.w + 45.0;
+        if (abs(dx) > reach || abs(dz) > reach || abs(foot - ft.y) > 60.0)
+            continue;
+        float dist = sqrt(dx * dx + dz * dz);
+        if (dist >= reach || dist < 1e-3)
+            continue;
+        float push = (1.0 - dist / reach) * min(h, 60.0) * 0.6;
+        dw += vec3(dx / dist * push, -push * 0.5, dz / dist * push);
+    }
+    // (the world's move, in the GE's world space: to_world's turn undone)
+    mat3 turn = transpose(mat3(draws[i].to_world[0].xyz, draws[i].to_world[1].xyz, draws[i].to_world[2].xyz));
+    return m + inverse(turn) * dw;
+}
+
+// Where the vertex is in the GE's world space (the world matrix's: the game's camera in it; moved by the wind)
 vec3 tl_place(uint i) {
     vec3 p = in_pos, nr = vec3(0.0);
     tl_skin(i, false, p, nr);
-    return xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p);
-}
-vec3 tl_world(uint i, vec3 m) {
-    return xf(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2], m);
+    return tl_sway(i, xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p));
 }
 
 // Its texture coordinates (texels) and alpha (as light() and put() make it, lit)

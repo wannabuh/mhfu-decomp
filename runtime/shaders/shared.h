@@ -35,6 +35,7 @@
 #define BIND_SCENE_COLOR 6      /* sampler2D: the picture under the water (render_water.c), and its depth */
 #define BIND_SCENE_DEPTH 7
 #define BIND_TL 8               /* TlDraw[]: the draws whose vertex stage the GPU does (ge_tl.vert), half a frame */
+#define BIND_TL_EXTRA 9         /* vec4[]: their vertices' part in the scenery's effects (render.c tl_scenery) */
 
 /* -- a draw's flags (DrawPush.flags) ------------------------------------------------------------------------------ */
 #define DRAW_TFUNC 7u           /* the texture function (the GE's: modulate, decal, blend, replace, add) */
@@ -53,6 +54,9 @@
 #define DRAW_RELIEF 8192u       /* and relief from its texture's brightness */
 #define DRAW_MOTION 16384u      /* (the motion blur's pass) its motion, not its colour */
 #define DRAW_WATER 32768u       /* water (render_water.c): DrawPush.camera its light sets */
+#define DRAW_SWAY 65536u        /* (the GPU's vertex stage) moved by the wind: DrawPush.camera its TL_WIND */
+#define DRAW_FACES 131072u      /* (the GPU's vertex stage) shaded: the normals summed where corners meet, each
+                                 * triangle's own where they bend more than 60 degrees from it (ge.frag) */
 
 /* -- push constants ----------------------------------------------------------------------------------------------- */
 /* The GE's draws (ge.*, shadow.*, pshadow.*): the texture's size (texels) and index (~0u: none), the flags, the alpha
@@ -157,6 +161,11 @@
 #define TL_TEX 32u              /* texture coordinates */
 #define TL_LIGHT_ON 256u        /* (4 bits) the lights on */
 #define TL_LIGHT_PIXEL 4096u    /* (4 bits) the lights whose diffuse part the pixel does */
+/* BIND_TL_EXTRA: each frame in flight's wind, TL_WIND vec4s - (its time, how far, how many feet), then the feet bending
+ * the plants away (x, y, z, reach) - then a vec4 for each of the vertices (indexed as the vertex buffer): the sun
+ * shading's normal in the world (DRAW_SHADED), or (x) the height above its feet the wind moves it by (DRAW_SWAY; 0:
+ * held) */
+#define TL_WIND 65u
 
 #ifdef VULKAN
 struct LightSet { LIGHT_SET };

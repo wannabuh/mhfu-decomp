@@ -33,6 +33,7 @@
 
 #include "ge.vert.inc"
 #include "ge.frag.inc"
+#include "ge_tl.frag.inc"
 #include "ge.tesc.inc"
 #include "ge.tese.inc"
 #include "ge_tl.vert.inc"
@@ -79,10 +80,33 @@ static VkPipeline tess_pipeline, bound_pipeline;
 static VkPipeline tl_pipeline, tl_tess_pipeline;
 static VkBuf tl_records;
 VkBuf tl_vertices, tl_indices;
+/* What the scenery's effects take of those vertices (BIND_TL_EXTRA, tl_scenery): the slots' made once a recorded frame,
+ * as each part is first drawn - from the slots' vertices and indices kept here (the buffers are slow to read), each
+ * triangle's made noted */
+static VkBuf tl_extra;
+static TlVertex *tl_slot_v[TL_SLOTS];
+static uint32_t *tl_slot_i[TL_SLOTS];
+static uint8_t *tl_slot_made[TL_SLOTS];
+/* The batch's part in them, made as it is flushed (tl_scenery): its draws' triangles - the vertices, kept (a slot's,
+ * or this frame's sent as drawn), their corners' indices among them, the vertex buffer's base - each with its draw and,
+ * a slot's, where its triangles' made is noted */
+typedef struct {
+    const TlVertex *v;
+    const uint32_t *idx;
+    uint32_t ntri, base;
+    const TlDraw *d;
+    uint8_t *made;
+} TlPart;
+static TlPart *tl_parts;
+static int tl_nparts, tl_parts_cap;
+static TlVertex *tl_sent_v;
+static uint32_t *tl_sent_i, tl_nsent_i;
+static void tl_scenery(int shade, int wind);
 static uint32_t tl_nrec, tl_nvert, tl_nidx;
 static unsigned long tl_submits;                /* the submissions made (vk_submit: frame_reused) */
 static unsigned long tl_slot_use[TL_SLOTS];     /* the submission a slot was last drawn from in (0: never) */
 static TlDraw tl_last;                  /* the last draw given; its record this frame (~0u: none yet) */
+static TlDraw *tl_drawn;                /* (this frame's records, kept: tl_scenery) */
 static uint32_t tl_rec = ~0u;
 static TlSegment tl_seg[TL_SEGMENTS];
 static int tl_nseg;
@@ -294,7 +318,7 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
-    VkDescriptorSetLayoutBinding b[9] = {
+    VkDescriptorSetLayoutBinding b[10] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
@@ -304,22 +328,23 @@ int render_init(void *sdl_window) {
         {BIND_SCENE_COLOR, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SCENE_DEPTH, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_TL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
+        {BIND_TL_EXTRA, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[9];
-    for (int i = 0; i < 9; i++)
+    VkDescriptorBindingFlags bf[10];
+    for (int i = 0; i < 10; i++)
         bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 9, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 10, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 9, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 10, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
     VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 8},
-                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}};
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
@@ -363,7 +388,9 @@ int render_init(void *sdl_window) {
     VkShaderModule tvs = VK_NULL_HANDLE;
     if (vk.clip_distance) {             /* the GPU's vertex stage (MHFU_GPU_TL) */
         tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
-        tl_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
+        /* (its pixels read their triangles' corners if they can: the scenery's normals chosen as the CPU's are) */
+        VkShaderModule tfs = vk.barycentric ? vk_shader(ge_tl_frag, sizeof ge_tl_frag) : fs;
+        tl_pipeline = make_pipeline(tvs, tfs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
         if (tess_pipeline) {
             tess_ctrl_tl = vk_shader(ge_tl_tesc, sizeof ge_tl_tesc);
             tl_tess_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 11);
@@ -373,10 +400,22 @@ int render_init(void *sdl_window) {
                                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
         tl_indices = vk_buffer((2 * TL_INDICES + TL_SLOTS * TL_SLOT_INDICES) * sizeof(uint32_t),
                                VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 1);
-        VkDescriptorBufferInfo tbi = {tl_records.buffer, 0, VK_WHOLE_SIZE};
-        VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TL, 0, 1,
-                                   VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
-        vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
+        tl_extra = vk_buffer((2 * TL_WIND + 2 * TL_VERTICES + TL_SLOTS * TL_SLOT_VERTICES) * 16,
+                             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+        tl_drawn = malloc(TL_RECORDS * sizeof *tl_drawn);
+        tl_sent_v = malloc(TL_VERTICES * sizeof *tl_sent_v);
+        tl_sent_i = malloc(TL_INDICES * sizeof *tl_sent_i);
+        for (int k = 0; k < TL_SLOTS; k++) {
+            tl_slot_v[k] = malloc(TL_SLOT_VERTICES * sizeof(TlVertex));
+            tl_slot_i[k] = malloc(TL_SLOT_INDICES * sizeof(uint32_t));
+            tl_slot_made[k] = calloc(TL_SLOT_INDICES / 3, 1);
+        }
+        VkDescriptorBufferInfo tbi[2] = {{tl_records.buffer, 0, VK_WHOLE_SIZE}, {tl_extra.buffer, 0, VK_WHOLE_SIZE}};
+        VkWriteDescriptorSet tw[2] = {{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TL, 0, 1,
+                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi[0], NULL},
+                                      {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TL_EXTRA, 0, 1,
+                                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi[1], NULL}};
+        vkUpdateDescriptorSets(vk.device, 2, tw, 0, NULL);
     }
 
     /* the parts (render_internal.h) */
@@ -836,6 +875,8 @@ void render_prim_world(int on) {
     prim_world = on;
 }
 
+static uint32_t tl_wind(void);
+
 /* A batch of the GPU's vertex stage drawn: each segment a draw, its record the instance */
 static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
     if (bound_pipeline != tl_pipeline) {
@@ -846,6 +887,12 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
     vkCmdBindVertexBuffers(cmd, 1, 1, &tl_vertices.buffer, &zero);
     vkCmdBindIndexBuffer(cmd, tl_indices.buffer, 0, VK_INDEX_TYPE_UINT32);
     pc->camera = (s->flags & DRAW_WATER) ? water_light_set() : ~0u;
+    if (shaded(s)) {
+        pc->flags |= DRAW_SHADED | DRAW_FACES | (relief_on && s->tex_slot < MAX_TEXTURES ? DRAW_RELIEF : 0u);
+    } else if (swaying(s) && !(s->flags & DRAW_WATER)) {
+        pc->flags |= DRAW_SWAY;
+        pc->camera = tl_wind();
+    }
     if (s->flags & DRAW_WORLD) {
         float j[2] = {render_jitter[0] * 2.0f / (float)scaled(RT_SIZE), render_jitter[1] * 2.0f / (float)scaled(RT_SIZE)};
         memcpy(&pc->pad0, &j[0], 4);
@@ -879,8 +926,10 @@ void flush(void) {
         shadow_skip();
         tl_nseg = 0;
         tl_nfeet = 0;
+        tl_nparts = 0;
         return;
     }
+    tl_scenery(shaded(&cur), swaying(&cur));
     if (n && shaded(&cur))
         make_normals((size_t)n);
     if (n && swaying(&cur))
@@ -1099,6 +1148,7 @@ static uint32_t tl_record(const TlDraw *d) {
         }
         tl_rec = (uint32_t)vk.frame * TL_RECORDS + tl_nrec++;
         memcpy((TlDraw *)tl_records.map + tl_rec, &tl_last, sizeof tl_last);
+        memcpy(&tl_drawn[tl_rec % TL_RECORDS], &tl_last, sizeof tl_last);
     }
     return tl_rec;
 }
@@ -1121,6 +1171,252 @@ static void tl_begin(void) {
     begin_rendering(cur.target);
     if (vertex_used > batch_start)
         flush();                        /* (the order drawn kept) */
+}
+
+/* The frame's wind for the draws it moves (DRAW_SWAY; shared.h TL_WIND): its time, how far, the feet among the plants
+ * (render_scene.c's) - the first vec4 of it in BIND_TL_EXTRA */
+static uint32_t tl_wind(void) {
+    static unsigned long made;
+    uint32_t at = (uint32_t)vk.frame * TL_WIND;
+    if (made != frame_no) {
+        made = frame_no;
+        float *p = (float *)tl_extra.map + 4 * at;
+        int nfeet = scene.nfeet < (int)TL_WIND - 1 ? scene.nfeet : (int)TL_WIND - 1;
+        memcpy(p, (float[4]){(float)fmod(scene_time(), 3600.0), 7.0f * sway, (float)nfeet, 0}, 16);
+        for (int f = 0; f < nfeet; f++) {
+            const Foot *ft = &scene.feet[f];
+            memcpy(p + 4 * (1 + f), (float[4]){ft->x, ft->y, ft->z, ft->r}, 16);
+        }
+    }
+    return at;
+}
+
+/* Where a vertex is in the world, as ge_tl.vert places it (without the wind) */
+static void tl_world_at(const TlDraw *d, const TlVertex *v, float *w) {
+    float p[3] = {0, 0, 0}, m[3];
+    if (d->bones) {
+        for (uint32_t b = 0; b < d->bones; b++)
+            for (int r = 0; r < 3; r++) {
+                const float *row = d->bone[3 * b + (uint32_t)r];
+                p[r] += (row[0] * v->pos[0] + row[1] * v->pos[1] + row[2] * v->pos[2] + row[3]) * v->weights[b];
+            }
+    } else {
+        memcpy(p, v->pos, sizeof p);
+    }
+    for (int r = 0; r < 3; r++)
+        m[r] = d->world[r][0] * p[0] + d->world[r][1] * p[1] + d->world[r][2] * p[2] + d->world[r][3];
+    for (int r = 0; r < 3; r++)
+        w[r] = d->to_world[r][0] * m[0] + d->to_world[r][1] * m[1] + d->to_world[r][2] * m[2] + d->to_world[r][3];
+}
+
+/* A draw's triangles into the batch's part in the scenery's effects */
+
+static void tl_part(const TlVertex *v, const uint32_t *idx, uint32_t ntri, uint32_t base, uint8_t *made) {
+    if (tl_nparts == tl_parts_cap) {
+        tl_parts_cap = tl_parts_cap ? tl_parts_cap * 2 : 256;
+        tl_parts = realloc(tl_parts, sizeof *tl_parts * (size_t)tl_parts_cap);
+    }
+    tl_parts[tl_nparts++] = (TlPart){v, idx, ntri, base, &tl_drawn[tl_rec % TL_RECORDS], made};
+}
+
+/* Where the vertices are in the world, without the wind (ge_tl.vert): the corners of a part's triangles */
+static void tl_corners(const TlPart *pt, float (*cw)[3]) {
+    for (uint32_t c = 0; c < 3 * pt->ntri; c++)
+        tl_world_at(pt->d, &pt->v[pt->idx[c]], cw[c]);
+}
+
+/* The batch's part in the scenery's effects made (its state's shade, wind), as the CPU's vertex stage's batches have
+ * it (render_shading.c) - its corners welded whatever draw they came in. shade: the sun shading's normals (make_normals:
+ * each triangle's turned towards the camera, summed where corners meet - the same place in the world; ge.frag takes a
+ * triangle's own where that bends more than 60 degrees from it, DRAW_FACES). wind: the heights it moves them by
+ * (sway_batch: above the lowest foot of the triangles meeting there; held where one is not a plant's). Once for a
+ * slot's triangles (the scenery stands still: unless a part is new, the batch is as made before) */
+static void tl_scenery(int shade, int wind) {
+    static float (*cw)[3], (*sum)[3], *foot;
+    static uint32_t *owner, *table;
+    static uint8_t *held;
+    static size_t cap, table_cap;
+    int nparts = tl_nparts, fresh = 0;
+    tl_nparts = 0;
+    if (!shade && !wind)
+        return;
+    size_t n = 0;
+    for (int k = 0; k < nparts; k++) {
+        n += 3 * (size_t)tl_parts[k].ntri;
+        fresh |= !tl_parts[k].made || !tl_parts[k].made[0];
+    }
+    if (!n || !fresh)
+        return;
+    if (n > cap) {
+        cap = n * 2;
+        cw = realloc(cw, cap * sizeof *cw);
+        sum = realloc(sum, cap * sizeof *sum);
+        foot = realloc(foot, cap * sizeof *foot);
+        owner = realloc(owner, cap * sizeof *owner);
+        held = realloc(held, cap);
+    }
+    for (int k = 0, c = 0; k < nparts; c += 3 * (int)tl_parts[k++].ntri)
+        tl_corners(&tl_parts[k], cw + c);
+    /* the places: each corner's first at its place */
+    size_t tsize = 1024;
+    while (tsize < n * 2)
+        tsize *= 2;
+    if (tsize > table_cap) {
+        table_cap = tsize;
+        table = realloc(table, table_cap * sizeof *table);
+    }
+    memset(table, 0, tsize * sizeof *table);
+    for (size_t c = 0; c < n; c++) {
+        uint32_t hb[3];
+        memcpy(hb, cw[c], sizeof hb);
+        uint32_t x = hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du;
+        x ^= x >> 15;
+        size_t j = x & (tsize - 1);
+        for (;;) {
+            uint32_t e = table[j];
+            if (!e) {
+                table[j] = (uint32_t)c + 1;
+                owner[c] = (uint32_t)c;
+                break;
+            }
+            if (!memcmp(cw[e - 1], cw[c], sizeof hb)) {
+                owner[c] = e - 1;
+                break;
+            }
+            j = (j + 1) & (tsize - 1);
+        }
+        sum[c][0] = sum[c][1] = sum[c][2] = 0;
+        foot[c] = 1e30f;
+        held[c] = 0;
+    }
+    float (*out)[4] = (float (*)[4])tl_extra.map + 2 * TL_WIND;    /* (write-combined: written, never read) */
+    int any = 0;
+    const uint8_t *holes = cur.tex_slot < MAX_TEXTURES ? tex_holes[cur.tex_slot] : NULL;
+    float tw = cur.tex_w > 0 ? cur.tex_w : 1, th = cur.tex_h > 0 ? cur.tex_h : 1;
+    for (int k = 0, c0 = 0; k < nparts; c0 += 3 * (int)tl_parts[k++].ntri) {
+        const TlPart *pt = &tl_parts[k];
+        const TlDraw *d = pt->d;
+        if (shade) {
+            /* the camera's place in the world: the view undone (the origin of its space), then to_world */
+            const float (*vw)[4] = (const float (*)[4])d->view;
+            float r[3][3], e[3], t[3] = {vw[0][3], vw[1][3], vw[2][3]};
+            for (int i = 0; i < 3; i++)
+                for (int q = 0; q < 3; q++)
+                    r[i][q] = vw[i][q];
+            float det = r[0][0] * (r[1][1] * r[2][2] - r[1][2] * r[2][1]) -
+                        r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0]) + r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]);
+            if (fabsf(det) < 1e-12f)
+                det = 1e-12f;
+            float inv[3][3] = {
+                {(r[1][1] * r[2][2] - r[1][2] * r[2][1]) / det, (r[0][2] * r[2][1] - r[0][1] * r[2][2]) / det,
+                 (r[0][1] * r[1][2] - r[0][2] * r[1][1]) / det},
+                {(r[1][2] * r[2][0] - r[1][0] * r[2][2]) / det, (r[0][0] * r[2][2] - r[0][2] * r[2][0]) / det,
+                 (r[0][2] * r[1][0] - r[0][0] * r[1][2]) / det},
+                {(r[1][0] * r[2][1] - r[1][1] * r[2][0]) / det, (r[0][1] * r[2][0] - r[0][0] * r[2][1]) / det,
+                 (r[0][0] * r[1][1] - r[0][1] * r[1][0]) / det}};
+            float m[3];
+            for (int i = 0; i < 3; i++)
+                m[i] = -(inv[i][0] * t[0] + inv[i][1] * t[1] + inv[i][2] * t[2]);
+            for (int i = 0; i < 3; i++)
+                e[i] = d->to_world[i][0] * m[0] + d->to_world[i][1] * m[1] + d->to_world[i][2] * m[2] + d->to_world[i][3];
+            for (uint32_t tr = 0; tr < pt->ntri; tr++) {
+                size_t c = (size_t)c0 + 3 * tr;
+                const float *a = cw[c], *b = cw[c + 1], *cc = cw[c + 2];
+                float e1[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, e2[3] = {cc[0] - a[0], cc[1] - a[1], cc[2] - a[2]};
+                float f[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
+                if (f[0] * (e[0] - a[0]) + f[1] * (e[1] - a[1]) + f[2] * (e[2] - a[2]) < 0)
+                    f[0] = -f[0], f[1] = -f[1], f[2] = -f[2];
+                for (int q = 0; q < 3; q++)
+                    for (int i = 0; i < 3; i++)
+                        sum[owner[c + (size_t)q]][i] += f[i];
+            }
+        } else {
+            /* a plant's: the part of the texture it shows is mostly holes and a plant's colour (sway_batch) */
+            int tex = (d->flags & TL_TEX) != 0;
+            for (uint32_t tr = 0; tr < pt->ntri; tr++) {
+                size_t c = (size_t)c0 + 3 * tr;
+                float uv[3][2];
+                for (int q = 0; q < 3; q++) {
+                    const TlVertex *x = &pt->v[pt->idx[3 * tr + (uint32_t)q]];
+                    uv[q][0] = tex ? x->uv[0] * d->tex[0] + d->tex[2] : 0;
+                    uv[q][1] = tex ? x->uv[1] * d->tex[1] + d->tex[3] : 0;
+                }
+                float cu = (uv[0][0] + uv[1][0] + uv[2][0]) / 3, cv = (uv[0][1] + uv[1][1] + uv[2][1]) / 3;
+                int share = 0;
+                for (int q = -1; q < 3 && holes; q++) {
+                    float u = q < 0 ? cu : 0.6f * uv[q][0] + 0.4f * cu, vv = q < 0 ? cv : 0.6f * uv[q][1] + 0.4f * cv;
+                    u /= tw;
+                    vv /= th;
+                    u -= floorf(u);
+                    vv -= floorf(vv);
+                    int cx = (int)(u * HOLE_GRID), cy = (int)(vv * HOLE_GRID);
+                    share += holes[(cy < HOLE_GRID ? cy : HOLE_GRID - 1) * HOLE_GRID + (cx < HOLE_GRID ? cx : HOLE_GRID - 1)];
+                }
+                int plant = share >= 4 * 70;
+                any |= plant;
+                float f = fminf(cw[c][1], fminf(cw[c + 1][1], cw[c + 2][1]));
+                for (int q = 0; q < 3; q++) {
+                    uint32_t o = owner[c + (size_t)q];
+                    foot[o] = fminf(foot[o], f);
+                    held[o] |= !plant;
+                }
+            }
+        }
+    }
+    for (int k = 0, c0 = 0; k < nparts; c0 += 3 * (int)tl_parts[k++].ntri) {
+        const TlPart *pt = &tl_parts[k];
+        for (size_t i = 0; i < 3 * (size_t)pt->ntri; i++) {
+            size_t c = (size_t)c0 + i;
+            float x[4] = {0, 0, 0, 0};
+            if (shade) {
+                const float *sv = sum[owner[c]];
+                float sl = sqrtf(sv[0] * sv[0] + sv[1] * sv[1] + sv[2] * sv[2]);
+                if (sl > 0)
+                    x[0] = sv[0] / sl, x[1] = sv[1] / sl, x[2] = sv[2] / sl;
+            } else {
+                float h = cw[c][1] - foot[owner[c]];
+                x[0] = any && !held[owner[c]] && h > 0.5f ? h : 0;
+            }
+            memcpy(out[pt->base + pt->idx[i]], x, sizeof x);
+        }
+        if (pt->made)
+            memset(pt->made, 1, pt->ntri);
+    }
+}
+
+/* The grass's ground from ntri triangles of the current draw (their corners' indices idx among v), as render_triangle
+ * gives it the CPU's (lit beforehand: the vertices' own colours) */
+static void tl_lay_grass(const TlVertex *v, const uint32_t *idx, uint32_t ntri) {
+    static float (*cw)[3];
+    static size_t cap;
+    if (3 * (size_t)ntri > cap) {
+        cap = 6 * (size_t)ntri;
+        cw = realloc(cw, cap * sizeof *cw);
+    }
+    const TlDraw *d = &tl_last;
+    TlPart pt = {v, idx, ntri, 0, d, NULL};
+    tl_corners(&pt, cw);
+    int tex = (d->flags & TL_TEX) != 0;
+    for (uint32_t t = 0; t < ntri; t++) {
+        RVertex r[3];
+        memset(r, 0, sizeof r);
+        for (int k = 0; k < 3; k++) {
+            const TlVertex *x = &v[idx[3 * t + (uint32_t)k]];
+            memcpy(&r[k].wx, cw[3 * t + (uint32_t)k], sizeof cw[0]);
+            r[k].u = tex ? x->uv[0] * d->tex[0] + d->tex[2] : 0;
+            r[k].v = tex ? x->uv[1] * d->tex[1] + d->tex[3] : 0;
+            r[k].r = (float)(x->color & 255);
+            r[k].g = (float)((x->color >> 8) & 255);
+            r[k].b = (float)((x->color >> 16) & 255);
+        }
+        grass_scenery(&cur, &r[0], &r[1], &r[2]);
+    }
+}
+
+/* Whether the current draw's triangles lay the grass's ground (as render_triangle has them) */
+static int tl_grass(void) {
+    return grass_on && shaded(&cur) && ((cur.flags & DRAW_TFUNC) == 0 || (cur.flags & DRAW_TFUNC) == 3) &&
+           grass_laying();
 }
 
 /* gpu.c: a primitive (triangles, strip, fan) whose vertex stage the GPU does - its draw (NULL: the last's), its vertices
@@ -1157,6 +1453,29 @@ void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int
         *o++ = base + idx[c];
     }
     tl_nidx += 3u * (uint32_t)ntri;
+    int effects = shaded(&cur) || swaying(&cur), grass = tl_grass();
+    if ((effects || grass) && tl_nsent_i + 3u * (uint32_t)ntri <= TL_INDICES) {
+        /* (the scenery's effects: the vertices kept, its triangles' corners as they were indexed) */
+        uint32_t *tri = tl_sent_i + tl_nsent_i, local = base - (uint32_t)vk.frame * TL_VERTICES;
+        memcpy(tl_sent_v + local, v, sizeof *v * (size_t)nv);
+        for (int t = 0; t < ntri; t++) {
+            int a, b, c;
+            if (type == 3)
+                a = 3 * t, b = 3 * t + 1, c = 3 * t + 2;
+            else if (type == 4)
+                a = (t & 1) ? t + 1 : t, b = (t & 1) ? t : t + 1, c = t + 2;
+            else
+                a = 0, b = t + 1, c = t + 2;
+            tri[3 * t] = idx[a];
+            tri[3 * t + 1] = idx[b];
+            tri[3 * t + 2] = idx[c];
+        }
+        tl_nsent_i += 3u * (uint32_t)ntri;
+        if (grass)
+            tl_lay_grass(tl_sent_v + local, tri, (uint32_t)ntri);
+        if (effects)
+            tl_part(tl_sent_v + local, tri, (uint32_t)ntri, base, NULL);
+    }
     tl_segment(first, 3u * (uint32_t)ntri, rec);
     tl_feet(feet, nfeet);
 }
@@ -1181,6 +1500,9 @@ void render_tl_store(int slot, uint32_t vfirst, const TlVertex *v, int nv, uint3
     uint32_t *o = (uint32_t *)tl_indices.map + 2 * TL_INDICES + (uint32_t)slot * TL_SLOT_INDICES + ifirst;
     for (int i = 0; i < ni; i++)
         o[i] = vbase + idx[i];
+    memcpy(tl_slot_v[slot] + vfirst, v, sizeof *v * (size_t)nv);
+    memcpy(tl_slot_i[slot] + ifirst, idx, sizeof *idx * (size_t)ni);
+    memset(tl_slot_made[slot] + ifirst / 3, 0, (size_t)ni / 3);
 }
 
 /* gpu.c, replaying a recorded frame: n of a slot's indices from first, with a draw (NULL: the last's) */
@@ -1190,6 +1512,12 @@ void render_tl_slot_draw(int slot, const TlDraw *d, uint32_t first, uint32_t n, 
         return;
     tl_begin();
     tl_slot_use[slot] = tl_submits + 1;
+    /* the scenery's effects (made as the batch is flushed), the grass's ground each frame laying it */
+    if (shaded(&cur) || swaying(&cur))
+        tl_part(tl_slot_v[slot], tl_slot_i[slot] + first, n / 3, 2 * TL_VERTICES + (uint32_t)slot * TL_SLOT_VERTICES,
+                tl_slot_made[slot] + first / 3);
+    if (tl_grass())
+        tl_lay_grass(tl_slot_v[slot], tl_slot_i[slot] + first, n / 3);
     tl_segment(2 * TL_INDICES + (uint32_t)slot * TL_SLOT_INDICES + first, n, rec);
     tl_feet(feet, nfeet);
 }
@@ -1228,7 +1556,7 @@ static void end_frame(void) {
     scene_end_frame();
     shadow_end_frame(lights_end_frame(cur.tex_slot));
     vertex_used = batch_start = 0;
-    tl_nrec = tl_nvert = tl_nidx = 0;
+    tl_nrec = tl_nvert = tl_nidx = tl_nsent_i = 0;
     tl_rec = ~0u;
     staging_used = 0;
     last_valid = 0;

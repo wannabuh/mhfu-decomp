@@ -203,6 +203,7 @@ void ao_end_frame(void);
 extern int grass_on;
 void grass_init(void);
 void grass_bind_ao(void);           /* render_ao.c's image (re-made) bound for the blades */
+int grass_laying(void);             /* this frame lays the grass's ground */
 void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const RVertex *c);
 void grass_draw(Target *t);
 

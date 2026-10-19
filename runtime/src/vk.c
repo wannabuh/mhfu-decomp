@@ -134,11 +134,34 @@ int vk_init(void *window) {
         f2.features.shaderClipDistance = f2.features.depthClamp = VK_TRUE, vk.clip_distance = 1;
     if (have2.features.samplerAnisotropy)
         f2.features.samplerAnisotropy = VK_TRUE, vk.anisotropy = 1;
-    const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    const char *dev_exts[3] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME};
+    uint32_t next = 1;
+    if (vk.surface)
+        dev_exts[next++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+    /* the triangle's corners' values in the pixel stage (the GPU's vertex stage's scenery: ge_tl.frag) */
+    VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR bary = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR};
+    uint32_t nexts = 0;
+    vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &nexts, NULL);
+    VkExtensionProperties *props = malloc(sizeof *props * (nexts ? nexts : 1));
+    vkEnumerateDeviceExtensionProperties(vk.gpu, NULL, &nexts, props);
+    for (uint32_t i = 0; i < nexts; i++)
+        if (!strcmp(props[i].extensionName, VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME)) {
+            VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR hb = {
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR};
+            VkPhysicalDeviceFeatures2 h2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &hb};
+            vkGetPhysicalDeviceFeatures2(vk.gpu, &h2);
+            if (hb.fragmentShaderBarycentric) {
+                bary.fragmentShaderBarycentric = VK_TRUE;
+                eds3.pNext = &bary;
+                dev_exts[next++] = VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME;
+                vk.barycentric = 1;
+            }
+        }
+    free(props);
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.queue_family, 1, &prio};
-    VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &f2, 0, 1, &qci, 0, NULL,
-                              vk.surface ? 2u : 1u, dev_exts, NULL};
+    VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &f2, 0, 1, &qci, 0, NULL, next, dev_exts, NULL};
     CHECK(vkCreateDevice(vk.gpu, &dci, NULL, &vk.device));
     vkGetDeviceQueue(vk.device, vk.queue_family, 0, &vk.queue);
     vk.SetColorBlendEnable = (PFN_vkCmdSetColorBlendEnableEXT)vkGetDeviceProcAddr(vk.device, "vkCmdSetColorBlendEnableEXT");

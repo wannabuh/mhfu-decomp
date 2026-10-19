@@ -54,6 +54,7 @@ typedef struct {
     int output_layer;                /* a vertex shader can choose the layer it draws into */
     int tessellation;                /* tessellation shaders can be used */
     int clip_distance;               /* clip distances and depth clamping can be used */
+    int barycentric;                 /* the pixel stage can read its triangle's corners' values */
     int anisotropy;                  /* anisotropic filtering can be used */
 } VkContext;
 
