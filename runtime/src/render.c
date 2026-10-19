@@ -86,6 +86,7 @@ static TlDraw tl_last;                  /* the last draw given; its record this 
 static uint32_t tl_rec = ~0u;
 static TlSegment tl_seg[TL_SEGMENTS];
 static int tl_nseg;
+static size_t tl_nfeet;                 /* (the batch's lit vertices given: render_scene.c's feet) */
 static VkShaderModule tess_ctrl, tess_eval, tess_ctrl_tl;
 float prim_view[16], prim_world_view[12];
 static int prim_world;
@@ -863,6 +864,9 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
         for (int i = 0; i < tl_nseg; i++)
             vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
     }
+    if (tl_nfeet)
+        scene_lit_batch(tl_nfeet);
+    tl_nfeet = 0;
     post_keep_tl(rendering, s, pc, tl_seg, tl_nseg);
     shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
     tl_nseg = 0;
@@ -874,6 +878,7 @@ void flush(void) {
     if ((!n && !tl_nseg) || !rendering) {
         shadow_skip();
         tl_nseg = 0;
+        tl_nfeet = 0;
         return;
     }
     if (n && shaded(&cur))
@@ -1063,6 +1068,17 @@ int render_tl_ready(void) {
     return tl_pipeline != VK_NULL_HANDLE;
 }
 
+/* (gpu.c) whether the feet of its draws lit in the world are wanted (finds_feet) */
+int render_tl_feet(void) {
+    return sway > 0 || grass_on;
+}
+
+/* The draw's lowest vertices, for the batch's feet (as put gives scene_lit_vertex its vertices) */
+static void tl_feet(const float *feet, int nfeet) {
+    for (int k = 0; k < nfeet; k++)
+        scene_lit_vertex(tl_nfeet++, feet + 3 * k);
+}
+
 /* (gpu.c) whether its draws lit by the pixel are tessellated: their shape normals wanted */
 int render_tl_tessellates(void) {
     return tl_tess_pipeline != VK_NULL_HANDLE;
@@ -1110,7 +1126,8 @@ static void tl_begin(void) {
 /* gpu.c: a primitive (triangles, strip, fan) whose vertex stage the GPU does - its draw (NULL: the last's), its vertices
  * as the game gave them, its count vertices' indices among them. Its triangles are indexed as gpu.c's clipping takes
  * them (a strip's every other one turned round, to keep its winding) */
-void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int nv, const uint16_t *idx) {
+void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int nv, const uint16_t *idx,
+                    const float *feet, int nfeet) {
     uint32_t rec = tl_pipeline ? tl_record(d) : ~0u;
     int ntri = type == 3 ? count / 3 : count - 2;
     if (ntri <= 0 || rec == ~0u)
@@ -1141,6 +1158,7 @@ void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int
     }
     tl_nidx += 3u * (uint32_t)ntri;
     tl_segment(first, 3u * (uint32_t)ntri, rec);
+    tl_feet(feet, nfeet);
 }
 
 /* gpu.c, as a frame is recorded: vertices and triangles' indices (among the slot's vertices) into a slot, at vertex
@@ -1166,13 +1184,14 @@ void render_tl_store(int slot, uint32_t vfirst, const TlVertex *v, int nv, uint3
 }
 
 /* gpu.c, replaying a recorded frame: n of a slot's indices from first, with a draw (NULL: the last's) */
-void render_tl_slot_draw(int slot, const TlDraw *d, uint32_t first, uint32_t n) {
+void render_tl_slot_draw(int slot, const TlDraw *d, uint32_t first, uint32_t n, const float *feet, int nfeet) {
     uint32_t rec = tl_pipeline ? tl_record(d) : ~0u;
     if (!n || rec == ~0u || first + n > TL_SLOT_INDICES)
         return;
     tl_begin();
     tl_slot_use[slot] = tl_submits + 1;
     tl_segment(2 * TL_INDICES + (uint32_t)slot * TL_SLOT_INDICES + first, n, rec);
+    tl_feet(feet, nfeet);
 }
 
 void render_vram_written(uint32_t addr, uint32_t size) {

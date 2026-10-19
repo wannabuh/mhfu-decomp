@@ -28,13 +28,16 @@ struct TlDrawS;                             /* (shared.h's TlDraw, TlVertex) */
 struct TlVertexS;
 int render_tl_ready(void);
 int render_tl_tessellates(void);
-void render_tl_draw(int type, int count, const struct TlDrawS *d, const struct TlVertexS *v, int nv, const uint16_t *idx);
+/* (the draws lit in the world: where their lowest vertices are, nfeet of them - render_scene.c's feet - if wanted) */
+int render_tl_feet(void);
+void render_tl_draw(int type, int count, const struct TlDrawS *d, const struct TlVertexS *v, int nv, const uint16_t *idx,
+                    const float *feet, int nfeet);
 /* and for recorded frames (MHFU_FPS): a frame's vertices and triangles' indices stored in a slot (one of 4) as it is
  * recorded - indices among the slot's vertices, from vfirst and ifirst -, and drawn from it as it is replayed: n
  * indices from first, with a draw (NULL: the last's) */
 void render_tl_store(int slot, uint32_t vfirst, const struct TlVertexS *v, int nv, uint32_t ifirst, const uint32_t *idx,
                      int ni);
-void render_tl_slot_draw(int slot, const struct TlDrawS *d, uint32_t first, uint32_t n);
+void render_tl_slot_draw(int slot, const struct TlDrawS *d, uint32_t first, uint32_t n, const float *feet, int nfeet);
 
 /* present.c: show the framebuffer at addr; read it back (480 x 272, ABGR8888) for frame dumps */
 void render_flip(uint32_t addr);

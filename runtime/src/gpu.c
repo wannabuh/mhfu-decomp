@@ -1067,12 +1067,16 @@ static void gpu_run_command(const void *cmd, size_t n) {
         emit_render((int)d[0], (int)d[1], (const ClipVertex *)(d + 4), (int)d[2], rq_reg, (int)d[3]);
         break;
     }
-    case Q_TL: {                        /* (a: type, and 256 if its draw is the last's; b: count; c: vertices) */
-        const uint8_t *q = p;
+    case Q_TL: {                        /* (a: type, and 256 if its draw is the last's; b: count; c: vertices; then
+                                         * the feet's count - 16 bytes -, the draw, vertices, indices, feet) */
+        const uint8_t *q = (const uint8_t *)p + 16;
+        int nfeet = (int)*(const uint32_t *)p;
         const TlDraw *d = h->a & 256 ? NULL : (const TlDraw *)q;
         q += d ? sizeof *d : 0;
         const TlVertex *v = (const TlVertex *)q;
-        render_tl_draw((int)(h->a & 255), (int)h->b, d, v, (int)h->c, (const uint16_t *)(v + h->c));
+        const uint16_t *ix = (const uint16_t *)(v + h->c);
+        const float *feet = (const float *)(q + sizeof *v * h->c + ((2 * h->b + 3) & ~3u));
+        render_tl_draw((int)(h->a & 255), (int)h->b, d, v, (int)h->c, ix, feet, nfeet);
         break;
     }
     case Q_TL_STORE: {                  /* (a: slot; b: vertices; c: indices; then their first, the vertices, indices) */
@@ -1081,9 +1085,14 @@ static void gpu_run_command(const void *cmd, size_t n) {
         render_tl_store((int)h->a, at[0], v, (int)h->b, at[1], (const uint32_t *)(v + h->b), (int)h->c);
         break;
     }
-    case Q_TL_SLOT:                     /* (a: slot, and 256 if its draw is the last's; b: first index; c: indices) */
-        render_tl_slot_draw((int)(h->a & 255), h->a & 256 ? NULL : (const TlDraw *)p, h->b, h->c);
+    case Q_TL_SLOT: {                   /* (a: slot, and 256 if its draw is the last's; b: first index; c: indices; then
+                                         * the feet's count - 16 bytes -, the draw, the feet) */
+        const uint8_t *q = (const uint8_t *)p + 16;
+        int nfeet = (int)*(const uint32_t *)p;
+        const TlDraw *d = h->a & 256 ? NULL : (const TlDraw *)q;
+        render_tl_slot_draw((int)(h->a & 255), d, h->b, h->c, (const float *)(q + (d ? sizeof *d : 0)), nfeet);
         break;
+    }
     }
 }
 
@@ -1400,6 +1409,7 @@ typedef struct {
     int first, n;                   /* its draws */
     uint32_t index, nindex;
     uint32_t vertex, nvertex;       /* (its vertices: for tessellation's shape normals) */
+    int feet, nfeet;                /* (lit: its lowest vertices, where they are in tl_feet; -1 not found yet) */
 } TlGroup;
 
 /* Consecutive draws on the same vertices (strips into a model's buffer) share a copy of the span they use */
@@ -1427,8 +1437,8 @@ typedef struct {
     TlGroup *tlg;
     int ntlg, tlgcap, tl_full;
     TlVertex *tlv;
-    uint32_t *tli;
-    uint32_t tl_nv, tl_ni, tlv_cap, tli_cap;
+    uint32_t *tli, *tl_feet;
+    uint32_t tl_nv, tl_ni, tlv_cap, tli_cap, tl_nfeet, tl_feet_cap;
     unsigned tl_gen;
 } Frame;
 
@@ -1600,7 +1610,7 @@ void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     rec->sorted = 0;
     static unsigned tl_gen_next;
     rec->ntlg = rec->tl_full = 0;
-    rec->tl_nv = rec->tl_ni = 0;
+    rec->tl_nv = rec->tl_ni = rec->tl_nfeet = 0;
     rec->tl_gen = ++tl_gen_next;
     latest->display_addr = display_addr;
     latest->time = time;
@@ -3168,6 +3178,29 @@ static void tl_shape(TlVertex *v, uint32_t nv, const uint32_t *tri, uint32_t ntr
         }
 }
 
+/* Where a vertex is in the world, as ge_tl.vert places it (for the feet: render_scene.c) */
+static void tl_world_of(const TlDraw *d, const TlVertex *v, float *w) {
+    float p[3] = {0, 0, 0}, m[3];
+    if (d->bones) {
+        for (uint32_t b = 0; b < d->bones; b++)
+            for (int r = 0; r < 3; r++) {
+                const float *row = d->bone[3 * b + (uint32_t)r];
+                p[r] += (row[0] * v->pos[0] + row[1] * v->pos[1] + row[2] * v->pos[2] + row[3]) * v->weights[b];
+            }
+    } else {
+        memcpy(p, v->pos, sizeof p);
+    }
+    for (int r = 0; r < 3; r++)
+        m[r] = d->world[r][0] * p[0] + d->world[r][1] * p[1] + d->world[r][2] * p[2] + d->world[r][3];
+    for (int r = 0; r < 3; r++)
+        w[r] = d->to_world[r][0] * m[0] + d->to_world[r][1] * m[1] + d->to_world[r][2] * m[2] + d->to_world[r][3];
+}
+
+/* Whether a draw's feet are wanted (render.c finds_feet: what the GE lights in the world, for the wind and grass) */
+static int tl_feet_wanted(const TlDraw *d) {
+    return (d->flags & TL_LIT) && (d->flags & TL_WORLD) && render_tl_feet();
+}
+
 static TlDraw tl_sent;                   /* the last draw sent (the renderer keeps it) */
 static int tl_have_sent;
 
@@ -3184,19 +3217,26 @@ static int tl_draw_now(TlDraw *d) {
 static void tl_prim(int type, int count, int idx, const Layout *l) {
     static TlDraw d;
     int same = tl_draw_now(&d);
-    int nv = count;
-    size_t dbytes = same ? 0 : sizeof d, bytes = dbytes + sizeof(TlVertex) * (size_t)nv + 2 * (size_t)count;
+    int nv = count, ntri = type == 3 ? count / 3 : count - 2, nfeet = tl_feet_wanted(&d) && ntri > 0 ? ntri : 0;
+    size_t dbytes = same ? 0 : sizeof d, ibytes = ((size_t)(2 * count) + 3) & ~(size_t)3;
+    size_t bytes = 16 + dbytes + sizeof(TlVertex) * (size_t)nv + ibytes + 12 * (size_t)nfeet;
     int to_queue = queued();
     uint8_t *p = to_queue ? q_cmd(Q_TL, (uint32_t)type | (same ? 256u : 0u), (uint32_t)count, (uint32_t)nv, bytes)
                           : malloc(bytes);
+    memset(p, 0, 16);
+    *(uint32_t *)p = (uint32_t)nfeet;
     if (!same)
-        memcpy(p, &d, sizeof d);
-    TlVertex *v = (TlVertex *)(p + dbytes);
+        memcpy(p + 16, &d, sizeof d);
+    TlVertex *v = (TlVertex *)(p + 16 + dbytes);
     uint16_t *ix = (uint16_t *)(v + nv);
     for (int i = 0; i < count; i++) {
         tl_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &v[i]);
         ix[i] = (uint16_t)i;
     }
+    /* (the feet: where each triangle's third corner is in the world - all of its own vertices but the first two) */
+    float *feet = (float *)((uint8_t *)(v + nv) + ibytes);
+    for (int t = 0; t < nfeet; t++)
+        tl_world_of(&d, &v[type == 3 ? 3 * t + 2 : t + 2], feet + 3 * t);
     if ((reg[0x17] & 1) && render_tl_tessellates()) {     /* (its own shape normals: tessellated, perhaps) */
         static uint32_t *tri;
         static int tcap;
@@ -3263,7 +3303,7 @@ static void tl_prim(int type, int count, int idx, const Layout *l) {
     if (to_queue) {
         render_queue_commit();
     } else {
-        render_tl_draw(type, count, same ? NULL : &d, v, nv, ix);
+        render_tl_draw(type, count, same ? NULL : &d, v, nv, ix, feet, nfeet);
         free(p);
     }
 }
@@ -3348,7 +3388,7 @@ static void tl_record(Frame *f, int type, int count, int idx, const Layout *l) {
         f->tlgcap = f->tlgcap ? f->tlgcap * 2 : 1024;
         f->tlg = realloc(f->tlg, sizeof *f->tlg * (size_t)f->tlgcap);
     }
-    f->tlg[f->ntlg] = (TlGroup){f->n - 1, 1, first, ni, base, (uint32_t)count};
+    f->tlg[f->ntlg] = (TlGroup){f->n - 1, 1, first, ni, base, (uint32_t)count, -1, 0};
     d->group = f->ntlg++;
 }
 
@@ -3372,20 +3412,65 @@ static void tl_send(Frame *f) {
 }
 
 /* (replaying) A group as one: its draw as replay() placed its first, its triangles from the latest frame's slot */
+/* (lit: the feet) A group's lowest vertices as it is drawn now - each triangle's third corner within 65 units of the
+ * lowest (the feet's 25 and room for the moves between frames shown) - kept with the frame: once a frame recorded */
+static void tl_group_feet(Frame *f, TlGroup *g, const TlDraw *d) {
+    static float *ys;
+    static uint32_t ycap;
+    uint32_t ntri = g->nindex / 3;
+    if (ntri > ycap) {
+        ycap = ntri * 2;
+        ys = realloc(ys, sizeof *ys * ycap);
+    }
+    float lo = 1e30f;
+    for (uint32_t t = 0; t < ntri; t++) {
+        float w[3];
+        tl_world_of(d, &f->tlv[f->tli[g->index + 3 * t + 2]], w);
+        ys[t] = w[1];
+        lo = fminf(lo, w[1]);
+    }
+    g->feet = (int)f->tl_nfeet;
+    g->nfeet = 0;
+    for (uint32_t t = 0; t < ntri; t++)
+        if (ys[t] < lo + 65.0f) {
+            if (f->tl_nfeet == f->tl_feet_cap) {
+                f->tl_feet_cap = f->tl_feet_cap ? f->tl_feet_cap * 2 : 4096;
+                f->tl_feet = realloc(f->tl_feet, sizeof *f->tl_feet * f->tl_feet_cap);
+            }
+            f->tl_feet[f->tl_nfeet++] = f->tli[g->index + 3 * t + 2];
+            g->nfeet++;
+        }
+}
+
 static void tl_group_draw(const TlGroup *g) {
     static TlDraw d;
     int same = tl_draw_now(&d);
     int slot = (int)(latest->tl_gen % TL_SLOTS);
     tl_groups_drawn++;
     tl_group_draws += (unsigned long)g->n;
-    if (!queued()) {
-        render_tl_slot_draw(slot, same ? NULL : &d, g->index, g->nindex);
-        return;
+    int nfeet = 0;
+    if (tl_feet_wanted(&d)) {
+        TlGroup *mg = &latest->tlg[g - latest->tlg];
+        if (mg->feet < 0)
+            tl_group_feet(latest, mg, &d);
+        nfeet = mg->nfeet;
     }
-    void *p = q_cmd(Q_TL_SLOT, (uint32_t)slot | (same ? 256u : 0u), g->index, g->nindex, same ? 0 : sizeof d);
+    size_t bytes = 16 + (same ? 0 : sizeof d) + 12 * (size_t)nfeet;
+    uint8_t *p = queued() ? q_cmd(Q_TL_SLOT, (uint32_t)slot | (same ? 256u : 0u), g->index, g->nindex, bytes)
+                          : malloc(bytes);
+    memset(p, 0, 16);
+    *(uint32_t *)p = (uint32_t)nfeet;
     if (!same)
-        memcpy(p, &d, sizeof d);
-    render_queue_commit();
+        memcpy(p + 16, &d, sizeof d);
+    float *feet = (float *)(p + 16 + (same ? 0 : sizeof d));
+    for (int k = 0; k < nfeet; k++)
+        tl_world_of(&d, &latest->tlv[latest->tl_feet[g->feet + k]], feet + 3 * k);
+    if (queued()) {
+        render_queue_commit();
+    } else {
+        render_tl_slot_draw(slot, same ? NULL : &d, g->index, g->nindex, feet, nfeet);
+        free(p);
+    }
 }
 
 static void prim(uint32_t data) {
