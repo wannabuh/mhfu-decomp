@@ -62,6 +62,7 @@ void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer);
 void rt_gate_before(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* on the frames before a 30th */
 void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* an object's tick (a0) */
 void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* converted, under a gate */
+void rt_trace_call(Ctx *c, uint32_t fn);   /* a call of fn (recomp.py's RECOMP_TRACE): logged with MHFU_CALL_LOG */
 extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
 extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
 

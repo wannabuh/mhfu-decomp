@@ -474,6 +474,9 @@ static void snapshots(void) {
 void gpu_frame_tick(void);
 void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn);
 int gpu_native_smoothing(void);
+extern int gpu_skip_draw, gpu_late;
+float rt_frame_30ths(void);
+static unsigned long native_skipped;    /* (for MHFU_FPS_STATS) */
 
 void present_frame(void) {
     static uint64_t frame_wall;
@@ -498,9 +501,11 @@ void present_frame(void) {
             double secs = (double)(wall - stats_wall) / 1e6;
             unsigned long smoothed, drawn;
             gpu_native_stats(&smoothed, &drawn);
-            fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%, %.0f%% of draws smoothed\n",
-                    (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
-                    (double)time_slept_us() / 1e4 / secs, drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0);
+            fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%, %.0f%% of draws smoothed, "
+                    "%lu frames left out (late)\n", (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
+                    (double)time_slept_us() / 1e4 / secs, drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0,
+                    native_skipped);
+            native_skipped = 0;
             stats_wall = wall;
             stats_frame = frame;
             longest_frame_us = 0;
@@ -534,7 +539,13 @@ void present_frame(void) {
     } else if (render_on) {
         if (dump)
             render_readback(display_fb_addr, pixels);
-        render_flip(display_fb_addr);
+        if (!gpu_skip_draw)
+            render_flip(display_fb_addr);
+        else
+            native_skipped++;
+        /* the game at its own rate above 30, running late: the next frame left out (not a 30th's: what ticks at 30 is
+         * drawn then - gpu.c): two frames late */
+        gpu_late = gpu_native_smoothing() && clock_behind_us() > (int64_t)(2000000.0f * rt_frame_30ths() / 30.0f);
     } else {
         convert(pixels);
         window_show(pixels);

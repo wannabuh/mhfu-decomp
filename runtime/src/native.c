@@ -344,6 +344,17 @@ void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
     run_native(c, fn, addr);
 }
 
+/* RECOMP_TRACE's functions, called: with MHFU_CALL_LOG, the game's time, whether under a gate as at 30, the function,
+ * its caller and first arguments */
+void rt_trace_call(Ctx *c, uint32_t fn) {
+    static int on = -1;
+    if (on < 0)
+        on = getenv("MHFU_CALL_LOG") != NULL;
+    if (on)
+        fprintf(stderr, "call: %.2f %s %08x from %08x (%08x %08x %08x)\n", rt_game_30ths(),
+                rt_time_scale == 1 && real_scale != 1 ? "30" : "--", fn, c->r[31], c->r[4], c->r[5], c->r[6]);
+}
+
 /* A gate of what makes ready for the logic of a 30th: run on the frame before one */
 void rt_gate_before(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
     if ((rt_tick30 && rt_time_scale == 1) || ungated(at))

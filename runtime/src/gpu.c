@@ -1964,6 +1964,15 @@ uint32_t gpu_render_frame(float t) {
  * as a frame at 30 a second, with nothing converted). */
 int native_frame30(int back);
 
+/* The game frames since the last a 30th fell on (0: this one) - counted by the game's, not the frames drawn (some may
+ * not be: gpu_skip_draw) */
+static int native_since30(void) {
+    int k = 0;
+    while (k < 31 && !native_frame30(k))
+        k++;
+    return k;
+}
+
 typedef struct {                        /* (in a cache line) */
     float w[12];                        /* its place in the world */
     uint64_t bones_hash;                /* its bones, told apart by their hash */
@@ -2119,7 +2128,7 @@ static void native_frame(void) {
     nat_c->cams = camera_game(nat_c->inv, target);
     if (nat_c->cams)
         camera_invert(nat_c->inv, nat_c->cam);
-    since30 = nat_c->is30 ? 0 : since30 + 1;
+    since30 = native_since30();
     Placings *ref = nat_c->is30 ? nat_p : nat_b;
     if (ref)
         ready_to_match(ref);
@@ -2156,6 +2165,39 @@ static int same_world(const float *a, const float *b) {
 
 static int same_place(const Placing *a, const Placing *b) {
     return a->nb == b->nb && a->bones_hash == b->bones_hash && same_world(a->w, b->w);
+}
+
+/* The game's camera, if it moves only at 30ths (as everything does where nothing is converted: the village), shown
+ * between its places at the last two 30ths as what ticks at 30 is (below), by how far the frame is into the 30th; view:
+ * the game's now. 1 if so (base: the camera to show), 0 if it is the game's as it is */
+static int native_camera_between(const float *view, float *base) {
+    static float at30[2][12], last[12];
+    static int have, moved, slow;
+    int is30 = native_frame30(0);
+    if (have && !is30 && memcmp(view, last, sizeof last))
+        moved = 1;                      /* it moved between 30ths: the game moves it every frame */
+    memcpy(last, view, sizeof last);
+    if (is30) {
+        memcpy(at30[0], at30[1], sizeof at30[0]);
+        memcpy(at30[1], view, sizeof at30[1]);
+        have = have < 2 ? have + 1 : 2;
+        slow = !moved;
+        moved = 0;
+    }
+    int since = native_since30();
+    if (have < 2 || !slow || !memcmp(at30[0], at30[1], sizeof at30[0]))
+        return 0;
+    float t = (float)since * rt_frame_30ths(), a[12], b[12], c[12];
+    if (t > 1)
+        t = 1;
+    /* the camera's place in the world (the view undone), between; and back. Not across a cut */
+    if (!invert43(at30[0], a) || !invert43(at30[1], b))
+        return 0;
+    float d = sqrtf((a[9] - b[9]) * (a[9] - b[9]) + (a[10] - b[10]) * (a[10] - b[10]) + (a[11] - b[11]) * (a[11] - b[11]));
+    if (d > 600)
+        return 0;
+    interp43(c, a, b, t);
+    return invert43(c, base);
 }
 
 /* prim: a draw in the world about to be drawn (key: its draw_key) - noted, and its matrices smoothed if it ticks at
@@ -2318,7 +2360,12 @@ static int blend_place(int count) {
     return 1;
 }
 
+/* present.c: this game frame is not drawn - the game at its own rate above 30, running late: what is between 30ths
+ * left out, so that it keeps time (its sound with it) */
+int gpu_skip_draw, gpu_late;        /* (present.c: the game is late - its next frame not drawn unless a 30th's) */
+static unsigned skip_generation;
 static void native_place(uint64_t key);
+static int native_camera_between(const float *view, float *base);
 int gpu_native_smoothing(void);
 int camera_native_shown(const float *view, float *shown);
 
@@ -2359,13 +2406,32 @@ static void prim(uint32_t data) {
             vaddr += (uint32_t)(count * l.size);
         return;
     }
+    if (!in_replay && skip_generation != frame_generation_direct) {     /* a frame's first: drawn or not */
+        skip_generation = frame_generation_direct;
+        gpu_skip_draw = gpu_late && !native_frame30(0);
+    }
+    if (gpu_skip_draw && !in_replay && !held_drawing && count > 0) {    /* (a frame not drawn: present.c) */
+        if (idx)
+            iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
+        else
+            vaddr += (uint32_t)(count * l.size);
+        return;
+    }
     if (render_on && count > 0) {
         if (!in_replay && shadow_generation != frame_generation_direct) {
             shadow_generation = frame_generation_direct;
             /* (the native frame rate: the camera shown, if it is not the game's) */
-            float target[3], view_now[12];
-            native_shown = gpu_native_smoothing() && camera_game(native_game_inv, target) &&
-                           (camera_invert(native_game_inv, view_now), camera_native_shown(view_now, native_shown_view));
+            float target[3], view_now[12], base[12];
+            native_shown = 0;
+            if (gpu_native_smoothing() && camera_game(native_game_inv, target)) {
+                camera_invert(native_game_inv, view_now);
+                int between = native_camera_between(view_now, base);
+                native_shown = camera_native_shown(between ? base : view_now, native_shown_view);
+                if (!native_shown && between) {
+                    memcpy(native_shown_view, base, sizeof base);
+                    native_shown = 1;
+                }
+            }
             shadow_frame(native_shown ? native_shown_view : NULL);
         }
         if (!in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing()) {

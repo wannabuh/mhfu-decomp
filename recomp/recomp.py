@@ -24,6 +24,10 @@ rabbitizer.config.pseudos_enablePseudos = False
 import modules  # noqa: E402
 from patches import GATES, PATCHES  # noqa: E402
 
+# RECOMP_TRACE=hex,...: functions whose every call is logged at run time (MHFU_CALL_LOG: native.c), for finding who
+# calls what at which rate
+TRACE = {int(x, 16) for x in os.environ.get("RECOMP_TRACE", "").split(",") if x}
+
 # a gate's kind (patches.py's GATES) -> the runtime's function for it (runtime/src/native.c)
 GATE_FUNCTIONS = {"on": "rt_gate", "before": "rt_gate_before", "object": "rt_gate_object", "native": "rt_gate_native"}
 
@@ -313,6 +317,8 @@ class Translator:
         out = [f"static void {self.fname(mod, start)}_gated(Ctx *c) {{" if gated else
                f"void {self.fname(mod, start)}(Ctx *c) {{"]
         emit = out.append
+        if start in TRACE:                  # RECOMP_TRACE=addr,...: the function's calls logged (rt_trace_call)
+            emit(f"    rt_trace_call(c, {hx(start)});")
         a = start
         while a < end:
             if a in labels:

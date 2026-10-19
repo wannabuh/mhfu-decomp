@@ -124,6 +124,13 @@ The rest is drawn as the game drew it. (A frame's display list is that game fram
 camera is the game's as it is drawn, and the 30th that frame's.) `MHFU_NATIVE_SMOOTH=0`: frames as the game draws
 them. `MHFU_FPS_STATS` gives the share of draws smoothed.
 
+Where the game's camera moves only at 30ths (nothing converted: the village), it is shown between its places at the
+last two 30ths as what ticks at 30 is (gpu.c `native_camera_between`). When the game runs late (two frames behind the
+wall clock) a frame between 30ths is not drawn, so that it keeps time - and its sound, which goes by the game's clock,
+does not break up; `MHFU_FPS_STATS` counts them. `RECOMP_TRACE=hex,...` (at `recomp.py`'s run) and `MHFU_CALL_LOG=1`
+log those functions' calls with the game's time - how the sounds' doubling was found; `MHFU_SAS_LOG=1` the sounds
+started.
+
 The mouse's camera: in the hunt the game's camera is turned every frame (`camera.c`, as at 30 but each frame: at 144 a
 steady 1/144th of the turn a frame); the mouse's raise of the eye, and its orbit where the game keeps its own angles
 (the village, the camp tent), are shown as `MHFU_FPS` shows them - each frame drawn with the game's camera turned
@@ -142,6 +149,9 @@ when the game runs as fast itself; the intros' skip goes by the game's time.
 | the hunt's cameras | a native call (`08812BD0`) | follow every frame |
 | the local player's buttons | `088D61CC`'s copies of the pad's pressed and released: at 30ths only (the pad is read at 30ths) | a press is seen once, not again between 30ths as a second press (combinations) |
 | the attack buttons' combination | the wait for a second button (`09A68DB0`, +0x1128) counts 30ths | special attacks as at 30 |
+| a character's turn | `088D6B00`: the facing's step to where it goes (+0x1F4) and its lean (+0x41A) times the time scale | turns as fast as at 30 |
+| the sprint | `09A9E288`: its push forward (5 units a game frame) times the time scale, its stamina (`09A6A480`, -1) a 30th | runs as far, tires as fast |
+| a motion's frame reached | `08864348` (3120 callers: sounds, effects, hits at a motion's frame N): N within the player's next step - its speed times the time scale | each fires once; the attacks' sounds were started up to 5 times at 144 |
 | a character's upkeep | gated whole (the call of its vtable's +0x3C, `088659AC`): stamina, hunger (a 6-minute count, +0x632), status and skills' timers | as at 30 |
 
 Checked at 60 and 144 (`MHFU_NATIVE_TRACE` with `MHFU_TRACE_WORDS=684,1`, the hunter's action at +0x684, its kind

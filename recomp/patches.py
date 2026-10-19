@@ -24,6 +24,16 @@ COMBINE = "the attack buttons' wait for a second one: in 30ths of a second (rt_t
 # the player): the pad is read at 30ths, so its pressed and released are seen at a 30th only - not again on the frames
 # between, as a second press
 EDGES = "the buttons pressed and released, seen at 30ths only (the pad is read at 30ths: not pressed again between)"
+# A character's turn to where it is going (EBOOT 088D6B00): its facing (+0x1F4) steps by so much a game frame, its lean
+# (+0x41A) by 0x80 - times the time scale
+TURN = "a character's turn and lean: their steps a game frame times the time scale"
+# The hunter's sprint (game_task 09A9E288): a push of 5 units forward a game frame on top of the motion's, and a
+# point of stamina a game frame
+SPRINT = "the sprint's push (units a game frame) times the time scale, its stamina a 30th"
+# A motion's frame reached (EBOOT 08864348: frame N in [a layer's frame, its frame + its speed) - the step the player
+# takes next): the speed times the time scale, or a sound or event at frame N comes again each game frame until the
+# frame passes it
+REACHED = "a motion frame reached: within the player's next step (its speed times the time scale)"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
@@ -115,6 +125,14 @@ PATCHES = {
     ("EBOOT", 0x088D6200): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
     ("EBOOT", 0x088D6230): ("lw $a1, 0x2D8C($a1)", "c->r[5] = rt_tick30 ? LW((c->r[5] + 0x2D8Cu)) : 0;", EDGES),
     ("EBOOT", 0x088D6238): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
+    ("EBOOT", 0x088D6C0C): ("lhu $a0, 0x324($s0)", "c->r[9] = (uint32_t)(int32_t)((float)(int32_t)c->r[9] * rt_time_scale + 0.5f); "
+                             "c->r[4] = LHU((c->r[16] + 0x324u));", TURN),
+    ("EBOOT", 0x088D6C20): ("lw $a3, 0x1F4($s0)", "c->r[8] = (uint32_t)(int32_t)((float)(int32_t)c->r[8] * rt_time_scale + 0.5f); "
+                             "c->r[7] = LW((c->r[16] + 0x1F4u));", TURN),
+    ("game_task", 0x09A9E4F4): ("lwc1 $f1, 0x10($sp)", scaled_load(1, 29, 0x10), SPRINT),
+    ("game_task", 0x09A9E4F8): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), SPRINT),
+    ("game_task", 0x09A9E374): ("addiu $a1, $zero, -0x1", "c->r[5] = rt_tick30 ? 0xFFFFFFFFu : 0;", SPRINT),
+    ("EBOOT", 0x08864368): ("lwc1 $f0, 0x14($v1)", scaled_load(0, 3, 0x14), REACHED),
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),

@@ -316,8 +316,15 @@ void hle___sceSasSetSimpleADSR(Ctx *c) {
     RET(0);
 }
 
+double rt_game_30ths(void);
+
 void hle___sceSasSetKeyOn(Ctx *c) {
     Voice *v = voice(c);
+    static int log = -1;
+    if (log < 0)
+        log = getenv("MHFU_SAS_LOG") != NULL;
+    if (log && v)                       /* MHFU_SAS_LOG: each sound started, by the game's time */
+        fprintf(stderr, "sas: %.2f key on voice %u, %08x\n", rt_game_30ths(), ARG1, v->vag);
     if (v && v->vag) {
         v->playing = 1;
         v->phase = 0;
