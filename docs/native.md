@@ -138,6 +138,17 @@ steady 1/144th of the turn a frame); the mouse's raise of the eye, and its orbit
 about its target (`camera_native_shown`), the world, the shadows and the light shafts with it. `MHFU_FPS` is left off
 when the game runs as fast itself; the intros' skip goes by the game's time.
 
+**Both at once** (`tick_hz = 60` with `fps = 144`): the game at 60, each of its frames recorded and the frames shown
+interpolated between the last two (`MHFU_FPS`), each drawn for when it is shown - so the display's timing (its refresh,
+VRR, a late wake-up) never shows as judder, as it does with the game's frames shown as they come. What ticks at 30 is
+recorded smoothed (the same smoothing, as the draws are recorded); where the game's camera moves only at 30ths,
+`camera.c` gives the interpolation the camera between its 30ths (`camera_between_30ths`, one 30th behind), and keeps the
+game's for taking it out of the draws. What is shown trails the game by a frame of its: a 60th, against MHFU_FPS's 30th.
+`MHFU_MOTION_LOG=file` logs where each skinned model lands on the screen in each frame shown, whatever draws it
+(how evenly things move: 0.002 px from a smooth path at 30 and at 60 with the smoothing, 0.03 without); `MHFU_FPS_STATS`
+gives the game's thread's time a frame shown. The frames shown cost the game's thread 6-7 ms each (the vertex stage
+again for each), near all of a 144th.
+
 ## Converted
 
 | system | patch | at 60 ticks |

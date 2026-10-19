@@ -95,6 +95,11 @@ static Axis yaw_axis = {.r = 1, .before_r = 1}, pitch_axis = {.r = 1, .before_r 
 /* The game's last two frames' cameras: view matrices (4x3, as gpu.c's), targets, eyes; have: how many are recorded */
 static float views[2][12], targets[2][3], eyes[2][3];
 static float view_before[12];           /* the frame's before the previous (what some models were placed with) */
+/* The cameras the frames were drawn with, as the game had them: views and view_before are the frames' as shown - the
+ * same, but at the native frame rate where the game's camera moves only at 30ths (as it does where nothing is converted:
+ * the village): then they are between its places at the last two 30ths, one 30th behind, as what ticks at 30 is drawn
+ * (gpu.c) */
+static float game_views[2][12], game_view_before[12];
 static float target_before[3], eye_before[3];
 /* gpu.c: the frames shown are drawn with the camera of the update before theirs - and so are a frame behind what the
  * camera follows: the target (and eye) followed are then the frame's before */
@@ -193,6 +198,56 @@ void camera_set_sens(float s) {
 }
 
 /* After each game frame: note its camera, then give the game the mouse's motion (this frame's, dx dy) for the next */
+/* At the native frame rate, with MHFU_FPS (a game frame: its camera - view 4x3, eye, target): if the camera moves only
+ * at 30ths, where to show it - between its places at the last two 30ths by how far the frame is past the last, one 30th
+ * behind (gpu.c's native smoothing: what ticks at 30 is drawn so). 0 if as it is */
+int native_frame30(int back);
+float rt_frame_30ths(void);
+void gpu_camera_between(const float *a, const float *b, float t, float *out);
+static int camera_between_30ths(const float *view, const float *e, const float *t, float *out, float *out_eye,
+                                 float *out_target) {
+    static float at30[2][12], eye30[2][3], target30[2][3], last[12];
+    static int have30, moved, slow;
+    if (rt_frame_30ths() > 0.999f) {
+        have30 = 0;
+        return 0;
+    }
+    int is30 = native_frame30(0);
+    if (have30 && !is30 && memcmp(view, last, sizeof last))
+        moved = 1;                      /* it moved between 30ths: the game moves it every frame */
+    memcpy(last, view, sizeof last);
+    if (is30) {
+        memcpy(at30[0], at30[1], sizeof at30[0]);
+        memcpy(at30[1], view, sizeof at30[1]);
+        memcpy(eye30[0], eye30[1], sizeof eye30[0]);
+        memcpy(eye30[1], e, sizeof eye30[1]);
+        memcpy(target30[0], target30[1], sizeof target30[0]);
+        memcpy(target30[1], t, sizeof target30[1]);
+        have30 = have30 < 2 ? have30 + 1 : 2;
+        slow = !moved;
+        moved = 0;
+    }
+    if (have30 < 2 || !slow || !memcmp(at30[0], at30[1], sizeof at30[0]))
+        return 0;
+    float d = sqrtf((eye30[1][0] - eye30[0][0]) * (eye30[1][0] - eye30[0][0]) +
+                    (eye30[1][1] - eye30[0][1]) * (eye30[1][1] - eye30[0][1]) +
+                    (eye30[1][2] - eye30[0][2]) * (eye30[1][2] - eye30[0][2]));
+    if (d > 600)                        /* not across a cut */
+        return 0;
+    int since = 0;
+    while (since < 31 && !native_frame30(since))
+        since++;
+    float p = (float)since * rt_frame_30ths();
+    if (p > 1)
+        p = 1;
+    gpu_camera_between(at30[0], at30[1], p, out);
+    for (int i = 0; i < 3; i++) {
+        out_eye[i] = eye30[0][i] + (eye30[1][i] - eye30[0][i]) * p;
+        out_target[i] = target30[0][i] + (target30[1][i] - target30[0][i]) * p;
+    }
+    return 1;
+}
+
 void camera_update(float dx, float dy) {
     camera_sens();
     tick++;
@@ -208,15 +263,24 @@ void camera_update(float dx, float dy) {
     /* the frame's camera (its view matrix 4x4 by columns: the game multiplies it into each world matrix) */
     const float *e = (const float *)MEM(scene + 0xB40), *t = (const float *)MEM(scene + 0xB50);
     const float *vm = (const float *)MEM(scene + 0xB80);
+    memcpy(game_view_before, game_views[0], sizeof game_view_before);
+    memcpy(game_views[0], game_views[1], sizeof game_views[0]);
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 3; i++)
+            game_views[1][3 * j + i] = vm[4 * j + i];
+    float between[12], between_eye[3], between_target[3];
+    if (camera_between_30ths(game_views[1], e, t, between, between_eye, between_target))
+        vm = NULL, e = between_eye, t = between_target;
     memcpy(view_before, views[0], sizeof view_before);
     memcpy(target_before, targets[0], sizeof target_before);
     memcpy(eye_before, eyes[0], sizeof eye_before);
     memcpy(views[0], views[1], sizeof views[0]);
     memcpy(targets[0], targets[1], sizeof targets[0]);
     memcpy(eyes[0], eyes[1], sizeof eyes[0]);
-    for (int j = 0; j < 4; j++)
-        for (int i = 0; i < 3; i++)
-            views[1][3 * j + i] = vm[4 * j + i];
+    if (vm)
+        memcpy(views[1], game_views[1], sizeof views[1]);
+    else
+        memcpy(views[1], between, sizeof views[1]);
     memcpy(targets[1], t, sizeof targets[1]);
     memcpy(eyes[1], e, sizeof eyes[1]);
     if (have < 2)
@@ -323,8 +387,8 @@ static void mul33(const float *a, const float *b, float *out) {
 int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown) {
     if ((!active && !orbiting) || have < 2 || sens < 0)
         return 0;
-    invert(views[0], prev_inv);
-    invert(views[1], latest_inv);
+    invert(game_views[0], prev_inv);
+    invert(game_views[1], latest_inv);
     float moved = sqrtf((eyes[1][0] - eyes[0][0]) * (eyes[1][0] - eyes[0][0]) +
                         (eyes[1][1] - eyes[0][1]) * (eyes[1][1] - eyes[0][1]) +
                         (eyes[1][2] - eyes[0][2]) * (eyes[1][2] - eyes[0][2]));
@@ -481,6 +545,6 @@ void camera_invert(const float *v, float *out) {
 /* gpu.c: the inverse of the camera two game frames ago. The game places some models (the monsters) during their update,
  * with the camera as it was before the frame's: a frame's drawing of them has the camera of the frame before in it */
 void camera_before_inverse(float *inv) {
-    invert(view_before, inv);
+    invert(game_view_before, inv);
 }
 

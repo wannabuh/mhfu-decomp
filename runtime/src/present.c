@@ -380,6 +380,7 @@ uint64_t present_pump(void) {
     uint64_t since = now - gpu_last_frame_time(), period = gpu_frame_period();
     float t = period ? (float)since / (float)period : 1.0f;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
+    uint64_t drawing = wall_time_us();
     uint32_t addr = gpu_render_frame(t);
     static long dump_at = -1;
     if (dump_at < 0)
@@ -417,11 +418,15 @@ uint64_t present_pump(void) {
         }
         gpu_render_frame(t);
     }
+    uint64_t flipping = wall_time_us();
     if (addr)
         render_flip(addr);
-    static uint64_t stats_at;
+    static uint64_t flip_us;
+    flip_us += wall_time_us() - flipping;
+    static uint64_t stats_at, drawn_us;
     static unsigned long shown, stats_frame;
     shown++;
+    drawn_us += wall_time_us() - drawing;
     if (getenv("MHFU_FPS_STATS")) {
         uint64_t wall = wall_time_us();
         if (!stats_at)
@@ -431,9 +436,12 @@ uint64_t present_pump(void) {
             gpu_match_stats(&m, &u);
             double secs = (double)(wall - stats_at) / 1e6;
             fprintf(stderr, "display: %.1f frames a second (%lu left out, the game late), the game %.1f (longest frame "
-                    "%.1f ms), idle %.0f%%, %.0f%% of primitives matched\n", (double)shown / secs, skipped,
-                    (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
-                    (double)time_slept_us() / 1e4 / secs, m + u ? 100.0 * (double)m / (double)(m + u) : 0.0);
+                    "%.1f ms), idle %.0f%%, %.0f%% of primitives matched, a frame shown %.2f ms (%.2f flipping)\n",
+                    (double)shown / secs, skipped, (double)(frame - stats_frame) / secs,
+                    (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
+                    m + u ? 100.0 * (double)m / (double)(m + u) : 0.0, (double)drawn_us / 1000 / (double)(shown ? shown : 1),
+                    (double)flip_us / 1000 / (double)(shown ? shown : 1));
+            drawn_us = flip_us = 0;
             skipped = 0;
             stats_at = wall;
             stats_frame = frame;

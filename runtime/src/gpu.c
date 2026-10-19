@@ -1389,6 +1389,11 @@ typedef struct {
     size_t used, size;
     uint32_t display_addr;
     uint64_t time;                  /* when the game finished it */
+    /* (for matching: each draw's key and position, kept apart from the draws - and the draws in order of key, sorted
+     * once, as the frame is first matched) */
+    uint64_t *keys;
+    float (*pos)[3];
+    int *order, kcap, sorted;
 } Frame;
 
 static int recording;               /* primitives are recorded, not drawn */
@@ -1410,6 +1415,25 @@ static void held_command(uint32_t cmd, uint32_t addr, int draw) {
     held_cmds[held_n++] = (HeldCommand){cmd, addr, held_chunk, draw};
 }
 static int in_replay;               /* drawing a recorded frame (gpu_render_frame) */
+
+/* MHFU_MOTION_LOG=file: each skinned draw in the world as drawn - when (us), its key, where its root lands on the screen
+ * (-1 to 1) - for measuring how evenly things move in the frames shown, whatever draws them */
+int fast_forward(void);
+static int motion_log_on = -1;
+static FILE *motion_file;
+static uint64_t replay_key;             /* (a recorded draw being drawn again: its key, as recorded) */
+static void motion_log(uint64_t key) {
+    float p[3], v[3];
+    mul43(world, &bones[0][9], p);
+    mul43(view, p, v);
+    float x = proj[0] * v[0] + proj[4] * v[1] + proj[8] * v[2] + proj[12];
+    float y = proj[1] * v[0] + proj[5] * v[1] + proj[9] * v[2] + proj[13];
+    float w = proj[3] * v[0] + proj[7] * v[1] + proj[11] * v[2] + proj[15];
+    if (w > 0.01f)
+        fprintf(motion_file, "%llu %016llx %.5f %.5f\n", (unsigned long long)time_us(), (unsigned long long)key, x / w,
+                y / w);
+}
+
 static unsigned frame_generation_direct = 1, shadow_generation;    /* frames drawn as the game draws them */
 static unsigned frame_generation;   /* counts the frames recorded: what is worked out from the last two keeps until it changes */
 static Frame frames[3];             /* recording, latest, previous */
@@ -1436,6 +1460,9 @@ static void close_run(Frame *f) {
     r->copy = keep(f, PTR(r->vaddr + r->lo), r->hi - r->lo);
     f->open = 0;
 }
+
+static uint64_t draw_key(const Draw *d);
+static void draw_position(const Draw *d, float *p);
 
 static void record(Frame *rec, uint32_t data, const Layout *l) {
     int count = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
@@ -1492,6 +1519,14 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
         d->tex_h = held_texture->tex_h;
     } else if (render_on && !(reg[0xD3] & 1) && (reg[0x1E] & 1))
         d->tex_slot = render_texture(reg, &d->tex_w, &d->tex_h);
+    if (rec->n > rec->kcap) {
+        rec->kcap = rec->cap;
+        rec->keys = realloc(rec->keys, sizeof *rec->keys * (size_t)rec->kcap);
+        rec->pos = realloc(rec->pos, sizeof *rec->pos * (size_t)rec->kcap);
+        rec->order = realloc(rec->order, sizeof *rec->order * (size_t)rec->kcap);
+    }
+    rec->keys[rec->n - 1] = draw_key(d);
+    draw_position(d, rec->pos[rec->n - 1]);
 }
 
 /* The time between the last two recorded frames (the game's frame time, normally 1/30 s) */
@@ -1519,6 +1554,7 @@ void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     rec->n = 0;
     rec->nruns = 0;
     rec->used = 0;
+    rec->sorted = 0;
     latest->display_addr = display_addr;
     latest->time = time;
     frame_generation++;
@@ -1712,6 +1748,8 @@ static uint32_t to_ge_float(float f) {
     return u >> 8;
 }
 
+static uint64_t draw_key(const Draw *d);
+
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
     /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
@@ -1776,6 +1814,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
     blend_from = prev && loose_near[d - latest->draws] ? prev : NULL;
     blend_t = t;
     q_override(d->tex_slot, d->tex_w, d->tex_h);
+    replay_key = draw_key(d);
     prim(d->data);
     q_override(0xFFFFFFFEu, 0, 0);
     blend_from = NULL;
@@ -1850,24 +1889,53 @@ static float dist2(const float *a, const float *b) {
     return (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]);
 }
 
-static int cmp_key(const void *a, const void *b) {
-    uint64_t x = *(const uint64_t *)a, y = *(const uint64_t *)b;
-    return x < y ? -1 : x > y;
+/* A frame's draws in order of key (once) */
+static void sort_frame(Frame *f) {
+    if (f->sorted)
+        return;
+    f->sorted = 1;
+    const uint64_t *keys = f->keys;
+    int *order = f->order;
+    for (int i = 0; i < f->n; i++)
+        order[i] = i;
+    /* insertion sort is too slow for thousands: a simple bottom-up merge sort on order[] by keys[] */
+    static int *spare;
+    static int spare_cap;
+    if (f->n > spare_cap) {
+        spare_cap = f->n * 2;
+        spare = realloc(spare, sizeof *spare * (size_t)spare_cap);
+    }
+    int *tmp = spare;
+    for (int w = 1; w < f->n; w *= 2) {
+        for (int lo = 0; lo < f->n; lo += 2 * w) {
+            int mid = lo + w < f->n ? lo + w : f->n, hi = lo + 2 * w < f->n ? lo + 2 * w : f->n;
+            int i = lo, j = mid, k = lo;
+            while (i < mid && j < hi)
+                tmp[k++] = keys[order[i]] <= keys[order[j]] ? order[i++] : order[j++];
+            while (i < mid) tmp[k++] = order[i++];
+            while (j < hi) tmp[k++] = order[j++];
+        }
+        int *t = order; order = tmp; tmp = t;
+    }
+    if (order != f->order)
+        memcpy(f->order, order, sizeof *order * (size_t)f->n);
 }
 
-/* The latest frame's keys, sorted, to count a key's draws */
-static uint64_t *latest_keys;
-static int latest_n;
-
-static int latest_count(uint64_t k) {
-    int lo = 0, hi = latest_n;
+/* Where a key's draws start in a sorted frame */
+static int key_start(const Frame *f, uint64_t k) {
+    int lo = 0, hi = f->n;
     while (lo < hi) {
         int mid = (lo + hi) / 2;
-        if (latest_keys[mid] < k) lo = mid + 1;
+        if (f->keys[f->order[mid]] < k) lo = mid + 1;
         else hi = mid;
     }
-    int n = 0;
-    while (lo + n < latest_n && latest_keys[lo + n] == k)
+    return lo;
+}
+
+/* How many of the latest frame's draws have a key */
+static int latest_count(uint64_t k) {
+    int lo = key_start(latest, k), n = 0;
+    while (lo + n < latest->n && latest->keys[latest->order[lo + n]] == k)
         n++;
     return n;
 }
@@ -2057,61 +2125,17 @@ static int *match(int in_world) {
         taken = realloc(taken, (size_t)tcap);
     }
     memset(taken, 0, (size_t)previous->n);
-    /* the previous frame's draws, sorted by key, to find a key's group by binary search */
-    static int *order;
-    static int ocap;
-    if (previous->n > ocap) {
-        ocap = previous->n * 2;
-        order = realloc(order, sizeof *order * (size_t)ocap);
-    }
-    static uint64_t *keys;
-    static int kcap;
-    if (previous->n > kcap) {
-        kcap = previous->n * 2;
-        keys = realloc(keys, sizeof *keys * (size_t)kcap);
-    }
-    for (int i = 0; i < previous->n; i++) {
-        keys[i] = draw_key(&previous->draws[i]);
-        order[i] = i;
-    }
-    /* insertion sort is too slow for thousands: a simple bottom-up merge sort on order[] by keys[] */
-    static int *tmp;
-    static int tmpcap;
-    if (previous->n > tmpcap) {
-        tmpcap = previous->n * 2;
-        tmp = realloc(tmp, sizeof *tmp * (size_t)tmpcap);
-    }
-    for (int w = 1; w < previous->n; w *= 2) {
-        for (int lo = 0; lo < previous->n; lo += 2 * w) {
-            int mid = lo + w < previous->n ? lo + w : previous->n, hi = lo + 2 * w < previous->n ? lo + 2 * w : previous->n;
-            int i = lo, j = mid, k = lo;
-            while (i < mid && j < hi)
-                tmp[k++] = keys[order[i]] <= keys[order[j]] ? order[i++] : order[j++];
-            while (i < mid) tmp[k++] = order[i++];
-            while (j < hi) tmp[k++] = order[j++];
-        }
-        int *t = order; order = tmp; tmp = t;
-    }
-    static int lcap;
-    if (latest->n > lcap) {
-        lcap = latest->n * 2;
-        latest_keys = realloc(latest_keys, sizeof *latest_keys * (size_t)lcap);
-    }
-    for (int i = 0; i < latest->n; i++)
-        latest_keys[i] = draw_key(&latest->draws[i]);
-    latest_n = latest->n;
-    qsort(latest_keys, (size_t)latest_n, sizeof *latest_keys, cmp_key);
+    /* the frames' draws by key, to find a key's group by binary search */
+    sort_frame(previous);
+    sort_frame(latest);
+    const uint64_t *keys = previous->keys;
+    const int *order = previous->order;
     for (int i = 0; i < latest->n; i++) {
         const Draw *d = &latest->draws[i];
-        uint64_t k = draw_key(d);
-        int lo = 0, hi = previous->n;
-        while (lo < hi) {
-            int mid = (lo + hi) / 2;
-            if (keys[order[mid]] < k) lo = mid + 1;
-            else hi = mid;
-        }
+        uint64_t k = latest->keys[i];
+        int lo = key_start(previous, k);
         float p[3], p_late[3];
-        draw_position(d, p);
+        memcpy(p, latest->pos[i], sizeof p);
         memcpy(p_late, p, sizeof p);
         if (in_world) {
             to_frame_world(latest_inv, p);
@@ -2127,7 +2151,7 @@ static int *match(int in_world) {
                 taken[order[lo]] = 1;
                 if (in_world) {         /* which camera it was placed with: the one that keeps it still-er */
                     float q[3], q_late[3];
-                    draw_position(&previous->draws[m[i]], q);
+                    memcpy(q, previous->pos[m[i]], sizeof q);
                     memcpy(q_late, q, sizeof q);
                     to_frame_world(prev_inv, q);
                     to_frame_world(before_inv, q_late);
@@ -2144,7 +2168,7 @@ static int *match(int in_world) {
             if (taken[c])
                 continue;
             float q[3], q_late[3];
-            draw_position(&previous->draws[c], q);
+            memcpy(q, previous->pos[c], sizeof q);
             memcpy(q_late, q, sizeof q);
             int late = 0;
             if (in_world) {
@@ -2338,11 +2362,11 @@ static unsigned long nat_slow, nat_drawn;      /* (for MHFU_FPS_STATS) */
 static int nat_override;                        /* this draw's matrices are smoothed: as they were, to put back */
 static float nat_world[12], nat_bones[8][12];
 
-/* Whether frames are smoothed (the game at a rate above 30, MHFU_FPS off: present.c) */
+/* Whether frames are smoothed (the game at a rate above 30: present.c; with MHFU_FPS too, as they are recorded) */
 int gpu_native_smoothing(void) {
     if (nat_on < 0)
         nat_on = !getenv("MHFU_NATIVE_SMOOTH") || atoi(getenv("MHFU_NATIVE_SMOOTH")) != 0;
-    return nat_on && render_on && !recording && rt_frame_30ths() < 0.999f;
+    return nat_on && render_on && rt_frame_30ths() < 0.999f;
 }
 
 /* How many draws were smoothed, of those in the world (for MHFU_FPS_STATS) */
@@ -2532,6 +2556,13 @@ static int native_camera_between(const float *view, const float *target, float *
     for (int i = 0; i < 3; i++)
         base_target[i] = target30[0][i] + (target30[1][i] - target30[0][i]) * t;
     return invert43(c, base);
+}
+
+/* camera.c: a camera (view, 4x3) t of the way from a to b - its place in the world between */
+void gpu_camera_between(const float *a, const float *b, float t, float *out) {
+    float ia[12], ib[12], c[12];
+    if (!invert43(a, ia) || !invert43(b, ib) || (interp43(c, ia, ib, t), !invert43(c, out)))
+        memcpy(out, t < 0.5f ? a : b, sizeof(float) * 12);
 }
 
 /* prim: a draw in the world about to be drawn (key: its draw_key) - noted, and its matrices smoothed if it ticks at
@@ -2727,6 +2758,10 @@ static void seen_v(int count, const Layout *l) {
 }
 
 static void prim(uint32_t data) {
+    if (motion_log_on < 0) {
+        motion_file = getenv("MHFU_MOTION_LOG") ? fopen(getenv("MHFU_MOTION_LOG"), "w") : NULL;
+        motion_log_on = motion_file != NULL;
+    }
     int type = (data >> 16) & 7, count = data & 0xFFFF;
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
@@ -2738,7 +2773,19 @@ static void prim(uint32_t data) {
         held_command(0x04000000u | data, 0, held.n - 1);
     }
     if (recording && count > 0) {
+        /* (the native frame rate under MHFU_FPS: what ticks at 30 recorded smoothed, as it would be drawn) */
+        int smooth = !in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing();
+        float sw[12], sb[8][12];
+        if (smooth) {
+            memcpy(sw, world, sizeof world);
+            memcpy(sb, bones, sizeof bones);
+            native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
+        }
         record(rec, data, &l);
+        if (smooth) {
+            memcpy(world, sw, sizeof world);
+            memcpy(bones, sb, sizeof bones);
+        }
         if (idx)
             iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
         else
@@ -2798,6 +2845,9 @@ static void prim(uint32_t data) {
                 compose43(native_shown_view, w, world);
             }
         }
+        if (motion_log_on && !fast_forward() && !(vt >> 23 & 1) && proj[11] != 0 && ((vt >> 9) & 3))
+            motion_log(in_replay ? replay_key : ((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^
+                                                ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
         shadow_prim();
         q_begin(reg);
     }
