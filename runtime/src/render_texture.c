@@ -30,6 +30,18 @@ static Texture *textures;
 static int ntextures;
 static uint32_t next_slot = 0;
 static int mipmaps = 1;            /* the game's textures get mipmaps (MHFU_MIPMAPS=0: none) */
+/* A texture being made, with its smaller levels after it: in memory of our own, then copied into the staging buffer
+ * whole (that is mapped and write-combined: slow to read - making levels from it took 150 ms a 512 x 512 texture) */
+static uint32_t *scratch;
+static size_t scratch_bytes;
+
+static uint32_t *scratch_for(size_t bytes) {   /* (what it holds kept) */
+    if (bytes > scratch_bytes) {
+        scratch_bytes = bytes * 2;
+        scratch = realloc(scratch, scratch_bytes);
+    }
+    return scratch;
+}
 float tex_average[MAX_TEXTURES][3];
 uint8_t tex_cutout[MAX_TEXTURES];
 uint8_t (*tex_holes)[HOLE_GRID * HOLE_GRID];
@@ -84,8 +96,7 @@ static uint64_t hash_bytes(const uint8_t *p, size_t n, uint64_t h) {
 /* A texture's next smaller level (half each way, at least 1): each texel the average of four, its colour weighted by
  * their alpha (holes lend it none). A texture with holes (alpha tested: grass, leaves) keeps as much of itself solid
  * as the full size has - its alpha scaled to that - so that it does not thin away in the distance */
-static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const uint32_t *top, int tw, int th,
-                       int cutout) {
+static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, int cutout, float want) {
     int dw = w > 1 ? w / 2 : 1, dh = h > 1 ? h / 2 : 1;
     int sx = w > 1 ? 2 : 1, sy = h > 1 ? 2 : 1;
     for (int y = 0; y < dh; y++)
@@ -108,11 +119,9 @@ static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const u
         }
     if (!cutout)
         return;
-    /* the share solid (alpha at least half) at the full size, and the scale of this level's alpha keeping it */
-    size_t solid = 0, all = (size_t)tw * (size_t)th, n = (size_t)dw * (size_t)dh;
-    for (size_t i = 0; i < all; i++)
-        solid += (top[i] >> 24) >= 128;
-    float want = (float)solid / (float)all, lo = 0.0f, hi = 4.0f;
+    /* the scale of this level's alpha keeping the share solid (alpha at least half) the full size has: want */
+    size_t n = (size_t)dw * (size_t)dh;
+    float lo = 0.0f, hi = 4.0f;
     for (int it = 0; it < 10; it++) {
         float mid = 0.5f * (lo + hi);
         size_t c = 0;
@@ -129,7 +138,7 @@ static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, const u
     }
 }
 
-/* Level 0 (w x h, in the staging buffer at staging_used) to the texture, with its smaller levels made after it */
+/* Level 0 (w x h, in scratch) to the texture, with its smaller levels made after it */
 static void upload(Texture *t, int w, int h) {
     int sampler = t->sampler;
     size_t size = (size_t)w * (size_t)h * 4;
@@ -145,14 +154,23 @@ static void upload(Texture *t, int w, int h) {
         level_at[l] = total;
         total += (size_t)lw * (size_t)lh * 4;
     }
-    if (staging_used + total > STAGING_BYTES)
+    if (staging_used + total > STAGING_BYTES) {
         levels = 1;
+        total = size;
+    }
+    uint8_t *px = (uint8_t *)scratch_for(total);    /* (level 0 is there already: scratch_for keeps it) */
+    int cutout = t->slot < MAX_TEXTURES && tex_cutout[t->slot];
+    float want = 0;
+    if (cutout && levels > 1) {         /* the share of the full size solid (alpha at least half) */
+        size_t solid = 0;
+        for (size_t i = 0; i < (size_t)w * (size_t)h; i++)
+            solid += (((const uint32_t *)px)[i] >> 24) >= 128;
+        want = (float)solid / (float)((size_t)w * (size_t)h);
+    }
     for (int l = 1; l < levels; l++)
-        make_level((uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l - 1]),
-                   (uint32_t *)((uint8_t *)staging.map + staging_used + level_at[l]),
-                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1,
-                   (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h,
-                   t->slot < MAX_TEXTURES && tex_cutout[t->slot]);
+        make_level((uint32_t *)(px + level_at[l - 1]), (uint32_t *)(px + level_at[l]),
+                   w >> (l - 1) ? w >> (l - 1) : 1, h >> (l - 1) ? h >> (l - 1) : 1, cutout, want);
+    memcpy((uint8_t *)staging.map + staging_used, px, total);
     if (t->w != w || t->h != h || t->levels != levels) {
         retire(&t->img);
         t->img = vk_image_mips((uint32_t)w, (uint32_t)h, (uint32_t)levels, VK_FORMAT_R8G8B8A8_UNORM,
@@ -191,7 +209,7 @@ static int pack_image(Texture *t, int w, int h, int *iw, int *ih) {
         t->pending = 1;             /* (no room this frame: read again) */
         return 0;
     }
-    memcpy((uint8_t *)staging.map + staging_used, im.pixels, size);
+    memcpy(scratch_for(size), im.pixels, size);
     free(im.pixels);
     if (im.filter == TEXPACK_FILTER_LINEAR)
         t->sampler |= 1;
@@ -202,14 +220,14 @@ static int pack_image(Texture *t, int w, int h, int *iw, int *ih) {
     return 1;
 }
 
-/* The game's texture decoded (in the staging buffer): its key in a texture pack worked out, it written out (dumping),
+/* The game's texture decoded (in scratch): its key in a texture pack worked out, it written out (dumping),
  * and uploaded - or the pack's image in its place */
 static void upload_pack(Texture *t, const uint32_t *reg, int w, int h) {
     int uw = w, uh = h;
     t->pending = 0;
     if (texpack_active()) {
         texpack_key(reg, texpack_draw_v, &t->pack_key, &t->pack_hash);
-            texpack_dump(t->pack_key, t->pack_hash, (const uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
+            texpack_dump(t->pack_key, t->pack_hash, scratch, w, h);
         pack_image(t, w, h, &uw, &uh);
     }
     upload(t, uw, uh);
@@ -293,9 +311,9 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         fprintf(stderr, "renderer: out of staging space this frame\n");
         return t->slot;
     }
-    gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h, reg);
+    gpu_decode_texture(scratch_for(size), w, h, reg);
     if (t->slot < MAX_TEXTURES) {      /* its average colour (by alpha), for the lights effects make */
-        const uint32_t *px = (const uint32_t *)((uint8_t *)staging.map + staging_used);
+        const uint32_t *px = scratch;
         double sum[3] = {0, 0, 0}, wsum = 0;
         int step = w * h > 4096 ? (w * h) / 4096 : 1, n = 0, holes = 0;
         for (int i = 0; i < w * h; i += step) {
