@@ -2943,6 +2943,17 @@ static int tl_take(int type, int blend) {
     uint32_t vt = reg[0x12];
     if (!tl_mode || type < 3 || type > 5 || blend || ((vt >> 23) & 1) || proj[11] == 0)
         return 0;
+    /* left to the CPU's vertex stage, as the renderer reads their vertices (render.c render_prim_begin): what adds to
+     * the picture - fire and glows: the point lights are made from them, the glow pass draws them again - and the
+     * game's round shadows (dropped by the vertex, where the shadows are drawn) */
+    if (reg[0x21] & 1) {
+        uint32_t b = reg[0xDF];
+        int fd = (b >> 4) & 15, op = (b >> 8) & 7;
+        if (fd == 10 && (reg[0xE1] & 0xFFFFFF) == 0xFFFFFF && (op == 0 || op >= 5))
+            return 0;
+        if (!(reg[0x17] & 1) && (b & 0xFFF) == 0x32 && (reg[0xC3] & 0xF) == 5 && (reg[0xB8] & 0xF0F) == 0x707)
+            return 0;
+    }
     if (tl_mode == 1)
         return (reg[0x17] & 1) && ((vt >> 9) & 3);
     return 1;

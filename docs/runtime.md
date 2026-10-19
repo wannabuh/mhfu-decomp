@@ -133,9 +133,12 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
 - **The vertex stage on the GPU** (`MHFU_GPU_TL`, an experiment; off by default): a primitive's vertices go to the
   renderer as the game gave them (decoded) with its draw - matrices, viewport, fog, texture scaling, material, lights
   (`shared.h` `TlDraw`) - and `ge_tl.vert` does what `vertex()` and `light()` would (the near plane a clip distance
-  where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle. With
-  the effects that read the vertices off (shadows, tessellation, point lights), frames match the CPU's within a few
-  pixels; those effects do not see its draws yet. `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
+  where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle - but
+  what adds to the picture (fire, glows: the point lights and glow pass read it) and the game's round shadows, left to
+  the CPU. Its draws cast shadows - the sun's and the point lights' (`shadow_tl.vert`, `pshadow_tl.vert`, from the
+  same placement: `tl_common.glsl`), whole triangles whatever the camera's near plane cuts. With tessellation, sun
+  shading, sway, grass and the post-processing's motion off, frames match the CPU's within a few pixels; those do
+  not see its draws yet. `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
   and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
   once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are
   a group, and a group whose draws all match into one group of the frame before is replayed as one draw - one

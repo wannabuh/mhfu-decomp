@@ -106,6 +106,11 @@ int invert4(const float *m, float *out);
 int world_to_screen(const float *view, const float *world_view, float *m);
 int world_to_clip(const float *view, const float *world_view, float *clip);
 
+/* The GE's vertex stage on the GPU (MHFU_GPU_TL): the vertices (TlVertex, at binding 1) and triangles' indices; a
+ * batch's segments - count indices from first, drawn with record rec (the instance) */
+extern VkBuf tl_vertices, tl_indices;
+typedef struct { uint32_t first, count, rec; } TlSegment;
+
 /* -- render_texture.c --------------------------------------------------------------------------------------------- */
 #define HOLE_GRID 16
 extern float tex_average[MAX_TEXTURES][3];  /* a texture's average colour (by alpha) */
@@ -167,6 +172,7 @@ extern VkSampler shadow_sampler, point_sampler;
 void shadow_init(void);
 void shadow_settings(void);
 void shadow_draw(const DrawState *s, DrawPush pc, uint32_t first, uint32_t n);  /* a batch, into the shadow maps */
+void shadow_draw_tl(const DrawState *s, DrawPush pc, const TlSegment *seg, int nseg);  /* (the GPU's vertex stage's) */
 void shadow_skip(void);             /* a batch not drawn */
 void shadow_extra_triangle(const RVertex *a, const RVertex *b, const RVertex *c);
 void shadow_frame_reused(int frame);

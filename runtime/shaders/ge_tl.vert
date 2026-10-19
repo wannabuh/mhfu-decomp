@@ -1,18 +1,8 @@
 #version 450
-#include "shared.h"
-#define RT_HALF 256.0           // (render_internal.h RT_SIZE / 2)
 // The GE's vertex stage on the GPU (MHFU_GPU_TL): gpu.c's vertex() and light() for a draw (its TlDraw, the instance),
 // from its vertices as the game gave them, decoded - to what ge.vert gives ge.frag, as render.c's put() would have
 // it: the clip-space position of the render target, colours as bytes, the near plane where gpu.c clips.
-layout(location = 0) in vec3 in_pos;
-layout(location = 1) in vec3 in_normal;
-layout(location = 2) in vec4 in_color;
-layout(location = 3) in vec2 in_uv;
-layout(location = 4) in vec4 in_w0;
-layout(location = 5) in vec4 in_w1;
-
-layout(std430, set = 0, binding = BIND_TL) readonly buffer Draws { TlDraw draws[]; };
-layout(push_constant) uniform Draw { DRAW_PUSH } draw;
+#include "tl_common.glsl"
 
 layout(location = 0) out vec2 out_uv;
 layout(location = 1) out vec4 out_color;
@@ -27,24 +17,6 @@ out gl_PerVertex {
     vec4 gl_Position;
     float gl_ClipDistance[1];
 };
-
-// (3 x 4 by rows) a point, a direction
-vec3 xf(vec4 a, vec4 b, vec4 c, vec3 p) {
-    vec4 q = vec4(p, 1.0);
-    return vec3(dot(a, q), dot(b, q), dot(c, q));
-}
-vec3 xf3(vec4 a, vec4 b, vec4 c, vec3 n) {
-    return vec3(dot(a.xyz, n), dot(b.xyz, n), dot(c.xyz, n));
-}
-
-// C's powf where pow is undefined (nothing to a power: 0, or 1 to the 0th)
-float powc(float x, float y) {
-    return x > 0.0 ? pow(x, y) : (y == 0.0 ? 1.0 : 0.0);
-}
-
-float weight(int b) {
-    return b < 4 ? in_w0[b] : in_w1[b - 4];
-}
 
 // light(): the colour (0-255 a channel) and the sun's part of it (or the material's diffuse colour, the pixel lit)
 void light(uint i, vec3 pos, vec3 normal, out vec4 color, out vec3 sun_part) {
@@ -113,32 +85,19 @@ void light(uint i, vec3 pos, vec3 normal, out vec4 color, out vec3 sun_part) {
 void main() {
     uint i = uint(gl_InstanceIndex);
     uint flags = draws[i].flags;
-    int nb = int(draws[i].bones);
     vec3 p = in_pos;
     vec3 nr = (flags & TL_FLIP) != 0u ? -in_normal : in_normal;
     vec3 ew = vec3(0.0);
     if ((flags & TL_EARLIER) != 0u) {   // where it was a frame shown earlier
-        vec3 q = nb > 0 ? vec3(0.0) : p;
-        for (int b = 0; b < nb; b++)
-            q += xf(draws[i].earlier_bone[3 * b], draws[i].earlier_bone[3 * b + 1], draws[i].earlier_bone[3 * b + 2],
-                    p) * weight(b);
-        vec3 em = xf(draws[i].earlier_world[0], draws[i].earlier_world[1], draws[i].earlier_world[2], q);
-        ew = xf(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2], em);
+        vec3 q = p, qn = vec3(0.0);
+        tl_skin(i, true, q, qn);
+        ew = tl_world(i, xf(draws[i].earlier_world[0], draws[i].earlier_world[1], draws[i].earlier_world[2], q));
     }
-    if (nb > 0) {                       // skinning: the weighted sum of the bones' transforms
-        vec3 acc = vec3(0.0), nacc = vec3(0.0);
-        for (int b = 0; b < nb; b++) {
-            vec4 r0 = draws[i].bone[3 * b], r1 = draws[i].bone[3 * b + 1], r2 = draws[i].bone[3 * b + 2];
-            acc += xf(r0, r1, r2, p) * weight(b);
-            nacc += xf3(r0, r1, r2, nr) * weight(b);
-        }
-        p = acc;
-        nr = nacc;
-    }
+    tl_skin(i, false, p, nr);           // skinning: the weighted sum of the bones' transforms
     vec3 m = xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p);
     vec3 world = vec3(0.0), motion = vec3(0.0);
     if ((flags & TL_WORLD) != 0u) {
-        world = xf(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2], m);
+        world = tl_world(i, m);
         if ((flags & TL_EARLIER) != 0u)
             motion = world - ew;
     }
@@ -170,7 +129,7 @@ void main() {
     gl_ClipDistance[0] = w - 1e-4;      // (gpu.c's near plane)
     // (the world: this frame's offset for the anti-aliasing, a fraction of a pixel - pad0, pad1: its clip-space x, y)
     gl_Position.xy += uintBitsToFloat(uvec2(draw.pad0, draw.pad1)) * w;
-    out_uv = (flags & TL_TEX) != 0u ? in_uv * draws[i].tex.xy + draws[i].tex.zw : vec2(0.0);
+    out_uv = tl_uv(i);
     out_color = color;
     out_shadow = (draw.light * vec4(world, 1.0)).xyz;
     out_sun = floor(clamp(sun, 0.0, 255.0)) / 255.0;

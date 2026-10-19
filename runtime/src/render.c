@@ -76,13 +76,14 @@ static VkPipeline tess_pipeline, bound_pipeline;
 #define TL_SLOT_INDICES (512u << 10)
 #define TL_SEGMENTS 4096
 static VkPipeline tl_pipeline;
-static VkBuf tl_records, tl_vertices, tl_indices;
+static VkBuf tl_records;
+VkBuf tl_vertices, tl_indices;
 static uint32_t tl_nrec, tl_nvert, tl_nidx;
 static unsigned long tl_submits;                /* the submissions made (vk_submit: frame_reused) */
 static unsigned long tl_slot_use[TL_SLOTS];     /* the submission a slot was last drawn from in (0: never) */
 static TlDraw tl_last;                  /* the last draw given; its record this frame (~0u: none yet) */
 static uint32_t tl_rec = ~0u;
-static struct { uint32_t first, count, rec; } tl_seg[TL_SEGMENTS];
+static TlSegment tl_seg[TL_SEGMENTS];
 static int tl_nseg;
 static VkShaderModule tess_ctrl, tess_eval;
 float prim_view[16], prim_world_view[12];
@@ -122,10 +123,12 @@ static int finds_feet(const DrawState *d) {
 /* -- setup -------------------------------------------------------------------------------------------------------- */
 
 /* A pipeline: kind 0 a full-screen pass (present.vert), 1 the GE's, 2 the sun's shadow map's, 3 the point lights', 4 a
- * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades, 8
- * the GE's with its vertex stage on the GPU (ge_tl.vert) */
+ * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades;
+ * 8, 9, 10 as 1, 2, 3 with the GE's vertex stage on the GPU (ge_tl.vert: the vertices as the game gave them) */
 VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
                          int ge) {
+    int tl = ge >= 8, clamp_depth = ge == 8;
+    ge = ge == 8 ? 1 : ge == 9 ? 2 : ge == 10 ? 3 : ge;
     VkPipelineShaderStageCreateInfo stages[4] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
@@ -145,7 +148,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
         {7, 0, VK_FORMAT_R16G16B16A16_SFLOAT, 56},
     };
-    int verts = (ge >= 1 && ge <= 3) || ge >= 6;   /* (6: the GE's, tessellated; 7: grass blades; 8: GPU vertex stage) */
+    int verts = (ge >= 1 && ge <= 3) || ge == 6 || ge == 7;   /* (6: the GE's, tessellated; 7: grass blades) */
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
                                                verts ? 1u : 0u, &bind, verts ? 8u : 0u, attrs};
     VkVertexInputBindingDescription blade_bind = {0, sizeof(GrassBlade), VK_VERTEX_INPUT_RATE_INSTANCE};
@@ -168,7 +171,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         {4, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights)},
         {5, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights) + 16},
     };
-    if (ge == 8) {
+    if (tl) {
         vi.pVertexBindingDescriptions = &tl_bind;
         vi.vertexAttributeDescriptionCount = 6;
         vi.pVertexAttributeDescriptions = tl_attrs;
@@ -183,7 +186,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
     rs.polygonMode = VK_POLYGON_MODE_FILL;
     rs.cullMode = VK_CULL_MODE_NONE;
     rs.lineWidth = 1.0f;
-    rs.depthClampEnable = ge == 8 ? VK_TRUE : VK_FALSE;    /* (the near plane is gpu.c's: a clip distance) */
+    rs.depthClampEnable = clamp_depth ? VK_TRUE : VK_FALSE;    /* (the near plane is gpu.c's: a clip distance) */
     VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
@@ -842,8 +845,8 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
     vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof *pc, pc);
     for (int i = 0; i < tl_nseg; i++)
         vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
+    shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
     tl_nseg = 0;
-    shadow_draw(s, *pc, 0, 0);          /* (no shadows cast yet: the map made, if sampled) */
 }
 
 /* Draw what has been batched with the current state */

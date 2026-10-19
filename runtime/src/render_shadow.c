@@ -14,6 +14,8 @@
 #include "shadow.frag.inc"
 #include "pshadow.vert.inc"
 #include "pshadow.frag.inc"
+#include "shadow_tl.vert.inc"
+#include "pshadow_tl.vert.inc"
 
 static int shadow_size = 4096;         /* MHFU_SHADOW_RESOLUTION */
 #define SHADOW_SIZE ((uint32_t)shadow_size)
@@ -25,6 +27,7 @@ VkSampler shadow_sampler, point_sampler;
 int point_shadows_on = 1;
 static int point_shadows;           /* the point lights with shadows this frame (0 to 2) */
 static VkPipeline shadow_pipeline, point_pipeline;
+static VkPipeline shadow_tl_pipeline, point_tl_pipeline;    /* (the GE's vertex stage on the GPU: MHFU_GPU_TL) */
 static VkCommandBuffer shadow_cmd, shadow_cmds[2], point_cmd, point_cmds[2];
 static int shadow_recording, point_recording;
 static VkImg point_img;
@@ -48,12 +51,19 @@ void shadow_init(void) {
         if (r >= 512 && r <= 16384)
             shadow_size = r;
     }
-    shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), vk_shader(shadow_frag, sizeof shadow_frag),
-                                    ge_layout, VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 2);
+    VkShaderModule sfs = vk_shader(shadow_frag, sizeof shadow_frag), pfs = vk_shader(pshadow_frag, sizeof pshadow_frag);
+    shadow_pipeline = make_pipeline(vk_shader(shadow_vert, sizeof shadow_vert), sfs, ge_layout, VK_FORMAT_UNDEFINED,
+                                    VK_FORMAT_D32_SFLOAT, 2);
     if (vk.output_layer)
-        point_pipeline = make_pipeline(vk_shader(pshadow_vert, sizeof pshadow_vert),
-                                       vk_shader(pshadow_frag, sizeof pshadow_frag), ge_layout, VK_FORMAT_UNDEFINED,
-                                       VK_FORMAT_D32_SFLOAT, 3);
+        point_pipeline = make_pipeline(vk_shader(pshadow_vert, sizeof pshadow_vert), pfs, ge_layout,
+                                       VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 3);
+    if (vk.clip_distance) {
+        shadow_tl_pipeline = make_pipeline(vk_shader(shadow_tl_vert, sizeof shadow_tl_vert), sfs, ge_layout,
+                                           VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 9);
+        if (vk.output_layer)
+            point_tl_pipeline = make_pipeline(vk_shader(pshadow_tl_vert, sizeof pshadow_tl_vert), pfs, ge_layout,
+                                              VK_FORMAT_UNDEFINED, VK_FORMAT_D32_SFLOAT, 10);
+    }
     VkSamplerCreateInfo shi = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     shi.magFilter = shi.minFilter = VK_FILTER_LINEAR;
     shi.addressModeU = shi.addressModeV = shi.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -281,6 +291,42 @@ void shadow_draw(const DrawState *s, DrawPush pc, uint32_t first, uint32_t n) {
         }
     }
     extra_batch = extra_used;
+}
+
+/* A batch of the GPU's vertex stage's (MHFU_GPU_TL: its segments) drawn again into the shadow maps, as shadow_draw
+ * would: its vertices placed in the world by the shaders (whole triangles - what the camera's near plane cuts off
+ * casts shadows too) */
+static void tl_segments(VkCommandBuffer cmd, VkPipeline pipeline, VkPipeline after, const TlSegment *seg, int nseg,
+                        uint32_t instances, uint32_t per_record) {
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &tl_vertices.buffer, &zero);
+    vkCmdBindIndexBuffer(cmd, tl_indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+    for (int i = 0; i < nseg; i++)
+        vkCmdDrawIndexed(cmd, seg[i].count, instances, seg[i].first, 0, seg[i].rec * per_record);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, after);    /* (the CPU's batches' again) */
+}
+
+void shadow_draw_tl(const DrawState *s, DrawPush pc, const TlSegment *seg, int nseg) {
+    int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
+                      s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    int casts = s->depth_write && (!s->blend || alpha_blend);
+    if (alpha_blend)
+        pc.flags |= DRAW_BLENDED;
+    if (!shadow_on || !(s->flags & DRAW_WORLD))
+        return;
+    shadow_begin();                     /* (it is sampled: made this frame, if empty) */
+    if (casts && shadow_tl_pipeline) {
+        vkCmdPushConstants(shadow_cmd, ge_layout, pc_stages, 0, sizeof pc, &pc);
+        tl_segments(shadow_cmd, shadow_tl_pipeline, shadow_pipeline, seg, nseg, 1, 1);
+    }
+    if (point_shadows) {
+        point_begin();
+        if (casts && point_tl_pipeline) {
+            vkCmdPushConstants(point_cmd, ge_layout, pc_stages, 0, sizeof pc, &pc);
+            tl_segments(point_cmd, point_tl_pipeline, point_pipeline, seg, nseg, 6u * (uint32_t)point_shadows, 12);
+        }
+    }
 }
 
 /* A batch not drawn: what clipping cut off of it goes too */
