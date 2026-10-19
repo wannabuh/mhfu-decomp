@@ -136,9 +136,10 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle - but
   what adds to the picture (fire, glows: the point lights and glow pass read it) and the game's round shadows, left to
   the CPU. Its draws cast shadows - the sun's and the point lights' (`shadow_tl.vert`, `pshadow_tl.vert`, from the
-  same placement: `tl_common.glsl`), whole triangles whatever the camera's near plane cuts. With tessellation, sun
-  shading, sway, grass and the post-processing's motion off, frames match the CPU's within a few pixels; those do
-  not see its draws yet. `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
+  same placement: `tl_common.glsl`), whole triangles whatever the camera's near plane cuts, and the motion blur's pass
+  draws their motion again. With tessellation, sun shading, sway and grass off, frames match the CPU's within a few
+  pixels; those do not see its draws yet. (Between frames, point lights differ from run to run: they flicker by the
+  wall clock and ease in by frames shown - compare with `MHFU_POINT_LIGHTS=0`.) `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
   and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
   once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are
   a group, and a group whose draws all match into one group of the frame before is replayed as one draw - one

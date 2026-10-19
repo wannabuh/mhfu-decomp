@@ -11,13 +11,17 @@
 #include "present.vert.inc"
 
 #define MAX_GLOW_DRAWS 8192
-static VkPipeline glow_pipeline, glow_tess_pipeline;
+#define MAX_GLOW_SEGMENTS 16384
+static VkPipeline glow_pipeline, glow_tess_pipeline, glow_tl_pipeline;
 static Target *post_target, *post_done;     /* the world is being drawn into it; it has been post-processed */
 static float post_view[16], post_world_view[12];    /* the world's camera (its last solid draw's) */
 /* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
- * people's, into the motion blur's image - their motion (1 flat, 2 tessellated) */
+ * people's, into the motion blur's image - their motion (1 flat, 2 tessellated, 3 the GPU's vertex stage's: first,
+ * count its segments in glow_segs) */
 static struct { DrawState s; DrawPush pc; uint32_t first, count; int kind; } glow_draws[MAX_GLOW_DRAWS];
 static int nglow;
+static TlSegment glow_segs[MAX_GLOW_SEGMENTS];
+static int nglow_segs;
 
 /* post.c's passes: a full-screen triangle (blend: added to what is there) */
 static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat color, int blend) {
@@ -25,11 +29,14 @@ static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat
                          blend ? 5 : 0);
 }
 
-/* post.c, and the pipelines drawing the glow and motion (the GE's shaders vs, fs; tess: tessellated too, or NULL) */
-void post_setup(VkShaderModule vs, VkShaderModule fs, int tess) {
+/* post.c, and the pipelines drawing the glow and motion (the GE's shaders vs, fs; tess: tessellated too, or NULL; tl_vs:
+ * the GPU's vertex stage's, or none) */
+void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule tl_vs) {
     if (!post_init(render_scale, shadow_img.view, shadow_sampler, post_pipeline))
         return;
     glow_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
+    if (tl_vs && post_motion())
+        glow_tl_pipeline = make_pipeline(tl_vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 8);
     if (tess && post_motion())
         glow_tess_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
 }
@@ -78,7 +85,7 @@ static void post_run(Target *t) {
             for (int i = 0; i < nglow; i++) {
                 const DrawState *d = &glow_draws[i].s;
                 int kind = glow_draws[i].kind;
-                VkPipeline p = kind == 2 ? glow_tess_pipeline : glow_pipeline;
+                VkPipeline p = kind == 2 ? glow_tess_pipeline : kind == 3 ? glow_tl_pipeline : glow_pipeline;
                 if (!p || (kind != 0) != pass)
                     continue;
                 if (p != bound)
@@ -103,12 +110,19 @@ static void post_run(Target *t) {
                 vkCmdSetCullMode(cmd, d->cull);
                 vkCmdSetFrontFace(cmd, d->front);
                 vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof glow_draws[i].pc, &glow_draws[i].pc);
+                if (kind == 3) {
+                    vkCmdBindVertexBuffers(cmd, 1, 1, &tl_vertices.buffer, &zero);
+                    vkCmdBindIndexBuffer(cmd, tl_indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+                    for (uint32_t k = glow_draws[i].first; k < glow_draws[i].first + glow_draws[i].count; k++)
+                        vkCmdDrawIndexed(cmd, glow_segs[k].count, 1, glow_segs[k].first, 0, glow_segs[k].rec);
+                    continue;
+                }
                 vkCmdDraw(cmd, glow_draws[i].count, 1, glow_draws[i].first, 0);
             }
         }
         vkCmdEndRendering(cmd);
     }
-    nglow = 0;
+    nglow = nglow_segs = 0;
     ge_lost();
     /* the camera, the sun, the shadow map */
     PostFrame f;
@@ -217,6 +231,22 @@ void post_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first
     }
 }
 
+/* A batch of the GPU's vertex stage's (its segments) drawn into t: kept as post_keep keeps the motion of the hunter,
+ * monsters and people (what adds light is the CPU's vertex stage's: gpu.c) */
+void post_keep_tl(Target *t, const DrawState *s, const DrawPush *pc, const TlSegment *seg, int nseg) {
+    if (!glow_tl_pipeline || t != post_target || !post_motion() || (s->flags & DRAW_KIND) <= DRAW_WORLD || s->blend ||
+        !s->depth_write || nglow == MAX_GLOW_DRAWS || nglow_segs + nseg > MAX_GLOW_SEGMENTS)
+        return;
+    memcpy(&glow_segs[nglow_segs], seg, sizeof *seg * (size_t)nseg);
+    glow_draws[nglow].s = *s;
+    glow_draws[nglow].pc = *pc;
+    glow_draws[nglow].pc.flags |= DRAW_MOTION;
+    glow_draws[nglow].first = (uint32_t)nglow_segs;
+    glow_draws[nglow].kind = 3;
+    glow_draws[nglow++].count = (uint32_t)nseg;
+    nglow_segs += nseg;
+}
+
 /* The frame shown or read: the post-processing still to do */
 void post_finish(void) {
     if (post_target)
@@ -225,6 +255,6 @@ void post_finish(void) {
 
 void post_frame_done(void) {
     post_target = post_done = NULL;
-    nglow = 0;
+    nglow = nglow_segs = 0;
     post_end_frame();
 }

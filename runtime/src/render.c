@@ -356,8 +356,9 @@ int render_init(void *sdl_window) {
     vertices = frame_vertices[0];
     staging = frame_staging[0];
     readback = vk_buffer((VkDeviceSize)scaled(RT_SIZE) * scaled(RT_SIZE) * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
+    VkShaderModule tvs = VK_NULL_HANDLE;
     if (vk.clip_distance) {             /* the GPU's vertex stage (MHFU_GPU_TL) */
-        VkShaderModule tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
+        tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
         tl_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
         tl_records = vk_buffer(2 * TL_RECORDS * sizeof(TlDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
         tl_vertices = vk_buffer((2 * TL_VERTICES + TL_SLOTS * TL_SLOT_VERTICES) * sizeof(TlVertex),
@@ -376,7 +377,7 @@ int render_init(void *sdl_window) {
     shadow_init();
     lights_init();
     ao_init();
-    post_setup(vs, fs, tess_pipeline != VK_NULL_HANDLE);
+    post_setup(vs, fs, tess_pipeline != VK_NULL_HANDLE, tvs);
     grass_init();
     vk.frame_reused = frame_reused;
     render_on = 1;
@@ -845,6 +846,7 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
     vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof *pc, pc);
     for (int i = 0; i < tl_nseg; i++)
         vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
+    post_keep_tl(rendering, s, pc, tl_seg, tl_nseg);
     shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
     tl_nseg = 0;
 }
