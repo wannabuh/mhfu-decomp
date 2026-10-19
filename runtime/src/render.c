@@ -63,16 +63,23 @@ VkShaderStageFlags pc_stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAG
 static int tess_on = -1;
 static VkPipeline tess_pipeline, bound_pipeline;
 
-/* The GE's vertex stage on the GPU (MHFU_GPU_TL, ge_tl.vert): the draws (TlDraw), the vertices as the game gave them
- * and the triangles' indices, each buffer in halves (a frame in flight each); a batch of them is drawn in segments, a
- * draw each (its index the instance) */
+/* The GE's vertex stage on the GPU (MHFU_GPU_TL, ge_tl.vert): the draws (TlDraw), in halves (a frame in flight each);
+ * the vertices as the game gave them and the triangles' indices - a half each for what is sent as it is drawn, then
+ * TL_SLOTS slots for what recorded frames keep (gpu.c: a frame's, sent once as it is recorded, drawn from while it is
+ * the latest and the frames after are in flight). A batch of them is drawn in segments, a draw each (its index the
+ * instance) */
 #define TL_RECORDS 8192
-#define TL_VERTICES (256u << 10)
-#define TL_INDICES (2u << 20)
+#define TL_VERTICES (128u << 10)
+#define TL_INDICES (1u << 20)
+#define TL_SLOTS 4
+#define TL_SLOT_VERTICES (128u << 10)
+#define TL_SLOT_INDICES (512u << 10)
 #define TL_SEGMENTS 4096
 static VkPipeline tl_pipeline;
 static VkBuf tl_records, tl_vertices, tl_indices;
 static uint32_t tl_nrec, tl_nvert, tl_nidx;
+static unsigned long tl_submits;                /* the submissions made (vk_submit: frame_reused) */
+static unsigned long tl_slot_use[TL_SLOTS];     /* the submission a slot was last drawn from in (0: never) */
 static TlDraw tl_last;                  /* the last draw given; its record this frame (~0u: none yet) */
 static uint32_t tl_rec = ~0u;
 static struct { uint32_t first, count, rec; } tl_seg[TL_SEGMENTS];
@@ -350,8 +357,10 @@ int render_init(void *sdl_window) {
         VkShaderModule tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
         tl_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
         tl_records = vk_buffer(2 * TL_RECORDS * sizeof(TlDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
-        tl_vertices = vk_buffer(2 * TL_VERTICES * sizeof(TlVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
-        tl_indices = vk_buffer(2 * TL_INDICES * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 1);
+        tl_vertices = vk_buffer((2 * TL_VERTICES + TL_SLOTS * TL_SLOT_VERTICES) * sizeof(TlVertex),
+                                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
+        tl_indices = vk_buffer((2 * TL_INDICES + TL_SLOTS * TL_SLOT_INDICES) * sizeof(uint32_t),
+                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 1);
         VkDescriptorBufferInfo tbi = {tl_records.buffer, 0, VK_WHOLE_SIZE};
         VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TL, 0, 1,
                                    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
@@ -543,6 +552,7 @@ void retire(VkImg *i) {
 
 /* vk_submit: the frame's resources are free again */
 static void frame_reused(int frame) {
+    tl_submits++;
     vertices = frame_vertices[frame];
     staging = frame_staging[frame];
     shadow_frame_reused(frame);
@@ -1031,30 +1041,54 @@ int render_tl_ready(void) {
     return tl_pipeline != VK_NULL_HANDLE;
 }
 
-/* gpu.c: a primitive (triangles, strip, fan) whose vertex stage the GPU does - its draw (NULL: the last's), its vertices
- * as the game gave them, its count vertices' indices among them. Its triangles are indexed as gpu.c's clipping takes
- * them (a strip's every other one turned round, to keep its winding) */
-void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int nv, const uint16_t *idx) {
+/* The draw given last's record this frame (made if need be), ~0u if there is no room */
+static uint32_t tl_record(const TlDraw *d) {
     if (d) {                            /* (taken whatever is drawn: gpu.c sends a draw once) */
         memcpy(&tl_last, d, sizeof tl_last);
         tl_rec = ~0u;
     }
-    int ntri = type == 3 ? count / 3 : count - 2;
-    if (ntri <= 0 || !tl_pipeline)
-        return;
-    begin_rendering(cur.target);
-    if (vertex_used > batch_start)
-        flush();                        /* (the CPU's vertex stage's batch first: the order drawn kept) */
     if (tl_rec == ~0u) {
         if (tl_nrec >= TL_RECORDS) {
             static int warned;
             if (!warned++)
                 fprintf(stderr, "renderer: the GPU vertex stage's draws a frame (%d) run out\n", TL_RECORDS);
-            return;
+            return ~0u;
         }
         tl_rec = (uint32_t)vk.frame * TL_RECORDS + tl_nrec++;
         memcpy((TlDraw *)tl_records.map + tl_rec, &tl_last, sizeof tl_last);
     }
+    return tl_rec;
+}
+
+/* The batch takes n indices from first, drawn with record rec (joined to the segment before if they follow on) */
+static void tl_segment(uint32_t first, uint32_t n, uint32_t rec) {
+    if (tl_nseg && tl_seg[tl_nseg - 1].rec == rec && tl_seg[tl_nseg - 1].first + tl_seg[tl_nseg - 1].count == first) {
+        tl_seg[tl_nseg - 1].count += n;
+        return;
+    }
+    if (tl_nseg == TL_SEGMENTS)
+        flush();
+    tl_seg[tl_nseg].first = first;
+    tl_seg[tl_nseg].count = n;
+    tl_seg[tl_nseg++].rec = rec;
+}
+
+/* (a draw of the GPU's vertex stage begins) its target, what the CPU's vertex stage batched drawn first */
+static void tl_begin(void) {
+    begin_rendering(cur.target);
+    if (vertex_used > batch_start)
+        flush();                        /* (the order drawn kept) */
+}
+
+/* gpu.c: a primitive (triangles, strip, fan) whose vertex stage the GPU does - its draw (NULL: the last's), its vertices
+ * as the game gave them, its count vertices' indices among them. Its triangles are indexed as gpu.c's clipping takes
+ * them (a strip's every other one turned round, to keep its winding) */
+void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int nv, const uint16_t *idx) {
+    uint32_t rec = tl_pipeline ? tl_record(d) : ~0u;
+    int ntri = type == 3 ? count / 3 : count - 2;
+    if (ntri <= 0 || rec == ~0u)
+        return;
+    tl_begin();
     if (tl_nvert + (uint32_t)nv > TL_VERTICES || tl_nidx + 3u * (uint32_t)ntri > TL_INDICES) {
         static int warned;
         if (!warned++)
@@ -1079,16 +1113,39 @@ void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int
         *o++ = base + idx[c];
     }
     tl_nidx += 3u * (uint32_t)ntri;
-    uint32_t n = 3u * (uint32_t)ntri;
-    if (tl_nseg && tl_seg[tl_nseg - 1].rec == tl_rec && tl_seg[tl_nseg - 1].first + tl_seg[tl_nseg - 1].count == first) {
-        tl_seg[tl_nseg - 1].count += n;
+    tl_segment(first, 3u * (uint32_t)ntri, rec);
+}
+
+/* gpu.c, as a frame is recorded: vertices and triangles' indices (among the slot's vertices) into a slot, at vertex
+ * vfirst and index ifirst. A slot starts again from 0 for each frame recorded */
+void render_tl_store(int slot, uint32_t vfirst, const TlVertex *v, int nv, uint32_t ifirst, const uint32_t *idx, int ni) {
+    if (!tl_pipeline || vfirst + (uint32_t)nv > TL_SLOT_VERTICES || ifirst + (uint32_t)ni > TL_SLOT_INDICES)
         return;
+    if (!vfirst && !ifirst && tl_slot_use[slot] && tl_slot_use[slot] >= tl_submits) {
+        /* (a slot is four recorded frames old; drawn from in the submission still running: waited for) */
+        if (tl_slot_use[slot] == tl_submits) {
+            vk_finish();
+        } else {
+            static int warned;
+            if (!warned++)
+                fprintf(stderr, "renderer: a slot of the GPU vertex stage written while it is to be drawn from\n");
+        }
     }
-    if (tl_nseg == TL_SEGMENTS)
-        flush();
-    tl_seg[tl_nseg].first = first;
-    tl_seg[tl_nseg].count = n;
-    tl_seg[tl_nseg++].rec = tl_rec;
+    uint32_t vbase = 2 * TL_VERTICES + (uint32_t)slot * TL_SLOT_VERTICES;
+    memcpy((TlVertex *)tl_vertices.map + vbase + vfirst, v, sizeof *v * (size_t)nv);
+    uint32_t *o = (uint32_t *)tl_indices.map + 2 * TL_INDICES + (uint32_t)slot * TL_SLOT_INDICES + ifirst;
+    for (int i = 0; i < ni; i++)
+        o[i] = vbase + idx[i];
+}
+
+/* gpu.c, replaying a recorded frame: n of a slot's indices from first, with a draw (NULL: the last's) */
+void render_tl_slot_draw(int slot, const TlDraw *d, uint32_t first, uint32_t n) {
+    uint32_t rec = tl_pipeline ? tl_record(d) : ~0u;
+    if (!n || rec == ~0u || first + n > TL_SLOT_INDICES)
+        return;
+    tl_begin();
+    tl_slot_use[slot] = tl_submits + 1;
+    tl_segment(2 * TL_INDICES + (uint32_t)slot * TL_SLOT_INDICES + first, n, rec);
 }
 
 void render_vram_written(uint32_t addr, uint32_t size) {

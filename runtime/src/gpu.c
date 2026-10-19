@@ -798,7 +798,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
  * and its vertices after the vertex stage, written into the queue as they are made - and the render thread does it:
  * the clipping, the renderer's batches and textures (as the registers given have them: its own copy), Vulkan. Off
  * (MHFU_RENDER_THREAD=0, or the software renderer), each is done at once, as before. */
-enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW, Q_TL };
+enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW, Q_TL, Q_TL_STORE, Q_TL_SLOT };
 typedef struct { uint32_t kind, a, b, c; } QHead;   /* (16 bytes: what follows stays aligned) */
 
 static void gpu_run_command(const void *cmd, size_t n);
@@ -1075,6 +1075,15 @@ static void gpu_run_command(const void *cmd, size_t n) {
         render_tl_draw((int)(h->a & 255), (int)h->b, d, v, (int)h->c, (const uint16_t *)(v + h->c));
         break;
     }
+    case Q_TL_STORE: {                  /* (a: slot; b: vertices; c: indices; then their first, the vertices, indices) */
+        const uint32_t *at = p;
+        const TlVertex *v = (const TlVertex *)(at + 4);
+        render_tl_store((int)h->a, at[0], v, (int)h->b, at[1], (const uint32_t *)(v + h->b), (int)h->c);
+        break;
+    }
+    case Q_TL_SLOT:                     /* (a: slot, and 256 if its draw is the last's; b: first index; c: indices) */
+        render_tl_slot_draw((int)(h->a & 255), h->a & 256 ? NULL : (const TlDraw *)p, h->b, h->c);
+        break;
     }
 }
 
@@ -1382,7 +1391,15 @@ typedef struct {
     int run;                        /* the run of draws whose vertices it is among */
     uint32_t tex_slot;
     int tex_w, tex_h;
+    int group;                      /* its group for the GPU's vertex stage (below), or -1 */
 } Draw;
+
+/* Draws in a row the GPU's vertex stage can draw as one, replayed (MHFU_GPU_TL): the same state, matrices and texture -
+ * their vertices sent once, as the frame is recorded, into its slot; their triangles' indices there from index */
+typedef struct {
+    int first, n;                   /* its draws */
+    uint32_t index, nindex;
+} TlGroup;
 
 /* Consecutive draws on the same vertices (strips into a model's buffer) share a copy of the span they use */
 typedef struct {
@@ -1404,7 +1421,18 @@ typedef struct {
     uint64_t *keys;
     float (*pos)[3];
     int *order, kcap, sorted;
+    /* (the GPU's vertex stage) its groups; their vertices and triangles' indices, sent into its slot (its
+     * generation's) as it becomes the latest; none more once they do not fit */
+    TlGroup *tlg;
+    int ntlg, tlgcap, tl_full;
+    TlVertex *tlv;
+    uint32_t *tli;
+    uint32_t tl_nv, tl_ni, tlv_cap, tli_cap;
+    unsigned tl_gen;
 } Frame;
+
+static const TlGroup *replay_group;     /* (a group being replayed as one: its first draw's replay draws it) */
+static unsigned long tl_groups_drawn, tl_group_draws;     /* (for MHFU_PRIM_STATS) */
 
 static int recording;               /* primitives are recorded, not drawn */
 static const Draw *held_texture;    /* (a kept draw being drawn again: gpu_held_draw) */
@@ -1522,6 +1550,7 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
         rec->open = 1;
     }
     d->run = rec->nruns - 1;
+    d->group = -1;
     d->tex_slot = 0xFFFFFFFFu;
     if (held_texture) {                 /* a kept draw drawn again: the texture it had (since written over, perhaps) */
         d->tex_slot = held_texture->tex_slot;
@@ -1555,8 +1584,11 @@ void gpu_frame_tick(void) {
     frame_generation_direct++;
 }
 
+static void tl_send(const Frame *f);
+
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
+    tl_send(rec);
     Frame *old = previous;
     previous = latest;
     latest = rec;
@@ -1565,6 +1597,10 @@ void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     rec->nruns = 0;
     rec->used = 0;
     rec->sorted = 0;
+    static unsigned tl_gen_next;
+    rec->ntlg = rec->tl_full = 0;
+    rec->tl_nv = rec->tl_ni = 0;
+    rec->tl_gen = ++tl_gen_next;
     latest->display_addr = display_addr;
     latest->time = time;
     frame_generation++;
@@ -1812,12 +1848,12 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         memcpy(bones, d->bones, sizeof(float) * 12 * (size_t)draw_bones(d));
     }
     const Frame *f = latest;
-    if (d->run != placed_run) {
+    if (d->run != placed_run && !replay_group) {     /* (a group's vertices are the GPU's already) */
         const Run *r = &f->runs[d->run];
         memcpy(PTR(SCRATCH_VERTICES + r->lo), f->bytes + r->copy, r->hi - r->lo);
         placed_run = d->run;
     }
-    if (d->ibytes)
+    if (d->ibytes && !replay_group)
         memcpy(PTR(SCRATCH_INDICES), f->bytes + d->icopy, d->ibytes);
     vaddr = SCRATCH_VERTICES;
     iaddr = SCRATCH_INDICES;
@@ -2283,6 +2319,10 @@ static void prim_stats_print(void) {
             fprintf(stderr, "    %-24s %7.0f prims %8.0f vertices %6.3f ms, %6.0f matrix changes\n", ps_names[k],
                     (double)ps_prims[k] / f, (double)ps_verts[k] / f, (double)ps_ns[k] / 1e6 / f,
                     (double)ps_runs[k] / f);
+    if (tl_groups_drawn)
+        fprintf(stderr, "    the GPU's vertex stage: %.0f groups drawn as one (%.0f draws)\n",
+                (double)tl_groups_drawn / f, (double)tl_group_draws / f);
+    tl_groups_drawn = tl_group_draws = 0;
     ps_frames = 0;
     memset(ps_prims, 0, sizeof ps_prims);
     memset(ps_verts, 0, sizeof ps_verts);
@@ -2333,6 +2373,45 @@ static unsigned long matched, unmatched;
 
 /* Draw a frame t of the way (0-1) from the previous recorded frame to the latest; returns its display address, 0 if
  * there is none */
+/* Whether a group of the latest frame can be replayed as one: its draws all matched or none - into one group of the
+ * previous frame (whose draws have the same matrices, as its own do) -, placed with the same camera, none blended
+ * (loose) (once a frame recorded, and matching) */
+static int tl_group_ok(int g, const int *m) {
+    static int groups = -1;             /* (MHFU_TL_GROUPS=0: each draw replayed on its own, for comparing) */
+    if (groups < 0)
+        groups = !getenv("MHFU_TL_GROUPS") || atoi(getenv("MHFU_TL_GROUPS")) != 0;
+    if (!groups)
+        return 0;
+    static uint8_t *ok;
+    static int cap;
+    static unsigned long stamp = ~0ul;
+    unsigned long now = (unsigned long)frame_generation << 2 | (unsigned long)(native_camera != 0) << 1 | (m != NULL);
+    if (latest->ntlg > cap) {
+        cap = latest->ntlg * 2;
+        ok = realloc(ok, (size_t)cap);
+        stamp = ~0ul;
+    }
+    if (stamp != now) {
+        stamp = now;
+        memset(ok, 2, (size_t)latest->ntlg);
+    }
+    if (ok[g] != 2)
+        return ok[g];
+    const TlGroup *G = &latest->tlg[g];
+    int f = G->first, yes = 1;
+    if (m) {
+        int pg = m[f] >= 0 ? previous->draws[m[f]].group : -1;
+        for (int j = f; j < f + G->n && yes; j++) {
+            if (loose_near[j] || stale[j] != stale[f] || (m[j] >= 0) != (m[f] >= 0))
+                yes = 0;
+            else if (m[f] >= 0 && (pg < 0 || previous->draws[m[j]].group != pg))
+                yes = 0;
+        }
+    }
+    ok[g] = (uint8_t)yes;
+    return yes;
+}
+
 uint32_t gpu_render_frame(float t) {
     if (!latest->n)
         return 0;
@@ -2360,9 +2439,22 @@ uint32_t gpu_render_frame(float t) {
     in_replay = 1;
     for (int i = 0; i < latest->n; i++) {
         const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
+        const Draw *d = &latest->draws[i];
+        const TlGroup *g = d->group >= 0 ? &latest->tlg[d->group] : NULL;
+        if (g && g->first == i && g->n > 0 && tl_group_ok(d->group, m)) {
+            /* the GPU's vertex stage's group: replayed as one */
+            if (m)
+                for (int j = i; j < i + g->n; j++)
+                    m[j] >= 0 ? matched++ : unmatched++;
+            replay_group = g;
+            replay(d, interpolate ? prev : NULL, prev, t);
+            replay_group = NULL;
+            i += g->n - 1;
+            continue;
+        }
         if (m)
             prev ? matched++ : unmatched++;
-        replay(&latest->draws[i], interpolate ? prev : NULL, prev, t);
+        replay(d, interpolate ? prev : NULL, prev, t);
     }
     earlier = 0;
     recording = 1;
@@ -2962,15 +3054,22 @@ static void tl_vertex(uint32_t base, int n, const Layout *l, TlVertex *o) {
 
 /* The primitive to the renderer for the GPU's vertex stage: its draw (unless the last one sent is the same), and its
  * vertices in the order drawn (indexed: those the indices name - small strips index big shared buffers) */
+static TlDraw tl_sent;                   /* the last draw sent (the renderer keeps it) */
+static int tl_have_sent;
+
+/* The primitive's draw as it is now; 1 if it is the one sent last (not to be sent again) */
+static int tl_draw_now(TlDraw *d) {
+    tl_fill(d);
+    if (tl_have_sent && !memcmp(d, &tl_sent, sizeof *d))
+        return 1;
+    tl_sent = *d;
+    tl_have_sent = 1;
+    return 0;
+}
+
 static void tl_prim(int type, int count, int idx, const Layout *l) {
-    static TlDraw d, sent;
-    static int have_sent;
-    tl_fill(&d);
-    int same = have_sent && !memcmp(&d, &sent, sizeof d);
-    if (!same) {
-        sent = d;
-        have_sent = 1;
-    }
+    static TlDraw d;
+    int same = tl_draw_now(&d);
     int nv = count;
     size_t dbytes = same ? 0 : sizeof d, bytes = dbytes + sizeof(TlVertex) * (size_t)nv + 2 * (size_t)count;
     int to_queue = queued();
@@ -3045,6 +3144,126 @@ static void tl_prim(int type, int count, int idx, const Layout *l) {
     }
 }
 
+/* (recording a frame: MHFU_FPS) A recorded draw the GPU's vertex stage may draw: its vertices (as tl_prim sends them)
+ * and triangles' indices kept with the frame (sent once, into its slot, as it becomes the latest - not as recorded:
+ * recording waits for the renderer at each draw's texture); in a group with the draw before if they can be drawn as one -
+ * the same registers but for those of the vertices' place, upload counters and the primitive itself, the same
+ * matrices and texture */
+static int tl_reg_free(int r) {
+    return r <= 0x11 || r == 0x13 || r == 0x14 || r == 0x2A || r == 0x2B || (r >= 0x3A && r <= 0x3F);
+}
+
+static int tl_same_group(const Draw *a, const Draw *b) {
+    static uint8_t mask[256];
+    static int masked;
+    if (!masked) {
+        masked = 1;
+        for (int r = 0; r < 256; r++)
+            mask[r] = !tl_reg_free(r);
+    }
+    for (int r = 0; r < 256; r++)
+        if (mask[r] && a->reg[r] != b->reg[r])
+            return 0;
+    return !memcmp(a->world, b->world, sizeof a->world) && !memcmp(a->view, b->view, sizeof a->view) &&
+           !memcmp(a->proj, b->proj, sizeof a->proj) &&
+           !memcmp(a->bones, b->bones, sizeof a->bones[0] * (size_t)draw_bones(a)) && a->tex_slot == b->tex_slot &&
+           a->tex_w == b->tex_w && a->tex_h == b->tex_h;
+}
+
+#define TL_SLOTS 4                      /* (render.c's: the slots' sizes) */
+#define TL_SLOT_VERTICES (128u << 10)
+#define TL_SLOT_INDICES (512u << 10)
+
+static void tl_record(Frame *f, int type, int count, int idx, const Layout *l) {
+    Draw *d = &f->draws[f->n - 1];
+    int ntri = type == 3 ? count / 3 : count - 2;
+    if (!render_on || f->tl_full || ntri <= 0 || !tl_take(type, 0))
+        return;
+    uint32_t ni = 3u * (uint32_t)ntri;
+    if (f->tl_nv + (uint32_t)count > TL_SLOT_VERTICES || f->tl_ni + ni > TL_SLOT_INDICES) {
+        f->tl_full = 1;                 /* (the rest as each is drawn) */
+        return;
+    }
+    if (f->tl_nv + (uint32_t)count > f->tlv_cap) {
+        f->tlv_cap = (f->tl_nv + (uint32_t)count) * 2;
+        f->tlv = realloc(f->tlv, sizeof *f->tlv * f->tlv_cap);
+    }
+    if (f->tl_ni + ni > f->tli_cap) {
+        f->tli_cap = (f->tl_ni + ni) * 2;
+        f->tli = realloc(f->tli, sizeof *f->tli * f->tli_cap);
+    }
+    TlVertex *v = f->tlv + f->tl_nv;
+    for (int i = 0; i < count; i++)
+        tl_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &v[i]);
+    uint32_t *o = f->tli + f->tl_ni, base = f->tl_nv;
+    for (int t = 0; t < ntri; t++) {    /* (as render_tl_draw makes them) */
+        int a, b, c;
+        if (type == 3)
+            a = 3 * t, b = 3 * t + 1, c = 3 * t + 2;
+        else if (type == 4)
+            a = (t & 1) ? t + 1 : t, b = (t & 1) ? t : t + 1, c = t + 2;
+        else
+            a = 0, b = t + 1, c = t + 2;
+        *o++ = base + (uint32_t)a;
+        *o++ = base + (uint32_t)b;
+        *o++ = base + (uint32_t)c;
+    }
+    uint32_t first = f->tl_ni;
+    f->tl_nv += (uint32_t)count;
+    f->tl_ni += ni;
+    if (f->ntlg && f->n >= 2) {
+        TlGroup *g = &f->tlg[f->ntlg - 1];
+        const Draw *before = &f->draws[f->n - 2];
+        if (g->first + g->n == f->n - 1 && g->index + g->nindex == first && before->group == f->ntlg - 1 &&
+            tl_same_group(before, d)) {
+            g->n++;
+            g->nindex += ni;
+            d->group = f->ntlg - 1;
+            return;
+        }
+    }
+    if (f->ntlg == f->tlgcap) {
+        f->tlgcap = f->tlgcap ? f->tlgcap * 2 : 1024;
+        f->tlg = realloc(f->tlg, sizeof *f->tlg * (size_t)f->tlgcap);
+    }
+    f->tlg[f->ntlg] = (TlGroup){f->n - 1, 1, first, ni};
+    d->group = f->ntlg++;
+}
+
+/* A recorded frame's vertices and indices into its slot */
+static void tl_send(const Frame *f) {
+    if (!f->tl_nv || !render_on)
+        return;
+    int slot = (int)(f->tl_gen % TL_SLOTS);
+    if (!queued()) {
+        render_tl_store(slot, 0, f->tlv, (int)f->tl_nv, 0, f->tli, (int)f->tl_ni);
+        return;
+    }
+    size_t vb = sizeof(TlVertex) * f->tl_nv, ib = 4 * (size_t)f->tl_ni;
+    uint32_t *at = q_cmd(Q_TL_STORE, (uint32_t)slot, f->tl_nv, f->tl_ni, 16 + vb + ib);
+    at[0] = at[1] = at[2] = at[3] = 0;
+    memcpy(at + 4, f->tlv, vb);
+    memcpy((uint8_t *)(at + 4) + vb, f->tli, ib);
+    render_queue_commit();
+}
+
+/* (replaying) A group as one: its draw as replay() placed its first, its triangles from the latest frame's slot */
+static void tl_group_draw(const TlGroup *g) {
+    static TlDraw d;
+    int same = tl_draw_now(&d);
+    int slot = (int)(latest->tl_gen % TL_SLOTS);
+    tl_groups_drawn++;
+    tl_group_draws += (unsigned long)g->n;
+    if (!queued()) {
+        render_tl_slot_draw(slot, same ? NULL : &d, g->index, g->nindex);
+        return;
+    }
+    void *p = q_cmd(Q_TL_SLOT, (uint32_t)slot | (same ? 256u : 0u), g->index, g->nindex, same ? 0 : sizeof d);
+    if (!same)
+        memcpy(p, &d, sizeof d);
+    render_queue_commit();
+}
+
 static void prim(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
@@ -3072,6 +3291,7 @@ static void prim(uint32_t data) {
             native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
         }
         record(rec, data, &l);
+        tl_record(rec, (data >> 16) & 7, count, idx, &l);
         if (smooth) {
             memcpy(world, sw, sizeof world);
             memcpy(bones, sb, sizeof bones);
@@ -3143,7 +3363,9 @@ static void prim(uint32_t data) {
         shadow_prim();
         q_begin(reg);
     }
-    if (count > 0 && render_on && tl_take(type, blend_from != NULL)) {
+    if (count > 0 && render_on && replay_group) {
+        tl_group_draw(replay_group);
+    } else if (count > 0 && render_on && tl_take(type, blend_from != NULL)) {
         uint64_t ps_at = prim_stats > 0 ? ps_now() : 0;
         tl_prim(type, count, idx, &l);
         if (ps_at)

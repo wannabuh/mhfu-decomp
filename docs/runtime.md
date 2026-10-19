@@ -136,7 +136,12 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle. With
   the effects that read the vertices off (shadows, tessellation, point lights), frames match the CPU's within a few
   pixels; those effects do not see its draws yet. `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
-  and compares it with `vertex()`.
+  and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
+  once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are
+  a group, and a group whose draws all match into one group of the frame before is replayed as one draw - one
+  interpolation, one draw call - so a frame shown costs a few hundred groups, not thousands of primitives (Popo field
+  at 60 shown at 144: 1.1 ms a frame shown from 4.8; the guild hall 0.7 from 3.5). `MHFU_TL_GROUPS=0` replays each
+  draw on its own (for comparing).
 
 ## HLE
 
