@@ -126,8 +126,10 @@ them. `MHFU_FPS_STATS` gives the share of draws smoothed.
 
 Where the game's camera moves only at 30ths (nothing converted: the village), it is shown between its places at the
 last two 30ths as what ticks at 30 is (gpu.c `native_camera_between`). When the game runs late (two frames behind the
-wall clock) a frame between 30ths is not drawn, so that it keeps time - and its sound, which goes by the game's clock,
-does not break up; `MHFU_FPS_STATS` counts them. `RECOMP_TRACE=hex,...` (at `recomp.py`'s run) and `MHFU_CALL_LOG=1`
+wall clock) it draws one frame of every two (then three, at most four: evenly, so that what is shown moves evenly -
+frames left out as they happened to fall behind judder), and more again after a second with time to spare; it keeps
+time so, and its sound, which goes by the game's clock, does not break up. A frame not drawn still has its draws noted
+for the smoothing. `MHFU_FPS_STATS` counts them; `MHFU_NATIVE_SKIP=0`: every frame drawn, the game slowed if need be. `RECOMP_TRACE=hex,...` (at `recomp.py`'s run) and `MHFU_CALL_LOG=1`
 log those functions' calls with the game's time - how the sounds' doubling was found; `MHFU_SAS_LOG=1` the sounds
 started.
 

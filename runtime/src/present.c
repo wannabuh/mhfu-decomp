@@ -474,7 +474,8 @@ static void snapshots(void) {
 void gpu_frame_tick(void);
 void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn);
 int gpu_native_smoothing(void);
-extern int gpu_skip_draw, gpu_late;
+extern int gpu_skip_draw, gpu_divisor;
+double rt_game_30ths(void);
 float rt_frame_30ths(void);
 static unsigned long native_skipped;    /* (for MHFU_FPS_STATS) */
 
@@ -541,11 +542,27 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
         if (!gpu_skip_draw)
             render_flip(display_fb_addr);
+        if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
+            fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
         else
             native_skipped++;
-        /* the game at its own rate above 30, running late: the next frame left out (not a 30th's: what ticks at 30 is
-         * drawn then - gpu.c): two frames late */
-        gpu_late = gpu_native_smoothing() && clock_behind_us() > (int64_t)(2000000.0f * rt_frame_30ths() / 30.0f);
+        /* the game at its own rate above 30, running late (two frames): a frame drawn of every two, then three, four -
+         * evenly; again more once it has time to spare (gpu.c) */
+        static int skips = -1, spare;   /* MHFU_NATIVE_SKIP=0: never */
+        if (skips < 0)
+            skips = !getenv("MHFU_NATIVE_SKIP") || atoi(getenv("MHFU_NATIVE_SKIP")) != 0;
+        int64_t behind = clock_behind_us(), frame_us = (int64_t)(1000000.0f * rt_frame_30ths() / 30.0f);
+        if (!skips || !gpu_native_smoothing() || fast_forward()) {
+            gpu_divisor = 1;
+        } else if (behind > 2 * frame_us) {
+            if (++spare > 0 || gpu_divisor == 1)      /* (once a little while) */
+                spare = -30, gpu_divisor = gpu_divisor < 4 ? gpu_divisor + 1 : 4;
+        } else if (behind < 0 && gpu_divisor > 1) {
+            if (++spare > 120)          /* ahead a second: one more drawn */
+                spare = 0, gpu_divisor--;
+        } else if (spare > 0) {
+            spare = 0;
+        }
     } else {
         convert(pixels);
         window_show(pixels);

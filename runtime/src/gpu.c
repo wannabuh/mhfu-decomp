@@ -2362,8 +2362,13 @@ static int blend_place(int count) {
 
 /* present.c: this game frame is not drawn - the game at its own rate above 30, running late: what is between 30ths
  * left out, so that it keeps time (its sound with it) */
-int gpu_skip_draw, gpu_late;        /* (present.c: the game is late - its next frame not drawn unless a 30th's) */
+int gpu_skip_draw, gpu_divisor = 1;    /* (present.c: the game late - a frame drawn of every gpu_divisor) */
 static unsigned skip_generation;
+static int nat_between;                 /* the frame's camera shown between 30ths (native_camera_between) */
+static float nat_view_now[12], nat_base[12];
+static int nat_view_ok(void) {
+    return nat_view_now[0] != 0 || nat_view_now[4] != 0 || nat_view_now[8] != 0;
+}
 static void native_place(uint64_t key);
 static int native_camera_between(const float *view, float *base);
 int gpu_native_smoothing(void);
@@ -2408,9 +2413,26 @@ static void prim(uint32_t data) {
     }
     if (!in_replay && skip_generation != frame_generation_direct) {     /* a frame's first: drawn or not */
         skip_generation = frame_generation_direct;
-        gpu_skip_draw = gpu_late && !native_frame30(0);
+        /* every gpu_divisor'th drawn (present.c: the game late), evenly - not as it happens to fall behind */
+        static unsigned frames_seen;
+        frames_seen++;
+        gpu_skip_draw = gpu_divisor > 1 && frames_seen % (unsigned)gpu_divisor != 0;
+        /* (the native frame rate: the game's camera now, its 30ths noted, drawn or not) */
+        float target[3];
+        nat_between = 0;
+        if (render_on && gpu_native_smoothing() && camera_game(native_game_inv, target)) {
+            camera_invert(native_game_inv, nat_view_now);
+            nat_between = native_camera_between(nat_view_now, nat_base);
+        }
     }
-    if (gpu_skip_draw && !in_replay && !held_drawing && count > 0) {    /* (a frame not drawn: present.c) */
+    if (gpu_skip_draw && !in_replay && count > 0) {     /* (a frame not drawn: present.c) */
+        if (!(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing()) {    /* noted all the same */
+            memcpy(nat_world, world, sizeof world);
+            memcpy(nat_bones, bones, sizeof bones);
+            native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
+            memcpy(world, nat_world, sizeof world);
+            memcpy(bones, nat_bones, sizeof bones);
+        }
         if (idx)
             iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
         else
@@ -2421,14 +2443,11 @@ static void prim(uint32_t data) {
         if (!in_replay && shadow_generation != frame_generation_direct) {
             shadow_generation = frame_generation_direct;
             /* (the native frame rate: the camera shown, if it is not the game's) */
-            float target[3], view_now[12], base[12];
             native_shown = 0;
-            if (gpu_native_smoothing() && camera_game(native_game_inv, target)) {
-                camera_invert(native_game_inv, view_now);
-                int between = native_camera_between(view_now, base);
-                native_shown = camera_native_shown(between ? base : view_now, native_shown_view);
-                if (!native_shown && between) {
-                    memcpy(native_shown_view, base, sizeof base);
+            if (gpu_native_smoothing() && nat_view_ok()) {
+                native_shown = camera_native_shown(nat_between ? nat_base : nat_view_now, native_shown_view);
+                if (!native_shown && nat_between) {
+                    memcpy(native_shown_view, nat_base, sizeof nat_base);
                     native_shown = 1;
                 }
             }
