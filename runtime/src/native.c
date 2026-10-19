@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 int rt_next_frame30(void);
 void gpu_held_clear(void);
@@ -45,7 +46,16 @@ static struct {
     uint32_t start, end;            /* its commands, while that frame's list is run */
     void (*fn)(Ctx *c);             /* a call: its function (or with none, addr) and its arguments */
     uint32_t addr, a[4];
+    uint32_t slots[4];              /* (a call: the game's states as it was made - their objects) */
 } chunks[MAX_CHUNKS];
+
+/* The game's states (EBOOT 08895538's four slots, at *0x08A8B308): their objects. A converted call made at a 30th is
+ * made again between only while they are the same - not after a state ended (the hunt's objects freed with it) */
+static void states_now(uint32_t *out) {
+    uint32_t base = LW(0x08A8B308u);
+    for (int i = 0; i < 4; i++)
+        out[i] = base >= 0x08800000u && base < 0x0A000000u ? LW(base + 4 * (uint32_t)i) : 0;
+}
 static int nchunks;
 static uint32_t gate_site, gate_key;    /* the gate being run at a 30th (0: none) */
 static float real_scale = 1;        /* the frame's time scale and rt_tick30, whatever a gate has made them */
@@ -253,6 +263,10 @@ static void skipped(Ctx *c, uint32_t at, uint32_t key) {
             link_marker(i);
             continue;
         }
+        uint32_t now[4];
+        states_now(now);
+        if (memcmp(now, chunks[i].slots, sizeof now))
+            continue;
         uint32_t a[4] = {c->r[4], c->r[5], c->r[6], c->r[7]};
         for (int j = 0; j < 4; j++)
             c->r[4 + j] = chunks[i].a[j];
@@ -324,6 +338,7 @@ void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
         chunks[nchunks].addr = addr;
         for (int j = 0; j < 4; j++)
             chunks[nchunks].a[j] = c->r[4 + j];
+        states_now(chunks[nchunks].slots);
         nchunks++;
     }
     run_native(c, fn, addr);
