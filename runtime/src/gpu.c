@@ -2696,7 +2696,7 @@ static int blend_place(int count) {
 
 /* present.c: this game frame is not drawn - the game at its own rate above 30, running late: what is between 30ths
  * left out, so that it keeps time (its sound with it) */
-int gpu_skip_draw, gpu_divisor = 1;    /* (present.c: the game late - a frame drawn of every gpu_divisor) */
+int gpu_skip_draw, gpu_divisor = 1;    /* (present.c: the game late - the next frame not drawn, if above 1) */
 static unsigned skip_generation;
 static int nat_between;                 /* the frame's camera shown between 30ths (native_camera_between) */
 static float nat_view_now[12], nat_base[12], nat_target_now[3], nat_base_target[3];
@@ -2748,9 +2748,7 @@ static void prim(uint32_t data) {
     if (!in_replay && skip_generation != frame_generation_direct) {     /* a frame's first: drawn or not */
         skip_generation = frame_generation_direct;
         /* every gpu_divisor'th drawn (present.c: the game late), evenly - not as it happens to fall behind */
-        static unsigned frames_seen;
-        frames_seen++;
-        gpu_skip_draw = gpu_divisor > 1 && frames_seen % (unsigned)gpu_divisor != 0;
+        gpu_skip_draw = gpu_divisor > 1;
         /* (the native frame rate: the game's camera now, its 30ths noted, drawn or not) */
         float target[3];
         nat_between = 0;

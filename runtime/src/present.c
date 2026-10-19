@@ -503,9 +503,9 @@ void present_frame(void) {
             unsigned long smoothed, drawn;
             gpu_native_stats(&smoothed, &drawn);
             fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%, %.0f%% of draws smoothed, "
-                    "%lu frames left out (late)\n", (double)(frame - stats_frame) / secs, (double)longest_frame_us / 1000,
-                    (double)time_slept_us() / 1e4 / secs, drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0,
-                    native_skipped);
+                    "%lu frames left out (late; drawing 1 of %d)\n", (double)(frame - stats_frame) / secs,
+                    (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
+                    drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0, native_skipped, gpu_divisor);
             native_skipped = 0;
             stats_wall = wall;
             stats_frame = frame;
@@ -542,27 +542,19 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
         if (!gpu_skip_draw)
             render_flip(display_fb_addr);
-        if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
-            fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
         else
             native_skipped++;
-        /* the game at its own rate above 30, running late (two frames): a frame drawn of every two, then three, four -
-         * evenly; again more once it has time to spare (gpu.c) */
-        static int skips = -1, spare;   /* MHFU_NATIVE_SKIP=0: never */
+        if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
+            fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
+        /* the game at its own rate above 30, well behind (four frames, as it shows one - its own work in it): the next
+         * frame left out, not two running - so that it keeps time, and its sound with it; nothing kept from one frame
+         * to the next, so that it never stays drawing fewer (gpu.c) */
+        static int skips = -1;          /* MHFU_NATIVE_SKIP=0: never */
         if (skips < 0)
             skips = !getenv("MHFU_NATIVE_SKIP") || atoi(getenv("MHFU_NATIVE_SKIP")) != 0;
-        int64_t behind = clock_behind_us(), frame_us = (int64_t)(1000000.0f * rt_frame_30ths() / 30.0f);
-        if (!skips || !gpu_native_smoothing() || fast_forward()) {
-            gpu_divisor = 1;
-        } else if (behind > 2 * frame_us) {
-            if (++spare > 0 || gpu_divisor == 1)      /* (once a little while) */
-                spare = -30, gpu_divisor = gpu_divisor < 4 ? gpu_divisor + 1 : 4;
-        } else if (behind < 0 && gpu_divisor > 1) {
-            if (++spare > 120)          /* ahead a second: one more drawn */
-                spare = 0, gpu_divisor--;
-        } else if (spare > 0) {
-            spare = 0;
-        }
+        int64_t frame_us = (int64_t)(1000000.0f * rt_frame_30ths() / 30.0f);
+        gpu_divisor = skips && gpu_native_smoothing() && !fast_forward() && !gpu_skip_draw &&
+                      clock_behind_us() > 4 * frame_us ? 2 : 1;
     } else {
         convert(pixels);
         window_show(pixels);
