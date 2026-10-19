@@ -87,12 +87,14 @@ void main() {
     uint flags = draws[i].flags;
     vec3 p = in_pos;
     vec3 nr = (flags & TL_FLIP) != 0u ? -in_normal : in_normal;
+    vec3 shape = (flags & TL_FLIP) != 0u ? -in_shape : in_shape, unused = p;
     vec3 ew = vec3(0.0);
     if ((flags & TL_EARLIER) != 0u) {   // where it was a frame shown earlier
         vec3 q = p, qn = vec3(0.0);
         tl_skin(i, true, q, qn);
         ew = tl_world(i, xf(draws[i].earlier_world[0], draws[i].earlier_world[1], draws[i].earlier_world[2], q));
     }
+    tl_skin(i, false, unused, shape);   // (the shape normal: as the normal)
     tl_skin(i, false, p, nr);           // skinning: the weighted sum of the bones' transforms
     vec3 m = xf(draws[i].world[0], draws[i].world[1], draws[i].world[2], p);
     vec3 world = vec3(0.0), motion = vec3(0.0);
@@ -135,6 +137,10 @@ void main() {
     out_sun = floor(clamp(sun, 0.0, 255.0)) / 255.0;
     out_normal = normal;
     out_world = world;
-    out_shape = vec4(normal, 0.0);
+    // (tessellated: the shape normal in the world as the normal is, and its triangle's straight edges)
+    vec3 sw = xf3(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2],
+                  xf3(draws[i].world[0], draws[i].world[1], draws[i].world[2], shape));
+    float sl = length(sw);
+    out_shape = vec4(sl > 0.0 ? sw / sl : vec3(0.0), float(in_edges));
     out_motion = motion;
 }

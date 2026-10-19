@@ -36,6 +36,7 @@
 #include "ge.tesc.inc"
 #include "ge.tese.inc"
 #include "ge_tl.vert.inc"
+#include "ge_tl.tesc.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
 
@@ -75,7 +76,7 @@ static VkPipeline tess_pipeline, bound_pipeline;
 #define TL_SLOT_VERTICES (128u << 10)
 #define TL_SLOT_INDICES (512u << 10)
 #define TL_SEGMENTS 4096
-static VkPipeline tl_pipeline;
+static VkPipeline tl_pipeline, tl_tess_pipeline;
 static VkBuf tl_records;
 VkBuf tl_vertices, tl_indices;
 static uint32_t tl_nrec, tl_nvert, tl_nidx;
@@ -85,7 +86,7 @@ static TlDraw tl_last;                  /* the last draw given; its record this 
 static uint32_t tl_rec = ~0u;
 static TlSegment tl_seg[TL_SEGMENTS];
 static int tl_nseg;
-static VkShaderModule tess_ctrl, tess_eval;
+static VkShaderModule tess_ctrl, tess_eval, tess_ctrl_tl;
 float prim_view[16], prim_world_view[12];
 static int prim_world;
 static int blob_shadows, blob_prim;
@@ -124,16 +125,16 @@ static int finds_feet(const DrawState *d) {
 
 /* A pipeline: kind 0 a full-screen pass (present.vert), 1 the GE's, 2 the sun's shadow map's, 3 the point lights', 4 a
  * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades;
- * 8, 9, 10 as 1, 2, 3 with the GE's vertex stage on the GPU (ge_tl.vert: the vertices as the game gave them) */
+ * 8, 9, 10, 11 as 1, 2, 3, 6 with the GE's vertex stage on the GPU (ge_tl.vert: the vertices as the game gave them) */
 VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
                          int ge) {
     int tl = ge >= 8, clamp_depth = ge == 8;
-    ge = ge == 8 ? 1 : ge == 9 ? 2 : ge == 10 ? 3 : ge;
+    ge = ge == 8 ? 1 : ge == 9 ? 2 : ge == 10 ? 3 : ge == 11 ? 6 : ge;
     VkPipelineShaderStageCreateInfo stages[4] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_FRAGMENT_BIT, fs, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
-         tess_ctrl, "main", NULL},
+         tl ? tess_ctrl_tl : tess_ctrl, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
          tess_eval, "main", NULL},
     };
@@ -163,17 +164,19 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
     }
     /* the vertices as the game gave them (TlVertex), at binding 1 (the GE's at 0 stay bound) */
     VkVertexInputBindingDescription tl_bind = {1, sizeof(TlVertex), VK_VERTEX_INPUT_RATE_VERTEX};
-    VkVertexInputAttributeDescription tl_attrs[6] = {
+    VkVertexInputAttributeDescription tl_attrs[8] = {
         {0, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(TlVertex, pos)},
         {1, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(TlVertex, normal)},
         {2, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(TlVertex, color)},
         {3, 1, VK_FORMAT_R32G32_SFLOAT, offsetof(TlVertex, uv)},
         {4, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights)},
         {5, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights) + 16},
+        {6, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(TlVertex, shape)},
+        {7, 1, VK_FORMAT_R32_UINT, offsetof(TlVertex, edges)},
     };
     if (tl) {
         vi.pVertexBindingDescriptions = &tl_bind;
-        vi.vertexAttributeDescriptionCount = 6;
+        vi.vertexAttributeDescriptionCount = 8;
         vi.pVertexAttributeDescriptions = tl_attrs;
     }
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
@@ -360,6 +363,10 @@ int render_init(void *sdl_window) {
     if (vk.clip_distance) {             /* the GPU's vertex stage (MHFU_GPU_TL) */
         tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
         tl_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
+        if (tess_pipeline) {
+            tess_ctrl_tl = vk_shader(ge_tl_tesc, sizeof ge_tl_tesc);
+            tl_tess_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 11);
+        }
         tl_records = vk_buffer(2 * TL_RECORDS * sizeof(TlDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
         tl_vertices = vk_buffer((2 * TL_VERTICES + TL_SLOTS * TL_SLOT_VERTICES) * sizeof(TlVertex),
                                 VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
@@ -846,6 +853,16 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
     vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof *pc, pc);
     for (int i = 0; i < tl_nseg; i++)
         vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
+    /* lit by the pixel, opaque: also drawn tessellated, over itself drawn flat (as flush draws the CPU's batches) */
+    uint32_t cam = tl_tess_pipeline && (s->flags & DRAW_LIT_PIXEL) && !s->blend ? camera_light_set() : ~0u;
+    if (cam != ~0u) {
+        pc->camera = cam;
+        vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof *pc, pc);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, tl_tess_pipeline);
+        bound_pipeline = tl_tess_pipeline;
+        for (int i = 0; i < tl_nseg; i++)
+            vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
+    }
     post_keep_tl(rendering, s, pc, tl_seg, tl_nseg);
     shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
     tl_nseg = 0;
@@ -1044,6 +1061,11 @@ void render_sprite(const RVertex *a, const RVertex *b) {
 
 int render_tl_ready(void) {
     return tl_pipeline != VK_NULL_HANDLE;
+}
+
+/* (gpu.c) whether its draws lit by the pixel are tessellated: their shape normals wanted */
+int render_tl_tessellates(void) {
+    return tl_tess_pipeline != VK_NULL_HANDLE;
 }
 
 /* The draw given last's record this frame (made if need be), ~0u if there is no room */

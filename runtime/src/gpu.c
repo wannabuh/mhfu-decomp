@@ -1399,6 +1399,7 @@ typedef struct {
 typedef struct {
     int first, n;                   /* its draws */
     uint32_t index, nindex;
+    uint32_t vertex, nvertex;       /* (its vertices: for tessellation's shape normals) */
 } TlGroup;
 
 /* Consecutive draws on the same vertices (strips into a model's buffer) share a copy of the span they use */
@@ -1584,7 +1585,7 @@ void gpu_frame_tick(void) {
     frame_generation_direct++;
 }
 
-static void tl_send(const Frame *f);
+static void tl_send(Frame *f);
 
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
@@ -3054,6 +3055,8 @@ static void tl_vertex(uint32_t base, int n, const Layout *l, TlVertex *o) {
         o->uv[1] = tc == 1 ? LBU(v + l->to + 1) / 128.0f : LHU(v + l->to + 2) / 32768.0f;
     }
     memset(o->weights, 0, sizeof o->weights);
+    memset(o->shape, 0, sizeof o->shape);
+    o->edges = 0;
     if (wt) {
         int nweights = ((vt >> 14) & 7) + 1;
         for (int b = 0; b < nweights; b++)
@@ -3065,6 +3068,106 @@ static void tl_vertex(uint32_t base, int n, const Layout *l, TlVertex *o) {
 
 /* The primitive to the renderer for the GPU's vertex stage: its draw (unless the last one sent is the same), and its
  * vertices in the order drawn (indexed: those the indices name - small strips index big shared buffers) */
+/* A primitive's triangles as indices (from base), as gpu.c's clipping takes them (a strip's every other one turned
+ * round, to keep its winding) - the third corner of each its own vertex (the one it ends with); how many */
+static int tl_triangles(int type, int count, uint32_t base, uint32_t *o) {
+    int ntri = type == 3 ? count / 3 : count - 2;
+    for (int t = 0; t < ntri; t++) {
+        int a, b, c;
+        if (type == 3)
+            a = 3 * t, b = 3 * t + 1, c = 3 * t + 2;
+        else if (type == 4)
+            a = (t & 1) ? t + 1 : t, b = (t & 1) ? t : t + 1, c = t + 2;
+        else
+            a = 0, b = t + 1, c = t + 2;
+        *o++ = base + (uint32_t)a;
+        *o++ = base + (uint32_t)b;
+        *o++ = base + (uint32_t)c;
+    }
+    return ntri > 0 ? ntri : 0;
+}
+
+/* For tessellation (render_shading.c shape_normals, as the CPU's vertex stage's batches have it): the nv vertices'
+ * shape normals - at each place (welded: the same position as given), its corners' normals averaged - and each of
+ * the ntri triangles' (indices among them, from base) edges no other shares, on its third corner */
+static void tl_shape(TlVertex *v, uint32_t nv, const uint32_t *tri, uint32_t ntri, uint32_t base) {
+    static uint32_t *table, *owner, *first;     /* a place's first vertex + 1 (0: empty); each one's place; its first */
+    static float (*sum)[3];
+    static struct { uint64_t key; uint32_t uses; } *edges;
+    static size_t cap, table_cap;
+    if (nv > cap) {
+        cap = nv * 2;
+        owner = realloc(owner, cap * sizeof *owner);
+        first = realloc(first, cap * sizeof *first);
+        sum = realloc(sum, cap * sizeof *sum);
+    }
+    size_t tsize = 1024;
+    while (tsize < nv * 2)
+        tsize *= 2;
+    if (tsize > table_cap) {
+        table_cap = tsize;
+        table = realloc(table, table_cap * sizeof *table);
+        edges = realloc(edges, table_cap * 2 * sizeof *edges);
+    }
+    memset(table, 0, tsize * sizeof *table);
+    uint32_t places = 0;
+    for (uint32_t i = 0; i < nv; i++) {
+        uint32_t hb[3];
+        memcpy(hb, v[i].pos, sizeof hb);
+        uint32_t x = hb[0] * 0x9E3779B1u ^ hb[1] * 0x85EBCA77u ^ hb[2] * 0xC2B2AE3Du;
+        x ^= x >> 15;
+        size_t j = x & (tsize - 1);
+        for (;;) {
+            uint32_t e = table[j];
+            if (!e) {
+                table[j] = ++places;
+                owner[i] = places - 1;
+                first[places - 1] = i;
+                memset(sum[places - 1], 0, sizeof sum[0]);
+                break;
+            }
+            if (!memcmp(v[first[e - 1]].pos, v[i].pos, sizeof v[i].pos)) {
+                owner[i] = e - 1;
+                break;
+            }
+            j = (j + 1) & (tsize - 1);
+        }
+        const float *n = v[i].normal;
+        float l = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        if (l > 0)
+            for (int k = 0; k < 3; k++)
+                sum[owner[i]][k] += n[k] / l;
+    }
+    for (uint32_t i = 0; i < nv; i++) {
+        const float *a = sum[owner[i]];
+        float l = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+        for (int k = 0; k < 3; k++)
+            v[i].shape[k] = l > 1e-3f ? a[k] / l : 0;
+    }
+    size_t esize = tsize * 2;
+    memset(edges, 0, esize * sizeof *edges);
+    for (int pass = 0; pass < 2; pass++)
+        for (uint32_t t = 0; t < ntri; t++) {
+            uint32_t o[3] = {owner[tri[3 * t] - base], owner[tri[3 * t + 1] - base], owner[tri[3 * t + 2] - base]};
+            uint32_t open = 0;
+            for (int k = 0; k < 3; k++) {
+                uint32_t a = o[(k + 1) % 3], b = o[(k + 2) % 3];
+                uint64_t key = (a < b ? (uint64_t)a << 32 | b : (uint64_t)b << 32 | a) + 1;
+                size_t j = (size_t)((key * 0x9E3779B97F4A7C15ull) >> 40) & (esize - 1);
+                while (edges[j].key && edges[j].key != key)
+                    j = (j + 1) & (esize - 1);
+                if (pass == 0) {
+                    edges[j].key = key;
+                    edges[j].uses++;
+                } else if (edges[j].uses < 2) {
+                    open |= 1u << k;
+                }
+            }
+            if (pass == 1)
+                v[tri[3 * t + 2] - base].edges = open;
+        }
+}
+
 static TlDraw tl_sent;                   /* the last draw sent (the renderer keeps it) */
 static int tl_have_sent;
 
@@ -3093,6 +3196,16 @@ static void tl_prim(int type, int count, int idx, const Layout *l) {
     for (int i = 0; i < count; i++) {
         tl_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &v[i]);
         ix[i] = (uint16_t)i;
+    }
+    if ((reg[0x17] & 1) && render_tl_tessellates()) {     /* (its own shape normals: tessellated, perhaps) */
+        static uint32_t *tri;
+        static int tcap;
+        if (3 * count > tcap) {
+            tcap = 3 * count * 2;
+            tri = realloc(tri, sizeof *tri * (size_t)tcap);
+        }
+        int ntri = tl_triangles(type, count, 0, tri);
+        tl_shape(v, (uint32_t)nv, tri, (uint32_t)ntri, 0);
     }
     static int check = -1;
     if (check < 0)
@@ -3185,6 +3298,12 @@ static int tl_same_group(const Draw *a, const Draw *b) {
 #define TL_SLOT_VERTICES (128u << 10)
 #define TL_SLOT_INDICES (512u << 10)
 
+/* A group's shape normals, if it may be tessellated (lit; render.c: lit by the pixel) */
+static void tl_group_shape(Frame *f, const TlGroup *g) {
+    if (render_tl_tessellates() && (f->draws[g->first].reg[0x17] & 1))
+        tl_shape(f->tlv + g->vertex, g->nvertex, f->tli + g->index, g->nindex / 3, g->vertex);
+}
+
 static void tl_record(Frame *f, int type, int count, int idx, const Layout *l) {
     Draw *d = &f->draws[f->n - 1];
     int ntri = type == 3 ? count / 3 : count - 2;
@@ -3206,19 +3325,8 @@ static void tl_record(Frame *f, int type, int count, int idx, const Layout *l) {
     TlVertex *v = f->tlv + f->tl_nv;
     for (int i = 0; i < count; i++)
         tl_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &v[i]);
-    uint32_t *o = f->tli + f->tl_ni, base = f->tl_nv;
-    for (int t = 0; t < ntri; t++) {    /* (as render_tl_draw makes them) */
-        int a, b, c;
-        if (type == 3)
-            a = 3 * t, b = 3 * t + 1, c = 3 * t + 2;
-        else if (type == 4)
-            a = (t & 1) ? t + 1 : t, b = (t & 1) ? t : t + 1, c = t + 2;
-        else
-            a = 0, b = t + 1, c = t + 2;
-        *o++ = base + (uint32_t)a;
-        *o++ = base + (uint32_t)b;
-        *o++ = base + (uint32_t)c;
-    }
+    uint32_t base = f->tl_nv;
+    tl_triangles(type, count, base, f->tli + f->tl_ni);
     uint32_t first = f->tl_ni;
     f->tl_nv += (uint32_t)count;
     f->tl_ni += ni;
@@ -3229,22 +3337,27 @@ static void tl_record(Frame *f, int type, int count, int idx, const Layout *l) {
             tl_same_group(before, d)) {
             g->n++;
             g->nindex += ni;
+            g->nvertex += (uint32_t)count;
             d->group = f->ntlg - 1;
             return;
         }
     }
+    if (f->ntlg)
+        tl_group_shape(f, &f->tlg[f->ntlg - 1]);
     if (f->ntlg == f->tlgcap) {
         f->tlgcap = f->tlgcap ? f->tlgcap * 2 : 1024;
         f->tlg = realloc(f->tlg, sizeof *f->tlg * (size_t)f->tlgcap);
     }
-    f->tlg[f->ntlg] = (TlGroup){f->n - 1, 1, first, ni};
+    f->tlg[f->ntlg] = (TlGroup){f->n - 1, 1, first, ni, base, (uint32_t)count};
     d->group = f->ntlg++;
 }
 
 /* A recorded frame's vertices and indices into its slot */
-static void tl_send(const Frame *f) {
+static void tl_send(Frame *f) {
     if (!f->tl_nv || !render_on)
         return;
+    if (f->ntlg)
+        tl_group_shape(f, &f->tlg[f->ntlg - 1]);
     int slot = (int)(f->tl_gen % TL_SLOTS);
     if (!queued()) {
         render_tl_store(slot, 0, f->tlv, (int)f->tl_nv, 0, f->tli, (int)f->tl_ni);

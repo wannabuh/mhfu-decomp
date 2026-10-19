@@ -8,6 +8,8 @@ layout(location = 2) in vec4 in_color;
 layout(location = 3) in vec2 in_uv;
 layout(location = 4) in vec4 in_w0;
 layout(location = 5) in vec4 in_w1;
+layout(location = 6) in vec3 in_shape;
+layout(location = 7) in uint in_edges;
 
 layout(std430, set = 0, binding = BIND_TL) readonly buffer Draws { TlDraw draws[]; };
 layout(push_constant) uniform Draw { DRAW_PUSH } draw;

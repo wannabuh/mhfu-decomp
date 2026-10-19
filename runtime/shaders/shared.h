@@ -170,10 +170,17 @@ typedef struct { LIGHT_SET } LightSet;
 typedef struct TlDrawS { TL_DRAW } TlDraw;
 /* A vertex as the GPU's vertex stage takes it (ge_tl.vert): as the game gave it, decoded - position, normal ((0, 0, 1)
  * if it has none), colour (RGBA8; the material's ambient if it has none), texture coordinates (before scaling), the
- * bones' weights */
-typedef struct TlVertexS { float pos[3], normal[3]; uint32_t color; float uv[2], weights[8]; } TlVertex;
+ * bones' weights; for tessellation (ge.tesc, ge.tese), the shape normal (the normals of the corners at its place,
+ * averaged; 0 none) and - its triangle's third corner - which of its triangle's edges stay straight (bit k: the edge
+ * facing corner k) */
+typedef struct TlVertexS {
+    float pos[3], normal[3];
+    uint32_t color;
+    float uv[2], weights[8], shape[3];
+    uint32_t edges;
+} TlVertex;
 _Static_assert(sizeof(TlDraw) == 1552, "TlDraw: as GLSL lays it out");
-_Static_assert(sizeof(TlVertex) == 68, "TlVertex: ge_tl.vert's attributes");
+_Static_assert(sizeof(TlVertex) == 84, "TlVertex: ge_tl.vert's attributes");
 _Static_assert(sizeof(DrawPush) == 112, "DrawPush: as GLSL lays it out");
 _Static_assert(sizeof(GrassPush) == 84, "GrassPush: as GLSL lays it out");
 _Static_assert(sizeof(AoPush) == 240, "AoPush: as GLSL lays it out");

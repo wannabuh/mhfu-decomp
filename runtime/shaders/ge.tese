@@ -37,7 +37,7 @@ void main() {
     vec3 n0 = normalize(in_shape[0].xyz), n1 = normalize(in_shape[1].xyz), n2 = normalize(in_shape[2].xyz);
     // Phong's point less the flat one, edge by edge - b_i b_j (pi_i(P_j) + pi_j(P_i) - P_i - P_j), pi_i(q) the
     // projection of q onto corner i's tangent plane - each but those left straight (bit k: the edge facing corner k)
-    uint open = uint(in_shape[0].w);
+    uint open = uint(in_shape[2].w);
     vec3 e01 = -dot(P1 - P0, n0) * n0 - dot(P0 - P1, n1) * n1;
     vec3 e12 = -dot(P2 - P1, n1) * n1 - dot(P1 - P2, n2) * n2;
     vec3 e20 = -dot(P0 - P2, n2) * n2 - dot(P2 - P0, n0) * n0;

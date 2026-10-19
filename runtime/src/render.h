@@ -27,6 +27,7 @@ void render_vram_written(uint32_t addr, uint32_t size);     /* something other t
 struct TlDrawS;                             /* (shared.h's TlDraw, TlVertex) */
 struct TlVertexS;
 int render_tl_ready(void);
+int render_tl_tessellates(void);
 void render_tl_draw(int type, int count, const struct TlDrawS *d, const struct TlVertexS *v, int nv, const uint16_t *idx);
 /* and for recorded frames (MHFU_FPS): a frame's vertices and triangles' indices stored in a slot (one of 4) as it is
  * recorded - indices among the slot's vertices, from vfirst and ifirst -, and drawn from it as it is replayed: n

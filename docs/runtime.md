@@ -137,8 +137,10 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   what adds to the picture (fire, glows: the point lights and glow pass read it) and the game's round shadows, left to
   the CPU. Its draws cast shadows - the sun's and the point lights' (`shadow_tl.vert`, `pshadow_tl.vert`, from the
   same placement: `tl_common.glsl`), whole triangles whatever the camera's near plane cuts, and the motion blur's pass
-  draws their motion again. With tessellation, sun shading, sway and grass off, frames match the CPU's within a few
-  pixels; those do not see its draws yet. (Between frames, point lights differ from run to run: they flicker by the
+  draws their motion again; what is lit by the pixel is tessellated as the CPU's batches are, its shape normals and
+  straight edges made as a frame is recorded (each group's corners welded by their place as given; the edges on each
+  triangle's third corner, the one it ends with). With sun shading, sway and grass off, frames match the CPU's within
+  a few pixels (tessellated: half a percent, the welding not quite the same); those do not see its draws yet. (Between frames, point lights differ from run to run: they flicker by the
   wall clock and ease in by frames shown - compare with `MHFU_POINT_LIGHTS=0`.) `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
   and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
   once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are
