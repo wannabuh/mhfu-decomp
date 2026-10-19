@@ -8,6 +8,7 @@
  * dithering. */
 #include "hle.h"
 #include "render.h"
+#include "render_queue.h"
 #include "texpack.h"
 
 #include <math.h>
@@ -63,6 +64,18 @@ static void fb_write(int x, int y, uint32_t c) {
         SH(a, from_rgba(c, fmt));
 }
 
+/* (the render queue: below) */
+static int draw_v = 512;            /* (seen_v: the draw's, for the texture pack's key - given the renderer with it) */
+static void q_shadow_frame(const float *m, int on);
+static void q_prim_world(int on);
+static void q_prim_view(const float *m, const float *wv);
+static void q_prim_lights(int n, const float *dirs, const float *colors, int sun);
+static void q_time(double seconds);
+static void q_override(uint32_t slot, int w, int h);
+static void q_clut(uint32_t addr, uint32_t bytes);
+static void q_begin(const uint32_t *r);
+static int queued(void);
+
 /* -- textures ----------------------------------------------------------------------------------------------------- */
 
 static uint32_t clut[256];
@@ -71,7 +84,7 @@ static void clut_load(void) {
     uint32_t addr = (reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8);
     uint32_t bytes = (reg[0xC4] & 0x3F) * 32;
     if (texpack_active())           /* (as PPSSPP loads it: 0x40 blocks are 0x40, not 0) */
-        texpack_clut_loaded(addr, (reg[0xC4] & 0x7F) == 0x40 ? 0x40 * 32 : bytes);
+        q_clut(addr, (reg[0xC4] & 0x7F) == 0x40 ? 0x40 * 32 : bytes);
     int fmt = reg[0xC5] & 3;
     uint32_t n = fmt == 3 ? bytes / 4 : bytes / 2;
     for (uint32_t i = 0; i < n && i < 256; i++)
@@ -135,10 +148,49 @@ static uint32_t sample(float u, float v) {
     return out;
 }
 
-void gpu_decode_texture(uint32_t *out, int w, int h) {
-    for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
-            out[y * w + x] = texel(x, y);
+/* render_texture.c: a texture decoded, as the registers given have it (the renderer's: its own thread's copy) - its
+ * palette read from where they say, as the GE has it loaded from there */
+void gpu_decode_texture(uint32_t *out, int w, int h, const uint32_t *r) {
+    uint32_t pal[256];
+    int fmt = r[0xC3] & 0xF;
+    if (fmt >= 4 && fmt <= 7) {
+        uint32_t addr = (r[0xB0] & 0xFFFFF0) | ((r[0xB1] & 0x0F0000) << 8), bytes = (r[0xC4] & 0x3F) * 32;
+        int cf = r[0xC5] & 3;
+        uint32_t n = cf == 3 ? bytes / 4 : bytes / 2;
+        memset(pal, 0, sizeof pal);
+        for (uint32_t i = 0; i < n && i < 256; i++)
+            pal[i] = cf == 3 ? LW(addr + 4 * i) : to_rgba(LHU(addr + 2 * i), cf);
+    }
+    int tw = 1 << (r[0xB8] & 0xF), th = 1 << ((r[0xB8] >> 8) & 0xF);
+    uint32_t base = (r[0xA0] & 0xFFFFF0) | ((r[0xA8] & 0x0F0000) << 8), bw = r[0xA8] & 0x7FF;
+    int bits = fmt == 3 || fmt == 7 ? 32 : fmt == 4 ? 4 : fmt == 5 ? 8 : 16;
+    uint32_t bytes_per_row = bw * (uint32_t)bits / 8, mode = r[0xC5];
+    uint32_t shift = (mode >> 2) & 31, mask = (mode >> 8) & 0xFF, start = ((mode >> 16) & 31) * 16;
+    for (int v = 0; v < h; v++)
+        for (int u = 0; u < w; u++) {
+            int uu = u & (tw - 1), vv = v & (th - 1);
+            uint32_t off;
+            if (r[0xC2] & 1) {
+                uint32_t xb = (uint32_t)uu * (uint32_t)bits / 8;
+                uint32_t block = (uint32_t)(vv / 8) * (bytes_per_row / 16) + xb / 16;
+                off = block * 128 + (uint32_t)(vv % 8) * 16 + xb % 16;
+            } else {
+                off = (uint32_t)vv * bytes_per_row + (uint32_t)uu * (uint32_t)bits / 8;
+            }
+            uint32_t a = base + off, c, i = 0;
+            switch (fmt) {
+            case 0: case 1: case 2: c = to_rgba(LHU(a), fmt); break;
+            case 3: c = LW(a); break;
+            case 4: i = (LBU(a) >> ((uu & 1) * 4)) & 15; c = 1; break;
+            case 5: i = LBU(a); c = 1; break;
+            case 6: i = LHU(a); c = 1; break;
+            case 7: i = LW(a); c = 1; break;
+            default: c = 0xFFFF00FFu; break;
+            }
+            if (fmt >= 4 && fmt <= 7)
+                c = pal[(((i >> shift) & mask) | start) & 255];
+            out[v * w + u] = c;
+        }
 }
 
 /* -- vertices ----------------------------------------------------------------------------------------------------- */
@@ -270,7 +322,7 @@ static void shadow_frame(const float *shown) {
     float c[3];
     shadow_world = enabled && camera_game(game_to_world, c);
     if (!shadow_world) {
-        render_shadow_frame(NULL, 0);
+        q_shadow_frame(NULL, 0);
         return;
     }
     if (shown) {
@@ -280,7 +332,7 @@ static void shadow_frame(const float *shown) {
     } else
         memcpy(to_world, game_to_world, sizeof to_world);
     if (!sun_known) {
-        render_shadow_frame(NULL, 0);
+        q_shadow_frame(NULL, 0);
         return;
     }
     const float *d = sun_dir;
@@ -307,7 +359,7 @@ static void shadow_frame(const float *shown) {
     m[13] = -(u[0] * c[0] + u[1] * c[1] + u[2] * c[2]) / SHADOW_HALF;
     m[14] = 0.5f + (d[0] * c[0] + d[1] * c[1] + d[2] * c[2]) / (2 * SHADOW_RANGE);
     m[15] = 1;
-    render_shadow_frame(m, 1);
+    q_shadow_frame(m, 1);
 }
 
 /* Before a primitive's vertices: whether they are placed in the world (3D, through the camera), and which light is the
@@ -315,7 +367,7 @@ static void shadow_frame(const float *shown) {
 static void shadow_prim(void) {
     int through = (reg[0x12] >> 23) & 1;
     prim_world = shadow_world && !through && proj[11] != 0;
-    render_prim_world(prim_world);
+    q_prim_world(prim_world);
     if (prim_world) {
         /* the camera's space to the screen (by columns): the projection, then the viewport - x, y in PSP pixels and
          * the depth as drawn (0 to 1), over w - for what reads the depth back (ambient occlusion) */
@@ -342,13 +394,13 @@ static void shadow_prim(void) {
                 mul43(to_world, &inv[9], col);
             memcpy(&wv[3 * c], col, sizeof col);
         }
-        render_prim_view(m, wv);
+        q_prim_view(m, wv);
     }
     sun_light = -1;
     prim_pixel_light = 0;
     pixel_lights = 0;
     if (through || !(reg[0x17] & 1)) {
-        render_prim_lights(0, NULL, NULL, -1);
+        q_prim_lights(0, NULL, NULL, -1);
         return;
     }
     /* The sun: the directional light along the sun as known, if there is one - in the shade the game dims it, and a
@@ -417,12 +469,12 @@ static void shadow_prim(void) {
         }
         if (ok && n) {
             prim_pixel_light = 1;
-            render_prim_lights(n, dirs, cols, sun);
+            q_prim_lights(n, dirs, cols, sun);
         } else
             pixel_lights = 0;
     }
     if (!prim_pixel_light)
-        render_prim_lights(0, NULL, NULL, -1);
+        q_prim_lights(0, NULL, NULL, -1);
     if (sun_light >= 0 && prim_world) {
         int k = sun_light;
         float L[3] = {ge_float(reg[0x63 + 3 * k]), ge_float(reg[0x64 + 3 * k]), ge_float(reg[0x65 + 3 * k])}, w[3];
@@ -736,6 +788,284 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
     s->a = c->a;
     s->fog = c->fog;
     memcpy(&s->wx, &c->wx, 12 * sizeof(float));
+}
+
+/* -- the render queue: the renderer's half of the GE's work, on a thread of its own (render_queue.c) -------------
+ *
+ * What gpu.c tells the renderer goes into the queue in order - the primitive's state, its place in the world, lights,
+ * and its vertices after the vertex stage, written into the queue as they are made - and the render thread does it:
+ * the clipping, the renderer's batches and textures (as the registers given have them: its own copy), Vulkan. Off
+ * (MHFU_RENDER_THREAD=0, or the software renderer), each is done at once, as before. */
+enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW };
+typedef struct { uint32_t kind, a, b, c; } QHead;   /* (16 bytes: what follows stays aligned) */
+
+static void gpu_run_command(const void *cmd, size_t n);
+
+static int queued(void) {
+    static int started;
+    if (!started && render_on) {
+        started = 1;
+        render_queue_start(gpu_run_command);
+    }
+    return render_on && render_queue_on_flag;
+}
+
+static void *q_cmd(uint32_t kind, uint32_t a, uint32_t b, uint32_t c, size_t n) {
+    QHead *h = render_queue_reserve(sizeof *h + n);
+    *h = (QHead){kind, a, b, c};
+    return h + 1;
+}
+
+static void q_prim_world(int on) {
+    if (!queued()) {
+        render_prim_world(on);
+        return;
+    }
+    q_cmd(Q_WORLD, (uint32_t)on, 0, 0, 0);
+    render_queue_commit();
+}
+
+static void q_prim_view(const float *m, const float *wv) {
+    if (!queued()) {
+        render_prim_view(m, wv);
+        return;
+    }
+    float *p = q_cmd(Q_VIEW, 0, 0, 0, 28 * sizeof(float));
+    memcpy(p, m, 16 * sizeof(float));
+    memcpy(p + 16, wv, 12 * sizeof(float));
+    render_queue_commit();
+}
+
+static void q_prim_lights(int n, const float *dirs, const float *colors, int sun) {
+    if (!queued()) {
+        render_prim_lights(n, dirs, colors, sun);
+        return;
+    }
+    float *p = q_cmd(Q_LIGHTS, (uint32_t)n, (uint32_t)sun, 0, (size_t)n * 8 * sizeof(float));
+    memcpy(p, dirs, (size_t)n * 4 * sizeof(float));
+    memcpy(p + 4 * n, colors, (size_t)n * 4 * sizeof(float));
+    render_queue_commit();
+}
+
+static void q_shadow_frame(const float *m, int on) {
+    if (!queued()) {
+        render_shadow_frame(m, on);
+        return;
+    }
+    float *p = q_cmd(Q_SHADOW_FRAME, (uint32_t)on, m != NULL, 0, 16 * sizeof(float));
+    if (m)
+        memcpy(p, m, 16 * sizeof(float));
+    render_queue_commit();
+}
+
+static void q_time(double seconds) {
+    if (!queued()) {
+        render_time(seconds);
+        return;
+    }
+    memcpy(q_cmd(Q_TIME, 0, 0, 0, sizeof seconds), &seconds, sizeof seconds);
+    render_queue_commit();
+}
+
+static void q_override(uint32_t slot, int w, int h) {
+    if (!queued()) {
+        render_override_texture(slot, w, h);
+        return;
+    }
+    q_cmd(Q_OVERRIDE, slot, (uint32_t)w, (uint32_t)h, 0);
+    render_queue_commit();
+}
+
+static void q_clut(uint32_t addr, uint32_t bytes) {
+    if (!queued()) {
+        texpack_clut_loaded(addr, bytes);
+        return;
+    }
+    q_cmd(Q_CLUT, addr, bytes, 0, 0);
+    render_queue_commit();
+}
+
+/* The primitive's state (its registers: sent again only when they changed) */
+static void q_begin(const uint32_t *r) {
+    if (!queued()) {
+        texpack_draw_v = draw_v;
+        render_prim_begin(r);
+        return;
+    }
+    static uint32_t sent[256];
+    static int have;
+    int same = have && !memcmp(sent, r, sizeof sent);
+    uint32_t *p = q_cmd(Q_BEGIN, (uint32_t)draw_v, (uint32_t)same, 0, same ? 0 : sizeof sent);
+    if (!same) {
+        memcpy(p, r, sizeof sent);
+        memcpy(sent, r, sizeof sent);
+        have = 1;
+    }
+    render_queue_commit();
+}
+
+/* (the render thread's) The registers of the primitive being drawn */
+static uint32_t rq_reg[256];
+
+/* A clip-space vertex to the screen, as r's viewport has it */
+static void to_screen_r(const ClipVertex *c, int through, Vertex *s, const uint32_t *r) {
+    if (through) {
+        s->x = c->cx;
+        s->y = c->cy;
+        s->z = c->cz;
+        s->rw = 1.0f;
+    } else {
+        float rw = 1.0f / c->cw;
+        s->x = c->cx * rw * ge_float(r[0x42]) + ge_float(r[0x45]) - (float)(r[0x4C] & 0xFFFF) / 16.0f;
+        s->y = c->cy * rw * ge_float(r[0x43]) + ge_float(r[0x46]) - (float)(r[0x4D] & 0xFFFF) / 16.0f;
+        s->z = c->cz * rw * ge_float(r[0x44]) + ge_float(r[0x47]);
+        s->rw = rw;
+    }
+    s->u = c->u;
+    s->v = c->v;
+    s->r = c->r;
+    s->g = c->g;
+    s->b = c->b;
+    s->a = c->a;
+    s->fog = c->fog;
+    memcpy(&s->wx, &c->wx, 12 * sizeof(float));
+}
+
+static float edge(float ax, float ay, float bx, float by, float px, float py);
+
+/* A triangle to the renderer: cut by the near plane (the shadows have it whole), to the screen, culled as the GE
+ * would where the GPU does not (clip_triangle and raster_triangle, the renderer's way, with the registers given) */
+static void clip_render(const ClipVertex *v0, const ClipVertex *v1, const ClipVertex *v2, int through, const uint32_t *r,
+                        int pw) {
+    const float near = 1e-4f;
+    Vertex s[4];
+    int n = 0;
+    if (through) {
+        to_screen_r(v0, 1, &s[0], r);
+        to_screen_r(v1, 1, &s[1], r);
+        to_screen_r(v2, 1, &s[2], r);
+        n = 3;
+    } else {
+        if (pw && (v0->cw <= near || v1->cw <= near || v2->cw <= near)) {
+            RVertex rv[3];
+            const ClipVertex *cv[3] = {v0, v1, v2};
+            for (int i = 0; i < 3; i++) {
+                memset(&rv[i], 0, sizeof rv[i]);
+                rv[i].u = cv[i]->u;
+                rv[i].v = cv[i]->v;
+                rv[i].a = cv[i]->a;
+                rv[i].wx = cv[i]->wx;
+                rv[i].wy = cv[i]->wy;
+                rv[i].wz = cv[i]->wz;
+            }
+            render_shadow_triangle(&rv[0], &rv[1], &rv[2]);
+        }
+        const ClipVertex *in[3] = {v0, v1, v2};
+        ClipVertex out[4];
+        for (int i = 0; i < 3; i++) {
+            const ClipVertex *p = in[i], *q = in[(i + 1) % 3];
+            int pin = p->cw > near, qin = q->cw > near;
+            if (pin)
+                out[n++] = *p;
+            if (pin != qin) {
+                float t = (near - p->cw) / (q->cw - p->cw);
+                float *mf = &out[n].cx;
+                const float *pf = &p->cx, *qf = &q->cx;
+                for (int k = 0; k < VERTEX_FLOATS; k++)
+                    mf[k] = pf[k] + (qf[k] - pf[k]) * t;
+                n++;
+            }
+        }
+        if (n < 3)
+            return;
+        for (int i = 0; i < n; i++)
+            to_screen_r(&out[i], 0, &s[i], r);
+    }
+    for (int i = 1; i + 1 < n; i++) {
+        const Vertex *a = &s[0], *b = &s[i], *c = &s[i + 1];
+        float area = edge(a->x, a->y, b->x, b->y, c->x, c->y);
+        if (area == 0)
+            continue;
+        if (!through && (r[0x1D] & 1) && !pw && (area < 0) == (int)(r[0x9B] & 1))
+            continue;
+        render_triangle((const RVertex *)a, (const RVertex *)b, (const RVertex *)c);
+    }
+}
+
+/* A primitive's vertices (after the vertex stage) to the renderer */
+static void emit_render(int type, int count, const ClipVertex *v, int through, const uint32_t *r, int pw) {
+    switch (type) {
+    case 3:
+        for (int i = 0; i + 2 < count; i += 3)
+            clip_render(&v[i], &v[i + 1], &v[i + 2], through, r, pw);
+        break;
+    case 4:
+        for (int i = 0; i + 2 < count; i++)
+            if (i & 1)
+                clip_render(&v[i + 1], &v[i], &v[i + 2], through, r, pw);
+            else
+                clip_render(&v[i], &v[i + 1], &v[i + 2], through, r, pw);
+        break;
+    case 5:
+        for (int i = 1; i + 1 < count; i++)
+            clip_render(&v[0], &v[i], &v[i + 1], through, r, pw);
+        break;
+    case 6:
+        for (int i = 0; i + 1 < count; i += 2) {
+            Vertex a, b;
+            to_screen_r(&v[i], through, &a, r);
+            to_screen_r(&v[i + 1], through, &b, r);
+            render_sprite((const RVertex *)&a, (const RVertex *)&b);
+        }
+        break;
+    default:
+        unhandled_prims[type]++;
+        break;
+    }
+}
+
+/* (the render thread) A command done */
+static void gpu_run_command(const void *cmd, size_t n) {
+    (void)n;
+    const QHead *h = cmd;
+    const void *p = h + 1;
+    switch (h->kind) {
+    case Q_BEGIN:
+        if (!h->b)
+            memcpy(rq_reg, p, sizeof rq_reg);
+        texpack_draw_v = (int)h->a;
+        render_prim_begin(rq_reg);
+        break;
+    case Q_WORLD:
+        render_prim_world((int)h->a);
+        break;
+    case Q_VIEW:
+        render_prim_view(p, (const float *)p + 16);
+        break;
+    case Q_LIGHTS:
+        render_prim_lights((int)h->a, p, (const float *)p + 4 * h->a, (int)h->b);
+        break;
+    case Q_SHADOW_FRAME:
+        render_shadow_frame(h->b ? p : NULL, (int)h->a);
+        break;
+    case Q_TIME: {
+        double t;
+        memcpy(&t, p, sizeof t);
+        render_time(t);
+        break;
+    }
+    case Q_OVERRIDE:
+        render_override_texture(h->a, (int)h->b, (int)h->c);
+        break;
+    case Q_CLUT:
+        texpack_clut_loaded(h->a, h->b);
+        break;
+    case Q_DRAW: {
+        const uint32_t *d = p;          /* type, count, through, in the world; then the vertices */
+        emit_render((int)d[0], (int)d[1], (const ClipVertex *)(d + 4), (int)d[2], rq_reg, (int)d[3]);
+        break;
+    }
+    }
 }
 
 /* -- pixels ------------------------------------------------------------------------------------------------------- */
@@ -1445,9 +1775,9 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
     iaddr = SCRATCH_INDICES;
     blend_from = prev && loose_near[d - latest->draws] ? prev : NULL;
     blend_t = t;
-    render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
+    q_override(d->tex_slot, d->tex_w, d->tex_h);
     prim(d->data);
-    render_override_texture(0xFFFFFFFEu, 0, 0);
+    q_override(0xFFFFFFFEu, 0, 0);
     blend_from = NULL;
 }
 
@@ -1918,7 +2248,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(sb, bones, sizeof sb);
     shown_frames++;
     placed_run = -1;
-    render_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
+    q_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
     int matched_frames = previous->n && !camera_cut(previous, latest);
     int interpolate = matched_frames && t < 1.0f;
     camera_frames_late(frames_late);
@@ -1938,7 +2268,7 @@ uint32_t gpu_render_frame(float t) {
     earlier = 0;
     recording = 1;
     in_replay = 0;
-    render_time(-1.0);
+    q_time(-1.0);
     memcpy(reg, saved, sizeof reg);
     vaddr = sv;
     iaddr = si;
@@ -2325,12 +2655,12 @@ void gpu_held_draw(int chunk) {
         iaddr = SCRATCH_INDICES;
         reg[0x04] = d->data;
         if (render_on)
-            render_override_texture(d->tex_slot, d->tex_w, d->tex_h);
+            q_override(d->tex_slot, d->tex_w, d->tex_h);
         held_texture = d;
         prim(d->data);
         held_texture = NULL;
         if (render_on)
-            render_override_texture(0xFFFFFFFEu, 0, 0);
+            q_override(0xFFFFFFFEu, 0, 0);
         if (recording)
             close_run(rec);         /* (its copy made now: the scratch area is used again) */
     }
@@ -2382,7 +2712,7 @@ int camera_native_shown(const float *view, const float *target, float *shown);
 static void seen_v(int count, const Layout *l) {
     uint32_t vt = reg[0x12];
     int tc = vt & 3, idx = (vt >> 11) & 3;
-    texpack_draw_v = 512;
+    draw_v = 512;
     if (!((vt >> 23) & 1) || ((reg[0xB8] >> 8) & 0xF) != 9 || !tc)
         return;
     float most = 0;
@@ -2393,7 +2723,7 @@ static void seen_v(int count, const Layout *l) {
         if (v > most)
             most = v;
     }
-    texpack_draw_v = most > 272 ? (int)most : 272;
+    draw_v = most > 272 ? (int)most : 272;
 }
 
 static void prim(uint32_t data) {
@@ -2471,10 +2801,13 @@ static void prim(uint32_t data) {
             }
         }
         shadow_prim();
-        render_prim_begin(reg);
+        q_begin(reg);
     }
     if (count > 0) {
-        ClipVertex *v = malloc(sizeof *v * (size_t)count);
+        /* (the vertices made into the render queue, when there is one - its render thread does the rest) */
+        int to_queue = render_on && queued();
+        uint32_t *qd = to_queue ? q_cmd(Q_DRAW, 0, 0, 0, 16 + sizeof(ClipVertex) * (size_t)count) : NULL;
+        ClipVertex *v = to_queue ? (ClipVertex *)(qd + 4) : malloc(sizeof *v * (size_t)count);
         int through = 0, blend = blend_from && blend_place(count);
         for (int i = 0; i < count; i++) {
             int n = i;
@@ -2488,6 +2821,15 @@ static void prim(uint32_t data) {
             vertex(vaddr, n, &l, &v[i], &through);
         }
         blend_reg = NULL;
+        if (render_on) {
+            if (to_queue) {
+                qd[0] = (uint32_t)type, qd[1] = (uint32_t)count, qd[2] = (uint32_t)through, qd[3] = (uint32_t)prim_world;
+                render_queue_commit();
+            } else {
+                emit_render(type, count, v, through, reg, prim_world);
+                free(v);
+            }
+        } else {
         switch (type) {
         case 3:                                     /* triangles */
             for (int i = 0; i + 2 < count; i += 3)
@@ -2517,6 +2859,7 @@ static void prim(uint32_t data) {
             break;
         }
         free(v);
+        }
     }
     if (nat_override) {                 /* (the matrices as the game gave them, for what comes after) */
         nat_override = 0;
@@ -2532,6 +2875,7 @@ static void prim(uint32_t data) {
 
 /* Block transfer: copy a rectangle of bytes between RAM / VRAM */
 static void transfer(uint32_t data) {
+    render_queue_sync();                /* (what the renderer has yet to read could be written over) */
     int bpp = (data & 1) ? 4 : 2;
     uint32_t src = (reg[0xB2] & 0xFFFFF0) | ((reg[0xB3] & 0xFF0000) << 8), sw = reg[0xB3] & 0x7FF;
     uint32_t dst = (reg[0xB4] & 0xFFFFF0) | ((reg[0xB5] & 0xFF0000) << 8), dw = reg[0xB5] & 0x7FF;

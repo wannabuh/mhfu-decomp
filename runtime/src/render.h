@@ -28,7 +28,7 @@ void render_finish_frame(void);             /* a frame not shown (fast-forwardin
 void render_readback(uint32_t addr, uint32_t *pixels);
 
 /* gpu.c, for textures: decode the current texture (level 0) into w x h ABGR8888 */
-void gpu_decode_texture(uint32_t *out, int w, int h);
+void gpu_decode_texture(uint32_t *out, int w, int h, const uint32_t *reg);   /* as reg has it */
 
 /* Frames recorded for interpolation (gpu.c) */
 void gpu_record(int on);

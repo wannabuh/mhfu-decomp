@@ -72,7 +72,7 @@ checked yet, nor the monsters: `docs/native.md`), `MHFU_SCALE=4` (internal resol
 PSP's, 1 to 12, fractions too; by default the window's own, followed as it is resized, so the picture is shown pixel for
 pixel), `MHFU_RESOLUTION=2560x1440` (the internal resolution by its size instead: the scale that fits it, 5.29 here;
 larger than the window it is filtered down to it), `MHFU_FULLSCREEN=1` (the whole screen from the start; F11 toggles it), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
-`MHFU_RENDERER=soft`, `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
+`MHFU_RENDERER=soft`, `MHFU_RENDER_THREAD=0` (the renderer's work on the game's thread, not its own), `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_SHADOWS=0`, `MHFU_SUN_SHADING=0`, `MHFU_RELIEF=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`,
 `MHFU_POINT_SHADOWS=0`, `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, its
 relief in the sun from its textures, lighting by the pixel, lights

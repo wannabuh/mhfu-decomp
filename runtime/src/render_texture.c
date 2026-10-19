@@ -293,7 +293,7 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         fprintf(stderr, "renderer: out of staging space this frame\n");
         return t->slot;
     }
-    gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h);
+    gpu_decode_texture((uint32_t *)((uint8_t *)staging.map + staging_used), w, h, reg);
     if (t->slot < MAX_TEXTURES) {      /* its average colour (by alpha), for the lights effects make */
         const uint32_t *px = (const uint32_t *)((uint8_t *)staging.map + staging_used);
         double sum[3] = {0, 0, 0}, wsum = 0;

@@ -120,7 +120,14 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   the instruction (`EBOOT_08886E50@08887814`: the camera reading its preset). `tools/ramdiff.py` finds variables from
   RAM snapshots (F9, or `MHFU_SNAPSHOT`).
 - **Intros** are skipped (`MHFU_INTRO=1` plays them): cross is pressed at the language menu (frame 40) and the game
-  fast-forwarded to the title (frame 470).
+  fast-forwarded to the title (frame 470) - in 30ths of the game's time (at `MHFU_TICK_HZ`, more of its frames).
+- **The renderer's thread** (`render_queue.c`): the GE runs on the game's thread as the game queues its lists, up to
+  the vertex stage (gpu.c); what follows - the clipping, the renderer's batches, textures, Vulkan - is queued and done
+  on a thread of its own at the same time. The renderer reads PSP memory (textures, palettes), so the game's thread
+  waits for the queue to be done whenever that could change - a list's run ends, its callback runs game code, a block
+  transfer - and before anything else calls the renderer. Frames are the same to the pixel either way;
+  `MHFU_RENDER_THREAD=0` keeps it all on the game's thread. In the Popo field at 144 (scale 4) the two threads take
+  about as long each: from about 121 frames a second on one to 144.
 
 ## HLE
 

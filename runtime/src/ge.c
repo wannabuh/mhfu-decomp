@@ -1,6 +1,7 @@
 /* The GE (graphics engine): display lists queued by the game, walked as the hardware would - jumps, calls, returns,
  * the stall address, FINISH and SIGNAL raising the game's callbacks - each command going to the renderer (gpu.c). */
 #include "hle.h"
+#include "render_queue.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +52,7 @@ static uint32_t relative(GeList *l, uint32_t addr) {
 }
 
 static void callback(GeList *l, int finish, uint32_t value) {
+    render_queue_sync();                /* (the game's code runs: it may write what the renderer has yet to read) */
     if (l->cbid >= MAX_CALLBACKS || !callbacks[l->cbid].used)
         return;
     uint32_t func = finish ? callbacks[l->cbid].finish_func : callbacks[l->cbid].signal_func;
@@ -60,7 +62,15 @@ static void callback(GeList *l, int finish, uint32_t value) {
 }
 
 /* Walk a list up to its stall address or its end */
+static void run_list_on(GeList *l);
+
+/* Walk a list as far as it goes; the renderer done with it before the game runs on (render_queue.c) */
 static void run_list(GeList *l) {
+    run_list_on(l);
+    render_queue_sync();
+}
+
+static void run_list_on(GeList *l) {
     while (l->active) {
         if (l->stall && l->pc == l->stall)
             return;

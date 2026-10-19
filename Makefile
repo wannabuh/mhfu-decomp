@@ -5,10 +5,10 @@ CC      := clang
 CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
 GLSLC   := glslc
 GENFLAGS := $(CFLAGS) -w
-# The runtime (its renderer does the GE's vertex work on the CPU) for this machine's CPU: vectorised, but no
-# multiply-add fused (-ffp-contract=off) - what it works out for the game (the VFPU) stays as the PSP's. `make
-# RUNTIME_OPT=` for a build for any x86-64.
-RUNTIME_OPT ?= -O3 -march=native -ffp-contract=off
+# The runtime's own optimisation, on top of CFLAGS: none by default. `make RUNTIME_OPT="-O3 -march=native
+# -ffp-contract=off"` builds it for this machine's CPU, vectorised, no multiply-add fused (what it works out for the
+# game stays as the PSP's) - about a tenth faster at 144, but it has crashed now and then (not understood yet).
+RUNTIME_OPT ?=
 
 RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))

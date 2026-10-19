@@ -21,6 +21,7 @@
  * Not yet: the framebuffers' contents in VRAM for the CPU (nothing reads them back but frame dumps), block transfers
  * into framebuffers, stencil, logic ops, the blend factors the hardware lacks (doubled alphas). */
 #include "render_internal.h"
+#include "render_queue.h"
 
 #include "grass.h"
 #include "hle.h"
@@ -211,6 +212,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
 static int follow_window, window_resized;
 
 void render_window_resized(void) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     window_resized = 1;
 }
 
@@ -547,6 +549,7 @@ void render_override_texture(uint32_t slot, int w, int h) {
 }
 
 uint32_t render_texture(const uint32_t *reg, int *w, int *h) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     return texture_slot(reg, w, h);
 }
 
@@ -981,6 +984,7 @@ static void end_frame(void) {
 
 /* The end of a frame not shown (fast-forwarding): its work submitted, the frame's buffers and checks started again */
 void render_finish_frame(void) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     ao_finish();
     end_rendering();
     if (vk.recording)
@@ -1016,6 +1020,7 @@ static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorS
 }
 
 void render_flip(uint32_t addr) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     ao_finish();
     post_finish();
     end_rendering();
@@ -1072,6 +1077,7 @@ void render_flip(uint32_t addr) {
 
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
 uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     ao_finish();
     post_finish();
     end_rendering();
@@ -1095,6 +1101,7 @@ uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
 
 /* The displayed part of a framebuffer as the window shows it at w x h (MHFU_DUMP_PRESENT): malloc'd */
 uint32_t *render_readback_present(uint32_t addr, int w, int h) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     static VkPipeline pipeline;
     ao_finish();
     post_finish();
@@ -1138,6 +1145,7 @@ uint32_t *render_readback_present(uint32_t addr, int w, int h) {
 
 /* The displayed part of a framebuffer, for a frame dump: read back, and scaled down to 480 x 272 */
 void render_readback(uint32_t addr, uint32_t *pixels) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
     ao_finish();
     post_finish();
     end_rendering();
