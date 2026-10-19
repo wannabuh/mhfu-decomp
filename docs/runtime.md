@@ -130,7 +130,8 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   transfer - and before anything else calls the renderer. Frames are the same to the pixel either way;
   `MHFU_RENDER_THREAD=0` keeps it all on the game's thread. In the Popo field at 144 (scale 4) the two threads take
   about as long each: from about 121 frames a second on one to 144.
-- **The vertex stage on the GPU** (`MHFU_GPU_TL`, an experiment; off by default): a primitive's vertices go to the
+- **The vertex stage on the GPU** (`MHFU_GPU_TL`, `2` by default; `0`: the CPU's, the
+  reference for pixel-exact checks): a primitive's vertices go to the
   renderer as the game gave them (decoded) with its draw - matrices, viewport, fog, texture scaling, material, lights
   (`shared.h` `TlDraw`) - and `ge_tl.vert` does what `vertex()` and `light()` would (the near plane a clip distance
   where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle - but
@@ -149,7 +150,8 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   own face where the sum bends more than 60 degrees from it, per corner as the CPU's batches do (without the extension:
   per pixel, `ge.frag`). The grass's ground is laid from the same triangles. So `1` and `2` have all the effects
   (Popo field at 60 shown at 144, every effect, scale 1: a frame shown 6.6-7.4 ms on the CPU, 4.9-5.3 with `1`,
-  3.7-4.1 with `2`). Frames match the CPU's within a few pixels (tessellated: half a percent, the welding not quite the same). (Between frames, point lights differ from run to run: they flicker by the
+  3.7-4.1 with `2`). Frames match the CPU's within a few pixels (tessellated: half a percent, the welding not quite the same; every
+  recording, at 30, 60 and 144 and shown interpolated, under 0.2% of pixels off by more than 24, validation clean). (Between frames, point lights differ from run to run: they flicker by the
   wall clock and ease in by frames shown - compare with `MHFU_POINT_LIGHTS=0`.) `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
   and compares it with `vertex()`. With `MHFU_FPS`, a frame's vertices are decoded once, as it is recorded, and sent
   once as it becomes the latest (into one of four slots); draws in a row with the same state, matrices and texture are

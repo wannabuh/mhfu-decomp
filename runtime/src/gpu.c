@@ -2939,14 +2939,15 @@ static void seen_v(int count, const Layout *l) {
 /* -- the GE's vertex stage on the GPU (MHFU_GPU_TL, ge_tl.vert) ---------------------------------------------------
  * A primitive's vertices go to the renderer as the game gave them (decoded) with its draw - what vertex() and light()
  * read: the matrices, viewport, fog, texture scaling, material and lights - and the GPU does their vertex stage.
- * MHFU_GPU_TL=1: the hunter, monsters and people's (lit, skinned, 3D); 2: all 3D triangles; 0 (the default): none.
+ * MHFU_GPU_TL=1: the hunter, monsters and people's (lit, skinned, 3D); 2 (the default): all 3D triangles; 0: none -
+ * the CPU's, the reference the kit's pixel-exact checks use.
  * The effects that read the vertices take them from the renderer's copies (render.c: shadows, feet, tessellation, the
  * motion blur, the scenery's shading, wind and grass); what adds light (fire, glows) is left to the CPU. */
 static int tl_mode = -1;
 
 static int tl_take(int type, int blend) {
     if (tl_mode < 0) {
-        tl_mode = getenv("MHFU_GPU_TL") ? atoi(getenv("MHFU_GPU_TL")) : 0;
+        tl_mode = getenv("MHFU_GPU_TL") ? atoi(getenv("MHFU_GPU_TL")) : 2;
         if (tl_mode && !render_tl_ready()) {
             fprintf(stderr, "GPU vertex stage (MHFU_GPU_TL): not available, the CPU's used\n");
             tl_mode = 0;
