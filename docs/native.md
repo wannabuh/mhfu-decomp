@@ -152,6 +152,7 @@ when the game runs as fast itself; the intros' skip goes by the game's time.
 | the attack buttons' combination | the wait for a second button (`09A68DB0`, +0x1128) counts 30ths | special attacks as at 30 |
 | a character's turn | `088D6B00`: the facing's step to where it goes (+0x1F4) and its lean (+0x41A) times the time scale | turns as fast as at 30 |
 | the sprint | `09A9E288`: its push forward (5 units a game frame) times the time scale, its stamina (`09A6A480`, -1) a 30th | runs as far, tires as fast |
+| the hunter in the air | falling (`09A9C530`) and the other leaps and flights (`09A905F0`, `09A99928`): the velocity's step (+0x240 by +0x250) and the place's (+0x200 by the velocity) times the time scale; the actions' counts (+0x414, 9 places) in 30ths | falls as fast and as far as at 30 (a cliff: 22 30ths, 404 units at 30; 22.5, 411 at 144) - 4.8 times as fast at 144 before |
 | a motion's frame reached | `08864348` (3120 callers: sounds, effects, hits at a motion's frame N): N within the player's next step - its speed times the time scale | each fires once; the attacks' sounds were started up to 5 times at 144 |
 | a character's upkeep | gated whole (the call of its vtable's +0x3C, `088659AC`): stamina, hunger (a 6-minute count, +0x632), status and skills' timers | as at 30 |
 

@@ -35,6 +35,12 @@ SPRINT = "the sprint's push (units a game frame) times the time scale, its stami
 # frame passes it
 REACHED = "a motion frame reached: within the player's next step (its speed times the time scale)"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
+# The hunter in the air (game_task 09A9C530 falling, 09A905F0 and 09A99928 the other leaps and flights: its velocity
+# +0x240 gains its acceleration +0x250 a game frame, its place +0x200 the velocity turned to its facing) - both steps
+# times the time scale; and an action's count of game frames (+0x414: how long it has fallen, how long a state has
+# lasted) counted in 30ths
+AIR = "the hunter in the air: its velocity's and its place's steps a game frame times the time scale"
+ACTION = "a hunter's action's count of game frames (+0x414): counted in 30ths"
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
@@ -144,3 +150,30 @@ PATCHES = {
     ("EBOOT", 0x0888FDF0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_frame30;", COUNT),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }
+    ("game_task", 0x09A8CA64): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A90604): ("addiu $a2, $a2, 0x1", "c->r[6] = c->r[6] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A907F0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A9994C): ("addiu $a0, $a0, 0x1", "c->r[4] = c->r[4] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A99B3C): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A9C54C): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A9D494): ("addiu $a1, $a1, 0x1", "c->r[5] = c->r[5] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09AA0844): ("addiu $a1, $a1, 0x1", "c->r[5] = c->r[5] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09AA161C): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
+    ("game_task", 0x09A90704): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A90714): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A90724): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A907AC): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
+    ("game_task", 0x09A907B0): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
+    ("game_task", 0x09A907B4): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("game_task", 0x09A99A50): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A99A60): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A99A70): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A99AF8): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
+    ("game_task", 0x09A99AFC): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
+    ("game_task", 0x09A99B00): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("game_task", 0x09A9C670): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A9C680): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A9C690): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", AIR),
+    ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
+    ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
+    ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
