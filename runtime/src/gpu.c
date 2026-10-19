@@ -254,6 +254,10 @@ static void unpack(uint32_t c, float *f) {
  * around what the camera looks at - its centre moved in whole texels, so that the shadows' edges stand still */
 static float prev_inv[12], latest_inv[12];     /* (the last two frames' cameras undone: below) */
 static int frames_late;
+/* At the native frame rate (below): the frame drawn shown with another camera than the game's (the mouse's orbit or
+ * raise: camera.c), the game's undone */
+static int native_shown;
+static float native_shown_view[12], native_game_inv[12];
 
 static void shadow_frame(const float *shown) {
     static int enabled = -1;
@@ -272,7 +276,7 @@ static void shadow_frame(const float *shown) {
     if (shown) {
         camera_invert(shown, to_world);
         /* the lights are given in the space of the camera the frame was drawn with (a frame late, as told) */
-        memcpy(game_to_world, frames_late ? prev_inv : latest_inv, sizeof game_to_world);
+        memcpy(game_to_world, native_shown ? native_game_inv : frames_late ? prev_inv : latest_inv, sizeof game_to_world);
     } else
         memcpy(to_world, game_to_world, sizeof to_world);
     if (!sun_known) {
@@ -2220,9 +2224,6 @@ static void native_place(uint64_t key) {
     /* as it is, if it moves every frame or not at all - unless drawn again from the last 30th (its camera that one's) */
     if (same_place(from, to) && !held_drawing)
         return;
-    memcpy(nat_world, world, sizeof world);
-    memcpy(nat_bones, bones, sizeof(float) * 12 * (size_t)q->nb);
-    nat_override = 1;
     interp_model(world, &bones[0][0], from->w, to->w, from_bones, to_bones, q->nb, t);
     compose43(f->cam, world, world);
     nat_slow += from != to;
@@ -2319,6 +2320,7 @@ static int blend_place(int count) {
 
 static void native_place(uint64_t key);
 int gpu_native_smoothing(void);
+int camera_native_shown(const float *view, float *shown);
 
 /* For texture packs, as PPSSPP has it: how far down a 512-tall texture a 2D draw reaches (at least 272), else all */
 static void seen_v(int count, const Layout *l) {
@@ -2360,10 +2362,23 @@ static void prim(uint32_t data) {
     if (render_on && count > 0) {
         if (!in_replay && shadow_generation != frame_generation_direct) {
             shadow_generation = frame_generation_direct;
-            shadow_frame(NULL);
+            /* (the native frame rate: the camera shown, if it is not the game's) */
+            float target[3], view_now[12];
+            native_shown = gpu_native_smoothing() && camera_game(native_game_inv, target) &&
+                           (camera_invert(native_game_inv, view_now), camera_native_shown(view_now, native_shown_view));
+            shadow_frame(native_shown ? native_shown_view : NULL);
         }
-        if (!in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing())
+        if (!in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing()) {
+            memcpy(nat_world, world, sizeof world);     /* (put back after the draw) */
+            memcpy(nat_bones, bones, sizeof bones);
+            nat_override = 1;
             native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
+            if (native_shown) {             /* with the camera shown: the game's taken out, it put in */
+                float w[12];
+                compose43(native_game_inv, world, w);
+                compose43(native_shown_view, w, world);
+            }
+        }
         shadow_prim();
         render_prim_begin(reg);
     }

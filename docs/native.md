@@ -94,7 +94,7 @@ converted is made again, under the gate it is in:
   the skipped gate makes the noted calls again, in that order, where it would have linked those chunks. So only those
   calls run every frame, not the code around them.
 - An **"object"** gate is on an object's call (a0 the object): every frame if the object's vtable is converted
-  (`MHFU_NATIVE_VT=hex,...` for now), else gated as any other - what it drew noted and drawn again for it alone (the
+  (the hunter's, `089BB3CC`; `MHFU_NATIVE_VT=hex,...` instead, 0 for none), else gated as any other - what it drew noted and drawn again for it alone (the
   chunks are keyed by gate and object).
 
 In a hunt the native calls are the object manager's loop over its objects (`088DB250` → `088666B4`, list 2: the
@@ -123,6 +123,12 @@ before told. What gated code drew at the 30th and the GE draws again has that 30
 The rest is drawn as the game drew it. (A frame's display list is that game frame's own, made after its cameras: the
 camera is the game's as it is drawn, and the 30th that frame's.) `MHFU_NATIVE_SMOOTH=0`: frames as the game draws
 them. `MHFU_FPS_STATS` gives the share of draws smoothed.
+
+The mouse's camera: in the hunt the game's camera is turned every frame (`camera.c`, as at 30 but each frame: at 144 a
+steady 1/144th of the turn a frame); the mouse's raise of the eye, and its orbit where the game keeps its own angles
+(the village, the camp tent), are shown as `MHFU_FPS` shows them - each frame drawn with the game's camera turned
+about its target (`camera_native_shown`), the world, the shadows and the light shafts with it. `MHFU_FPS` is left off
+when the game runs as fast itself; the intros' skip goes by the game's time.
 
 ## Converted
 

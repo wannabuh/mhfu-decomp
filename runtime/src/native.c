@@ -182,13 +182,17 @@ void native_frame_start(void) {
 
 /* -- converted objects --------------------------------------------------------------------------------------------- */
 
-/* MHFU_NATIVE_VT=hex,...: the vtables of the objects that tick every frame (for experiments) */
+/* The vtables of the objects that tick every frame: the hunt's hunter (089BB3CC); MHFU_NATIVE_VT=hex,... others (0:
+ * none) */
 static int converted(uint32_t vtable) {
     static uint32_t vt[32];
     static int n = -1;
     if (n < 0) {
         n = 0;
-        for (const char *e = getenv("MHFU_NATIVE_VT"); e && *e && n < 32;) {
+        const char *e = getenv("MHFU_NATIVE_VT");
+        if (!e)
+            vt[n++] = 0x089BB3CCu;
+        for (; e && *e && n < 32;) {
             char *end;
             vt[n++] = (uint32_t)strtoul(e, &end, 16);
             e = *end ? end + 1 : end;

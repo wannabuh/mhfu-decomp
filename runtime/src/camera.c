@@ -409,6 +409,46 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     return 1;
 }
 
+/* gpu.c, at the native frame rate (MHFU_TICK_HZ above 30, no MHFU_FPS: each game frame drawn as the game draws it):
+ * the camera to show the frame with - the game's now (view, 4x3 as gpu.c's), turned as camera_views turns the
+ * latest, at once: where the game keeps its own angles the mouse's orbit, in the hunt the mouse's raise of the eye and
+ * its turn not read yet. 0 if it is the game's as it is */
+int camera_native_shown(const float *view, float *shown) {
+    uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);
+    if ((!active && !orbiting) || sens < 0 || !in_ram(scene))
+        return 0;
+    const float *e = (const float *)MEM(scene + 0xB40), *c = (const float *)MEM(scene + 0xB50);
+    float ox = e[0] - c[0], oy = e[1] - c[1], oz = e[2] - c[2];
+    float yaw = atan2f(ox, oz), elev = atan2f(oy, sqrtf(ox * ox + oz * oz));
+    float dx, dy;
+    window_mouse_peek(&dx, &dy);
+    float a, b;
+    if (orbiting) {
+        a = orbit_yaw - dx * sens * PI / 180;
+        b = orbit_pitch + dy * sens * PI / 180;
+    } else {
+        a = (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536;
+        b = elevation_set ? clamp_elevation(elev + elevation + dy * sens * PI / 180.0f) - elev : 0;
+    }
+    if (a == 0 && b == 0)
+        return 0;
+    const float up[3] = {0, 1, 0};
+    float yaw_m[9], pitch_m[9], m[9];
+    rotation(up, a, yaw_m);
+    float psi = yaw + a;
+    const float k[3] = {cosf(psi), 0, -sinf(psi)};
+    rotation(k, -b, pitch_m);
+    mul33(pitch_m, yaw_m, m);
+    float q[12];
+    for (int j = 0; j < 3; j++)                 /* M^T, about the target */
+        for (int i = 0; i < 3; i++)
+            q[3 * j + i] = m[3 * i + j];
+    for (int i = 0; i < 3; i++)
+        q[9 + i] = c[i] - (q[i] * c[0] + q[3 + i] * c[1] + q[6 + i] * c[2]);
+    compose(view, q, shown);
+    return 1;
+}
+
 /* For shadows (gpu.c): the game's camera now - the inverse of its view matrix (the world from what the game draws in:
  * it multiplies the camera into each world matrix) and the point it looks at. 0 if there is no scene */
 int camera_game(float *inv, float *target) {

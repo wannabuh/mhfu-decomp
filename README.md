@@ -65,7 +65,10 @@ mouse_sens = 0.15
 ```
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
-120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_SCALE=4` (internal resolution, times the
+120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_TICK_HZ=144` (an experiment: the game
+itself at that rate - the hunter and the hunt's camera move every frame, the mouse's camera with them, and what is not
+converted yet, still at 30, is drawn between its 30ths; `fps` is then not needed. Not all of the hunter's moves are
+checked yet, nor the monsters: `docs/native.md`), `MHFU_SCALE=4` (internal resolution, times the
 PSP's, 1 to 12, fractions too; by default the window's own, followed as it is resized, so the picture is shown pixel for
 pixel), `MHFU_RESOLUTION=2560x1440` (the internal resolution by its size instead: the scale that fits it, 5.29 here;
 larger than the window it is filtered down to it), `MHFU_FULLSCREEN=1` (the whole screen from the start; F11 toggles it), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,

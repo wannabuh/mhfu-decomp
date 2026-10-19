@@ -138,8 +138,16 @@ static unsigned long replay_speed_at(void) {
     return at ? (unsigned long)at : ~0ul;
 }
 
+double rt_game_30ths(void);
+
+/* The intros' frames are 30ths of the game's time (its frames at 30 a second: at MHFU_TICK_HZ, more of them) */
+static double intro_time(void) {
+    return rt_game_30ths();
+}
+
 int fast_forward(void) {
-    return (skip_intro() && frame >= LANGUAGE_FRAME + 10 && frame < TITLE_FRAME) || (replaying() && frame < replay_speed_at());
+    return (skip_intro() && intro_time() >= LANGUAGE_FRAME + 10 && intro_time() < TITLE_FRAME) ||
+           (replaying() && frame < replay_speed_at());
 }
 
 /* This frame's input, from the replay while there is one */
@@ -337,6 +345,13 @@ static int display_fps(void) {
         fps = e && render_on ? atoi(e) : 0;
         if (fps < 0 || fps > 1000)
             fps = 0;
+        /* the game at as many frames a second itself (MHFU_TICK_HZ, from the start): none between to interpolate */
+        const char *hz = getenv("MHFU_TICK_HZ");
+        if (fps && hz && !strchr(hz, '@') && atoi(hz) >= fps) {
+            fprintf(stderr, "display: the game runs at %d frames a second itself - MHFU_FPS's interpolation off\n",
+                    atoi(hz));
+            fps = 0;
+        }
         if (fps) {
             gpu_record(1);
             fprintf(stderr, "display: %d frames a second, interpolated\n", fps);
@@ -458,6 +473,7 @@ static void snapshots(void) {
 
 void gpu_frame_tick(void);
 void gpu_native_stats(unsigned long *smoothed, unsigned long *drawn);
+int gpu_native_smoothing(void);
 
 void present_frame(void) {
     static uint64_t frame_wall;
@@ -530,11 +546,12 @@ void present_frame(void) {
     float mx, my;
     window_mouse(&mx, &my);
     scripted_input(window_buttons());
-    if (skip_intro() && frame >= LANGUAGE_FRAME && frame < LANGUAGE_FRAME + 5)
+    if (skip_intro() && intro_time() >= LANGUAGE_FRAME && intro_time() < LANGUAGE_FRAME + 5)
         ctrl_buttons |= 0x4000;
     replay_input(&mx, &my);
-    if (!camera_orbit_ready)
-        camera_orbit_ready = 1, camera_orbit_enable(display_fps() != 0);      /* the orbit is only drawn with MHFU_FPS */
+    int orbit_drawn = display_fps() != 0 || gpu_native_smoothing();   /* (with MHFU_FPS, or at the native frame rate) */
+    if (camera_orbit_ready != orbit_drawn + 1)
+        camera_orbit_ready = orbit_drawn + 1, camera_orbit_enable(orbit_drawn);
     rt_camera_free = frame >= camera_free_from();
     camera_update(mx, my);
     if (!replaying())
