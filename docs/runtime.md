@@ -88,8 +88,10 @@ clock by more than a frame shown, frames are left out rather than the game slowe
 of vertices it indexes, consecutive primitives on one buffer sharing a copy (a hunt's strips index big shared buffers:
 copied whole, that was 70 MB a frame, and the game ran at 20-24 at 144).
 `MHFU_FPS_STATS=1` reports, by the wall clock, the frames shown and left out, the game's rate, its longest frame, the
-time idle, and the matching; `MHFU_REPLAY_SPEED=N` plays a replay at the game's speed from frame N (to measure
-somewhere a recording gets to); `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
+time idle, and the matching (with `MHFU_PRIM_STATS=1`, also the primitives a frame drawn by class - 2D, scenery,
+lit, skinned... -, their vertices, the vertex stage's time on them and how often their matrices change);
+`MHFU_REPLAY_SPEED=N` plays a replay at the game's speed from frame N (to measure somewhere a recording gets to);
+`MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
 
 ## Threads
 

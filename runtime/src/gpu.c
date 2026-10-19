@@ -14,6 +14,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static uint32_t reg[256];          /* the last value of each command */
 static uint32_t vaddr, iaddr;
@@ -2216,6 +2217,54 @@ static int *match(int in_world) {
     return m;
 }
 
+/* MHFU_PRIM_STATS (with MHFU_FPS_STATS): primitives, vertices and the vertex stage's time a frame drawn, by class */
+enum { PS_THROUGH, PS_SPRITE, PS_BLENDED, PS_OTHER3D, PS_SCENERY, PS_GE_LIT, PS_GE_SKINNED, PS_PIXEL_LIT,
+       PS_PIXEL_SKINNED, PS_CLASSES };
+static const char *const ps_names[PS_CLASSES] = {"through/2D", "sprites 3D", "blended (loose)", "other 3D",
+                                                 "world unlit (scenery)", "world GE-lit", "world GE-lit skinned",
+                                                 "world pixel-lit", "world pixel-lit skinned"};
+static int prim_stats = -1;
+static unsigned long ps_frames, ps_prims[PS_CLASSES], ps_verts[PS_CLASSES], ps_runs[PS_CLASSES];
+static float ps_last[12 + 96];
+static int ps_last_class = -1;
+static uint64_t ps_ns[PS_CLASSES];
+static uint64_t ps_now(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000u + (uint64_t)ts.tv_nsec;
+}
+static int ps_class(int type, int blend) {
+    uint32_t vt = reg[0x12];
+    if ((vt >> 23) & 1)
+        return PS_THROUGH;
+    if (type == 6)
+        return PS_SPRITE;
+    if (blend)
+        return PS_BLENDED;
+    if (!prim_world)
+        return PS_OTHER3D;
+    if (!(reg[0x17] & 1))
+        return PS_SCENERY;
+    int skinned = ((vt >> 9) & 3) != 0;
+    return prim_pixel_light ? (skinned ? PS_PIXEL_SKINNED : PS_PIXEL_LIT) : (skinned ? PS_GE_SKINNED : PS_GE_LIT);
+}
+static void prim_stats_print(void) {
+    if (prim_stats <= 0 || !ps_frames)
+        return;
+    double f = (double)ps_frames;
+    fprintf(stderr, "  primitives a frame drawn (%lu frames):\n", ps_frames);
+    for (int k = 0; k < PS_CLASSES; k++)
+        if (ps_prims[k])
+            fprintf(stderr, "    %-24s %7.0f prims %8.0f vertices %6.3f ms, %6.0f matrix changes\n", ps_names[k],
+                    (double)ps_prims[k] / f, (double)ps_verts[k] / f, (double)ps_ns[k] / 1e6 / f,
+                    (double)ps_runs[k] / f);
+    ps_frames = 0;
+    memset(ps_prims, 0, sizeof ps_prims);
+    memset(ps_verts, 0, sizeof ps_verts);
+    memset(ps_ns, 0, sizeof ps_ns);
+    memset(ps_runs, 0, sizeof ps_runs);
+}
+
 static unsigned long cuts, shown_frames;      /* for MHFU_FPS_STATS */
 static float cut_turn, cut_move;
 
@@ -2271,6 +2320,7 @@ uint32_t gpu_render_frame(float t) {
     memcpy(sp, proj, sizeof sp);
     memcpy(sb, bones, sizeof sb);
     shown_frames++;
+    ps_frames++;
     placed_run = -1;
     q_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
     int matched_frames = previous->n && !camera_cut(previous, latest);
@@ -2710,6 +2760,7 @@ void gpu_match_stats(unsigned long *m, unsigned long *u) {
         fprintf(stderr, "  %lu of %lu frames shown were camera cuts; the last turned %.0f degrees, moved %.0f\n", cuts,
                 shown_frames, acosf(fmaxf(-1, fminf(1, (cut_turn - 1) / 2))) * 57.29578f, cut_move);
     cuts = shown_frames = 0;
+    prim_stats_print();
 }
 
 /* A draw blended between frames: its match's vertices (and indices) where vertex() reads them; 0 if they do not fit */
@@ -2758,6 +2809,8 @@ static void seen_v(int count, const Layout *l) {
 }
 
 static void prim(uint32_t data) {
+    if (prim_stats < 0)
+        prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
     if (motion_log_on < 0) {
         motion_file = getenv("MHFU_MOTION_LOG") ? fopen(getenv("MHFU_MOTION_LOG"), "w") : NULL;
         motion_log_on = motion_file != NULL;
@@ -2796,6 +2849,8 @@ static void prim(uint32_t data) {
         skip_generation = frame_generation_direct;
         /* every gpu_divisor'th drawn (present.c: the game late), evenly - not as it happens to fall behind */
         gpu_skip_draw = gpu_divisor > 1;
+        if (!gpu_skip_draw && render_on)
+            ps_frames++;
         /* (the native frame rate: the game's camera now, its 30ths noted, drawn or not) */
         float target[3];
         nat_between = 0;
@@ -2857,6 +2912,7 @@ static void prim(uint32_t data) {
         uint32_t *qd = to_queue ? q_cmd(Q_DRAW, 0, 0, 0, 16 + sizeof(ClipVertex) * (size_t)count) : NULL;
         ClipVertex *v = to_queue ? (ClipVertex *)(qd + 4) : malloc(sizeof *v * (size_t)count);
         int through = 0, blend = blend_from && blend_place(count);
+        uint64_t ps_at = prim_stats > 0 && render_on ? ps_now() : 0;
         for (int i = 0; i < count; i++) {
             int n = i;
             if (idx == 1) n = LBU(iaddr + (uint32_t)i);
@@ -2869,6 +2925,22 @@ static void prim(uint32_t data) {
             vertex(vaddr, n, &l, &v[i], &through);
         }
         blend_reg = NULL;
+        if (ps_at) {
+            int k = ps_class(type, blend);
+            ps_prims[k]++;
+            ps_verts[k] += (unsigned long)count;
+            ps_ns[k] += ps_now() - ps_at;
+            /* (a run: the same world - and bones, if skinned - as the primitive before) */
+            float m[12 + 96];
+            int nb = ((reg[0x12] >> 9) & 3) ? (int)((reg[0x12] >> 14) & 7) + 1 : 0;
+            memset(m, 0, sizeof m);
+            memcpy(m, world, sizeof world);
+            memcpy(m + 12, bones, sizeof(float) * 12 * (size_t)nb);
+            if (k != ps_last_class || memcmp(m, ps_last, sizeof m))
+                ps_runs[k]++;
+            memcpy(ps_last, m, sizeof m);
+            ps_last_class = k;
+        }
         if (render_on) {
             if (to_queue) {
                 qd[0] = (uint32_t)type, qd[1] = (uint32_t)count, qd[2] = (uint32_t)through, qd[3] = (uint32_t)prim_world;
