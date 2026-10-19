@@ -410,14 +410,19 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
 }
 
 /* gpu.c, at the native frame rate (MHFU_TICK_HZ above 30, no MHFU_FPS: each game frame drawn as the game draws it):
- * the camera to show the frame with - the game's now (view, 4x3 as gpu.c's), turned as camera_views turns the
+ * the camera to show the frame with - the game's now (view, 4x3 as gpu.c's; target, or NULL: the game's), turned as
+ * camera_views turns the
  * latest, at once: where the game keeps its own angles the mouse's orbit, in the hunt the mouse's raise of the eye and
  * its turn not read yet. 0 if it is the game's as it is */
-int camera_native_shown(const float *view, float *shown) {
+int camera_native_shown(const float *view, const float *target, float *shown) {
     uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);
     if ((!active && !orbiting) || sens < 0 || !in_ram(scene))
         return 0;
-    const float *e = (const float *)MEM(scene + 0xB40), *c = (const float *)MEM(scene + 0xB50);
+    /* the eye: where the view puts it; the target: as given (the game's moved between 30ths too), or the game's */
+    float e[3];
+    for (int i = 0; i < 3; i++)
+        e[i] = -(view[3 * i] * view[9] + view[3 * i + 1] * view[10] + view[3 * i + 2] * view[11]);
+    const float *c = target ? target : (const float *)MEM(scene + 0xB50);
     float ox = e[0] - c[0], oy = e[1] - c[1], oz = e[2] - c[2];
     float yaw = atan2f(ox, oz), elev = atan2f(oy, sqrtf(ox * ox + oz * oz));
     float dx, dy;

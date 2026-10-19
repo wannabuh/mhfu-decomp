@@ -2170,8 +2170,8 @@ static int same_place(const Placing *a, const Placing *b) {
 /* The game's camera, if it moves only at 30ths (as everything does where nothing is converted: the village), shown
  * between its places at the last two 30ths as what ticks at 30 is (below), by how far the frame is into the 30th; view:
  * the game's now. 1 if so (base: the camera to show), 0 if it is the game's as it is */
-static int native_camera_between(const float *view, float *base) {
-    static float at30[2][12], last[12];
+static int native_camera_between(const float *view, const float *target, float *base, float *base_target) {
+    static float at30[2][12], last[12], target30[2][3];
     static int have, moved, slow;
     int is30 = native_frame30(0);
     if (have && !is30 && memcmp(view, last, sizeof last))
@@ -2180,6 +2180,8 @@ static int native_camera_between(const float *view, float *base) {
     if (is30) {
         memcpy(at30[0], at30[1], sizeof at30[0]);
         memcpy(at30[1], view, sizeof at30[1]);
+        memcpy(target30[0], target30[1], sizeof target30[0]);
+        memcpy(target30[1], target, sizeof target30[1]);
         have = have < 2 ? have + 1 : 2;
         slow = !moved;
         moved = 0;
@@ -2197,6 +2199,8 @@ static int native_camera_between(const float *view, float *base) {
     if (d > 600)
         return 0;
     interp43(c, a, b, t);
+    for (int i = 0; i < 3; i++)
+        base_target[i] = target30[0][i] + (target30[1][i] - target30[0][i]) * t;
     return invert43(c, base);
 }
 
@@ -2365,14 +2369,14 @@ static int blend_place(int count) {
 int gpu_skip_draw, gpu_divisor = 1;    /* (present.c: the game late - a frame drawn of every gpu_divisor) */
 static unsigned skip_generation;
 static int nat_between;                 /* the frame's camera shown between 30ths (native_camera_between) */
-static float nat_view_now[12], nat_base[12];
+static float nat_view_now[12], nat_base[12], nat_target_now[3], nat_base_target[3];
 static int nat_view_ok(void) {
     return nat_view_now[0] != 0 || nat_view_now[4] != 0 || nat_view_now[8] != 0;
 }
 static void native_place(uint64_t key);
-static int native_camera_between(const float *view, float *base);
+static int native_camera_between(const float *view, const float *target, float *base, float *base_target);
 int gpu_native_smoothing(void);
-int camera_native_shown(const float *view, float *shown);
+int camera_native_shown(const float *view, const float *target, float *shown);
 
 /* For texture packs, as PPSSPP has it: how far down a 512-tall texture a 2D draw reaches (at least 272), else all */
 static void seen_v(int count, const Layout *l) {
@@ -2422,7 +2426,8 @@ static void prim(uint32_t data) {
         nat_between = 0;
         if (render_on && gpu_native_smoothing() && camera_game(native_game_inv, target)) {
             camera_invert(native_game_inv, nat_view_now);
-            nat_between = native_camera_between(nat_view_now, nat_base);
+            memcpy(nat_target_now, target, sizeof target);
+            nat_between = native_camera_between(nat_view_now, target, nat_base, nat_base_target);
         }
     }
     if (gpu_skip_draw && !in_replay && count > 0) {     /* (a frame not drawn: present.c) */
@@ -2445,7 +2450,8 @@ static void prim(uint32_t data) {
             /* (the native frame rate: the camera shown, if it is not the game's) */
             native_shown = 0;
             if (gpu_native_smoothing() && nat_view_ok()) {
-                native_shown = camera_native_shown(nat_between ? nat_base : nat_view_now, native_shown_view);
+                native_shown = camera_native_shown(nat_between ? nat_base : nat_view_now,
+                                                   nat_between ? nat_base_target : nat_target_now, native_shown_view);
                 if (!native_shown && nat_between) {
                     memcpy(native_shown_view, nat_base, sizeof nat_base);
                     native_shown = 1;
