@@ -21,6 +21,14 @@ void render_shadow_triangle(const RVertex *a, const RVertex *b, const RVertex *c
 void render_sprite(const RVertex *a, const RVertex *b);
 void render_vram_written(uint32_t addr, uint32_t size);     /* something other than the GE wrote VRAM */
 
+/* gpu.c, the GE's vertex stage on the GPU (MHFU_GPU_TL): whether it can be; a primitive (after render_prim_begin) of
+ * type 3-5 (triangles, strip, fan), its draw (NULL: as the one before's), its nv vertices as the game gave them and its
+ * count vertices' indices among them */
+struct TlDrawS;                             /* (shared.h's TlDraw, TlVertex) */
+struct TlVertexS;
+int render_tl_ready(void);
+void render_tl_draw(int type, int count, const struct TlDrawS *d, const struct TlVertexS *v, int nv, const uint16_t *idx);
+
 /* present.c: show the framebuffer at addr; read it back (480 x 272, ABGR8888) for frame dumps */
 void render_flip(uint32_t addr);
 void render_window_resized(void);           /* window.c: its size changed (the picture follows it) */

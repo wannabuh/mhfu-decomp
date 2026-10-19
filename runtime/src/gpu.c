@@ -9,6 +9,7 @@
 #include "hle.h"
 #include "render.h"
 #include "render_queue.h"
+#include "shared.h"
 #include "texpack.h"
 
 #include <math.h>
@@ -797,7 +798,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
  * and its vertices after the vertex stage, written into the queue as they are made - and the render thread does it:
  * the clipping, the renderer's batches and textures (as the registers given have them: its own copy), Vulkan. Off
  * (MHFU_RENDER_THREAD=0, or the software renderer), each is done at once, as before. */
-enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW };
+enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW, Q_TL };
 typedef struct { uint32_t kind, a, b, c; } QHead;   /* (16 bytes: what follows stays aligned) */
 
 static void gpu_run_command(const void *cmd, size_t n);
@@ -1064,6 +1065,14 @@ static void gpu_run_command(const void *cmd, size_t n) {
     case Q_DRAW: {
         const uint32_t *d = p;          /* type, count, through, in the world; then the vertices */
         emit_render((int)d[0], (int)d[1], (const ClipVertex *)(d + 4), (int)d[2], rq_reg, (int)d[3]);
+        break;
+    }
+    case Q_TL: {                        /* (a: type, and 256 if its draw is the last's; b: count; c: vertices) */
+        const uint8_t *q = p;
+        const TlDraw *d = h->a & 256 ? NULL : (const TlDraw *)q;
+        q += d ? sizeof *d : 0;
+        const TlVertex *v = (const TlVertex *)q;
+        render_tl_draw((int)(h->a & 255), (int)h->b, d, v, (int)h->c, (const uint16_t *)(v + h->c));
         break;
     }
     }
@@ -2248,6 +2257,22 @@ static int ps_class(int type, int blend) {
     int skinned = ((vt >> 9) & 3) != 0;
     return prim_pixel_light ? (skinned ? PS_PIXEL_SKINNED : PS_PIXEL_LIT) : (skinned ? PS_GE_SKINNED : PS_GE_LIT);
 }
+static void ps_note(int type, int blend, int count, uint64_t at) {
+    int k = ps_class(type, blend);
+    ps_prims[k]++;
+    ps_verts[k] += (unsigned long)count;
+    ps_ns[k] += ps_now() - at;
+    /* (a run: the same world - and bones, if skinned - as the primitive before) */
+    float m[12 + 96];
+    int nb = ((reg[0x12] >> 9) & 3) ? (int)((reg[0x12] >> 14) & 7) + 1 : 0;
+    memset(m, 0, sizeof m);
+    memcpy(m, world, sizeof world);
+    memcpy(m + 12, bones, sizeof(float) * 12 * (size_t)nb);
+    if (k != ps_last_class || memcmp(m, ps_last, sizeof m))
+        ps_runs[k]++;
+    memcpy(ps_last, m, sizeof m);
+    ps_last_class = k;
+}
 static void prim_stats_print(void) {
     if (prim_stats <= 0 || !ps_frames)
         return;
@@ -2808,6 +2833,218 @@ static void seen_v(int count, const Layout *l) {
     draw_v = most > 272 ? (int)most : 272;
 }
 
+/* -- the GE's vertex stage on the GPU (MHFU_GPU_TL, ge_tl.vert) ---------------------------------------------------
+ * A primitive's vertices go to the renderer as the game gave them (decoded) with its draw - what vertex() and light()
+ * read: the matrices, viewport, fog, texture scaling, material and lights - and the GPU does their vertex stage.
+ * MHFU_GPU_TL=1: the hunter, monsters and people's (lit, skinned, 3D); 2: all 3D triangles; 0 (the default): none. Not yet seen by the effects that read the vertices (shadows cast, feet, tessellation, the motion
+ * blur's and glows' passes, point lights from fire, grass and sun shading on scenery). */
+static int tl_mode = -1;
+
+static int tl_take(int type, int blend) {
+    if (tl_mode < 0) {
+        tl_mode = getenv("MHFU_GPU_TL") ? atoi(getenv("MHFU_GPU_TL")) : 0;
+        if (tl_mode && !render_tl_ready()) {
+            fprintf(stderr, "GPU vertex stage (MHFU_GPU_TL): not available, the CPU's used\n");
+            tl_mode = 0;
+        }
+    }
+    uint32_t vt = reg[0x12];
+    if (!tl_mode || type < 3 || type > 5 || blend || ((vt >> 23) & 1) || proj[11] == 0)
+        return 0;
+    if (tl_mode == 1)
+        return (reg[0x17] & 1) && ((vt >> 9) & 3);
+    return 1;
+}
+
+/* A 3 x 4 matrix (by columns) as rows */
+static void tl_rows(const float *m, float (*r)[4]) {
+    for (int i = 0; i < 3; i++) {
+        r[i][0] = m[i];
+        r[i][1] = m[3 + i];
+        r[i][2] = m[6 + i];
+        r[i][3] = m[9 + i];
+    }
+}
+
+/* The primitive's draw, as vertex() and light() would read it now */
+static void tl_fill(TlDraw *d) {
+    uint32_t vt = reg[0x12];
+    int tc = vt & 3, col = (vt >> 2) & 7, nrm = (vt >> 5) & 3, wt = (vt >> 9) & 3;
+    memset(d, 0, sizeof *d);
+    tl_rows(world, d->world);
+    tl_rows(view, d->view);
+    memcpy(d->proj, proj, sizeof d->proj);
+    tl_rows(to_world, d->to_world);
+    d->bones = wt ? ((vt >> 14) & 7) + 1 : 0;
+    for (uint32_t b = 0; b < d->bones; b++)
+        tl_rows(bones[b], &d->bone[3 * b]);
+    d->flags = (prim_world ? TL_WORLD : 0u) | (tc ? TL_TEX : 0u) | (col >= 4 ? TL_VCOL : 0u) | (nrm && (reg[0x51] & 1) ? TL_FLIP : 0u);
+    if (earlier && prim_world) {
+        d->flags |= TL_EARLIER;
+        tl_rows(earlier_world, d->earlier_world);
+        for (uint32_t b = 0; b < d->bones; b++)
+            tl_rows(earlier_bones[b], &d->earlier_bone[3 * b]);
+    }
+    d->viewport[0] = ge_float(reg[0x42]);
+    d->viewport[1] = ge_float(reg[0x43]);
+    d->viewport[2] = ge_float(reg[0x44]);
+    d->viewport[3] = ge_float(reg[0x47]);
+    d->offset[0] = ge_float(reg[0x45]) - (float)(reg[0x4C] & 0xFFFF) / 16.0f;
+    d->offset[1] = ge_float(reg[0x46]) - (float)(reg[0x4D] & 0xFFFF) / 16.0f;
+    d->offset[2] = ge_float(reg[0xCD]);
+    d->offset[3] = ge_float(reg[0xCE]);
+    /* scaled, offset, then in texels (by a power of two: the same folded into the scale and offset) */
+    float su = (float)(1 << (reg[0xB8] & 0xF)), sv = (float)(1 << ((reg[0xB8] >> 8) & 0xF));
+    d->tex[0] = ge_float(reg[0x48]) * su;
+    d->tex[1] = ge_float(reg[0x49]) * sv;
+    d->tex[2] = ge_float(reg[0x4A]) * su;
+    d->tex[3] = ge_float(reg[0x4B]) * sv;
+    if (!(reg[0x17] & 1))
+        return;
+    d->flags |= TL_LIT;
+    d->mode = col >= 4 ? reg[0x53] : 0;
+    d->sun_light = (uint32_t)sun_light;
+    unpack(reg[0x54], d->emissive);
+    d->emissive[3] = ge_float(reg[0x5B]);
+    unpack(reg[0x55], d->ambient);
+    d->ambient[3] = (float)(reg[0x58] & 255) / 255.0f;
+    unpack(reg[0x56], d->diffuse);
+    unpack(reg[0x57], d->specular);
+    unpack(reg[0x5C], d->global);
+    d->global[3] = (float)(reg[0x5D] & 255) / 255.0f;
+    for (int k = 0; k < 4; k++) {
+        if (!(reg[0x18 + k] & 1))
+            continue;
+        d->flags |= (TL_LIGHT_ON << k) | (((pixel_lights >> k) & 1) ? TL_LIGHT_PIXEL << k : 0u);
+        uint32_t lt = reg[0x5F + k];
+        for (int i = 0; i < 3; i++) {
+            d->light_pos[k][i] = ge_float(reg[0x63 + 3 * k + i]);
+            d->light_dir[k][i] = ge_float(reg[0x6F + 3 * k + i]);
+            d->light_att[k][i] = ge_float(reg[0x7B + 3 * k + i]);
+        }
+        d->light_pos[k][3] = (float)((lt >> 8) & 3);
+        d->light_dir[k][3] = (float)(lt & 3);
+        d->light_att[k][3] = ge_float(reg[0x8B + k]);
+        unpack(reg[0x8F + 3 * k], d->light_ambient[k]);
+        d->light_ambient[k][3] = ge_float(reg[0x87 + k]);
+        unpack(reg[0x90 + 3 * k], d->light_diffuse[k]);
+        unpack(reg[0x91 + 3 * k], d->light_specular[k]);
+    }
+}
+
+/* Vertex n as the game gave it, decoded as vertex() reads it */
+static void tl_vertex(uint32_t base, int n, const Layout *l, TlVertex *o) {
+    uint32_t vt = reg[0x12], v = base + (uint32_t)(n * l->size);
+    int tc = vt & 3, nrm = (vt >> 5) & 3, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
+    static const int sz[4] = {0, 1, 2, 4};
+    for (int i = 0; i < 3; i++) {
+        o->pos[i] = read_comp(v + l->po + (uint32_t)(i * sz[pos]), pos, 0, 1);
+        o->normal[i] = nrm ? read_comp(v + l->no + (uint32_t)(i * sz[nrm]), nrm, 0, 1) : i == 2 ? 1.0f : 0.0f;
+    }
+    o->color = read_color(v, l, vt, reg);
+    o->uv[0] = o->uv[1] = 0;
+    if (tc == 3) {
+        o->uv[0] = read_comp(v + l->to, 3, 0, 0);
+        o->uv[1] = read_comp(v + l->to + 4, 3, 0, 0);
+    } else if (tc) {
+        o->uv[0] = tc == 1 ? LBU(v + l->to) / 128.0f : LHU(v + l->to) / 32768.0f;
+        o->uv[1] = tc == 1 ? LBU(v + l->to + 1) / 128.0f : LHU(v + l->to + 2) / 32768.0f;
+    }
+    memset(o->weights, 0, sizeof o->weights);
+    if (wt) {
+        int nweights = ((vt >> 14) & 7) + 1;
+        for (int b = 0; b < nweights; b++)
+            o->weights[b] = wt == 1 ? LBU(v + l->wo + (uint32_t)b) / 128.0f
+                            : wt == 2 ? LHU(v + l->wo + (uint32_t)(b * 2)) / 32768.0f
+                                      : read_comp(v + l->wo + (uint32_t)(b * 4), 3, 0, 0);
+    }
+}
+
+/* The primitive to the renderer for the GPU's vertex stage: its draw (unless the last one sent is the same), and its
+ * vertices in the order drawn (indexed: those the indices name - small strips index big shared buffers) */
+static void tl_prim(int type, int count, int idx, const Layout *l) {
+    static TlDraw d, sent;
+    static int have_sent;
+    tl_fill(&d);
+    int same = have_sent && !memcmp(&d, &sent, sizeof d);
+    if (!same) {
+        sent = d;
+        have_sent = 1;
+    }
+    int nv = count;
+    size_t dbytes = same ? 0 : sizeof d, bytes = dbytes + sizeof(TlVertex) * (size_t)nv + 2 * (size_t)count;
+    int to_queue = queued();
+    uint8_t *p = to_queue ? q_cmd(Q_TL, (uint32_t)type | (same ? 256u : 0u), (uint32_t)count, (uint32_t)nv, bytes)
+                          : malloc(bytes);
+    if (!same)
+        memcpy(p, &d, sizeof d);
+    TlVertex *v = (TlVertex *)(p + dbytes);
+    uint16_t *ix = (uint16_t *)(v + nv);
+    for (int i = 0; i < count; i++) {
+        tl_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &v[i]);
+        ix[i] = (uint16_t)i;
+    }
+    static int check = -1;
+    if (check < 0)
+        check = getenv("MHFU_TL_CHECK") != NULL;
+    if (check) {        /* MHFU_TL_CHECK (debug): the draw and vertices placed here, as ge_tl.vert would, against
+                         * vertex(); and what of the vertex stage the draws use (light kinds, near clipping) */
+        static unsigned long bad, all;
+        for (int i = 0; i < count; i++) {
+            const TlVertex *t = &v[ix[i]];
+            float p3[3] = {0, 0, 0};
+            if (d.bones) {
+                for (uint32_t b = 0; b < d.bones; b++)
+                    for (int r = 0; r < 3; r++)
+                        p3[r] += (d.bone[3 * b + r][0] * t->pos[0] + d.bone[3 * b + r][1] * t->pos[1] +
+                                  d.bone[3 * b + r][2] * t->pos[2] + d.bone[3 * b + r][3]) * t->weights[b];
+            } else
+                memcpy(p3, t->pos, sizeof p3);
+            float m3[3], e3[3];
+            for (int r = 0; r < 3; r++)
+                m3[r] = d.world[r][0] * p3[0] + d.world[r][1] * p3[1] + d.world[r][2] * p3[2] + d.world[r][3];
+            for (int r = 0; r < 3; r++)
+                e3[r] = d.view[r][0] * m3[0] + d.view[r][1] * m3[1] + d.view[r][2] * m3[2] + d.view[r][3];
+            float cw = d.proj[3] * e3[0] + d.proj[7] * e3[1] + d.proj[11] * e3[2] + d.proj[15];
+            float cx = d.proj[0] * e3[0] + d.proj[4] * e3[1] + d.proj[8] * e3[2] + d.proj[12];
+            ClipVertex c;
+            int th;
+            int n = idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i;
+            vertex(vaddr, n, l, &c, &th);
+            all++;
+            if (fabsf(c.cw - cw) > 1e-3f * (1 + fabsf(cw)) || fabsf(c.cx - cx) > 1e-3f * (1 + fabsf(cx))) {
+                if (bad++ < 20)
+                    fprintf(stderr, "tl check: prim type %d count %d idx %d vertex %d (n %d): cpu %g %g, tl %g %g\n",
+                            type, count, idx, i, n, c.cx, c.cw, cx, cw);
+            }
+        }
+        static unsigned long kinds[4], spec, near;
+        for (int k = 0; k < 4; k++)
+            if (d.flags & (TL_LIGHT_ON << k)) {
+                kinds[(int)d.light_pos[k][3]]++;
+                spec += d.light_dir[k][3] == 1.0f;
+            }
+        for (int i = 0; i < count; i++) {
+            ClipVertex c;
+            int th, n = idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i;
+            vertex(vaddr, n, l, &c, &th);
+            if (c.cw <= 1e-4f) {
+                near++;
+                break;
+            }
+        }
+        if (all % 100000 < (unsigned long)count)
+            fprintf(stderr, "tl check: %lu of %lu vertices differ; lights directional %lu point %lu spot %lu, specular %lu;"
+                    " near-clipped prims %lu\n", bad, all, kinds[0], kinds[1], kinds[2], spec, near);
+    }
+    if (to_queue) {
+        render_queue_commit();
+    } else {
+        render_tl_draw(type, count, same ? NULL : &d, v, nv, ix);
+        free(p);
+    }
+}
+
 static void prim(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
@@ -2906,7 +3143,12 @@ static void prim(uint32_t data) {
         shadow_prim();
         q_begin(reg);
     }
-    if (count > 0) {
+    if (count > 0 && render_on && tl_take(type, blend_from != NULL)) {
+        uint64_t ps_at = prim_stats > 0 ? ps_now() : 0;
+        tl_prim(type, count, idx, &l);
+        if (ps_at)
+            ps_note(type, 0, count, ps_at);
+    } else if (count > 0) {
         /* (the vertices made into the render queue, when there is one - its render thread does the rest) */
         int to_queue = render_on && queued();
         uint32_t *qd = to_queue ? q_cmd(Q_DRAW, 0, 0, 0, 16 + sizeof(ClipVertex) * (size_t)count) : NULL;
@@ -2925,22 +3167,8 @@ static void prim(uint32_t data) {
             vertex(vaddr, n, &l, &v[i], &through);
         }
         blend_reg = NULL;
-        if (ps_at) {
-            int k = ps_class(type, blend);
-            ps_prims[k]++;
-            ps_verts[k] += (unsigned long)count;
-            ps_ns[k] += ps_now() - ps_at;
-            /* (a run: the same world - and bones, if skinned - as the primitive before) */
-            float m[12 + 96];
-            int nb = ((reg[0x12] >> 9) & 3) ? (int)((reg[0x12] >> 14) & 7) + 1 : 0;
-            memset(m, 0, sizeof m);
-            memcpy(m, world, sizeof world);
-            memcpy(m + 12, bones, sizeof(float) * 12 * (size_t)nb);
-            if (k != ps_last_class || memcmp(m, ps_last, sizeof m))
-                ps_runs[k]++;
-            memcpy(ps_last, m, sizeof m);
-            ps_last_class = k;
-        }
+        if (ps_at)
+            ps_note(type, blend, count, ps_at);
         if (render_on) {
             if (to_queue) {
                 qd[0] = (uint32_t)type, qd[1] = (uint32_t)count, qd[2] = (uint32_t)through, qd[3] = (uint32_t)prim_world;

@@ -130,6 +130,13 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   transfer - and before anything else calls the renderer. Frames are the same to the pixel either way;
   `MHFU_RENDER_THREAD=0` keeps it all on the game's thread. In the Popo field at 144 (scale 4) the two threads take
   about as long each: from about 121 frames a second on one to 144.
+- **The vertex stage on the GPU** (`MHFU_GPU_TL`, an experiment; off by default): a primitive's vertices go to the
+  renderer as the game gave them (decoded) with its draw - matrices, viewport, fog, texture scaling, material, lights
+  (`shared.h` `TlDraw`) - and `ge_tl.vert` does what `vertex()` and `light()` would (the near plane a clip distance
+  where gpu.c clips). `MHFU_GPU_TL=1`: the hunter, monsters and people (lit, skinned); `2`: every 3D triangle. With
+  the effects that read the vertices off (shadows, tessellation, point lights), frames match the CPU's within a few
+  pixels; those effects do not see its draws yet. `MHFU_TL_CHECK=1` places each such vertex in C as the shader would
+  and compares it with `vertex()`.
 
 ## HLE
 

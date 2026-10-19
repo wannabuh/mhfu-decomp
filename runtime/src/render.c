@@ -35,6 +35,7 @@
 #include "ge.frag.inc"
 #include "ge.tesc.inc"
 #include "ge.tese.inc"
+#include "ge_tl.vert.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
 
@@ -61,6 +62,21 @@ unsigned long frame_no = 1;
 VkShaderStageFlags pc_stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
 static int tess_on = -1;
 static VkPipeline tess_pipeline, bound_pipeline;
+
+/* The GE's vertex stage on the GPU (MHFU_GPU_TL, ge_tl.vert): the draws (TlDraw), the vertices as the game gave them
+ * and the triangles' indices, each buffer in halves (a frame in flight each); a batch of them is drawn in segments, a
+ * draw each (its index the instance) */
+#define TL_RECORDS 8192
+#define TL_VERTICES (256u << 10)
+#define TL_INDICES (2u << 20)
+#define TL_SEGMENTS 4096
+static VkPipeline tl_pipeline;
+static VkBuf tl_records, tl_vertices, tl_indices;
+static uint32_t tl_nrec, tl_nvert, tl_nidx;
+static TlDraw tl_last;                  /* the last draw given; its record this frame (~0u: none yet) */
+static uint32_t tl_rec = ~0u;
+static struct { uint32_t first, count, rec; } tl_seg[TL_SEGMENTS];
+static int tl_nseg;
 static VkShaderModule tess_ctrl, tess_eval;
 float prim_view[16], prim_world_view[12];
 static int prim_world;
@@ -99,7 +115,8 @@ static int finds_feet(const DrawState *d) {
 /* -- setup -------------------------------------------------------------------------------------------------------- */
 
 /* A pipeline: kind 0 a full-screen pass (present.vert), 1 the GE's, 2 the sun's shadow map's, 3 the point lights', 4 a
- * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades */
+ * full-screen pass multiplied into what is there, 5 one added to it, 6 the GE's tessellated, 7 the grass's blades, 8
+ * the GE's with its vertex stage on the GPU (ge_tl.vert) */
 VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
                          int ge) {
     VkPipelineShaderStageCreateInfo stages[4] = {
@@ -121,7 +138,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         {6, 0, VK_FORMAT_R16G16B16A16_SNORM, 48},
         {7, 0, VK_FORMAT_R16G16B16A16_SFLOAT, 56},
     };
-    int verts = (ge >= 1 && ge <= 3) || ge == 6 || ge == 7;   /* (6: the GE's, tessellated; 7: grass blades) */
+    int verts = (ge >= 1 && ge <= 3) || ge >= 6;   /* (6: the GE's, tessellated; 7: grass blades; 8: GPU vertex stage) */
     VkPipelineVertexInputStateCreateInfo vi = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO, NULL, 0,
                                                verts ? 1u : 0u, &bind, verts ? 8u : 0u, attrs};
     VkVertexInputBindingDescription blade_bind = {0, sizeof(GrassBlade), VK_VERTEX_INPUT_RATE_INSTANCE};
@@ -134,6 +151,21 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         vi.vertexAttributeDescriptionCount = 2;
         vi.pVertexAttributeDescriptions = blade_attrs;
     }
+    /* the vertices as the game gave them (TlVertex), at binding 1 (the GE's at 0 stay bound) */
+    VkVertexInputBindingDescription tl_bind = {1, sizeof(TlVertex), VK_VERTEX_INPUT_RATE_VERTEX};
+    VkVertexInputAttributeDescription tl_attrs[6] = {
+        {0, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(TlVertex, pos)},
+        {1, 1, VK_FORMAT_R32G32B32_SFLOAT, offsetof(TlVertex, normal)},
+        {2, 1, VK_FORMAT_R8G8B8A8_UNORM, offsetof(TlVertex, color)},
+        {3, 1, VK_FORMAT_R32G32_SFLOAT, offsetof(TlVertex, uv)},
+        {4, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights)},
+        {5, 1, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(TlVertex, weights) + 16},
+    };
+    if (ge == 8) {
+        vi.pVertexBindingDescriptions = &tl_bind;
+        vi.vertexAttributeDescriptionCount = 6;
+        vi.pVertexAttributeDescriptions = tl_attrs;
+    }
     VkPipelineInputAssemblyStateCreateInfo ia = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
         ge == 6 ? VK_PRIMITIVE_TOPOLOGY_PATCH_LIST : ge == 7 ? VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
                                                                     : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VK_FALSE};
@@ -144,6 +176,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
     rs.polygonMode = VK_POLYGON_MODE_FILL;
     rs.cullMode = VK_CULL_MODE_NONE;
     rs.lineWidth = 1.0f;
+    rs.depthClampEnable = ge == 8 ? VK_TRUE : VK_FALSE;    /* (the near plane is gpu.c's: a clip distance) */
     VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
     ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
     VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
@@ -247,7 +280,7 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
-    VkDescriptorSetLayoutBinding b[8] = {
+    VkDescriptorSetLayoutBinding b[9] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
@@ -256,22 +289,23 @@ int render_init(void *sdl_window) {
         {BIND_AO, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_SCENE_COLOR, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SCENE_DEPTH, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_TL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[8];
-    for (int i = 0; i < 8; i++)
+    VkDescriptorBindingFlags bf[9];
+    for (int i = 0; i < 9; i++)
         bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 8, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 9, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 8, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 9, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
     VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 8},
-                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}};
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
@@ -312,6 +346,17 @@ int render_init(void *sdl_window) {
     vertices = frame_vertices[0];
     staging = frame_staging[0];
     readback = vk_buffer((VkDeviceSize)scaled(RT_SIZE) * scaled(RT_SIZE) * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, 1);
+    if (vk.clip_distance) {             /* the GPU's vertex stage (MHFU_GPU_TL) */
+        VkShaderModule tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
+        tl_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
+        tl_records = vk_buffer(2 * TL_RECORDS * sizeof(TlDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+        tl_vertices = vk_buffer(2 * TL_VERTICES * sizeof(TlVertex), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 1);
+        tl_indices = vk_buffer(2 * TL_INDICES * sizeof(uint32_t), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 1);
+        VkDescriptorBufferInfo tbi = {tl_records.buffer, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet tw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_TL, 0, 1,
+                                   VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &tbi, NULL};
+        vkUpdateDescriptorSets(vk.device, 1, &tw, 0, NULL);
+    }
 
     /* the parts (render_internal.h) */
     texture_init();
@@ -666,6 +711,11 @@ void render_prim_begin(const uint32_t *reg) {
             s.cull = VK_CULL_MODE_BACK_BIT;
             s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
         }
+    } else if (!clear && !((reg[0x12] >> 23) & 1) && (reg[0x1D] & 1)) {
+        /* 3D not placed in the world: culled by gpu.c, its faces dropped - on the GPU too (its vertex stage there:
+         * MHFU_GPU_TL) */
+        s.cull = VK_CULL_MODE_BACK_BIT;
+        s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
     }
     s.env_color = reg[0xCA];
     if (clear) {
@@ -764,18 +814,41 @@ void render_prim_world(int on) {
     prim_world = on;
 }
 
+/* A batch of the GPU's vertex stage drawn: each segment a draw, its record the instance */
+static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
+    if (bound_pipeline != tl_pipeline) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, tl_pipeline);
+        bound_pipeline = tl_pipeline;
+    }
+    VkDeviceSize zero = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &tl_vertices.buffer, &zero);
+    vkCmdBindIndexBuffer(cmd, tl_indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+    pc->camera = (s->flags & DRAW_WATER) ? water_light_set() : ~0u;
+    if (s->flags & DRAW_WORLD) {
+        float j[2] = {render_jitter[0] * 2.0f / (float)scaled(RT_SIZE), render_jitter[1] * 2.0f / (float)scaled(RT_SIZE)};
+        memcpy(&pc->pad0, &j[0], 4);
+        memcpy(&pc->pad1, &j[1], 4);
+    }
+    vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof *pc, pc);
+    for (int i = 0; i < tl_nseg; i++)
+        vkCmdDrawIndexed(cmd, tl_seg[i].count, 1, tl_seg[i].first, 0, tl_seg[i].rec);
+    tl_nseg = 0;
+    shadow_draw(s, *pc, 0, 0);          /* (no shadows cast yet: the map made, if sampled) */
+}
+
 /* Draw what has been batched with the current state */
 void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
-    if (!n || !rendering) {
+    if ((!n && !tl_nseg) || !rendering) {
         shadow_skip();
+        tl_nseg = 0;
         return;
     }
-    if (shaded(&cur))
+    if (n && shaded(&cur))
         make_normals((size_t)n);
-    if (swaying(&cur))
+    if (n && swaying(&cur))
         sway_batch(&cur, (size_t)n);
-    if (finds_feet(&cur))
+    if (n && finds_feet(&cur))
         scene_lit_batch((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
@@ -804,6 +877,12 @@ void flush(void) {
         point_lights_on > 0 && (s->flags & DRAW_WORLD) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
             ? point_light_set() : ~0u, ~0u, 0, 0};
     memcpy(pc.light, scene.sun_vp, sizeof pc.light);
+    if (tl_nseg) {                      /* the GPU's vertex stage: its segments (none of the effects' work yet) */
+        flush_tl(cmd, s, &pc);
+        last = *s;
+        last_valid = 1;
+        return;
+    }
     /* lit by the pixel, opaque: also drawn tessellated (rounder), over itself drawn flat - which shows through any
      * crack the curving opens (and wins where it would curve inwards) */
     uint32_t cam = tess_pipeline && (s->flags & DRAW_LIT_PIXEL) && !s->blend && n % 3 == 0 && on_screen_size((size_t)n) >= 40
@@ -922,6 +1001,8 @@ void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
     if (blob_prim && shadow_on && blob_vertex(a) && blob_vertex(b) && blob_vertex(c))
         return;
     begin_rendering(cur.target);
+    if (tl_nseg)
+        flush();                        /* (the GPU's vertex stage's batch first: the order drawn kept) */
     put(a, a->x, a->y, a->u, a->v, 0);
     put(b, b->x, b->y, b->u, b->v, 0);
     put(c, c->x, c->y, c->u, c->v, 0);
@@ -932,6 +1013,8 @@ void render_triangle(const RVertex *a, const RVertex *b, const RVertex *c) {
 /* A sprite: the rectangle between two corners, as two triangles, in the second corner's colour and depth */
 void render_sprite(const RVertex *a, const RVertex *b) {
     begin_rendering(cur.target);
+    if (tl_nseg)
+        flush();
     RVertex v = *b;
     v.rw = 1.0f;
     put(&v, a->x, a->y, a->u, a->v, 1);
@@ -940,6 +1023,72 @@ void render_sprite(const RVertex *a, const RVertex *b) {
     put(&v, b->x, a->y, b->u, a->v, 1);
     put(&v, b->x, b->y, b->u, b->v, 1);
     put(&v, a->x, b->y, a->u, b->v, 1);
+}
+
+/* -- the GE's vertex stage on the GPU (MHFU_GPU_TL) -------------------------------------------------------------- */
+
+int render_tl_ready(void) {
+    return tl_pipeline != VK_NULL_HANDLE;
+}
+
+/* gpu.c: a primitive (triangles, strip, fan) whose vertex stage the GPU does - its draw (NULL: the last's), its vertices
+ * as the game gave them, its count vertices' indices among them. Its triangles are indexed as gpu.c's clipping takes
+ * them (a strip's every other one turned round, to keep its winding) */
+void render_tl_draw(int type, int count, const TlDraw *d, const TlVertex *v, int nv, const uint16_t *idx) {
+    if (d) {                            /* (taken whatever is drawn: gpu.c sends a draw once) */
+        memcpy(&tl_last, d, sizeof tl_last);
+        tl_rec = ~0u;
+    }
+    int ntri = type == 3 ? count / 3 : count - 2;
+    if (ntri <= 0 || !tl_pipeline)
+        return;
+    begin_rendering(cur.target);
+    if (vertex_used > batch_start)
+        flush();                        /* (the CPU's vertex stage's batch first: the order drawn kept) */
+    if (tl_rec == ~0u) {
+        if (tl_nrec >= TL_RECORDS) {
+            static int warned;
+            if (!warned++)
+                fprintf(stderr, "renderer: the GPU vertex stage's draws a frame (%d) run out\n", TL_RECORDS);
+            return;
+        }
+        tl_rec = (uint32_t)vk.frame * TL_RECORDS + tl_nrec++;
+        memcpy((TlDraw *)tl_records.map + tl_rec, &tl_last, sizeof tl_last);
+    }
+    if (tl_nvert + (uint32_t)nv > TL_VERTICES || tl_nidx + 3u * (uint32_t)ntri > TL_INDICES) {
+        static int warned;
+        if (!warned++)
+            fprintf(stderr, "renderer: the GPU vertex stage's vertices a frame run out\n");
+        return;
+    }
+    uint32_t base = (uint32_t)vk.frame * TL_VERTICES + tl_nvert;
+    memcpy((TlVertex *)tl_vertices.map + base, v, sizeof *v * (size_t)nv);
+    tl_nvert += (uint32_t)nv;
+    uint32_t first = (uint32_t)vk.frame * TL_INDICES + tl_nidx;
+    uint32_t *o = (uint32_t *)tl_indices.map + first;   /* (write-combined: written in order, never read) */
+    for (int t = 0; t < ntri; t++) {
+        int a, b, c;
+        if (type == 3)
+            a = 3 * t, b = 3 * t + 1, c = 3 * t + 2;
+        else if (type == 4)
+            a = (t & 1) ? t + 1 : t, b = (t & 1) ? t : t + 1, c = t + 2;
+        else
+            a = 0, b = t + 1, c = t + 2;
+        *o++ = base + idx[a];
+        *o++ = base + idx[b];
+        *o++ = base + idx[c];
+    }
+    tl_nidx += 3u * (uint32_t)ntri;
+    uint32_t n = 3u * (uint32_t)ntri;
+    if (tl_nseg && tl_seg[tl_nseg - 1].rec == tl_rec && tl_seg[tl_nseg - 1].first + tl_seg[tl_nseg - 1].count == first) {
+        tl_seg[tl_nseg - 1].count += n;
+        return;
+    }
+    if (tl_nseg == TL_SEGMENTS)
+        flush();
+    tl_seg[tl_nseg].first = first;
+    tl_seg[tl_nseg].count = n;
+    tl_seg[tl_nseg++].rec = tl_rec;
 }
 
 void render_vram_written(uint32_t addr, uint32_t size) {
@@ -976,6 +1125,8 @@ static void end_frame(void) {
     scene_end_frame();
     shadow_end_frame(lights_end_frame(cur.tex_slot));
     vertex_used = batch_start = 0;
+    tl_nrec = tl_nvert = tl_nidx = 0;
+    tl_rec = ~0u;
     staging_used = 0;
     last_valid = 0;
     frame_no++;

@@ -130,6 +130,8 @@ int vk_init(void *window) {
         f12.shaderOutputLayer = VK_TRUE, vk.output_layer = 1;
     if (have2.features.tessellationShader)
         f2.features.tessellationShader = VK_TRUE, vk.tessellation = 1;
+    if (have2.features.shaderClipDistance && have2.features.depthClamp)  /* (the GPU's vertex stage: ge_tl.vert) */
+        f2.features.shaderClipDistance = f2.features.depthClamp = VK_TRUE, vk.clip_distance = 1;
     if (have2.features.samplerAnisotropy)
         f2.features.samplerAnisotropy = VK_TRUE, vk.anisotropy = 1;
     const char *dev_exts[] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};

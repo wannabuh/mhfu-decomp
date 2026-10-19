@@ -34,6 +34,7 @@
 #define BIND_AO 5               /* sampler2D: the world's ambient occlusion, for the grass */
 #define BIND_SCENE_COLOR 6      /* sampler2D: the picture under the water (render_water.c), and its depth */
 #define BIND_SCENE_DEPTH 7
+#define BIND_TL 8               /* TlDraw[]: the draws whose vertex stage the GPU does (ge_tl.vert), half a frame */
 
 /* -- a draw's flags (DrawPush.flags) ------------------------------------------------------------------------------ */
 #define DRAW_TFUNC 7u           /* the texture function (the GE's: modulate, decal, blend, replace, add) */
@@ -115,14 +116,64 @@
     VEC4S(color, 4);                                                                                                   \
     U32 count, sun, pad0, pad1;
 
+/* -- the GE's vertex stage on the GPU (BIND_TL, ge_tl.vert) -------------------------------------------------------- */
+/* A draw's vertex stage, as gpu.c's vertex() and light() have it: the world, view and projection matrices (3 x 4 by
+ * rows: x, y, z each a row's dot with (p, 1); the projection 4 x 4 by columns), the GE's space to the world (and for
+ * the motion blur, the world matrix a frame shown earlier); the viewport's scale (x, y, z) and depth offset (w), its
+ * x, y offsets (the screen offset in), the fog's end and slope; the texture coordinates' scale and offset (in texels);
+ * the material's emissive colour (w: the specular power), ambient (w: its alpha), diffuse and specular colours, the
+ * global ambient light (w: its alpha); the flags (TL_*), the material mode (0x53), the light that is the sun (~0u:
+ * none), the bones; each light's position or direction (w: its type), its spot direction (w: its components), its
+ * attenuation (w: the spot's cutoff), ambient (w: the spot's exponent), diffuse and specular colours; the bones (3 x 4
+ * by rows), and a frame shown earlier */
+#define TL_DRAW                                                                                                        \
+    VEC4S(world, 3);                                                                                                   \
+    VEC4S(view, 3);                                                                                                    \
+    MAT4(proj);                                                                                                        \
+    VEC4S(to_world, 3);                                                                                                \
+    VEC4S(earlier_world, 3);                                                                                           \
+    VEC4(viewport);                                                                                                    \
+    VEC4(offset);                                                                                                      \
+    VEC4(tex);                                                                                                         \
+    VEC4(emissive);                                                                                                    \
+    VEC4(ambient);                                                                                                     \
+    VEC4(diffuse);                                                                                                     \
+    VEC4(specular);                                                                                                    \
+    VEC4(global);                                                                                                      \
+    U32 flags, mode, sun_light, bones;                                                                                 \
+    VEC4S(light_pos, 4);                                                                                               \
+    VEC4S(light_dir, 4);                                                                                               \
+    VEC4S(light_att, 4);                                                                                               \
+    VEC4S(light_ambient, 4);                                                                                           \
+    VEC4S(light_diffuse, 4);                                                                                           \
+    VEC4S(light_specular, 4);                                                                                          \
+    VEC4S(bone, 24);                                                                                                   \
+    VEC4S(earlier_bone, 24);
+#define TL_LIT 1u               /* lit by the GE */
+#define TL_FLIP 2u              /* its normals turned round (0x51; only those the vertices have) */
+#define TL_WORLD 4u             /* placed in the world (to_world) */
+#define TL_EARLIER 8u           /* its motion since a frame shown earlier (earlier_*) */
+#define TL_VCOL 16u             /* the vertices have colours */
+#define TL_TEX 32u              /* texture coordinates */
+#define TL_LIGHT_ON 256u        /* (4 bits) the lights on */
+#define TL_LIGHT_PIXEL 4096u    /* (4 bits) the lights whose diffuse part the pixel does */
+
 #ifdef VULKAN
 struct LightSet { LIGHT_SET };
+struct TlDraw { TL_DRAW };
 #else
 typedef struct { DRAW_PUSH } DrawPush;
 typedef struct { GRASS_PUSH } GrassPush;
 typedef struct { AO_PUSH } AoPush;
 typedef struct { POST_PUSH } PostPush;
 typedef struct { LIGHT_SET } LightSet;
+typedef struct TlDrawS { TL_DRAW } TlDraw;
+/* A vertex as the GPU's vertex stage takes it (ge_tl.vert): as the game gave it, decoded - position, normal ((0, 0, 1)
+ * if it has none), colour (RGBA8; the material's ambient if it has none), texture coordinates (before scaling), the
+ * bones' weights */
+typedef struct TlVertexS { float pos[3], normal[3]; uint32_t color; float uv[2], weights[8]; } TlVertex;
+_Static_assert(sizeof(TlDraw) == 1552, "TlDraw: as GLSL lays it out");
+_Static_assert(sizeof(TlVertex) == 68, "TlVertex: ge_tl.vert's attributes");
 _Static_assert(sizeof(DrawPush) == 112, "DrawPush: as GLSL lays it out");
 _Static_assert(sizeof(GrassPush) == 84, "GrassPush: as GLSL lays it out");
 _Static_assert(sizeof(AoPush) == 240, "AoPush: as GLSL lays it out");

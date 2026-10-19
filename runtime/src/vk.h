@@ -53,6 +53,7 @@ typedef struct {
     int (*before_submit)(VkCommandBuffer *out); /* commands to submit before the frame's, up to 2 (render_shadow.c: shadows) */
     int output_layer;                /* a vertex shader can choose the layer it draws into */
     int tessellation;                /* tessellation shaders can be used */
+    int clip_distance;               /* clip distances and depth clamping can be used */
     int anisotropy;                  /* anisotropic filtering can be used */
 } VkContext;
 
