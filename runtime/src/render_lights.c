@@ -17,6 +17,7 @@
 #define POINT_LIGHT_REACH 4000.0f       /* lights this far from what the camera looks at, at most */
 #define POINT_LIGHT_RADIUS 900.0f       /* how far a light reaches */
 #define POINT_LIGHT_GAIN 1.0f
+#define LIGHT_FIRE_AGE 2.0f             /* seconds a light is seen before it is a fire's (slow to fade) */
 
 VkBuf light_buf;
 uint32_t light_sets_used;
@@ -150,9 +151,14 @@ static void make_point_lights(void) {
         l[j].weight = w;
     }
     /* the warm ones (fire: red over green over blue) near what the camera looks at, smoothed from frame to frame -
-     * a light found again near where one was eases to its new colour and strength, one gone fades out */
-    typedef struct { float pos[3], color[3], strength, power; int seen; } Smoothed;
+     * a light found again near where one was eases to its new colour and strength, one gone fades out: slowly once
+     * it has been seen for a while (a fire), at once before (a flash: a greatsword's charge, a spell) */
+    typedef struct { float pos[3], color[3], strength, power, age; int seen; } Smoothed;
     static Smoothed lit[MAX_POINT_LIGHTS];
+    static uint64_t last_us;
+    uint64_t now_us = time_us();
+    float dt = last_us && now_us > last_us ? fminf((float)(now_us - last_us) / 1e6f, 0.1f) : 0.0f;
+    last_us = now_us;
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
         lit[i].seen = 0;
     for (int j = 0; j < n; j++) {
@@ -185,6 +191,7 @@ static void make_point_lights(void) {
                 lit[k].color[q] = c[q] / m;
             lit[k].strength = 0;
             lit[k].power = l[j].weight;
+            lit[k].age = 0;
         }
         /* a fire stands still: what is drawn of its flames moves about (80 units) as they play and the camera
          * turns, so its light drifts to it only slowly (a third of a second); it brightens quickly and dims slowly */
@@ -199,12 +206,13 @@ static void make_point_lights(void) {
         /* its strength by that too (a fire turned from is no dimmer), reached in a fraction of a second */
         float target = fminf(1.0f, lit[k].power / 40.0f);
         lit[k].strength += (target - lit[k].strength) * 0.1f;
+        lit[k].age += dt;
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        if (!lit[i].seen)
-            lit[i].strength *= 0.9995f;     /* (half in ten seconds: out of view the game draws no flames) */
+        if (!lit[i].seen)                   /* a fire: half in ten seconds (out of view the game draws no flames); */
+            lit[i].strength *= lit[i].age >= LIGHT_FIRE_AGE ? 0.9995f : expf(-dt / 0.1f);     /* a flash: gone */
     /* the brightest first (as they give light, not capped), the nearer the more. The first two (of the first set)
      * have shadows, and keep them - and their cube maps - until another is half as bright again */
     static int shadowed[2] = {-1, -1};
