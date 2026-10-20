@@ -45,13 +45,20 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 | Tab | reset camera (L) | Esc | menu (START) |
 | Arrows | D-pad: menus, camera | Enter / Backspace | confirm / back in menus (× / ○) |
 | C | SELECT | F10 | release / capture the mouse |
-| F11 | fullscreen on / off | | |
+| F11 | fullscreen on / off | F2 / F4 | save / load a save state |
+| F3 | the next save state slot (1-9) | | |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
 hunter, the movement keys turning with it. With `MHFU_FPS` the camera moves at the display's rate.
 
 A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
+
+Save states keep the whole game as it is - anywhere, in a hunt or a menu - and load it again at once, as PPSSPP's do:
+F2 saves into the slot, F4 loads it, F3 moves on to the next slot (the window's title says which, and what was done).
+They are kept in `~/.local/share/mhfu-recomp/states` (`MHFU_STATEDIR=...` elsewhere) and load in later runs of the same
+build; one made by another build (after `make`) does not load. The game's own saves are apart from them: loading a
+state does not undo a save made since.
 
 ## Settings
 

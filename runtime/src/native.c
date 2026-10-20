@@ -8,6 +8,7 @@
  * them again (a NOP marking it: ge.c). So what is drawn by the logic itself - the HUD, much of the 2D - stays on
  * screen, as it was at its last 30th. */
 #include "hle.h"
+#include "savestate.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +41,7 @@ static int ungated(uint32_t at) {
  * again on the frames between, where its gate - the one it is under - skips). Each is noted under the gate it was in
  * (site, and key: the object, for an object's gate); within a converted call, under a gate inside it, if any. */
 #define MAX_CHUNKS 1024
-static struct {
+SAVED static struct {
     uint32_t site, key;             /* the gate it was linked or made under */
     uint32_t mgr, layer;            /* a chunk: the list's (its manager), the layer */
     uint32_t start, end;            /* its commands, while that frame's list is run */
@@ -56,10 +57,10 @@ static void states_now(uint32_t *out) {
     for (int i = 0; i < 4; i++)
         out[i] = base >= 0x08800000u && base < 0x0A000000u ? LW(base + 4 * (uint32_t)i) : 0;
 }
-static int nchunks;
-static uint32_t gate_site, gate_key;    /* the gate being run at a 30th (0: none) */
-static float real_scale = 1;        /* the frame's time scale and rt_tick30, whatever a gate has made them */
-static int real_tick30 = 1, real_ticks60 = 2;
+SAVED static int nchunks;
+SAVED static uint32_t gate_site, gate_key;    /* the gate being run at a 30th (0: none) */
+SAVED static float real_scale = 1;        /* the frame's time scale and rt_tick30, whatever a gate has made them */
+SAVED static int real_tick30 = 1, real_ticks60 = 2;
 
 /* EBOOT 088596C8 (patched): a chunk of count words at start is linked into the frame's list, at the end of a layer */
 void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer) {
@@ -77,7 +78,7 @@ void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer) 
 }
 
 /* ge.c: the chunk (its number) a command is in, if the list run was made at a 30th with gates; else -1 */
-static int by_start[MAX_CHUNKS], nsorted = -1, by_start_n;    /* the chunks (not the calls) by where they start, once linked */
+SAVED static int by_start[MAX_CHUNKS], nsorted = -1, by_start_n;    /* the chunks (not the calls) by where they start, once linked */
 
 static int cmp_start(const void *a, const void *b) {
     uint32_t x = chunks[*(const int *)a].start, y = chunks[*(const int *)b].start;
@@ -169,7 +170,7 @@ static void trace(void) {
 }
 
 /* Whether a 30th fell on each of the last game frames (gpu.c) */
-static uint32_t frames30;           /* bit 0 the latest */
+SAVED static uint32_t frames30;           /* bit 0 the latest */
 
 /* back frames before the latest (0: the latest - the one being drawn, as the GE draws it) */
 int native_frame30(int back) {

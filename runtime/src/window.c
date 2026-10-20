@@ -15,6 +15,7 @@
  * Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
 #include "hle.h"
 #include "render.h"
+#include "savestate.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -188,6 +189,31 @@ static void test_mouse(void) {
     last = now;
 }
 
+/* A note in the window's title (the save state slot, a state saved or loaded) */
+void window_note(const char *text) {
+    if (!window)
+        return;
+    char title[256];
+    snprintf(title, sizeof title, "Monster Hunter Freedom Unite - %s", text);
+    SDL_SetWindowTitle(window, title);
+}
+
+/* Save states: F2 saves into the slot, F4 loads it, F3 the next slot (as PPSSPP has them) */
+static int state_slot;
+
+static void state_key(SDL_Scancode key) {
+    char note[64];
+    if (key == SDL_SCANCODE_F2)
+        state_request_save(state_slot);
+    else if (key == SDL_SCANCODE_F4)
+        state_request_load(state_slot);
+    else if (key == SDL_SCANCODE_F3) {
+        state_slot = (state_slot + 1) % (ST_SLOTS - 1);
+        snprintf(note, sizeof note, "save state slot %d%s", state_slot + 1, state_slot_used(state_slot) ? "" : " (empty)");
+        window_note(note);
+    }
+}
+
 int window_poll(void) {
     test_mouse();
     if (!enabled())
@@ -198,6 +224,9 @@ int window_poll(void) {
             return 0;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
             ram_snapshot();
+        if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&
+            (e.key.scancode == SDL_SCANCODE_F2 || e.key.scancode == SDL_SCANCODE_F3 || e.key.scancode == SDL_SCANCODE_F4))
+            state_key(e.key.scancode);
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F10 && !e.key.repeat)
             capture_mouse(!mouse_captured);
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F11 && !e.key.repeat && window)

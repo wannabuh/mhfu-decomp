@@ -1,6 +1,7 @@
 /* The kernel's bookkeeping - object UIDs, the user memory partition - the dispatch of imported functions to their HLE
  * implementations, and the small kernel libraries (memory, modules, utilities, power, stdio). */
 #include "hle.h"
+#include "savestate.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,7 @@ const char *hle_string(Ctx *c, uint32_t addr) {
 /* -- objects ------------------------------------------------------------------------------------------------------ */
 
 #define MAX_OBJECTS 4096
-static struct { enum ObjType type; void *obj; } objects[MAX_OBJECTS];
+SAVED static struct { enum ObjType type; void *obj; } objects[MAX_OBJECTS];
 #define UID_BASE 0x100
 
 uint32_t kobj_new(enum ObjType type, void *obj) {
@@ -46,11 +47,11 @@ void kobj_free(uint32_t uid) {
 
 /* Blocks, sorted by address, covering the partition: free or allocated. */
 typedef struct Block { uint32_t addr, size; int used; char name[32]; struct Block *next; } Block;
-static Block *blocks;
+SAVED static Block *blocks;
 #define USER_END 0x0A000000u
 
 void kmem_init(uint32_t used_end) {
-    blocks = calloc(1, sizeof *blocks);
+    blocks = st_calloc(1, sizeof *blocks);
     blocks->addr = (used_end + 0xFF) & ~0xFFu;
     blocks->size = USER_END - blocks->addr;
 }
@@ -96,7 +97,7 @@ uint32_t kmem_alloc(uint32_t size, int type, uint32_t align, uint32_t addr) {
         return 0;
     /* split pick into [free before][used][free after] */
     if (at > pick->addr) {
-        Block *n = calloc(1, sizeof *n);
+        Block *n = st_calloc(1, sizeof *n);
         n->addr = at;
         n->size = pick->addr + pick->size - at;
         n->next = pick->next;
@@ -105,7 +106,7 @@ uint32_t kmem_alloc(uint32_t size, int type, uint32_t align, uint32_t addr) {
         pick = n;
     }
     if (pick->size > size) {
-        Block *n = calloc(1, sizeof *n);
+        Block *n = st_calloc(1, sizeof *n);
         n->addr = pick->addr + size;
         n->size = pick->size - size;
         n->next = pick->next;
@@ -127,7 +128,7 @@ void kmem_free(uint32_t addr) {
             Block *n = b->next;
             b->size += n->size;
             b->next = n->next;
-            free(n);
+            st_free(n);
         } else {
             b = b->next;
         }
@@ -142,7 +143,7 @@ void hle_sceKernelAllocPartitionMemory(Ctx *c) {
         RET(SCE_KERNEL_ERROR_NO_MEMORY);
         return;
     }
-    MemBlock *m = calloc(1, sizeof *m);
+    MemBlock *m = st_calloc(1, sizeof *m);
     m->addr = addr;
     m->uid = kobj_new(OBJ_MEMBLOCK, m);
     HLE_LOG("%u=sceKernelAllocPartitionMemory(%s, %X) at %08X", m->uid, hle_string(c, ARG1), ARG3, addr);
@@ -157,7 +158,7 @@ void hle_sceKernelFreePartitionMemory(Ctx *c) {
     }
     kmem_free(m->addr);
     kobj_free(m->uid);
-    free(m);
+    st_free(m);
     RET(0);
 }
 

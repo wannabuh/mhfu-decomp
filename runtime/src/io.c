@@ -1,6 +1,7 @@
 /* File I/O: the disc (disc0:, umd0:, umd1:) read from the ISO image through a small ISO 9660 reader - files by path,
  * and raw sectors by the kernel's "sce_lbn0x<sector>_size0x<size>" names; stdout / stderr to the log. */
 #include "hle.h"
+#include "savestate.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +19,7 @@ static int read_sectors(uint32_t lba, uint32_t offset, void *buf, uint32_t size)
     return (int)fread(buf, 1, size, iso);
 }
 
-static Entry root;
+SAVED static Entry root;
 
 void io_init(const char *iso_path) {
     iso = fopen(iso_path, "rb");
@@ -104,7 +105,7 @@ static const char *disc_path(const char *path) {
 /* -- file descriptors --------------------------------------------------------------------------------------------- */
 
 #define MAX_FDS 64
-static struct { int open; Entry e; uint64_t pos; } fds[MAX_FDS];
+SAVED static struct { int open; Entry e; uint64_t pos; } fds[MAX_FDS];
 
 void hle_sceIoOpen(Ctx *c) {
     const char *path = hle_string(c, ARG0);

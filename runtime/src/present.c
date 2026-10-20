@@ -5,6 +5,7 @@
  * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
  * idle time (present_pump). */
 #include "hle.h"
+#include "savestate.h"
 #include "render.h"
 
 #include <png.h>
@@ -14,7 +15,7 @@
 #include <unistd.h>
 
 static int dump_every = -1;
-static unsigned long frame;
+SAVED static unsigned long frame;
 static int camera_orbit_ready;
 static int display_fps(void);
 void tick_frame(unsigned long frame);
@@ -62,7 +63,8 @@ static int skip_intro(void) {
  * since, or a runtime that runs the game differently, can make a replay go astray. */
 typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
 static Input *replay;
-static size_t replay_n, replay_at;
+static size_t replay_n;
+SAVED static size_t replay_at;
 static unsigned long replay_end;
 static int replay_loaded;
 static uint64_t replay_epoch_us;
@@ -154,7 +156,7 @@ int fast_forward(void) {
 static void replay_input(float *mx, float *my) {
     if (!replaying())
         return;
-    static Input held = {0, 0, 128, 128, 0, 0};
+    SAVED static Input held = {0, 0, 128, 128, 0, 0};
     *mx = *my = 0;
     while (replay_at < replay_n && replay[replay_at].frame <= frame) {
         held = replay[replay_at];
@@ -220,6 +222,14 @@ static void record_input(float mx, float my) {
         last_b = ctrl_buttons;
         last_x = ctrl_lx;
         last_y = ctrl_ly;
+    }
+}
+
+/* A state loaded (savestate.c): a recording of this run's input ends - its frames would go back */
+void present_state_loaded(void) {
+    if (record) {
+        fprintf(stderr, "recording stopped: a save state was loaded\n");
+        end_record();
     }
 }
 

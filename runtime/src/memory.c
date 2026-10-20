@@ -14,8 +14,15 @@ static const struct { uint32_t start, size; } regions[] = {
 
 uint8_t *rt_mem;
 
+/* (at a fixed place in the host's address space, so that a save state - whose threads' registers point into it - loads
+ * in another run: savestate.c) */
+#define MEM_AT ((uintptr_t)0x590000000000ull)
+
 uint8_t *rt_mem_init(void) {
-    uint8_t *mem = mmap(NULL, (size_t)ADDR_MASK + 1, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    uint8_t *mem = mmap((void *)MEM_AT, (size_t)ADDR_MASK + 1, PROT_NONE,
+                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_FIXED_NOREPLACE, -1, 0);
+    if (mem == MAP_FAILED)
+        mem = mmap(NULL, (size_t)ADDR_MASK + 1, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (mem == MAP_FAILED) {
         perror("reserving the PSP address space");
         exit(1);

@@ -4,6 +4,7 @@
  * the one before has played, at 44.1 kHz - and heard through SDL: each channel a stream on the default device, which
  * mixes them (none in headless runs). Music comes through ATRAC (atrac.c), sound effects through the SAS (below). */
 #include "hle.h"
+#include "savestate.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -12,8 +13,8 @@
 #define CHANNELS 8
 #define RATE 44100
 
-static struct { int reserved; uint32_t samples, format, vol_l, vol_r; uint64_t queued_until; SDL_AudioStream *stream; }
-    chan[CHANNELS];
+SAVED static struct { int reserved; uint32_t samples, format, vol_l, vol_r; uint64_t queued_until; } chan[CHANNELS];
+static SDL_AudioStream *stream[CHANNELS];      /* (the host's: not the game's state) */
 static SDL_AudioDeviceID device;
 static int audio_state;             /* 0 not tried, 1 on, -1 off */
 
@@ -64,10 +65,10 @@ static void play(int ch, uint32_t addr, uint32_t vol_l, uint32_t vol_r) {
     dump(ch, addr);
     if (!audio_on() || fast_forward())
         return;
-    if (!chan[ch].stream) {
+    if (!stream[ch]) {
         SDL_AudioSpec spec = {SDL_AUDIO_S16LE, 2, RATE};
-        chan[ch].stream = SDL_CreateAudioStream(&spec, NULL);
-        SDL_BindAudioStream(device, chan[ch].stream);
+        stream[ch] = SDL_CreateAudioStream(&spec, NULL);
+        SDL_BindAudioStream(device, stream[ch]);
     }
     static int16_t buf[4096 * 2];
     uint32_t n = chan[ch].samples > 4096 ? 4096 : chan[ch].samples;
@@ -78,7 +79,14 @@ static void play(int ch, uint32_t addr, uint32_t vol_l, uint32_t vol_r) {
         buf[2 * i] = (int16_t)(l * (int32_t)vol_l / 0x8000);
         buf[2 * i + 1] = (int16_t)(r * (int32_t)vol_r / 0x8000);
     }
-    SDL_PutAudioStreamData(chan[ch].stream, buf, (int)(n * 4));
+    SDL_PutAudioStreamData(stream[ch], buf, (int)(n * 4));
+}
+
+/* A state loaded (savestate.c): what the streams still had to play, dropped */
+void audio_state_loaded(void) {
+    for (int ch = 0; ch < CHANNELS; ch++)
+        if (stream[ch])
+            SDL_ClearAudioStream(stream[ch]);
 }
 
 static uint64_t duration_us(uint32_t samples) { return (uint64_t)samples * 1000000u / RATE; }
@@ -187,7 +195,7 @@ typedef struct {
     int last_block;                 /* the block just decoded ended the sample */
 } Voice;
 
-static Voice voices[SAS_VOICES];
+SAVED static Voice voices[SAS_VOICES];
 
 static int decode_block(Voice *v) {
     static const int f0[5] = {0, 60, 115, 98, 122}, f1[5] = {0, 0, -52, -55, -60};
@@ -269,7 +277,7 @@ static void envelope(Voice *v) {
     }
 }
 
-static uint32_t sas_grain = 256;
+SAVED static uint32_t sas_grain = 256;
 
 /* (core, grain, voices, output mode, sample rate) */
 void hle___sceSasInit(Ctx *c) {

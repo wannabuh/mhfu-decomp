@@ -7,6 +7,7 @@
  * Fog. Not yet: mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
  * dithering. */
 #include "hle.h"
+#include "savestate.h"
 #include "render.h"
 #include "render_queue.h"
 #include "shared.h"
@@ -17,8 +18,8 @@
 #include <string.h>
 #include <time.h>
 
-static uint32_t reg[256];          /* the last value of each command */
-static uint32_t vaddr, iaddr;
+SAVED static uint32_t reg[256];          /* the last value of each command */
+SAVED static uint32_t vaddr, iaddr;
 
 static unsigned long unhandled_prims[8];
 
@@ -80,7 +81,7 @@ static int queued(void);
 
 /* -- textures ----------------------------------------------------------------------------------------------------- */
 
-static uint32_t clut[256];
+SAVED static uint32_t clut[256];
 
 static void clut_load(void) {
     uint32_t addr = (reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8);
@@ -207,13 +208,13 @@ typedef struct { float x, y, z, rw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, s
 typedef struct { float cx, cy, cz, cw, u, v, r, g, b, a, fog, wx, wy, wz, sr, sg, sb, nx, ny, nz, mx, my, mz; } ClipVertex;
 #define VERTEX_FLOATS 23
 
-static float world[12], view[12], proj[16], bones[8][12];
+SAVED static float world[12], view[12], proj[16], bones[8][12];
 /* Motion blur (render.c): a replayed draw's world and bones a frame shown earlier - its vertices' motion in the world
  * since (mx, my, mz) */
 static float earlier_world[12], earlier_bones[8][12];
 static int earlier;
 float render_motion_step(void);     /* the game's frames between two shown (0: no motion blur) */
-static int world_i, view_i, proj_i, bone_i;
+SAVED static int world_i, view_i, proj_i, bone_i;
 
 /* Shadows (render_shadow.c): the GE's world space - which has the camera in it: the game multiplies it into each world
  * matrix - to the world, for the frame; and the light that is the sun among the GE's (-1: none known) */
@@ -2812,6 +2813,11 @@ static void native_place(uint64_t key) {
     interp_model(world, &bones[0][0], from->w, to->w, from_bones, to_bones, q->nb, t);
     compose43(f->cam, world, world);
     nat_slow += from != to;
+}
+
+/* A state loaded (savestate.c): what ticks at 30 smoothed from the next 30ths only - not from where it was before */
+void gpu_state_loaded(void) {
+    nat_a = nat_b = nat_p = NULL;
 }
 
 /* -- what gated code drew, kept for the frames between 30ths (native.c) --------------------------------------------

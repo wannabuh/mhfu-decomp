@@ -2,7 +2,11 @@
 # needs game/analysis/functions.json first (tools/funcs.py).
 PY      := tools/.venv/bin/python
 CC      := clang
-CFLAGS  := -O2 -g -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
+# (no stack protector, and the program at a fixed address: a save state holds the threads' host stacks - return
+# addresses, and no canary of another run's - so that the same build loads it in another run: runtime/src/savestate.c)
+CFLAGS  := -O2 -g -fno-stack-protector -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
+LDFLAGS := -no-pie
+LIBS    := -lm -lpng -lz -lSDL3 -lvulkan -lavcodec -lavutil
 GLSLC   := glslc
 GENFLAGS := $(CFLAGS) -w
 # The runtime's own optimisation, on top of CFLAGS: none by default. `make RUNTIME_OPT="-O3 -march=native
@@ -46,10 +50,10 @@ build/game.a: build/gen/.stamp
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a -lm -lpng -lSDL3 -lvulkan -lavcodec -lavutil -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(LIBS) -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $^ -lm -lpng -lSDL3 -lvulkan -lavcodec -lavutil -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
 
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm

@@ -7,6 +7,7 @@
  * bitmap's size, offsets, flags, shadow, metrics (as table indices or 32-bit values) and the bitmap, 4 bits a pixel,
  * run-length coded in nibbles, by rows or by columns. */
 #include "hle.h"
+#include "savestate.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -227,9 +228,9 @@ static void pgf_bitmap(const Pgf *p, const Glyph *g, uint8_t *out) {
 /* -- the library -------------------------------------------------------------------------------------------------- */
 
 #define MAX_OPEN 16
-static struct { uint32_t handle; int index; } open_fonts[MAX_OPEN];
-static uint32_t lib_handle;
-static uint32_t alt_char = 0x5F;
+SAVED static struct { uint32_t handle; int index; } open_fonts[MAX_OPEN];
+SAVED static uint32_t lib_handle;
+SAVED static uint32_t alt_char = 0x5F;
 
 static Pgf *font_of(uint32_t handle) {
     for (int i = 0; i < MAX_OPEN; i++)

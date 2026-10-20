@@ -125,6 +125,24 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   and the start time; `MHFU_REPLAY=file` plays it back fast-forwarded (nothing shown or heard), then hands over (with
   `MHFU_RECORD` too, the recording carries on). A replay ends where the recording did, byte for byte - as long as the
   saves it loads and the way the runtime runs the game are unchanged.
+- **Save states** (`savestate.c`): the game's whole state copied where every thread waits - the scheduler's idle loop
+  (`state_point`) - and copied back there. The threads are coroutines: a waiting thread is its registers (its
+  ucontext) and its host stack's used part, so with those the game's memory (34 MB) and the runtime's own state of the
+  game, a load resumes each thread where it waited. That state is kept where a copy takes it whole: the runtime's
+  variables of the game marked `SAVED` (one linker section, `mhfu_state`), what it allocates (threads, semaphores,
+  kernel objects, memory blocks) from an arena (`st_malloc`), the host stacks from a slab - all at fixed places in the
+  address space, as is the game's memory, and the program is built without PIE and without the stack protector
+  (whose canary differs from run to run), so that a state on disk loads in another run of the same build (a hash of
+  the program in the file). What is the host's is kept apart and made again after a load: the ISO's file, the sound
+  streams (emptied), the ATRAC decoders (made again and brought to their place by decoding the two frames before), the
+  renderer (textures follow the memory by their hashes; the frames shown between are taken as a cut). A slot is kept
+  in memory and written compressed (zlib, about 11 MB) by a thread of its own. Checked by replays: a save, the replay
+  on, a load, the same input again - every frame's RAM the same as the first time, from the menus into a hunt (loading,
+  music), in the field with the mouse's camera, at 60 with `MHFU_FPS`, and loaded by a new process at boot.
+  `MHFU_STATE_TEST=A,B` (save at A, load at B, compare each frame), `MHFU_STATE_SAVE=frame,slot`,
+  `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` (RAM to a file) script it. A state loaded stops an input
+  recording (`MHFU_RECORD`). A new variable of the runtime that the game's run depends on must be `SAVED` (or made
+  again after a load): the test finds what is missed, as the first frame and memory that differ.
 - **Finding code**: `tools/watch.py ADDR --frame N [--read|--access] -- MHFU_REPLAY=...` runs the game under gdb and,
   from game frame N, prints each write (or read) of the PSP address: the value and the game functions on the stack with
   the instruction (`EBOOT_08886E50@08887814`: the camera reading its preset). `tools/ramdiff.py` finds variables from

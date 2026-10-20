@@ -1,6 +1,7 @@
 /* The rest of the system: display, controller, UMD, the utility dialogs (savedata, messages, keyboard, network),
  * and small libraries (language, clock, power, DMA, wireless). Savedata's work is in savedata.c. */
 #include "hle.h"
+#include "savestate.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -25,9 +26,9 @@ void hle_sceDisplaySetFrameBuf(Ctx *c) {
 
 /* -- controller ---------------------------------------------------------------------------------------------------- */
 
-static uint32_t ctrl_cycle, ctrl_mode;
-uint32_t ctrl_buttons;                       /* set by the frontend */
-uint8_t ctrl_lx = 128, ctrl_ly = 128;
+SAVED static uint32_t ctrl_cycle, ctrl_mode;
+SAVED uint32_t ctrl_buttons;                 /* set by the frontend */
+SAVED uint8_t ctrl_lx = 128, ctrl_ly = 128;
 
 void hle_sceCtrlSetSamplingCycle(Ctx *c) {
     RET(ctrl_cycle);
@@ -65,7 +66,7 @@ void hle_sceUmdGetDriveStat(Ctx *c) { RET(0x32); }       /* present, ready, read
 /* Status: 0 none, 1 initialising, 2 running, 3 finished, 4 shutting down. The dialog's result goes in its common
  * parameters at 0x1C. */
 typedef struct { int status; uint32_t params; } Dialog;
-static Dialog savedata, msgdialog, osk, netconf;
+SAVED static Dialog savedata, msgdialog, osk, netconf;
 
 static void dialog_init(Dialog *d, uint32_t params) {
     d->status = 1;

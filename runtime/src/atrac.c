@@ -5,6 +5,7 @@
  * decodes it a frame at a time into 16-bit stereo. Only whole files in memory, which is how the game uses it (no
  * streaming). */
 #include "hle.h"
+#include "savestate.h"
 
 #include <libavcodec/avcodec.h>
 #include <libavutil/channel_layout.h>
@@ -32,7 +33,7 @@ typedef struct {
     AVFrame *out;
 } Atrac;
 
-static Atrac ids[MAX_IDS];
+SAVED static Atrac ids[MAX_IDS];   /* (its decoders the host's: made again after a load) */
 
 static uint32_t rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
 static uint16_t rd16(const uint8_t *p) { uint16_t v; memcpy(&v, p, 2); return v; }
@@ -142,6 +143,42 @@ void hle_sceAtracSetLoopNum(Ctx *c) {
     if (a)
         a->loop_num = (int32_t)ARG1 == 0x7FFFFFFF ? -1 : (int32_t)ARG1;
     RET(a ? 0 : ERROR_NO_ID);
+}
+
+/* A state about to be loaded (savestate.c): the decoders there are, freed - the ids loaded have none yet */
+void atrac_state_loading(void) {
+    for (int i = 0; i < MAX_IDS; i++)
+        if (ids[i].used) {
+            if (ids[i].ctx)
+                avcodec_free_context(&ids[i].ctx);
+            if (ids[i].pkt)
+                av_packet_free(&ids[i].pkt);
+            if (ids[i].out)
+                av_frame_free(&ids[i].out);
+        }
+}
+
+/* A state loaded: each id's decoder made again, and brought to where it was by decoding the two frames before its
+ * next (a frame's samples overlap the one before's) */
+void atrac_state_loaded(void) {
+    for (int i = 0; i < MAX_IDS; i++) {
+        Atrac *a = &ids[i];
+        a->ctx = NULL;
+        a->pkt = NULL;
+        a->out = NULL;
+        if (!a->used)
+            continue;
+        if (!parse(a)) {
+            a->used = 0;
+            continue;
+        }
+        for (int f = a->frame >= 2 ? a->frame - 2 : 0; f < a->frame; f++) {
+            a->pkt->data = (uint8_t *)PTR(a->buf + a->data_off + (uint32_t)(f * a->block));
+            a->pkt->size = a->block;
+            if (avcodec_send_packet(a->ctx, a->pkt) >= 0)
+                avcodec_receive_frame(a->ctx, a->out);
+        }
+    }
 }
 
 /* (id, out, samples*, finished*, remaining frames*): one frame, 16-bit interleaved */

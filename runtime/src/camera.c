@@ -37,6 +37,7 @@
  *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
 #include "hle.h"
+#include "savestate.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -49,20 +50,20 @@ void window_mouse_peek(float *dx, float *dy);
 #define PI 3.14159265f
 #define STICK_SIGN 1.0f
 
-int rt_camera_free = 1;
+SAVED int rt_camera_free = 1;
 static float sens = -1;
-static float left;                      /* yaw not yet written (in 65536ths) */
-static unsigned long tick;              /* the game's frames, counted */
-static int active;                      /* the camera is the hunt's, which the mouse turns */
+SAVED static float left;                      /* yaw not yet written (in 65536ths) */
+SAVED static unsigned long tick;              /* the game's frames, counted */
+SAVED static int active;                      /* the camera is the hunt's, which the mouse turns */
 /* Elsewhere (the village, the camp tent: view 2) the game's camera keeps its own angles; the mouse orbits the picture
  * about its target instead, by these (radians: yaw, and pitch up), and turns the stick to match */
-static int orbiting, orbit_on = 1;
-static float orbit_yaw, orbit_pitch;
+SAVED static int orbiting, orbit_on = 1;
+SAVED static float orbit_yaw, orbit_pitch;
 /* In the hunt, with the mouse having the camera (rt_camera_free) and MHFU_FPS: how far the mouse has raised the eye
  * (radians) over the elevation the game gives it - which rises over slopes to keep it above the ground - shown at once
  * as an orbit about the target in the frames shown, the game's camera left as it is */
-static float elevation;
-static int elevation_set;
+SAVED static float elevation;
+SAVED static int elevation_set;
 #define ELEVATION_LO (-20 * PI / 180)
 #define ELEVATION_HI (80 * PI / 180)
 
@@ -90,25 +91,25 @@ typedef struct {
     uint64_t corr_at;
     unsigned long seen;
 } Axis;
-static Axis yaw_axis = {.r = 1, .before_r = 1}, pitch_axis = {.r = 1, .before_r = 1};
+SAVED static Axis yaw_axis = {.r = 1, .before_r = 1}, pitch_axis = {.r = 1, .before_r = 1};
 
 /* The game's last two frames' cameras: view matrices (4x3, as gpu.c's), targets, eyes; have: how many are recorded */
-static float views[2][12], targets[2][3], eyes[2][3];
-static float view_before[12];           /* the frame's before the previous (what some models were placed with) */
+SAVED static float views[2][12], targets[2][3], eyes[2][3];
+SAVED static float view_before[12];           /* the frame's before the previous (what some models were placed with) */
 /* The cameras the frames were drawn with, as the game had them: views and view_before are the frames' as shown - the
  * same, but at the native frame rate where the game's camera moves only at 30ths (as it does where nothing is converted:
  * the village): then they are between its places at the last two 30ths, one 30th behind, as what ticks at 30 is drawn
  * (gpu.c) */
-static float game_views[2][12], game_view_before[12];
-static float target_before[3], eye_before[3];
+SAVED static float game_views[2][12], game_view_before[12];
+SAVED static float target_before[3], eye_before[3];
 /* gpu.c: the frames shown are drawn with the camera of the update before theirs - and so are a frame behind what the
  * camera follows: the target (and eye) followed are then the frame's before */
-static int frames_late;
+SAVED static int frames_late;
 
 void camera_frames_late(int late) {
     frames_late = late;
 }
-static int have;
+SAVED static int have;
 
 static float wrap(float a) {
     while (a > PI) a -= 2 * PI;
@@ -157,7 +158,7 @@ static float axis_shown(Axis *x, float t, int interpolating, float unread) {
 
 /* The presets the mouse has pitched: the eye's distance from where it looks, its angle above it, and what was last
  * written (if the game has written something else since, it is the game's preset again) */
-static struct { uint32_t addr; float radius, angle, height, distance; } pitched[16];
+SAVED static struct { uint32_t addr; float radius, angle, height, distance; } pitched[16];
 
 /* Pitch the preset by `by` (radians, up); returns how much it pitched (less at the limits) */
 static float pitch(uint32_t preset, float by) {
@@ -206,8 +207,8 @@ float rt_frame_30ths(void);
 void gpu_camera_between(const float *a, const float *b, float t, float *out);
 static int camera_between_30ths(const float *view, const float *e, const float *t, float *out, float *out_eye,
                                  float *out_target) {
-    static float at30[2][12], eye30[2][3], target30[2][3], last[12];
-    static int have30, moved, slow;
+    SAVED static float at30[2][12], eye30[2][3], target30[2][3], last[12];
+    SAVED static int have30, moved, slow;
     if (rt_frame_30ths() > 0.999f) {
         have30 = 0;
         return 0;

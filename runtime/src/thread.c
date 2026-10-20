@@ -6,6 +6,7 @@
  * calls and in the idle loop, on an interrupt context of their own, and may not block. See docs/runtime.md. */
 #define _GNU_SOURCE
 #include "hle.h"
+#include "savestate.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -17,7 +18,7 @@
 enum { TS_RUNNING = 1, TS_READY = 2, TS_WAITING = 4, TS_SUSPEND = 8, TS_DORMANT = 16, TS_DEAD = 32 };
 enum { WAIT_NONE, WAIT_SLEEP, WAIT_DELAY, WAIT_SEMA, WAIT_EVENTFLAG, WAIT_THREADEND };
 
-#define HOST_STACK_SIZE (2u << 20)
+#define HOST_STACK_SIZE ST_STACK_SIZE
 #define THREAD_RETURN 0x08000000u      /* ra for a thread's entry: returning from it ends the thread */
 
 typedef struct Thread {
@@ -62,7 +63,7 @@ typedef struct Callback {
     struct Callback *next;
 } Callback;
 
-static Callback *callbacks;
+SAVED static Callback *callbacks;
 static void run_callbacks(void);
 
 typedef struct {
@@ -75,22 +76,22 @@ typedef struct {
     uint32_t handler, common;
 } VTimer;
 
-static Thread *threads;
-static Thread *current;
+SAVED static Thread *threads;
+SAVED static Thread *current;
 static ucontext_t sched_uc;
-static uint32_t module_gp;
-static int dispatch_enabled = 1;
-static int intr_enabled = 1;
-static int in_interrupt;
-static uint64_t next_vblank;
-static uint64_t vblank_count;
+SAVED static uint32_t module_gp;
+SAVED static int dispatch_enabled = 1;
+SAVED static int intr_enabled = 1;
+SAVED static int in_interrupt;
+SAVED static uint64_t next_vblank;
+SAVED static uint64_t vblank_count;
 /* the schedule since the rate was last set: vblank number base_count + 1 comes at base_us */
-static uint64_t vblank_base_us, vblank_base_count;
-static unsigned long tick_switch_frame;                 /* MHFU_TICK_HZ=N@frame: the rate from that game frame */
-static int tick_switch_hz;
+SAVED static uint64_t vblank_base_us, vblank_base_count;
+SAVED static unsigned long tick_switch_frame;                 /* MHFU_TICK_HZ=N@frame: the rate from that game frame */
+SAVED static int tick_switch_hz;
 
 #define MAX_VTIMERS 16
-static VTimer *vtimers[MAX_VTIMERS];
+SAVED static VTimer *vtimers[MAX_VTIMERS];
 
 /* -- time --------------------------------------------------------------------------------------------------------- */
 
@@ -98,15 +99,15 @@ static VTimer *vtimers[MAX_VTIMERS];
  * stands still while the game runs and moves only when every thread waits - to what they wait for (a vblank, a timer, a
  * timeout), when the wall clock gets there; fast-forwarding, at once. A slow host slows the game rather than making it
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
-float rt_time_scale = 1;
-int rt_tick30 = 1;
-int rt_ticks60 = 2;
-int rt_frame30 = 1;
-static float tick_scale = 1;        /* 30 / the game's frames a second */
-static float tick30_phase;           /* 30ths of a second gone by, since the last whole one */
-static uint64_t now_us;
+SAVED float rt_time_scale = 1;
+SAVED int rt_tick30 = 1;
+SAVED int rt_ticks60 = 2;
+SAVED int rt_frame30 = 1;
+SAVED static float tick_scale = 1;        /* 30 / the game's frames a second */
+SAVED static float tick30_phase;           /* 30ths of a second gone by, since the last whole one */
+SAVED static uint64_t now_us;
 static uint64_t wall_base;          /* the wall clock (us) when the game's clock was 0, for pacing */
-static uint64_t epoch_us;           /* the date and time (us since 1970) when the game's clock was 0 */
+SAVED static uint64_t epoch_us;           /* the date and time (us since 1970) when the game's clock was 0 */
 int fast_forward(void);
 
 static uint64_t wall_us(void) {
@@ -178,7 +179,7 @@ static void advance_to(uint64_t until) {
 }
 
 #define VBLANK_US_NUM 1001000u        /* 59.94 Hz: a vblank every 1001000 / 60 us */
-static unsigned vblank_den = 60;      /* MHFU_VBLANK_HZ (an experiment): vblanks a second, times 1.001 */
+SAVED static unsigned vblank_den = 60;      /* MHFU_VBLANK_HZ (an experiment): vblanks a second, times 1.001 */
 #define VBLANK_US_DEN vblank_den
 
 uint32_t kernel_gp(void) { return module_gp; }
@@ -215,7 +216,7 @@ int rt_next_frame30(void) {
 
 /* The game's time in 30ths of a second (its frames, at its own rate), as of the last frame presented; and the 30ths a
  * frame (the renderer's clocks: render_scene.c, gpu.c) */
-static double game_30ths;
+SAVED static double game_30ths;
 
 double rt_game_30ths(void) {
     return game_30ths;
@@ -237,9 +238,9 @@ void tick_frame(unsigned long frame) {
 /* -- interrupts --------------------------------------------------------------------------------------------------- */
 
 #define MAX_SUBINTR 16
-static struct { uint32_t handler, arg; int enabled; } subintr[64][MAX_SUBINTR];
-static Ctx intr_ctx;
-static uint32_t intr_stack_top;
+SAVED static struct { uint32_t handler, arg; int enabled; } subintr[64][MAX_SUBINTR];
+SAVED static Ctx intr_ctx;
+SAVED static uint32_t intr_stack_top;
 
 void interrupt_call(uint32_t handler, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t t0, uint32_t t1,
                     uint32_t t2) {
@@ -393,15 +394,14 @@ static void thread_main(void) {
     Thread *t = current;
     rt_call(&t->ctx, t->entry);
     thread_end(t, t->ctx.r[2]);
-    /* uc_link: back to the scheduler */
+    /* back to the scheduler - itself, not by returning to glibc's trampoline (uc_link), whose place changes from run to
+     * run (a save state's stacks have it: savestate.c) */
+    setcontext(&sched_uc);
 }
 
 static void make_coroutine(Thread *t) {
     if (!t->host_stack) {
-        t->host_stack = mmap(NULL, HOST_STACK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_STACK,
-                             -1, 0);
-        if (t->host_stack == MAP_FAILED)
-            rt_fatal(NULL, "out of memory for a thread's stack");
+        t->host_stack = st_stack_alloc();
     }
     getcontext(&t->uc);
     t->uc.uc_stack.ss_sp = t->host_stack;
@@ -411,11 +411,28 @@ static void make_coroutine(Thread *t) {
     t->has_coroutine = 1;
 }
 
+/* The used part of each thread's host stack (savestate.c): from its stack pointer as it waits (less the 128 bytes
+ * below it a function may use) to its top */
+void thread_stack_spans(void (*f)(void *lo, size_t size)) {
+    for (Thread *t = threads; t; t = t->next) {
+        if (!t->has_coroutine || !t->host_stack || t == current)
+            continue;
+        uint8_t *top = (uint8_t *)t->host_stack + HOST_STACK_SIZE;
+        uint8_t *lo = (uint8_t *)t->uc.uc_mcontext.gregs[REG_RSP] - 128;
+        if (lo < (uint8_t *)t->host_stack)
+            lo = t->host_stack;
+        if (lo < top)
+            f(lo, (size_t)(top - lo));
+    }
+}
+
 void scheduler_run(void) {
     for (;;) {
         process_events();
         Thread *t = highest_ready();
         if (!t) {
+            if (state_point())              /* (every thread waits: a save state saved or loaded here) */
+                continue;
             uint64_t next = next_event(), display = present_pump();
             advance_to(display < next ? display : next);
             continue;
@@ -434,7 +451,7 @@ void scheduler_run(void) {
 /* -- thread creation ---------------------------------------------------------------------------------------------- */
 
 static Thread *new_thread(const char *name, uint32_t entry, uint32_t prio, uint32_t stack_size, uint32_t attr) {
-    Thread *t = calloc(1, sizeof *t);
+    Thread *t = st_calloc(1, sizeof *t);
     snprintf(t->name, sizeof t->name, "%s", name);
     t->entry = entry;
     t->init_prio = t->prio = prio;
@@ -541,9 +558,9 @@ static void thread_delete(Thread *t) {
     kmem_free(t->stack);
     /* the host stack of a thread that is running is freed by nothing: it is the one we are on */
     if (t != current && t->host_stack)
-        munmap(t->host_stack, HOST_STACK_SIZE);
+        st_stack_free(t->host_stack);
     if (t != current)
-        free(t);
+        st_free(t);
 }
 
 /* -- HLE: threads ------------------------------------------------------------------------------------------------- */
@@ -764,7 +781,7 @@ void hle_sceKernelEnableSubIntr(Ctx *c) {
 /* -- HLE: semaphores ---------------------------------------------------------------------------------------------- */
 
 void hle_sceKernelCreateSema(Ctx *c) {
-    Sema *s = calloc(1, sizeof *s);
+    Sema *s = st_calloc(1, sizeof *s);
     snprintf(s->name, sizeof s->name, "%s", hle_string(c, ARG0));
     s->attr = ARG1;
     s->count = (int32_t)ARG2;
@@ -797,7 +814,7 @@ void hle_sceKernelDeleteSema(Ctx *c) {
         if (t->status == TS_WAITING && t->wait_type == WAIT_SEMA && t->wait_uid == s->uid)
             wake(t, SCE_KERNEL_ERROR_WAIT_DELETE);
     kobj_free(s->uid);
-    free(s);
+    st_free(s);
     RET(0);
     maybe_yield();
 }
@@ -875,7 +892,7 @@ static void evf_take(EventFlag *e, uint32_t bits, uint32_t mode, uint32_t out) {
 }
 
 void hle_sceKernelCreateEventFlag(Ctx *c) {
-    EventFlag *e = calloc(1, sizeof *e);
+    EventFlag *e = st_calloc(1, sizeof *e);
     snprintf(e->name, sizeof e->name, "%s", hle_string(c, ARG0));
     e->attr = ARG1;
     e->bits = ARG2;
@@ -893,7 +910,7 @@ void hle_sceKernelDeleteEventFlag(Ctx *c) {
         if (t->status == TS_WAITING && t->wait_type == WAIT_EVENTFLAG && t->wait_uid == e->uid)
             wake(t, SCE_KERNEL_ERROR_WAIT_DELETE);
     kobj_free(e->uid);
-    free(e);
+    st_free(e);
     RET(0);
     maybe_yield();
 }
@@ -972,7 +989,7 @@ void hle_sceKernelPollEventFlag(Ctx *c) {
  * them, when it waits in one of the kernel's ...CB calls: func(notifications, argument, common argument). */
 
 void hle_sceKernelCreateCallback(Ctx *c) {
-    Callback *cb = calloc(1, sizeof *cb);
+    Callback *cb = st_calloc(1, sizeof *cb);
     snprintf(cb->name, sizeof cb->name, "%s", hle_string(c, ARG0));
     cb->func = ARG1;
     cb->arg = ARG2;
@@ -1027,7 +1044,7 @@ void hle_sceKernelSysClock2USecWide(Ctx *c) {
 }
 
 void hle_sceKernelCreateVTimer(Ctx *c) {
-    VTimer *v = calloc(1, sizeof *v);
+    VTimer *v = st_calloc(1, sizeof *v);
     snprintf(v->name, sizeof v->name, "%s", hle_string(c, ARG0));
     v->uid = kobj_new(OBJ_VTIMER, v);
     for (int i = 0; i < MAX_VTIMERS; i++)

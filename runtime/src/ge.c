@@ -1,6 +1,7 @@
 /* The GE (graphics engine): display lists queued by the game, walked as the hardware would - jumps, calls, returns,
  * the stall address, FINISH and SIGNAL raising the game's callbacks - each command going to the renderer (gpu.c). */
 #include "hle.h"
+#include "savestate.h"
 #include "render_queue.h"
 
 #include <stdlib.h>
@@ -22,10 +23,10 @@ int native_chunk_at(uint32_t at);
 void gpu_held_chunk(int chunk);
 void gpu_held_draw(int chunk);
 
-static GeList lists[MAX_LISTS];
-static uint32_t next_id = 0x35000000u;     /* as the PSP numbers them */
-static struct { int used; uint32_t signal_func, signal_arg, finish_func, finish_arg; } callbacks[MAX_CALLBACKS];
-static uint32_t edram_translation = 0x400;
+SAVED static GeList lists[MAX_LISTS];
+SAVED static uint32_t next_id = 0x35000000u;     /* as the PSP numbers them */
+SAVED static struct { int used; uint32_t signal_func, signal_arg, finish_func, finish_arg; } callbacks[MAX_CALLBACKS];
+SAVED static uint32_t edram_translation = 0x400;
 
 static unsigned long cmd_count[256], prim_count[8];
 static int ge_stats;
