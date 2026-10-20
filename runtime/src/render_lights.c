@@ -151,8 +151,7 @@ static void make_point_lights(void) {
         l[j].weight = w;
     }
     /* the warm ones (fire: red over green over blue) near what the camera looks at, smoothed from frame to frame -
-     * a light found again near where one was eases to its new colour and strength, one gone fades out: slowly once
-     * it has been seen for a while (a fire), at once before (a flash: a greatsword's charge, a spell) */
+     * a light found again near where one was eases to its new colour and strength, one gone fades out (below) */
     typedef struct { float pos[3], color[3], strength, power, age; int seen; } Smoothed;
     static Smoothed lit[MAX_POINT_LIGHTS];
     static uint64_t last_us;
@@ -210,9 +209,21 @@ static void make_point_lights(void) {
         lit[k].seen = 1;
     }
     memset(point_lights, 0, sizeof point_lights);
+    /* one gone: a fire out of view fades by half in ten seconds (the game draws no flames there, they are still
+     * burning); one in view, or a flash, at once */
+    float clip[16];
+    int have_clip = world_to_clip(scene.view, scene.world_view, clip);
     for (int i = 0; i < MAX_POINT_LIGHTS; i++)
-        if (!lit[i].seen)                   /* a fire: half in ten seconds (out of view the game draws no flames); */
-            lit[i].strength *= lit[i].age >= LIGHT_FIRE_AGE ? 0.9995f : expf(-dt / 0.1f);     /* a flash: gone */
+        if (!lit[i].seen) {
+            int in_view = 0;
+            if (have_clip) {
+                float c[4];
+                for (int r = 0; r < 4; r++)
+                    c[r] = clip[r] * lit[i].pos[0] + clip[4 + r] * lit[i].pos[1] + clip[8 + r] * lit[i].pos[2] + clip[12 + r];
+                in_view = c[3] > 0 && fabsf(c[0]) <= c[3] && fabsf(c[1]) <= c[3];
+            }
+            lit[i].strength *= lit[i].age >= LIGHT_FIRE_AGE && !in_view ? 0.9995f : expf(-dt / 0.1f);
+        }
     /* the brightest first (as they give light, not capped), the nearer the more. The first two (of the first set)
      * have shadows, and keep them - and their cube maps - until another is half as bright again */
     static int shadowed[2] = {-1, -1};
