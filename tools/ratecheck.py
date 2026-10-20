@@ -157,9 +157,11 @@ def counter_steps(words, a, b):
 
 
 def path_length(frames, a, b):
+    """The ground covered over frames a..b, from where the hunter is at each whole 30th (both runs measured alike:
+    every frame at 60 would add up twice the jitter)"""
+    pts = [f[2] for f in frames[a:b + 1] if abs(f[0] - round(f[0])) < 1e-6]
     s = 0.0
-    for i in range(a + 1, b + 1):
-        p, q = frames[i - 1][2], frames[i][2]
+    for p, q in zip(pts, pts[1:]):
         s += ((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2) ** 0.5
     return s
 
