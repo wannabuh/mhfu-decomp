@@ -145,9 +145,14 @@ def counter_steps(words, a, b):
     for size, view in ((4, w), (2, w.view(np.uint16)), (1, w.view(np.uint8))):
         d = np.diff(view.astype(np.int64), axis=0) & ((1 << (8 * size)) - 1)
         moves = (d != 0).sum(axis=0)
-        ones = ((d == 1) | (d == (1 << (8 * size)) - 1)).sum(axis=0)
+        is_one = (d == 1) | (d == (1 << (8 * size)) - 1)
+        ones = is_one.sum(axis=0)
         ones[np.repeat(floaty, 4 // size)] = 0
-        out[size] = (ones, moves)
+        # the frames from its first step by 1 to its last: what it counted over (an action may wait on after)
+        first = np.argmax(is_one, axis=0)
+        last = is_one.shape[0] - 1 - np.argmax(is_one[::-1], axis=0)
+        span = np.where(ones > 0, last - first + 1, 1)
+        out[size] = (ones, moves, span)
     return out
 
 
@@ -214,14 +219,16 @@ def compare(f30, f60, min_len):
             n30 = a1 - a0
             c30, c60 = counter_steps(w30, a0, a1), counter_steps(w60, b0, b1)
             for size in (4, 2, 1):
-                o30, m30 = c30[size]
-                o60, _ = c60[size]
-                cand = np.nonzero((o30 >= 4) & (o30 >= 0.6 * n30) & (m30 <= o30 + 2))[0]
+                o30, m30, sp30 = c30[size]
+                o60, _, sp60 = c60[size]
+                cand = np.nonzero((o30 >= 4) & (o30 >= 0.6 * sp30) & (m30 <= o30 + 2))[0]
                 for idx in cand:
                     off = int(idx) * size
                     if off // 4 == ACTION // 4:
                         continue
-                    r30, r60 = o30[idx] / d30, o60[idx] / d60      # steps a 30th
+                    # steps a 30th, over the frames it counted in (a frame a 30th at 30, half one at 60)
+                    r30 = o30[idx] / float(sp30[idx])
+                    r60 = o60[idx] / (float(sp60[idx]) * 0.5) if o60[idx] else 0.0
                     if r60 > 1.6 * r30 or r60 < 0.6 * r30:
                         found.append(f"+{off:04X} ({size} bytes) steps {r60:.2f} times a 30th at 60, {r30:.2f} at 30")
             l30, l60 = path_length(f30, a0, a1), path_length(f60, b0, b1)
