@@ -1601,6 +1601,74 @@ static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorS
     vkCmdDraw(cmd, 3, 1, 0, 0);
 }
 
+/* A note on the screen for a moment (a save state saved, loaded...): capitals, figures and a few signs, in a 5 x 7
+ * font, light on a dark box at the top - drawn into the frame shown, as cleared rectangles */
+static char note_text[64];
+static double note_until;
+
+uint64_t wall_time_us(void);         /* (thread.c) */
+
+static double note_clock(void) {
+    return (double)wall_time_us() / 1e6;
+}
+
+void render_note(const char *text) {
+    size_t n = 0;
+    for (; text[n] && n + 1 < sizeof note_text; n++)
+        note_text[n] = text[n] >= 'a' && text[n] <= 'z' ? (char)(text[n] - 32) : text[n];
+    note_text[n] = 0;
+    note_until = note_clock() + 2.5;
+}
+
+static const uint8_t *note_glyph(char ch) {
+    static const char signs[] = ":()-./";
+    static const uint8_t letters[26][7] = {
+        {14, 17, 17, 31, 17, 17, 17}, {30, 17, 17, 30, 17, 17, 30}, {14, 17, 16, 16, 16, 17, 14}, {30, 17, 17, 17, 17, 17, 30},
+        {31, 16, 16, 30, 16, 16, 31}, {31, 16, 16, 30, 16, 16, 16}, {14, 17, 16, 23, 17, 17, 15}, {17, 17, 17, 31, 17, 17, 17},
+        {14, 4, 4, 4, 4, 4, 14}, {7, 2, 2, 2, 2, 18, 12}, {17, 18, 20, 24, 20, 18, 17}, {16, 16, 16, 16, 16, 16, 31},
+        {17, 27, 21, 21, 17, 17, 17}, {17, 17, 25, 21, 19, 17, 17}, {14, 17, 17, 17, 17, 17, 14}, {30, 17, 17, 30, 16, 16, 16},
+        {14, 17, 17, 17, 21, 18, 13}, {30, 17, 17, 30, 20, 18, 17}, {15, 16, 16, 14, 1, 1, 30}, {31, 4, 4, 4, 4, 4, 4},
+        {17, 17, 17, 17, 17, 17, 14}, {17, 17, 17, 17, 17, 10, 4}, {17, 17, 17, 21, 21, 21, 10}, {17, 17, 10, 4, 10, 17, 17},
+        {17, 17, 17, 10, 4, 4, 4}, {31, 1, 2, 4, 8, 16, 31}};
+    static const uint8_t figures[10][7] = {
+        {14, 17, 19, 21, 25, 17, 14}, {4, 12, 4, 4, 4, 4, 14}, {14, 17, 1, 2, 4, 8, 31}, {31, 2, 4, 2, 1, 17, 14},
+        {2, 6, 10, 18, 31, 2, 2}, {31, 16, 30, 1, 1, 17, 14}, {6, 8, 16, 30, 17, 17, 14}, {31, 1, 2, 4, 8, 8, 8},
+        {14, 17, 17, 14, 17, 17, 14}, {14, 17, 17, 15, 1, 2, 12}};
+    static const uint8_t sign[6][7] = {{0, 12, 12, 0, 12, 12, 0}, {2, 4, 8, 8, 8, 4, 2}, {8, 4, 2, 2, 2, 4, 8},
+                                       {0, 0, 0, 31, 0, 0, 0}, {0, 0, 0, 0, 0, 12, 12}, {1, 1, 2, 4, 8, 16, 16}};
+    if (ch >= 'A' && ch <= 'Z')
+        return letters[ch - 'A'];
+    if (ch >= '0' && ch <= '9')
+        return figures[ch - '0'];
+    const char *at = ch ? strchr(signs, ch) : NULL;
+    return at ? sign[at - signs] : NULL;
+}
+
+static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
+    if (!note_text[0] || note_clock() > note_until)
+        return;
+    int dot = (int)h / 240 > 2 ? (int)h / 240 : 2, n = (int)strlen(note_text);
+    int width = n * 6 * dot + 3 * dot, height = 13 * dot;
+    int x0 = ((int)w - width) / 2, y0 = 4 * dot;
+    static VkClearRect rects[64 * 35 + 1];
+    int nr = 0;
+    rects[nr++] = (VkClearRect){{{x0, y0}, {(uint32_t)width, (uint32_t)height}}, 0, 1};
+    VkClearAttachment box = {VK_IMAGE_ASPECT_COLOR_BIT, 0, {{{0.05f, 0.05f, 0.06f, 1}}}};
+    vkCmdClearAttachments(cmd, 1, &box, 1, rects);
+    nr = 0;
+    for (int i = 0; i < n; i++) {
+        const uint8_t *g = note_glyph(note_text[i]);
+        for (int row = 0; g && row < 7; row++)
+            for (int col = 0; col < 5; col++)
+                if (g[row] >> (4 - col) & 1)
+                    rects[nr++] = (VkClearRect){{{x0 + 2 * dot + (i * 6 + col) * dot, y0 + 3 * dot + row * dot},
+                                                 {(uint32_t)dot, (uint32_t)dot}}, 0, 1};
+    }
+    VkClearAttachment ink = {VK_IMAGE_ASPECT_COLOR_BIT, 0, {{{0.92f, 0.9f, 0.82f, 1}}}};
+    if (nr)
+        vkCmdClearAttachments(cmd, 1, &ink, (uint32_t)nr, rects);
+}
+
 void render_flip(uint32_t addr) {
     render_queue_sync();                /* (called from outside: the renderer's own again) */
     ao_finish();
@@ -1647,6 +1715,7 @@ void render_flip(uint32_t addr) {
                           NULL};
     vkCmdBeginRendering(cmd, &ri);
     present_draw(cmd, present_pipeline, present_sets[vk.frame], vk.swap_extent.width, vk.swap_extent.height);
+    draw_note(cmd, vk.swap_extent.width, vk.swap_extent.height);
     vkCmdEndRendering(cmd);
     vk_transition(&swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vk_submit(vk.acquired, vk.rendered);

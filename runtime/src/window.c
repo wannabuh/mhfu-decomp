@@ -191,6 +191,7 @@ static void test_mouse(void) {
 
 /* A note in the window's title (the save state slot, a state saved or loaded) */
 void window_note(const char *text) {
+    render_note(text);
     if (!window)
         return;
     char title[256];

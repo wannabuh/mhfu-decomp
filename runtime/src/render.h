@@ -62,3 +62,6 @@ uint32_t render_texture(const uint32_t *regs, int *w, int *h);
 void render_override_texture(uint32_t slot, int w, int h);
 
 #endif
+
+/* A note on the screen for a moment (a save state saved, loaded...) */
+void render_note(const char *text);
