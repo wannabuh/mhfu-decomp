@@ -164,6 +164,8 @@ again for each), near all of a 144th.
 | a character's turn | `088D6B00`: the facing's step to where it goes (+0x1F4) and its lean (+0x41A) times the time scale | turns as fast as at 30 |
 | the sprint | `09A9E288`: its push forward (5 units a game frame) times the time scale, its stamina (`09A6A480`, -1) a 30th | runs as far, tires as fast |
 | the hunter in the air | falling (`09A9C530`) and the other leaps and flights (`09A905F0`, `09A99928`): the velocity's step (+0x240 by +0x250) and the place's (+0x200 by the velocity) times the time scale; the actions' counts (+0x414, 9 places) in 30ths | falls as fast and as far as at 30 (a cliff: 22 30ths, 404 units at 30; 22.5, 411 at 144) - 4.8 times as fast at 144 before |
+| an action's counts | every `addiu $x, $x, ±1` stored straight back to +0x414 (an action's count) or +0x672 (a charge's time) in `game_task`: in 30ths (`recomp.py` `count_step`, `patches.py` `COUNTED`; 426 places) | a ledge's hang, a greatsword's charge (it ran out in half the time: 90 30ths at 30), and the long tail of actions timed so |
+| the air's step | `EBOOT 08865E94` (a character's velocity +0x240 += acceleration, place +0x200 += velocity, VFPU): both adds times the time scale | the jump up to a ledge as at 30 (13 30ths; 6.5 at 60 before) |
 | a motion's frame reached | `08864348` (3120 callers: sounds, effects, hits at a motion's frame N): N within the player's next step - its speed times the time scale | each fires once; the attacks' sounds were started up to 5 times at 144 |
 | a character's upkeep | gated whole (the call of its vtable's +0x3C, `088659AC`): stamina, hunger (a 6-minute count, +0x632), status and skills' timers | as at 30 |
 

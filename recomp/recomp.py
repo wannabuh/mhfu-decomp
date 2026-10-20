@@ -22,7 +22,7 @@ import rabbitizer  # noqa: E402
 rabbitizer.config.pseudos_enablePseudos = False
 
 import modules  # noqa: E402
-from patches import GATES, PATCHES  # noqa: E402
+from patches import COUNTED, GATES, PATCHES  # noqa: E402
 
 # RECOMP_TRACE=hex,...: functions whose every call is logged at run time (MHFU_CALL_LOG: native.c), for finding who
 # calls what at which rate
@@ -80,6 +80,7 @@ def vfpu_op(name):
 class Translator:
     def __init__(self, mods, functions):
         self.patched = 0
+        self.counted = 0
         self.gated = 0
         self.mods = mods
         self.by_name = {m.name: m for m in mods}
@@ -106,6 +107,29 @@ class Translator:
             return f"hle_call(c, {hx(target)});"
         return f"rt_call(c, {hx(target)});"
 
+    def count_step(self, mod, a):
+        """A count of game frames (patches.py COUNTED): addiu $x, $x, 1 (or -1) stored back by the next instruction to
+        one of the module's counted fields (or by the one after, a branch between) - the step a 30th, not a game
+        frame"""
+        fields = COUNTED.get(mod.name)
+        if not fields:
+            return None
+        w = mod.ins(a).getRaw()
+        rs, rt, imm = (w >> 21) & 31, (w >> 16) & 31, w & 0xFFFF
+        if w >> 26 != 0x09 or rs != rt or rt == 0 or imm not in (1, 0xFFFF):
+            return None
+        for b in (a + 4, a + 8):
+            if not mod.in_text(b):
+                return None
+            x = mod.ins(b).getRaw()
+            if x >> 26 in (0x28, 0x29, 0x2B) and (x >> 16) & 31 == rt and (x & 0xFFFF) in fields:
+                self.counted += 1
+                return (f"{R(rt)} = {R(rs)} {'+' if imm == 1 else '-'} (uint32_t)rt_tick30;"
+                        " /* counted in 30ths (recomp/patches.py COUNTED) */")
+            if b == a + 4 and not (mod.ins(b).isBranch() or mod.ins(b).doesStore()):
+                return None
+        return None
+
     # -- one instruction (not control flow) --------------------------------------------------------------------
     def op(self, mod, a):
         i = mod.ins(a)
@@ -116,6 +140,9 @@ class Translator:
                 raise SystemExit(f"patch at {mod.name} {a:#x}: expected {expected!r}, found {i.disassemble()!r}")
             self.patched += 1
             return code + " /* patched (recomp/patches.py) */"
+        step = self.count_step(mod, a)
+        if step:
+            return step
         n = i.uniqueId.name
         w = i.getRaw()
         rs, rt, rd = (w >> 21) & 31, (w >> 16) & 31, (w >> 11) & 31
@@ -468,7 +495,8 @@ def main():
         out.write("const RecompImport recomp_imports[] = {\n")
         out.write("".join(f"    {{{hx(a)}, \"{lib}\", {hx(nid)}}},\n" for a, (lib, nid) in imps))
         out.write(f"}};\nconst int recomp_nimports = {len(imps)};\n")
-    print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched, {tr.gated} gated",
+    print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched, {tr.counted} counts in 30ths, "
+          f"{tr.gated} gated",
           file=sys.stderr)
     if not args.modules and tr.patched != len(PATCHES):
         raise SystemExit(f"{len(PATCHES) - tr.patched} patches in recomp/patches.py were not applied")

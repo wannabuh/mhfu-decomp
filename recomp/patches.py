@@ -41,6 +41,16 @@ BLEND = "the motion player: a blend's weight step times the time scale, its coun
 # lasted) counted in 30ths
 AIR = "the hunter in the air: its velocity's and its place's steps a game frame times the time scale"
 ACTION = "a hunter's action's count of game frames (+0x414): counted in 30ths"
+# The air's step (EBOOT 08865E94, a character's: velocity +0x240 += acceleration +0x250, place +0x200 += velocity, in
+# VFPU columns C010, C020, C000) - the hunter's jump up to a ledge, among others
+AIRSTEP = "a character's step in the air (velocity and place, a game frame's) times the time scale"
+
+# Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
+# of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
+# (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
+COUNTED = {
+    "game_task": {0x414, 0x672},
+}
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
@@ -149,7 +159,9 @@ PATCHES = {
     ("EBOOT", 0x088CAEB4): ("sb $zero, 0x3D4($s0)", "if (rt_next_frame30()) SB((c->r[16] + 0x3D4u), 0);", ONCE),
     ("EBOOT", 0x0888FDF0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_frame30;", COUNT),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
-}
+    ("EBOOT", 0x08865EAC): ("vadd.t C010, C010, C020", "for (int i = 0; i < 3; i++) c->v[1 + 32 * i] += c->v[2 + 32 * i] * rt_time_scale;",
+                            AIRSTEP),
+    ("EBOOT", 0x08865EB0): ("vadd.t C000, C000, C010", "for (int i = 0; i < 3; i++) c->v[32 * i] += c->v[1 + 32 * i] * rt_time_scale;", AIRSTEP),
     ("game_task", 0x09A8CA64): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
     ("game_task", 0x09A90604): ("addiu $a2, $a2, 0x1", "c->r[6] = c->r[6] + (uint32_t)rt_tick30;", ACTION),
     ("game_task", 0x09A907F0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
@@ -177,3 +189,4 @@ PATCHES = {
     ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
     ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
     ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+}
