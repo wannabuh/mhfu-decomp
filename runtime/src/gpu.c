@@ -3475,6 +3475,14 @@ static void tl_group_draw(const TlGroup *g) {
     }
 }
 
+/* The Snowy Mountains' haze drawn (patches.py: its mist dome's and its snowstorm's draws), unless MHFU_SNOW_HAZE=0 */
+int rt_snow_haze(void) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_SNOW_HAZE") || atoi(getenv("MHFU_SNOW_HAZE")) != 0;
+    return on;
+}
+
 static void prim(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;

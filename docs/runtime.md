@@ -29,6 +29,14 @@ for the rest, in the order it is needed to boot.
   colour and depth are copied, and the water reads them - the picture under it bent by ripples (swells and drifting
   noise) and tinted by depth, the picture above reflected (marched through the depth, screen space; the sky where it
   leaves the picture), Fresnel, the sun's glint. Interpolated frames move scrolled textures' offsets on too.
+- **The Snowy Mountains' haze**: a dome of mist round the map (`game_sub 09CC0CE0`, an object's draw method, once a
+  frame in the snowfields and the ice cave) and the snowstorm's sheets of fog (`game_sub 09C57E08`) - big flat
+  triangles whose straight edges show as the camera turns. `MHFU_SNOW_HAZE=0` leaves both out (`patches.py` `SNOW`,
+  `gpu.c` `rt_snow_haze`); the falling snow stays.
+- **Ground grass's ground** (`grass.c` `grass_ground`): the scenery's triangles facing up laid into cells of 10 units,
+  each row's span of a triangle only. One within the grass's reach is laid once (its corners noted); one reaching
+  beyond is laid over the tiles about the camera and noted with them, laid again only over the tiles the camera brings
+  in - a cave's walls and roof reach far: laid again every 30th, they took the render thread 35 ms a frame there.
 - **Texture packs** (`texpack.c`): PPSSPP's - each texture's key worked out as PPSSPP does (its address, size and
   palette - the palette hashed as PPSSPP keeps it, bytes left from an earlier, bigger load included - and the `quick` /
   `xxh32` / `xxh64` hash of its data), checked against PPSSPP 1.20's own dumps of the same textures (names and pixels

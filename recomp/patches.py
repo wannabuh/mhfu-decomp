@@ -45,6 +45,12 @@ ACTION = "a hunter's action's count of game frames (+0x414): counted in 30ths"
 # VFPU columns C010, C020, C000) - the hunter's jump up to a ledge, among others
 AIRSTEP = "a character's step in the air (velocity and place, a game frame's) times the time scale"
 
+# The Snowy Mountains' haze, left out with MHFU_SNOW_HAZE=0 (gpu.c rt_snow_haze): the dome of mist round the map (an
+# object's draw method, game_sub 09CC0CE0, once a frame in the render pass: in the snowfields and the ice cave, not
+# elsewhere) - big flat triangles whose edges show as the camera turns - and the snowstorm's sheets of fog (the snow
+# weather's draw method, game_sub 09C57E08, called by 09C56EC0)
+SNOW = "the Snowy Mountains' haze drawn, unless MHFU_SNOW_HAZE=0"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -159,6 +165,10 @@ PATCHES = {
     ("EBOOT", 0x088CAEB4): ("sb $zero, 0x3D4($s0)", "if (rt_next_frame30()) SB((c->r[16] + 0x3D4u), 0);", ONCE),
     ("EBOOT", 0x0888FDF0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_frame30;", COUNT),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
+    ("game_sub", 0x09CC0CE0): ("addiu $sp, $sp, -0x110", "{ extern int rt_snow_haze(void); if (!rt_snow_haze()) return; } "
+                               "c->r[29] = c->r[29] + 0xFFFFFEF0u;", SNOW),
+    ("game_sub", 0x09C57E08): ("addiu $sp, $sp, -0x140", "{ extern int rt_snow_haze(void); if (!rt_snow_haze()) return; } "
+                               "c->r[29] = c->r[29] + 0xFFFFFEC0u;", SNOW),
     ("EBOOT", 0x08865EAC): ("vadd.t C010, C010, C020", "for (int i = 0; i < 3; i++) c->v[1 + 32 * i] += c->v[2 + 32 * i] * rt_time_scale;",
                             AIRSTEP),
     ("EBOOT", 0x08865EB0): ("vadd.t C000, C000, C010", "for (int i = 0; i < 3; i++) c->v[32 * i] += c->v[1 + 32 * i] * rt_time_scale;", AIRSTEP),

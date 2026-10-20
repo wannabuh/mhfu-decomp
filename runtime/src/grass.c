@@ -54,6 +54,14 @@ static int *tile_index;             /* hash: tile key -> index + 1 */
 static int index_size;
 static uint64_t *seen;              /* the triangles laid: their corners, rounded, hashed (0: empty) */
 static size_t seen_size, seen_used;
+/* The big triangles (reaching beyond the grass about the camera) laid: the tiles about the camera they were laid over
+ * - laid again only over the tiles the camera has brought in since */
+typedef struct {
+    uint64_t key;
+    int tx0, tx1, tz0, tz1;
+} Laid;
+static Laid *laid;
+static size_t laid_size, laid_used;
 static unsigned long frame;
 static double last_call = -1;       /* the moment (seconds of the game's) scenery was last drawn */
 static int probing, probe_known, probe_new;     /* after a gap: frames left to tell by; the ground drawn, known or new */
@@ -168,6 +176,9 @@ static void forget(void) {
     if (seen)
         memset(seen, 0, sizeof *seen * seen_size);
     seen_used = 0;
+    if (laid)
+        memset(laid, 0, sizeof *laid * laid_size);
+    laid_used = 0;
 }
 
 static Tile *tile_at(int tx, int tz, int make) {
@@ -258,12 +269,133 @@ void grass_frame(const float camera[3], double now) {
     memcpy(eye, camera, sizeof eye);
 }
 
+/* The ground's triangle being laid (grass_ground) */
+typedef struct {
+    const float (*p)[3], (*uv)[2], (*col)[3];
+    const uint32_t *tex;
+    int tw, th, doubled;
+    float e1[3], e2[3], d;
+    int8_t snx, snz;
+} Ground;
+
+/* Its cells from cx0..cx1, cz0..cz1 whose centres it covers (in x, z): each row's span of it only. 0 if the tiles ran
+ * out */
+static int lay(const Ground *G, int cx0, int cx1, int cz0, int cz1) {
+    const float (*p)[3] = G->p, (*uv)[2] = G->uv, (*col)[3] = G->col;
+    const float *e1 = G->e1, *e2 = G->e2;
+    const uint32_t *tex = G->tex;
+    float d = G->d;
+    int tw = G->tw, th = G->th, doubled = G->doubled;
+    int8_t snx = G->snx, snz = G->snz;
+    for (int cz = cz0; cz <= cz1; cz++) {
+        /* the row's span: where its centre line crosses the triangle's edges */
+        float z = ((float)cz + 0.5f) * CELL, lo = 1e30f, hi = -1e30f;
+        for (int k = 0; k < 3; k++) {
+            const float *a = p[k], *b = p[(k + 1) % 3];
+            if ((a[2] <= z && b[2] >= z) || (b[2] <= z && a[2] >= z)) {
+                float x = a[2] == b[2] ? fminf(a[0], b[0]) : a[0] + (b[0] - a[0]) * (z - a[2]) / (b[2] - a[2]);
+                float x2 = a[2] == b[2] ? fmaxf(a[0], b[0]) : x;
+                lo = fminf(lo, x);
+                hi = fmaxf(hi, x2);
+            }
+        }
+        if (lo > hi)
+            continue;
+        int rx0 = (int)floorf(lo / CELL) - 1, rx1 = (int)floorf(hi / CELL) + 1;
+        if (rx0 < cx0)
+            rx0 = cx0;
+        if (rx1 > cx1)
+            rx1 = cx1;
+        for (int cx = rx0; cx <= rx1; cx++) {
+                float x = ((float)cx + 0.5f) * CELL, z = ((float)cz + 0.5f) * CELL;
+                float px = x - p[0][0], pz = z - p[0][2];
+                float b1 = (px * e2[2] - e2[0] * pz) / d, b2 = (e1[0] * pz - px * e1[2]) / d, b0 = 1 - b1 - b2;
+                if (b0 < -1e-4f || b1 < -1e-4f || b2 < -1e-4f)
+                    continue;
+                float y = b0 * p[0][1] + b1 * p[1][1] + b2 * p[2][1];
+                int tx = (int)floorf((float)cx / TILE_CELLS), tz = (int)floorf((float)cz / TILE_CELLS);
+                Tile *t = tile_at(tx, tz, 1);
+                if (!t)
+                    return 0;
+                Cell *c = &t->cells[(cz - tz * TILE_CELLS) * TILE_CELLS + (cx - tx * TILE_CELLS)];
+                if (c->state) {
+                    if (y < c->y + 2.0f)        /* (the top surface wins: under it, or the same, kept) */
+                        continue;
+                }
+                /* its colour as drawn: the vertex colour (the scenery's light) times the texture's there */
+                float u = b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0], v = b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1];
+                float rgb[3] = {1, 1, 1};
+                int state = 1;
+                if (tex) {
+                    u -= floorf(u);
+                    v -= floorf(v);
+                    int ix = (int)(u * (float)tw), iy = (int)(v * (float)th);
+                    uint32_t texel = tex[(iy < th ? iy : th - 1) * tw + (ix < tw ? ix : tw - 1)];
+                    if ((texel >> 24) < 128)
+                        continue;
+                    for (int k = 0; k < 3; k++)
+                        rgb[k] = (float)((texel >> (8 * k)) & 255) / 255.0f;
+                }
+                int out[3];
+                for (int k = 0; k < 3; k++) {
+                    float cc = (b0 * col[0][k] + b1 * col[1][k] + b2 * col[2][k]) * rgb[k] * (doubled ? 2.0f : 1.0f);
+                    out[k] = cc > 255 ? 255 : cc < 0 ? 0 : (int)cc;
+                }
+                if (green(out[0], out[1], out[2]))
+                    state = 2;
+                c->y = y;
+                c->r = (uint8_t)out[0];
+                c->g = (uint8_t)out[1];
+                c->b = (uint8_t)out[2];
+                c->nx = snx;
+                c->nz = snz;
+                c->state = (uint8_t)state;
+                t->changed = frame;
+                t->dirty = 1;
+                t->lo = fminf(t->lo, y);
+                t->hi = fmaxf(t->hi, y);
+        }
+    }
+    return 1;
+}
+
+
+static Laid *laid_at(uint64_t key) {
+    if (laid_used * 2 >= laid_size) {
+        size_t old = laid_size;
+        Laid *was = laid;
+        laid_size = old ? old * 2 : 1024;
+        laid = calloc(laid_size, sizeof *laid);
+        laid_used = 0;
+        for (size_t i = 0; i < old; i++)
+            if (was[i].key) {
+                size_t j = was[i].key & (laid_size - 1);
+                while (laid[j].key)
+                    j = (j + 1) & (laid_size - 1);
+                laid[j] = was[i];
+                laid_used++;
+            }
+        free(was);
+    }
+    size_t j = key & (laid_size - 1);
+    while (laid[j].key && laid[j].key != key)
+        j = (j + 1) & (laid_size - 1);
+    if (!laid[j].key) {
+        laid[j].key = key;
+        laid[j].tx0 = laid[j].tz0 = 1;      /* (an empty box) */
+        laid[j].tx1 = laid[j].tz1 = 0;
+        laid_used++;
+    }
+    return &laid[j];
+}
+
 void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], const uint32_t *tex, int tw,
                   int th, int doubled) {
     if (density <= 0 || !build_buf)
         return;
     /* facing up, near */
-    float e1[3], e2[3], n[3];
+    Ground G = {p, uv, col, tex, tw, th, doubled, {0}, {0}, 0, 0, 0};
+    float *e1 = G.e1, *e2 = G.e2, n[3];
     for (int i = 0; i < 3; i++) {
         e1[i] = p[1][i] - p[0][i];
         e2[i] = p[2][i] - p[0][i];
@@ -283,73 +415,61 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
     float reach = radius + TILE;
     if (x1 < eye[0] - reach || x0 > eye[0] + reach || z1 < eye[2] - reach || z0 > eye[2] + reach)
         return;
-    /* (one reaching beyond is laid as far as it reaches, and again as the camera comes nearer: not noted) */
+    G.d = e1[0] * e2[2] - e2[0] * e1[2];
+    if (fabsf(G.d) < 1e-6f)
+        return;
+    G.snx = (int8_t)lroundf(n[0] / nl * 127);
+    G.snz = (int8_t)lroundf(n[2] / nl * 127);
     int whole = x0 >= eye[0] - reach && x1 <= eye[0] + reach && z0 >= eye[2] - reach && z1 <= eye[2] + reach;
-    int known = whole ? seen_before(p) : 0;
+    if (whole) {
+        int known = seen_before(p);
+        if (probing)
+            known ? probe_known++ : probe_new++;
+        if (known)
+            return;
+        lay(&G, (int)floorf(x0 / CELL), (int)floorf(x1 / CELL), (int)floorf(z0 / CELL), (int)floorf(z1 / CELL));
+        return;
+    }
+    /* one reaching beyond: laid over the tiles about the camera (as far as it reaches), but those it was laid over
+     * already */
+    uint64_t k = 0x6789;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            k = mix64(k ^ (uint64_t)(int64_t)lroundf(p[i][j]));
+    Laid *L = laid_at(k | 1);
+    int r = (int)ceilf(reach / TILE), etx = (int)floorf(eye[0] / TILE), etz = (int)floorf(eye[2] / TILE);
+    int tx0 = etx - r, tx1 = etx + r, tz0 = etz - r, tz1 = etz + r;
+    int bx0 = (int)floorf(x0 / TILE), bx1 = (int)floorf(x1 / TILE), bz0 = (int)floorf(z0 / TILE), bz1 = (int)floorf(z1 / TILE);
+    tx0 = tx0 > bx0 ? tx0 : bx0;
+    tx1 = tx1 < bx1 ? tx1 : bx1;
+    tz0 = tz0 > bz0 ? tz0 : bz0;
+    tz1 = tz1 < bz1 ? tz1 : bz1;
     if (probing)
-        known ? probe_known++ : probe_new++;
-    if (known)
-        return;
-    x0 = fmaxf(x0, eye[0] - reach);
-    x1 = fminf(x1, eye[0] + reach);
-    z0 = fmaxf(z0, eye[2] - reach);
-    z1 = fminf(z1, eye[2] + reach);
-    /* each cell whose centre it covers (in x, z) */
-    float d = e1[0] * e2[2] - e2[0] * e1[2];
-    if (fabsf(d) < 1e-6f)
-        return;
-    int cx0 = (int)floorf(x0 / CELL), cx1 = (int)floorf(x1 / CELL), cz0 = (int)floorf(z0 / CELL), cz1 = (int)floorf(z1 / CELL);
-    int8_t snx = (int8_t)lroundf(n[0] / nl * 127), snz = (int8_t)lroundf(n[2] / nl * 127);
-    for (int cz = cz0; cz <= cz1; cz++)
-        for (int cx = cx0; cx <= cx1; cx++) {
-            float x = ((float)cx + 0.5f) * CELL, z = ((float)cz + 0.5f) * CELL;
-            float px = x - p[0][0], pz = z - p[0][2];
-            float b1 = (px * e2[2] - e2[0] * pz) / d, b2 = (e1[0] * pz - px * e1[2]) / d, b0 = 1 - b1 - b2;
-            if (b0 < -1e-4f || b1 < -1e-4f || b2 < -1e-4f)
-                continue;
-            float y = b0 * p[0][1] + b1 * p[1][1] + b2 * p[2][1];
-            int tx = (int)floorf((float)cx / TILE_CELLS), tz = (int)floorf((float)cz / TILE_CELLS);
-            Tile *t = tile_at(tx, tz, 1);
-            if (!t)
-                return;
-            Cell *c = &t->cells[(cz - tz * TILE_CELLS) * TILE_CELLS + (cx - tx * TILE_CELLS)];
-            if (c->state) {
-                if (y < c->y + 2.0f)        /* (the top surface wins: under it, or the same, kept) */
-                    continue;
-            }
-            /* its colour as drawn: the vertex colour (the scenery's light) times the texture's there */
-            float u = b0 * uv[0][0] + b1 * uv[1][0] + b2 * uv[2][0], v = b0 * uv[0][1] + b1 * uv[1][1] + b2 * uv[2][1];
-            float rgb[3] = {1, 1, 1};
-            int state = 1;
-            if (tex) {
-                u -= floorf(u);
-                v -= floorf(v);
-                int ix = (int)(u * (float)tw), iy = (int)(v * (float)th);
-                uint32_t texel = tex[(iy < th ? iy : th - 1) * tw + (ix < tw ? ix : tw - 1)];
-                if ((texel >> 24) < 128)
-                    continue;
-                for (int k = 0; k < 3; k++)
-                    rgb[k] = (float)((texel >> (8 * k)) & 255) / 255.0f;
-            }
-            int out[3];
-            for (int k = 0; k < 3; k++) {
-                float cc = (b0 * col[0][k] + b1 * col[1][k] + b2 * col[2][k]) * rgb[k] * (doubled ? 2.0f : 1.0f);
-                out[k] = cc > 255 ? 255 : cc < 0 ? 0 : (int)cc;
-            }
-            if (green(out[0], out[1], out[2]))
-                state = 2;
-            c->y = y;
-            c->r = (uint8_t)out[0];
-            c->g = (uint8_t)out[1];
-            c->b = (uint8_t)out[2];
-            c->nx = snx;
-            c->nz = snz;
-            c->state = (uint8_t)state;
-            t->changed = frame;
-            t->dirty = 1;
-            t->lo = fminf(t->lo, y);
-            t->hi = fmaxf(t->hi, y);
+        L->tx0 <= tx0 && L->tx1 >= tx1 && L->tz0 <= tz0 && L->tz1 >= tz1 ? probe_known++ : probe_new++;
+    /* the new box less the old: the rows of tiles above and below it, and the columns either side between */
+    int ox0 = L->tx0, ox1 = L->tx1, oz0 = L->tz0, oz1 = L->tz1;
+    int ok = 1;
+    for (int tz = tz0; tz <= tz1 && ok; tz++) {
+        int in_rows = tz >= oz0 && tz <= oz1;
+        int a0 = tx0, a1 = tx1;
+        if (in_rows) {                      /* (the columns left of the old box, then right of it) */
+            if (a0 < ox0)
+                ok = lay(&G, a0 * TILE_CELLS, (ox0 < a1 + 1 ? ox0 : a1 + 1) * TILE_CELLS - 1, tz * TILE_CELLS,
+                         tz * TILE_CELLS + TILE_CELLS - 1);
+            if (ok && a1 > ox1)
+                ok = lay(&G, (ox1 + 1 > a0 ? ox1 + 1 : a0) * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1,
+                         tz * TILE_CELLS, tz * TILE_CELLS + TILE_CELLS - 1);
+        } else {
+            ok = lay(&G, a0 * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1, tz * TILE_CELLS,
+                     tz * TILE_CELLS + TILE_CELLS - 1);
         }
+    }
+    if (ok) {
+        L->tx0 = tx0;
+        L->tx1 = tx1;
+        L->tz0 = tz0;
+        L->tz1 = tz1;
+    }
 }
 
 static int grass_cell(const Tile *t, int cx, int cz) {
