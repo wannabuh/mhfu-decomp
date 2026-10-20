@@ -51,6 +51,12 @@ AIRSTEP = "a character's step in the air (velocity and place, a game frame's) ti
 # weather's draw method, game_sub 09C57E08, called by 09C56EC0)
 SNOW = "the Snowy Mountains' haze drawn, unless MHFU_SNOW_HAZE=0"
 
+# The hunter's countdowns in its byte +0x1D7 (an action's own: starting to run counts 9 game frames down) - each "while
+# above 0, less 1" a game frame, counted in 30ths; not its other steps, which are events (a greatsword's charge levels;
+# a count taken off as another timer runs out). And how long R (the sprint) has been held, up to 10 (+0x11B0, game_task
+# 09A703F0): found by tools/ratecheck.py, twice as fast at 60
+COUNTDOWN = "a hunter's countdown (+0x1D7) or R held (+0x11B0): its game frames counted in 30ths"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -172,6 +178,12 @@ PATCHES = {
     ("EBOOT", 0x08865EAC): ("vadd.t C010, C010, C020", "for (int i = 0; i < 3; i++) c->v[1 + 32 * i] += c->v[2 + 32 * i] * rt_time_scale;",
                             AIRSTEP),
     ("EBOOT", 0x08865EB0): ("vadd.t C000, C000, C010", "for (int i = 0; i < 3; i++) c->v[32 * i] += c->v[1 + 32 * i] * rt_time_scale;", AIRSTEP),
+    ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
+    ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
+    ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
+    ("game_task", 0x09A9BCA4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
+    ("game_task", 0x09BAE714): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
+    ("game_task", 0x09A70464): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8CA64): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
     ("game_task", 0x09A90604): ("addiu $a2, $a2, 0x1", "c->r[6] = c->r[6] + (uint32_t)rt_tick30;", ACTION),
     ("game_task", 0x09A907F0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", ACTION),
