@@ -182,6 +182,12 @@ patches see the time scale 1).
 
 ## How to carry on
 
+`tools/ratecheck.py REC --rate 30|60 [--saves DIR]` finds what still runs at the game's frame rate rather than in game
+time: the recording played at both rates (converted: frames halved or doubled), the hunter traced, compared action by
+action - an action longer or shorter at 60, a field that counts game frames (steps by 1 on most frames at 30, twice as
+often at 60), ground covered - until the runs part (the mouse's camera, converted, steers them apart in time). Its
+findings are offsets in the hunter: `tools/watch.py` finds what writes them.
+
 1. Open a gate (`MHFU_UNGATE`, then in `GATES`) and see what goes wrong at `MHFU_TICK_HZ=60@N` (twice as fast) -
    with a recording to get there and a few lines added to it for the input to try
    (`<frame> <buttons> <stick x> <stick y> 0 0`).
