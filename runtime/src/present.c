@@ -225,8 +225,12 @@ static void record_input(float mx, float my) {
     }
 }
 
-/* A state loaded (savestate.c): a recording of this run's input ends - its frames would go back */
+static uint64_t next_display;
+
+/* A state loaded (savestate.c): a recording of this run's input ends - its frames would go back -, and the frames
+ * shown are due again from now (by the game's clock, which went back with it: else none until it got to where it was) */
 void present_state_loaded(void) {
+    next_display = 0;
     if (record) {
         fprintf(stderr, "recording stopped: a save state was loaded\n");
         end_record();
@@ -347,7 +351,6 @@ int64_t clock_behind_us(void);
 static unsigned long skipped;        /* frames not shown, the game running late (for MHFU_FPS_STATS) */
 static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
 static int fps = -1;                /* the display's frame rate; 0: the game's own frames */
-static uint64_t next_display;
 
 static int display_fps(void) {
     if (fps < 0) {
@@ -447,7 +450,7 @@ uint64_t present_pump(void) {
             double secs = (double)(wall - stats_at) / 1e6;
             fprintf(stderr, "display: %.1f frames a second (%lu left out, the game late), the game %.1f (longest frame "
                     "%.1f ms), idle %.0f%%, %.0f%% of primitives matched, a frame shown %.2f ms (%.2f flipping)\n",
-                    (double)shown / secs, skipped, (double)(frame - stats_frame) / secs,
+                    (double)shown / secs, skipped, (double)(frame >= stats_frame ? frame - stats_frame : 0) / secs,
                     (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
                     m + u ? 100.0 * (double)m / (double)(m + u) : 0.0, (double)drawn_us / 1000 / (double)(shown ? shown : 1),
                     (double)flip_us / 1000 / (double)(shown ? shown : 1));
@@ -521,7 +524,7 @@ void present_frame(void) {
             unsigned long smoothed, drawn;
             gpu_native_stats(&smoothed, &drawn);
             fprintf(stderr, "the game: %.1f frames a second (longest %.1f ms), idle %.0f%%, %.0f%% of draws smoothed, "
-                    "%lu frames left out (late; drawing 1 of %d)\n", (double)(frame - stats_frame) / secs,
+                    "%lu frames left out (late; drawing 1 of %d)\n", (double)(frame >= stats_frame ? frame - stats_frame : 0) / secs,
                     (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
                     drawn ? 100.0 * (double)smoothed / (double)drawn : 0.0, native_skipped, gpu_divisor);
             native_skipped = 0;
