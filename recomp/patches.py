@@ -57,6 +57,10 @@ SNOW = "the Snowy Mountains' haze drawn, unless MHFU_SNOW_HAZE=0"
 # 09A703F0): found by tools/ratecheck.py, twice as fast at 60
 COUNTDOWN = "a hunter's countdown (+0x1D7) or R held (+0x11B0): its game frames counted in 30ths"
 
+# The herd animals' countdown +0x54E (game_task 09AC5C30, from their tick 09AC4950: a minute or so, a game frame at a
+# time): found by tools/ratecheck.py with their vtable (089BC680) converted
+COUNTDOWN54E = "a herd animal's countdown +0x54E: 1 less a 30th, not a game frame"
+
 # A character's countdown +0x33C (EBOOT 08865A2C, from its tick: a pending amount, +0x396, added to it, else 1 less a
 # game frame - through a greatsword's attacks): found by tools/ratecheck.py
 COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
@@ -66,6 +70,9 @@ COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
 COUNTED = {
     "game_task": {0x414, 0x672},
+    # the large monsters (their overlays, em*): their action's count at +0x414 too - as at 30 while they are (gated),
+    # in game time once their vtables are converted
+    **{f"em{n:02d}": {0x414} for n in (1, 2, 7, 14, 15, 17, 20, 21, 33, 40, 54, 55, 58, 59, 75, 82, 83)},
 }
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
@@ -129,6 +136,10 @@ GATES = {
     ("game_task", 0x09A62844): ("the players' (088DB39C), every frame", "native"),
     ("EBOOT", 0x088DB3F8): ("a player's (088D2E04)", "object"),
     ("game_task", 0x09A62850): ("the cameras", "native"),
+    # the monsters' (game_task 09AB1498, the monster manager's run, in the hunt's tick at 09A627FC): the loop over their
+    # objects (088666B4, list 3) made every frame - each one's tick gated by itself (088666E4, above), so that a
+    # monster's ticks every frame once its vtable is converted (MHFU_NATIVE_VT) and as at 30 till then
+    ("game_task", 0x09AB14B8): ("the monsters' ticks (088666B4, list 3), every frame", "native"),
     # a character's upkeep (EBOOT 08865934's call of its vtable's +0x3C; the hunter's game_task 09A68FC8): stamina,
     # hunger (a 6-minute count), status and skills' timers - as at 30, a converted character's too
     ("EBOOT", 0x088659AC): ("a character's upkeep (its vtable's +0x3C)", "on"),
@@ -182,6 +193,7 @@ PATCHES = {
     ("EBOOT", 0x08865EAC): ("vadd.t C010, C010, C020", "for (int i = 0; i < 3; i++) c->v[1 + 32 * i] += c->v[2 + 32 * i] * rt_time_scale;",
                             AIRSTEP),
     ("EBOOT", 0x08865EB0): ("vadd.t C000, C000, C010", "for (int i = 0; i < 3; i++) c->v[32 * i] += c->v[1 + 32 * i] * rt_time_scale;", AIRSTEP),
+    ("game_task", 0x09AC65F4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN54E),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),

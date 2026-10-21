@@ -87,7 +87,9 @@ def run(name, rec, rate, args, work):
     env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE="1", MHFU_FPS="0",
                MHFU_RENDERER="soft", MHFU_SCALE="1", MHFU_TICK_HZ=str(rate), MHFU_REPLAY=os.path.abspath(rec),
                MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"), MHFU_NATIVE_TRACE=trace,
-               MHFU_TRACE_WORDS=f"0,{WORDS:x}")
+               MHFU_TRACE_WORDS=f"0,{WORDS:x}", MHFU_TRACE_VT=args.vt)
+    if args.convert and rate != 30:
+        env["MHFU_NATIVE_VT"] = args.convert
     log = open(os.path.join(d, "log"), "w")
     p = subprocess.Popen([os.path.abspath(args.bin)], cwd=d, env=env, stdout=log, stderr=subprocess.STDOUT)
     return p, trace, os.path.join(d, "log")
@@ -123,12 +125,19 @@ def load(path):
     return out
 
 
+WINDOW = 0                          # (--window: segments of so many 30ths instead of actions)
+
+
+def segment_key(f):
+    return int(f[0] // WINDOW) if WINDOW else f[3][ACTION // 4]
+
+
 def segments(frames):
-    """The runs of frames with the same action: (action, first index, last index)"""
+    """The runs of frames with the same action (or in the same window of game time): (key, first index, last index)"""
     out, start = [], 0
     for i in range(1, len(frames) + 1):
-        if i == len(frames) or frames[i][3][ACTION // 4] != frames[start][3][ACTION // 4]:
-            out.append((frames[start][3][ACTION // 4], start, i - 1))
+        if i == len(frames) or segment_key(frames[i]) != segment_key(frames[start]):
+            out.append((segment_key(frames[start]), start, i - 1))
             start = i
     return out
 
@@ -265,9 +274,15 @@ def main():
     ap.add_argument("--iso", default=os.path.expanduser("~/Games/psp/mhfu.iso"))
     ap.add_argument("--keep", help="keep the runs (recordings, traces, logs) in this directory")
     ap.add_argument("--reuse", action="store_true", help="with --keep: compare the traces kept there, not run again")
+    ap.add_argument("--vt", default="089bb3cc", help="the vtable of the object traced (hex; the hunter's by default)")
+    ap.add_argument("--convert", help="the vtables ticking every frame at 60 (MHFU_NATIVE_VT; the hunter's by default)")
+    ap.add_argument("--window", type=float, default=0, help="compare windows of so many 30ths, not actions (an object "
+                    "without the hunter's action at +0x684)")
     ap.add_argument("--min", type=float, default=3.0, help="actions shorter than this (30ths, at 30) left out")
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
+    global WINDOW
+    WINDOW = args.window
 
     work = args.keep or tempfile.mkdtemp(prefix="ratecheck-")
     os.makedirs(work, exist_ok=True)
@@ -302,11 +317,11 @@ def report(args, tr30, tr60, work):
     if cut is not None:
         def doing(frames):
             at = min(frames, key=lambda f: abs(f[0] - cut))
-            return f"{at[3][ACTION // 4]:08X}"
+            return f"{segment_key(at):08X}"
         print(f"  (the runs part from 30th {cut:.0f}, the hunter's action {doing(f30)} at 30, {doing(f60)} at 60 - compared up "
               f"to there; a parting while the mouse turns the camera is the input's conversion, not the game)")
     for act, t30, t60, found in findings:
-        print(f"  action {act:08X} at 30ths {t30[0]:.1f}-{t30[1]:.1f} (at 60: {t60[0]:.1f}-{t60[1]:.1f}):")
+        print(f"  {'window' if WINDOW else 'action'} {act:08X} at 30ths {t30[0]:.1f}-{t30[1]:.1f} (at 60: {t60[0]:.1f}-{t60[1]:.1f}):")
         for f in found:
             print(f"    {f}")
     if not findings:

@@ -131,8 +131,8 @@ static void link_marker(int i) {
 
 double rt_game_30ths(void);
 
-/* MHFU_NATIVE_TRACE=file: each game frame, the hunter's (the last object ticked with the vtable MHFU_TRACE_VT, by
- * default the hunt's hunter, 089BB3CC) position, state function and ticks in it, by the game's time - to compare runs
+/* MHFU_NATIVE_TRACE=file: each game frame, the hunter's (the first object ticked with the vtable MHFU_TRACE_VT, by
+ * default the hunt's hunter, 089BB3CC - while it has it) position, state function and ticks in it, by the game's time - to compare runs
  * at 30 and at N a second */
 static uint32_t traced;
 #define LWF(a) (*(float *)MEM(a))
@@ -303,7 +303,8 @@ void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
         log = getenv("MHFU_NATIVE_LOG") != NULL;
         trace_vt = getenv("MHFU_TRACE_VT") ? (uint32_t)strtoul(getenv("MHFU_TRACE_VT"), NULL, 16) : 0x089BB3CCu;
     }
-    if (LW(c->r[4]) == trace_vt)
+    /* (the one traced: the first object ticked with that vtable, kept while it has it - a herd's animals each the same) */
+    if (LW(c->r[4]) == trace_vt && (!traced || LW(traced) != trace_vt))
         traced = c->r[4];
     if (log) {                      /* MHFU_NATIVE_LOG: each vtable ticked, the first time */
         static uint32_t seen[256];
