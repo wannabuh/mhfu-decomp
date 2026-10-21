@@ -10,6 +10,7 @@
 #include "hle.h"
 #include "savestate.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -167,6 +168,14 @@ static void trace(void) {
             fprintf(f, " %08x", LW(v + i));
     fputc('\n', f);
     fflush(f);
+}
+
+/* A step a game frame of an ease towards a value - by 1/n of the way, x the way left (patches.py: a colour's fade in
+ * the render pass) - in game time: at the game's rate as it was, else so that it takes as long */
+float rt_ease(float x, float n) {
+    if (rt_time_scale == 1 || !(n > 1))
+        return x / n;
+    return x * (1.0f - powf(1.0f - 1.0f / n, rt_time_scale));
 }
 
 /* Whether a 30th fell on each of the last game frames (gpu.c) */

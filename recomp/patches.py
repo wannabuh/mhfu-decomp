@@ -61,6 +61,10 @@ COUNTDOWN = "a hunter's countdown (+0x1D7) or R held (+0x11B0): its game frames 
 # time): found by tools/ratecheck.py with their vtable (089BC680) converted
 COUNTDOWN54E = "a herd animal's countdown +0x54E: 1 less a 30th, not a game frame"
 
+# A model's colour easing to where it goes (EBOOT 08860CB0, drawing - a creature as it comes, flashes): a fifth of the
+# way a game frame (its three channels), in game time (native.c rt_ease) - found by tools/ratecheck.py
+EASE = "a colour's ease: a fifth of the way a game frame, in game time"
+
 # A character's countdown +0x33C (EBOOT 08865A2C, from its tick: a pending amount, +0x396, added to it, else 1 less a
 # game frame - through a greatsword's attacks): found by tools/ratecheck.py
 COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
@@ -194,6 +198,9 @@ PATCHES = {
                             AIRSTEP),
     ("EBOOT", 0x08865EB0): ("vadd.t C000, C000, C010", "for (int i = 0; i < 3; i++) c->v[32 * i] += c->v[1 + 32 * i] * rt_time_scale;", AIRSTEP),
     ("game_task", 0x09AC65F4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN54E),
+    ("EBOOT", 0x08860DB4): ("div.s $f2, $f2, $f3", "{ extern float rt_ease(float x, float n); c->f[2].f = rt_ease(c->f[2].f, c->f[3].f); }", EASE),
+    ("EBOOT", 0x08860DC0): ("div.s $f1, $f1, $f3", "{ extern float rt_ease(float x, float n); c->f[1].f = rt_ease(c->f[1].f, c->f[3].f); }", EASE),
+    ("EBOOT", 0x08860DC4): ("div.s $f0, $f0, $f3", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
