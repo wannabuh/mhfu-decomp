@@ -94,7 +94,7 @@ converted is made again, under the gate it is in:
   the skipped gate makes the noted calls again, in that order, where it would have linked those chunks. So only those
   calls run every frame, not the code around them.
 - An **"object"** gate is on an object's call (a0 the object): every frame if the object's vtable is converted
-  (the hunter's, `089BB3CC`; `MHFU_NATIVE_VT=hex,...` instead, 0 for none), else gated as any other - what it drew noted and drawn again for it alone (the
+  (the hunter's, `089BB3CC`, and the Popos', `089BC680`; `MHFU_NATIVE_VT=hex,...` instead, 0 for none), else gated as any other - what it drew noted and drawn again for it alone (the
   chunks are keyed by gate and object).
 
 In a hunt the native calls are the object manager's loop over its objects (`088DB250` → `088666B4`, list 2: the
@@ -178,8 +178,8 @@ game time as at 30 (but for where the input lines fall) and takes as long, withi
 30 within a few units. Its integer counts compared field by field (+0 to +0x2000) at the same game times agree, but a
 blend's count (+0xB0), which starts one later between 30ths (its blend takes up to half a 30th longer).
 
-The herd animals (Popos, `089BC680`; the ice cave's, `089BC584`) with `MHFU_NATIVE_VT=089bb3cc,089bc680,089bc584`:
-checked at 60 against 30 by `tools/ratecheck.py --vt 089bc680 --window 30 --switch N --whole` - they walk as far (88
+The herd animals (Popos, `089BC680` - `089BC584` is theirs as they are made), ticking every frame by default since
+the hits were fixed: checked at 60 against 30 by `tools/ratecheck.py --vt 089bc680 --window 30 --switch N --whole` - they walk as far (88
 units a second), wander as much, count as at 30, but for a colour's fade (`08860CB0`, a byte: its last steps of 1
 come a game frame apart, at 60 twice as fast - a few 255ths). Hit (a recording of the hunter walking up to one,
 attacking): each hit's damage once, the knockback as far within a 30th.

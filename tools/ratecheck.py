@@ -283,7 +283,7 @@ def main():
     ap.add_argument("--keep", help="keep the runs (recordings, traces, logs) in this directory")
     ap.add_argument("--reuse", action="store_true", help="with --keep: compare the traces kept there, not run again")
     ap.add_argument("--vt", default="089bb3cc", help="the vtable of the object traced (hex; the hunter's by default)")
-    ap.add_argument("--convert", help="the vtables ticking every frame at 60 (MHFU_NATIVE_VT; the hunter's by default)")
+    ap.add_argument("--convert", help="the vtables ticking every frame at 60 (MHFU_NATIVE_VT; the game's own list by default: the hunter, the Popos)")
     ap.add_argument("--window", type=float, default=0, help="compare windows of so many 30ths, not actions (an object "
                     "without the hunter's action at +0x684)")
     ap.add_argument("--min", type=float, default=3.0, help="actions shorter than this (30ths, at 30) left out")
