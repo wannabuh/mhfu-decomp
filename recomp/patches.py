@@ -79,6 +79,17 @@ COUNTED = {
     **{f"em{n:02d}": {0x414} for n in (1, 2, 7, 14, 15, 17, 20, 21, 33, 40, 54, 55, 58, 59, 75, 82, 83)},
 }
 
+# A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to
+# +0x200 or +0x208 (x, z) - the step a displacement worked out for the frame (a speed along the facing: a Popo knocked
+# back, game_task 09B01A28, 10.9 units a game frame) or a velocity (+0x240). Each times the time scale: as at 30 for
+# what is gated (the time scale 1 there), in game time for a converted object. Some 60 places in the hunter's, the
+# herd animals' and the other creatures' code (game_task) and the large monsters' (em*); not where the step is scaled
+# already by a patch just before (falls, leaps, the sprint)
+PLACED = {
+    "game_task": {0x200, 0x208},
+    "em": {0x200, 0x208},
+}
+
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
 # clear; the line of sight lost (+0x89), it swings an eighth of the way behind the hunter a frame. With the mouse
@@ -144,6 +155,15 @@ GATES = {
     # objects (088666B4, list 3) made every frame - each one's tick gated by itself (088666E4, above), so that a
     # monster's ticks every frame once its vtable is converted (MHFU_NATIVE_VT) and as at 30 till then
     ("game_task", 0x09AB14B8): ("the monsters' ticks (088666B4, list 3), every frame", "native"),
+    # the hits (game_sub 09C41E78, in the hunt's at 09A62774, after the objects' ticks): each player's and monster's hit
+    # records cleared (09C41EA0: their vtables' +0x2C - EBOOT 08865EC0, a hit's flag +0x285 and its damage), then the
+    # new hits found (09C41F58, as at 30). An object takes a hit in its tick (a Popo: game_task 09AC7A08) while the
+    # flag is up - till the next clear: a converted one, ticking twice between 30ths, took each hit twice. The clear
+    # made every frame, each object's by itself: a converted object's every frame (after its one tick with the hit),
+    # the others' at 30ths, after theirs
+    ("game_sub", 0x09C41E80): ("the hit records cleared (09C41EA0), every frame", "native"),
+    ("game_sub", 0x09C41ED8): ("a player's hit records cleared (its vtable's +0x2C)", "object"),
+    ("game_sub", 0x09C41F2C): ("a monster's hit records cleared (its vtable's +0x2C)", "object"),
     # a character's upkeep (EBOOT 08865934's call of its vtable's +0x3C; the hunter's game_task 09A68FC8): stamina,
     # hunger (a 6-minute count), status and skills' timers - as at 30, a converted character's too
     ("EBOOT", 0x088659AC): ("a character's upkeep (its vtable's +0x3C)", "on"),

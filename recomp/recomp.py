@@ -22,7 +22,7 @@ import rabbitizer  # noqa: E402
 rabbitizer.config.pseudos_enablePseudos = False
 
 import modules  # noqa: E402
-from patches import COUNTED, GATES, PATCHES  # noqa: E402
+from patches import COUNTED, GATES, PATCHES, PLACED  # noqa: E402
 
 # RECOMP_TRACE=hex,...: functions whose every call is logged at run time (MHFU_CALL_LOG: native.c), for finding who
 # calls what at which rate
@@ -81,6 +81,7 @@ class Translator:
     def __init__(self, mods, functions):
         self.patched = 0
         self.counted = 0
+        self.placed = 0
         self.gated = 0
         self.mods = mods
         self.by_name = {m.name: m for m in mods}
@@ -130,6 +131,47 @@ class Translator:
                 return None
         return None
 
+    def place_step(self, mod, a):
+        """A step of a character's place (patches.py PLACED): add.s (or sub.s) $fd, $fs, $ft stored by the next
+        instruction or the one after to one of the module's place fields, $fs loaded from that field (same base) in
+        the 8 before - the step ($ft: a displacement, a velocity) times the time scale. Not where a patch is among
+        those 8 (the step scaled there already)"""
+        fields = PLACED.get(mod.name)
+        if fields is None:
+            fields = PLACED.get("em") if mod.name.startswith("em") else None
+        if not fields:
+            return None
+        w = mod.ins(a).getRaw()
+        if w >> 26 != 0x11 or (w >> 21) & 31 != 16 or w & 0x3F not in (0, 1):
+            return None
+        fd, fs, ft = (w >> 6) & 31, (w >> 11) & 31, (w >> 16) & 31
+        for b in (a + 4, a + 8):
+            if not mod.in_text(b):
+                return None
+            x = mod.ins(b).getRaw()
+            if x >> 26 == 0x39 and (x >> 16) & 31 == fd and (x & 0xFFFF) in fields:
+                base, off = (x >> 21) & 31, x & 0xFFFF
+                if any(not mod.in_text(a - 4 * k) or (mod.name, a - 4 * k) in PATCHES for k in range(1, 9)):
+                    return None
+                for k in range(1, 9):
+                    y = mod.ins(a - 4 * k).getRaw()
+                    if y >> 26 == 0x31 and (y >> 16) & 31 in (fs, ft) and (y >> 21) & 31 == base and y & 0xFFFF == off:
+                        place, step = ((fs, ft) if (y >> 16) & 31 == fs else (ft, fs))
+                        if place == step or (place == ft and w & 0x3F == 1):
+                            return None
+                        self.placed += 1
+                        op = "-" if w & 0x3F == 1 else "+"
+                        if place == fs:
+                            expr = f"c->f[{fs}].f {op} c->f[{ft}].f * rt_time_scale"
+                        else:
+                            expr = f"c->f[{fs}].f * rt_time_scale {op} c->f[{ft}].f"
+                        return f"c->f[{fd}].f = {expr}; /* a place's step in game time (recomp/patches.py PLACED) */"
+                return None
+            if b == a + 4 and not (mod.ins(b).isBranch() or mod.ins(b).doesStore()) and \
+                    (x >> 26 != 0x31 or (x >> 16) & 31 == fd):
+                return None
+        return None
+
     # -- one instruction (not control flow) --------------------------------------------------------------------
     def op(self, mod, a):
         i = mod.ins(a)
@@ -140,7 +182,7 @@ class Translator:
                 raise SystemExit(f"patch at {mod.name} {a:#x}: expected {expected!r}, found {i.disassemble()!r}")
             self.patched += 1
             return code + " /* patched (recomp/patches.py) */"
-        step = self.count_step(mod, a)
+        step = self.count_step(mod, a) or self.place_step(mod, a)
         if step:
             return step
         n = i.uniqueId.name
@@ -496,7 +538,7 @@ def main():
         out.write("".join(f"    {{{hx(a)}, \"{lib}\", {hx(nid)}}},\n" for a, (lib, nid) in imps))
         out.write(f"}};\nconst int recomp_nimports = {len(imps)};\n")
     print(f"{files} C files, {len(protos)} functions, {errors} not translated, {tr.patched} patched, {tr.counted} counts in 30ths, "
-          f"{tr.gated} gated",
+          f"{tr.placed} places' steps in game time, {tr.gated} gated",
           file=sys.stderr)
     if not args.modules and tr.patched != len(PATCHES):
         raise SystemExit(f"{len(PATCHES) - tr.patched} patches in recomp/patches.py were not applied")

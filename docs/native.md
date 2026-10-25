@@ -169,12 +169,20 @@ again for each), near all of a 144th.
 | the air's step | `EBOOT 08865E94` (a character's velocity +0x240 += acceleration, place +0x200 += velocity, VFPU): both adds times the time scale | the jump up to a ledge as at 30 (13 30ths; 6.5 at 60 before) |
 | a motion's frame reached | `08864348` (3120 callers: sounds, effects, hits at a motion's frame N): N within the player's next step - its speed times the time scale | each fires once; the attacks' sounds were started up to 5 times at 144 |
 | a character's upkeep | gated whole (the call of its vtable's +0x3C, `088659AC`): stamina, hunger (a 6-minute count, +0x632), status and skills' timers | as at 30 |
+| hits taken | the hit manager (`game_sub 09C41E78`, at 30ths: each player's and monster's hit records cleared, then the new hits found) clears every frame, each object's records by itself (`09C41ED8`, `09C41F2C` object gates): a converted object's after its one tick with the hit, the others' at 30ths | a Popo took each hit twice at 60 (its tick, `game_task 09AC7A08`, takes the damage while the flag +0x285 is up); the hunter would have too |
+| a place's steps | every "place += step" stored straight back to +0x200 or +0x208 in `game_task` and the large monsters' overlays: the step (a displacement worked out for the frame, a velocity) times the time scale (`recomp.py` `place_step`, `patches.py` `PLACED`; 113 places, not those scaled by a patch already) | a Popo knocked back 10.9 units a game frame: 250 units at 60, 109 at 30; 126 now |
 
 Checked at 60 and 144 (`MHFU_NATIVE_TRACE` with `MHFU_TRACE_WORDS=684,1`, the hunter's action at +0x684, its kind
 at +0x685): walking, a roll, drawing with an attack, a second attack, circle's, sheathing - each starts at the same
 game time as at 30 (but for where the input lines fall) and takes as long, within a 30th; the hunter is where it is at
 30 within a few units. Its integer counts compared field by field (+0 to +0x2000) at the same game times agree, but a
 blend's count (+0xB0), which starts one later between 30ths (its blend takes up to half a 30th longer).
+
+The herd animals (Popos, `089BC680`; the ice cave's, `089BC584`) with `MHFU_NATIVE_VT=089bb3cc,089bc680,089bc584`:
+checked at 60 against 30 by `tools/ratecheck.py --vt 089bc680 --window 30 --switch N --whole` - they walk as far (88
+units a second), wander as much, count as at 30, but for a colour's fade (`08860CB0`, a byte: its last steps of 1
+come a game frame apart, at 60 twice as fast - a few 255ths). Hit (a recording of the hunter walking up to one,
+attacking): each hit's damage once, the knockback as far within a 30th.
 
 Not yet: the hunter's other weapons' moves and items (checked: the one in the test, its basic moves), the monsters' state
 timers (attack windows, invulnerability, AI decisions), effects and particles, sounds started by ticks, the camera's
@@ -188,6 +196,12 @@ time: the recording played at both rates (converted: frames halved or doubled), 
 action - an action longer or shorter at 60, a field that counts game frames (steps by 1 on most frames at 30, twice as
 often at 60), ground covered - until the runs part (the mouse's camera, converted, steers them apart in time). Its
 findings are offsets in the hunter: `tools/watch.py` finds what writes them.
+
+Another object: `--vt` (the first ticked with that vtable; `MHFU_TRACE_OBJ=hex` in the game for one at an address,
+`MHFU_NATIVE_LOG=2` lists every object ticked, with its place), `--convert` (the vtables ticking every frame at 60),
+`--window 30` (compared by windows of game time: no action field). `--switch N` plays both at 30 up to frame N and
+the one at 60 from there (`MHFU_TICK_HZ=60@N`): the mouse's moves converted no longer steer the runs apart on the way;
+`--whole` compares to the end though the object's places part (a monster's own choices part them anyway).
 
 1. Open a gate (`MHFU_UNGATE`, then in `GATES`) and see what goes wrong at `MHFU_TICK_HZ=60@N` (twice as fast) -
    with a recording to get there and a few lines added to it for the input to try
