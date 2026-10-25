@@ -35,11 +35,14 @@ ACTION = 0x684
 
 # -- recordings ------------------------------------------------------------------------------------------------------
 
-def convert(src, dst, factor):
+def convert(src, dst, factor, after=0):
     """A recording at another rate: factor 0.5 halves its frames (60 -> 30: frame f -> (f + 1) // 2, the frames that
-    fall together one, its buttons and stick the last's, its mouse their sum), 2 doubles them (f -> 2f - 1)"""
+    fall together one, its buttons and stick the last's, its mouse their sum), 2 doubles them (f -> 2f - 1) - those
+    after frame `after` only, with it (the rate switched there: MHFU_TICK_HZ=60@after)"""
     def at(f):
-        return (f + 1) // 2 if factor < 1 else 2 * f - 1
+        if f <= after:
+            return f
+        return (f + 1) // 2 if factor < 1 else after + 2 * (f - after) - 1
     head, inputs, pointers, end, camera = [], {}, [], None, None
     for line in open(src):
         p = line.split()
@@ -85,7 +88,8 @@ def run(name, rec, rate, args, work):
         f.write(f"iso = {args.iso}\n")
     trace = os.path.join(d, "trace")
     env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE="1", MHFU_FPS="0",
-               MHFU_RENDERER="soft", MHFU_SCALE="1", MHFU_TICK_HZ=str(rate), MHFU_REPLAY=os.path.abspath(rec),
+               MHFU_RENDERER="soft", MHFU_SCALE="1", MHFU_TICK_HZ=f"{rate}@{args.switch}" if args.switch and rate != 30 else str(rate),
+               MHFU_REPLAY=os.path.abspath(rec),
                MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"), MHFU_NATIVE_TRACE=trace,
                MHFU_TRACE_WORDS=f"0,{WORDS:x}", MHFU_TRACE_VT=args.vt)
     if args.convert and rate != 30:
@@ -153,6 +157,10 @@ def counter_steps(words, a, b):
     out = {}
     for size, view in ((4, w), (2, w.view(np.uint16)), (1, w.view(np.uint8))):
         d = np.diff(view.astype(np.int64), axis=0) & ((1 << (8 * size)) - 1)
+        if d.shape[0] == 0:             # (a single frame: nothing counted)
+            n = view.shape[1]
+            out[size] = (np.zeros(n, np.int64), np.zeros(n, np.int64), np.ones(n, np.int64))
+            continue
         moves = (d != 0).sum(axis=0)
         is_one = (d == 1) | (d == (1 << (8 * size)) - 1)
         ones = is_one.sum(axis=0)
@@ -198,9 +206,9 @@ def parting(f30, f60, apart=150.0, for_30ths=60, slack=5):
     return None
 
 
-def compare(f30, f60, min_len):
+def compare(f30, f60, min_len, whole=False):
     """The two runs' actions paired, and what differs: a list of findings (text), by action"""
-    cut = parting(f30, f60)
+    cut = None if whole else parting(f30, f60)
     if cut is not None:
         f30 = [f for f in f30 if f[0] < cut]
         f60 = [f for f in f60 if f[0] < cut]
@@ -279,8 +287,15 @@ def main():
     ap.add_argument("--window", type=float, default=0, help="compare windows of so many 30ths, not actions (an object "
                     "without the hunter's action at +0x684)")
     ap.add_argument("--min", type=float, default=3.0, help="actions shorter than this (30ths, at 30) left out")
+    ap.add_argument("--switch", type=int, default=0, help="both runs at 30 up to this frame, the one at 60 switched "
+                    "there (MHFU_TICK_HZ=60@N) - only what follows compared (a recording made at 30; the mouse's moves "
+                    "converted steer the runs apart, the fewer of them the better)")
+    ap.add_argument("--whole", action="store_true", help="compare to the traces' end, though the object's places part "
+                    "(with --window: a monster's own choices - its random numbers drawn every frame - part them anyway)")
     ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
+    if args.switch and args.rate != 30:
+        ap.error("--switch: a recording made at 30")
     global WINDOW
     WINDOW = args.window
 
@@ -297,7 +312,7 @@ def main():
         convert(args.recording, rec30, 0.5)
     else:
         shutil.copy(args.recording, rec30)
-        convert(args.recording, rec60, 2)
+        convert(args.recording, rec60, 2, args.switch)
     p30, tr30, log30 = run("r30", rec30, 30, args, work)
     p60, tr60, log60 = run("r60", rec60, 60, args, work)
     ok30, ok60 = wait(p30, log30, args.timeout), wait(p60, log60, args.timeout)
@@ -308,10 +323,13 @@ def main():
 
 def report(args, tr30, tr60, work):
     f30, f60 = load(tr30), load(tr60)
+    if args.switch:     # (the game's time is its frames at 30 up to the switch: the same in both runs)
+        f30 = [f for f in f30 if f[0] >= args.switch + 1]
+        f60 = [f for f in f60 if f[0] >= args.switch + 1]
     if not f30 or not f60:
         print(f"no hunter in a hunt in the traces (in the village it is another object; logs in {work})")
         return 2
-    paired, findings, cut = compare(f30, f60, args.min)
+    paired, findings, cut = compare(f30, f60, args.min, args.whole)
     n30, n60 = len(segments(f30)), len(segments(f60))
     print(f"{os.path.basename(args.recording)}: {n30} actions at 30, {n60} at 60, {paired} paired and compared")
     if cut is not None:

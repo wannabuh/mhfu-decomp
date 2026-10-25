@@ -307,24 +307,28 @@ void rt_gate(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
  * it alone */
 void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
     static int log = -1;
-    static uint32_t trace_vt;
+    static uint32_t trace_vt, trace_obj;
     if (log < 0) {
-        log = getenv("MHFU_NATIVE_LOG") != NULL;
+        log = getenv("MHFU_NATIVE_LOG") ? atoi(getenv("MHFU_NATIVE_LOG")) : 0;
         trace_vt = getenv("MHFU_TRACE_VT") ? (uint32_t)strtoul(getenv("MHFU_TRACE_VT"), NULL, 16) : 0x089BB3CCu;
+        trace_obj = getenv("MHFU_TRACE_OBJ") ? (uint32_t)strtoul(getenv("MHFU_TRACE_OBJ"), NULL, 16) : 0;
     }
-    /* (the one traced: the first object ticked with that vtable, kept while it has it - a herd's animals each the same) */
-    if (LW(c->r[4]) == trace_vt && (!traced || LW(traced) != trace_vt))
+    /* (the one traced: the first object ticked with that vtable, kept while it has it - a herd's animals each the same;
+     * MHFU_TRACE_OBJ=hex: the one at that address, while it has the vtable) */
+    if (LW(c->r[4]) == trace_vt && (!traced || LW(traced) != trace_vt) && (!trace_obj || c->r[4] == trace_obj))
         traced = c->r[4];
-    if (log) {                      /* MHFU_NATIVE_LOG: each vtable ticked, the first time */
+    if (log) {                      /* MHFU_NATIVE_LOG: each vtable ticked, the first time (2: each object) */
         static uint32_t seen[256];
         static int nseen;
-        uint32_t vt = LW(c->r[4]);
+        uint32_t vt = LW(c->r[4]), key = log > 1 ? vt ^ c->r[4] : vt;
         int i = 0;
-        while (i < nseen && seen[i] != vt)
+        while (i < nseen && seen[i] != key)
             i++;
         if (i == nseen && nseen < 256) {
-            seen[nseen++] = vt;
-            fprintf(stderr, "native: object %08x vtable %08x (tick %08x)\n", c->r[4], vt, fn ? 0 : addr);
+            seen[nseen++] = key;
+            fprintf(stderr, "native: object %08x vtable %08x (tick %08x) at %.0f, at %.0f %.0f %.0f\n", c->r[4], vt,
+                    fn ? 0 : addr, rt_game_30ths(), (double)LWF(c->r[4] + 0x40), (double)LWF(c->r[4] + 0x44),
+                    (double)LWF(c->r[4] + 0x48));
         }
     }
     if (real_scale != 1 && converted(LW(c->r[4])))
