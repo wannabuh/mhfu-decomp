@@ -30,6 +30,10 @@
  * follows: where the scenery holds the camera back it turns less, and showing the mouse's turn ahead of it would jerk
  * back every frame. A jump left at a game frame (the game did something else) fades over 60 ms.
  *
+ * The other views (1, 3-5) are the game's event cameras: talking to someone, cutscenes. Views 3-5 take over what is
+ * shown while the view in use stays the hunt's or the village's - the scene's byte at +0xDC4 says which (EBOOT
+ * 08814E18; below 1: none). While one is shown the mouse leaves the camera alone: no turn, orbit or raise.
+ *
  * Where the camera keeps its own angles (the village, the camp tent: view 2) the mouse orbits the picture about the
  * camera's target instead (with MHFU_FPS: it is the frames shown that turn), the stick turned to match so that
  * forward is forward as shown. The game knows nothing of it: the camera can go into walls, and what the game places
@@ -289,6 +293,13 @@ void camera_update(float dx, float dy) {
     float ox = e[0] - t[0], oy = e[1] - t[1], oz = e[2] - t[2];
     axis_frame(&yaw_axis, atan2f(ox, oz));
     axis_frame(&pitch_axis, atan2f(oy, sqrtf(ox * ox + oz * oz)));
+    /* an event camera (talking to someone, a cutscene): the game's, as it is */
+    if ((view_no != 0 && view_no != 2) || (int8_t)*MEM(scene + 0xDC4) > 0) {
+        orbiting = 0;
+        left = 0;
+        yaw_axis.written = pitch_axis.written = 0;
+        return;
+    }
     /* the hunt's camera turns with the yaw; the others keep their own angles, and the mouse orbits the picture */
     active = view_no == 0;
     orbiting = !active;
