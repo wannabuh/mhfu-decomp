@@ -27,7 +27,9 @@ typedef struct {
     int loop_start, loop_end, has_loop;
     int loop_num;                   /* loops left: -1 forever */
     int frame;                      /* the next frame to decode */
-    int sample;                     /* the next sample position */
+    int sample;                     /* the next sample to hand out (a position in the file's samples, its delay too) */
+    int16_t pcm[2048 * 2];          /* the frame decoded last: pcm_n samples from pcm_start */
+    int pcm_start, pcm_n;
     AVCodecContext *ctx;
     AVPacket *pkt;
     AVFrame *out;
@@ -122,8 +124,8 @@ void hle_sceAtracSetDataAndGetID(Ctx *c) {
                 RET(0x80630006u);
                 return;
             }
-            HLE_LOG("atrac %u: %s, %d channels, %d Hz, %d-byte frames, %d frames, loop %d-%d", i,
-                    a->codec == 0x270 ? "ATRAC3" : "ATRAC3+", a->channels, a->rate, a->block, total_frames(a),
+            HLE_LOG("atrac %u: %s, %d channels, %d Hz, %d-byte frames, %d frames, %d samples after a delay of %d, loop %d-%d", i,
+                    a->codec == 0x270 ? "ATRAC3" : "ATRAC3+", a->channels, a->rate, a->block, total_frames(a), a->total_samples, a->skip,
                     a->loop_start, a->loop_end);
             RET(i);
             return;
@@ -145,6 +147,50 @@ void hle_sceAtracSetLoopNum(Ctx *c) {
     RET(a ? 0 : ERROR_NO_ID);
 }
 
+/* Where the samples end: the loop's end while it loops (the "smpl" points are positions in the file's samples, the
+ * encoder's delay included), the data's end otherwise */
+static int looping(const Atrac *a) { return a->has_loop && a->loop_num != 0 && a->loop_start < a->loop_end; }
+
+static int end_sample(const Atrac *a) {
+    int end = total_frames(a) * a->frame_samples;
+    if (a->total_samples && a->total_samples + a->skip < end)
+        end = a->total_samples + a->skip;
+    return end;
+}
+
+/* The next frame into pcm[] (silence if it does not decode); 0 past the data */
+static int decode_frame(Atrac *a) {
+    if (a->frame >= total_frames(a))
+        return 0;
+    a->pkt->data = (uint8_t *)PTR(a->buf + a->data_off + (uint32_t)(a->frame * a->block));
+    a->pkt->size = a->block;
+    a->pcm_start = a->frame * a->frame_samples;
+    a->pcm_n = a->frame_samples;
+    memset(a->pcm, 0, sizeof a->pcm);
+    if (avcodec_send_packet(a->ctx, a->pkt) >= 0 && avcodec_receive_frame(a->ctx, a->out) >= 0) {
+        int ch = a->out->ch_layout.nb_channels, n = a->out->nb_samples < 2048 ? a->out->nb_samples : 2048;
+        for (int i = 0; i < n; i++)
+            for (int k = 0; k < 2; k++) {
+                const float *src = (const float *)a->out->extended_data[k < ch ? k : 0];
+                float v = src[i] * 32767.0f;
+                a->pcm[i * 2 + k] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
+            }
+    }
+    a->frame++;
+    return 1;
+}
+
+/* To a sample: the decoder starts again at the frame before its frame (a frame's samples overlap the one before) */
+static void seek(Atrac *a, int sample) {
+    avcodec_flush_buffers(a->ctx);
+    int f = sample / a->frame_samples;
+    a->frame = f > 0 ? f - 1 : 0;
+    if (f > 0)
+        decode_frame(a);
+    decode_frame(a);
+    a->sample = sample;
+}
+
 /* A state about to be loaded (savestate.c): the decoders there are, freed - the ids loaded have none yet */
 void atrac_state_loading(void) {
     for (int i = 0; i < MAX_IDS; i++)
@@ -159,7 +205,7 @@ void atrac_state_loading(void) {
 }
 
 /* A state loaded: each id's decoder made again, and brought to where it was by decoding the two frames before its
- * next (a frame's samples overlap the one before's) */
+ * next (a frame's samples overlap the one before's) - the samples it was handing out kept */
 void atrac_state_loaded(void) {
     for (int i = 0; i < MAX_IDS; i++) {
         Atrac *a = &ids[i];
@@ -168,62 +214,67 @@ void atrac_state_loaded(void) {
         a->out = NULL;
         if (!a->used)
             continue;
+        int frame = a->frame, start = a->pcm_start, n = a->pcm_n;
+        int16_t pcm[2048 * 2];
+        memcpy(pcm, a->pcm, sizeof pcm);
         if (!parse(a)) {
             a->used = 0;
             continue;
         }
-        for (int f = a->frame >= 2 ? a->frame - 2 : 0; f < a->frame; f++) {
-            a->pkt->data = (uint8_t *)PTR(a->buf + a->data_off + (uint32_t)(f * a->block));
-            a->pkt->size = a->block;
-            if (avcodec_send_packet(a->ctx, a->pkt) >= 0)
-                avcodec_receive_frame(a->ctx, a->out);
-        }
+        for (a->frame = frame >= 2 ? frame - 2 : 0; a->frame < frame;)
+            decode_frame(a);
+        a->frame = frame;
+        a->pcm_start = start;
+        a->pcm_n = n;
+        memcpy(a->pcm, pcm, sizeof pcm);
     }
 }
 
-/* (id, out, samples*, finished*, remaining frames*): one frame, 16-bit interleaved */
+/* (id, out, samples*, finished*, remaining frames*): a frame's worth of samples, 16-bit interleaved - across the loop
+ * point, sample for sample, while it loops */
 void hle_sceAtracDecodeData(Ctx *c) {
     Atrac *a = get(ARG0);
     if (!a) {
         RET(ERROR_NO_ID);
         return;
     }
-    int16_t *out = PTR(ARG1);
-    int n = 0, finished = 0;
-    int frames = total_frames(a);
-    if (a->frame >= frames) {
+    if (!looping(a) && a->sample >= end_sample(a)) {
         if (ARG2) SW(ARG2, 0);
         if (ARG3) SW(ARG3, 1);
         RET(ERROR_ALL_DATA_DECODED);
         return;
     }
-    a->pkt->data = (uint8_t *)PTR(a->buf + a->data_off + (uint32_t)(a->frame * a->block));
-    a->pkt->size = a->block;
-    if (avcodec_send_packet(a->ctx, a->pkt) >= 0 && avcodec_receive_frame(a->ctx, a->out) >= 0) {
-        int ch = a->out->ch_layout.nb_channels;
-        n = a->out->nb_samples;
-        for (int i = 0; i < n; i++)
-            for (int k = 0; k < 2; k++) {
-                const float *src = (const float *)a->out->extended_data[k < ch ? k : 0];
-                float v = src[i] * 32767.0f;
-                out[i * 2 + k] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
-            }
+    int16_t *out = PTR(ARG1);
+    int n = 0;
+    while (n < a->frame_samples) {
+        if (looping(a) && a->sample > a->loop_end) {
+            seek(a, a->loop_start);
+            if (a->loop_num > 0)
+                a->loop_num--;
+            continue;
+        }
+        int end = looping(a) ? a->loop_end + 1 : end_sample(a);
+        if (a->sample >= end)
+            break;
+        if (a->sample < a->pcm_start || a->sample >= a->pcm_start + a->pcm_n) {
+            if (!decode_frame(a))
+                break;
+            continue;
+        }
+        int k = a->pcm_start + a->pcm_n - a->sample;
+        if (k > end - a->sample)
+            k = end - a->sample;
+        if (k > a->frame_samples - n)
+            k = a->frame_samples - n;
+        memcpy(out + 2 * n, a->pcm + 2 * (a->sample - a->pcm_start), (size_t)k * 4);
+        n += k;
+        a->sample += k;
     }
-    a->frame++;
-    a->sample += a->frame_samples;
-    /* the loop: back to its start once past its end */
-    if (a->has_loop && a->loop_num != 0 && a->sample > a->loop_end + a->skip) {
-        a->frame = (a->loop_start + a->skip) / a->frame_samples;
-        a->sample = a->frame * a->frame_samples;
-        if (a->loop_num > 0)
-            a->loop_num--;
-    }
-    if (a->frame >= frames)
-        finished = 1;
+    int finished = !looping(a) && a->sample >= end_sample(a);
     if (ARG2) SW(ARG2, (uint32_t)n);
     if (ARG3) SW(ARG3, (uint32_t)finished);
     if (ARG4) SW(ARG4, 0xFFFFFFFFu);        /* all the data is in memory */
-    HLE_LOG("sceAtracDecodeData(%u): %d samples, frame %d, finished %d", ARG0, n, a->frame, finished);
+    HLE_LOG("sceAtracDecodeData(%u): %d samples, at %d, finished %d", ARG0, n, a->sample, finished);
     RET(0);
 }
 
@@ -238,7 +289,7 @@ void hle_sceAtracGetNextDecodePosition(Ctx *c) {
         RET(ERROR_NO_ID);
         return;
     }
-    if (a->frame >= total_frames(a)) {
+    if (!looping(a) && a->sample >= end_sample(a)) {
         RET(ERROR_ALL_DATA_DECODED);
         return;
     }
