@@ -59,7 +59,8 @@ static int skip_intro(void) {
  * sensitivity, MHFU_MOUSE_SENS, as the mouse turns the camera in the game), "camera <frame>" (the frame from which the
  * mouse had the camera: the game's own turns of it left out - none in recordings made before), then a line for each frame whose
  * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
- * and "end <frame>": the input as the game had it (the stick as turned by the mouse's orbit, camera.c). A save changed
+ * "pointer <frame> <x> <y> <clicks>" for the mouse moved (or clicked) in a menu (menu.c: what it moves is not all in
+ * the buttons), and "end <frame>": the input as the game had it (the stick as turned by the mouse's orbit, camera.c). A save changed
  * since, or a runtime that runs the game differently, can make a replay go astray. */
 typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
 static Input *replay;
@@ -69,6 +70,10 @@ static unsigned long replay_end;
 static int replay_loaded;
 static uint64_t replay_epoch_us;
 static unsigned long replay_free_from = ~0ul;   /* "camera <frame>": the mouse has the camera from that frame */
+typedef struct { unsigned long frame; float x, y; int clicks; } Pointer;
+static Pointer *replay_pointer;
+static size_t replay_pointer_n;
+SAVED static size_t replay_pointer_at;
 
 static void load_replay(void) {
     if (replay_loaded)
@@ -96,6 +101,13 @@ static void load_replay(void) {
             ;
         else if (sscanf(line, "camera %lu", &replay_free_from) == 1)
             ;
+        else if (strncmp(line, "pointer ", 8) == 0) {
+            Pointer p;
+            if (sscanf(line + 8, "%lu %g %g %d", &p.frame, &p.x, &p.y, &p.clicks) == 4) {
+                replay_pointer = realloc(replay_pointer, (replay_pointer_n + 1) * sizeof *replay_pointer);
+                replay_pointer[replay_pointer_n++] = p;
+            }
+        }
         else if (sscanf(line, "%lu %x %d %d %g %g", &in.frame, &in.buttons, &in.lx, &in.ly, &in.mx, &in.my) == 6) {
             if (replay_n == cap) {
                 cap = cap ? cap * 2 : 1024;
@@ -160,9 +172,9 @@ static void replay_input(float *mx, float *my) {
     *mx = *my = 0;
     while (replay_at < replay_n && replay[replay_at].frame <= frame) {
         held = replay[replay_at];
-        if (held.frame == frame) {
-            *mx = held.mx;
-            *my = held.my;
+        if (held.frame == frame) {      /* (a frame's buttons can come again, as the game read them: present_input_read) */
+            *mx += held.mx;
+            *my += held.my;
         }
         replay_at++;
     }
@@ -499,6 +511,77 @@ extern int gpu_skip_draw, gpu_divisor;
 double rt_game_30ths(void);
 float rt_frame_30ths(void);
 static unsigned long native_skipped;    /* (for MHFU_FPS_STATS) */
+void menu_input(uint32_t *buttons);
+
+SAVED static int input_due;               /* the game has yet to read the input of this frame */
+
+int window_pointer(float *x, float *y);
+int window_pointer_moved(void);
+int window_pointer_clicks(void);
+int menu_test_pointer(float *x, float *y, int *moved, int *clicks);
+
+static void record_pointer(float x, float y, int clicks) {
+    if (record) {
+        fprintf(record, "pointer %lu %.9g %.9g %d\n", frame, x, y, clicks);
+        fflush(record);
+    }
+}
+
+/* menu.c: the mouse's pointer in a menu (PSP pixels; whether it moved, how many clicks since last asked) - the
+ * window's (or MHFU_TEST_POINTER's), recorded, or the replay's */
+int present_pointer(float *x, float *y, int *moved, int *clicks) {
+    if (replaying()) {
+        static Pointer at = {0, 0, 0, 0};
+        static int seen;
+        *moved = *clicks = 0;
+        while (replay_pointer_at < replay_pointer_n && replay_pointer[replay_pointer_at].frame <= frame) {
+            at = replay_pointer[replay_pointer_at++];
+            seen = 1;
+            if (at.frame == frame) {
+                *moved = 1, *clicks += at.clicks;
+                record_pointer(at.x, at.y, at.clicks);     /* (a recording that extends the replay) */
+            }
+        }
+        *x = at.x;
+        *y = at.y;
+        return seen;
+    }
+    int point = menu_test_pointer(x, y, moved, clicks);
+    if (!point) {
+        point = window_pointer(x, y);
+        *moved = window_pointer_moved();
+        *clicks = window_pointer_clicks();
+    }
+    if (point && (*moved || *clicks))
+        record_pointer(*x, *y, *clicks);
+    return point;
+}
+
+/* The devices' buttons (and the script's, the intro's answer) */
+static void buttons_now(void) {
+    scripted_input(window_buttons());
+    if (skip_intro() && intro_time() >= LANGUAGE_FRAME && intro_time() < LANGUAGE_FRAME + 5)
+        ctrl_buttons |= 0x4000;
+}
+
+/* system.c: the game reading the controller - most of a frame after it showed one (it waits for its next), so the
+ * buttons are taken again as they are now, the window's events seen first, and recorded again if they changed (for the
+ * same frame: a replay has them all by then). The stick (and the camera the mouse turns) stays as at the frame. */
+void present_input_read(void) {
+    if (!input_due)
+        return;
+    input_due = 0;
+    if (replaying()) {
+        uint32_t none = 0;
+        menu_input(&none);          /* (the menus noted all the same) */
+        return;
+    }
+    if (!window_poll())
+        exit(0);
+    buttons_now();
+    menu_input(&ctrl_buttons);      /* (the mouse's in a menu: once a frame, here) */
+    record_input(0, 0);
+}
 
 void present_frame(void) {
     static uint64_t frame_wall;
@@ -582,13 +665,17 @@ void present_frame(void) {
     }
     if (!window_poll())
         exit(0);
-    /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's */
+    /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
+     * taken again as the game reads them: present_input_read) */
+    if (input_due) {                /* (not read last frame: the menus noted all the same) */
+        uint32_t none = 0;
+        menu_input(&none);
+    }
+    input_due = 1;
     window_stick(&ctrl_lx, &ctrl_ly);
     float mx, my;
     window_mouse(&mx, &my);
-    scripted_input(window_buttons());
-    if (skip_intro() && intro_time() >= LANGUAGE_FRAME && intro_time() < LANGUAGE_FRAME + 5)
-        ctrl_buttons |= 0x4000;
+    buttons_now();
     replay_input(&mx, &my);
     int orbit_drawn = display_fps() != 0 || gpu_native_smoothing();   /* (with MHFU_FPS, or at the native frame rate) */
     if (camera_orbit_ready != orbit_drawn + 1)

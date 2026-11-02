@@ -98,6 +98,7 @@ void gpu_command(uint32_t cmd, uint32_t addr);  /* the renderer: one command, it
 /* The display (system.c), and frames written out (present.c) */
 extern uint32_t display_fb_addr, display_fb_width, display_fb_format;
 void present_frame(void);
+void present_input_read(void);  /* the game reading the controller: its buttons brought up to now (present.c) */
 uint64_t present_pump(void);                    /* the display's own frames: draw one if due; when the next is */
 void window_init(void);                         /* the window, and the renderer (window.c) */
 

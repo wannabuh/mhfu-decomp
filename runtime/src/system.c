@@ -42,6 +42,7 @@ void hle_sceCtrlSetSamplingMode(Ctx *c) {
 
 /* (SceCtrlData *, count): timestamp, buttons, lx, ly, 6 reserved bytes */
 void hle_sceCtrlReadBufferPositive(Ctx *c) {
+    present_input_read();
     uint32_t n = ARG1 ? ARG1 : 1;
     for (uint32_t i = 0; i < n; i++) {
         uint32_t p = ARG0 + 16 * i;

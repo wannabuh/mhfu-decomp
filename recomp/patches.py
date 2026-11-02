@@ -56,7 +56,6 @@ SNOW = "the Snowy Mountains' haze drawn, unless MHFU_SNOW_HAZE=0"
 # a count taken off as another timer runs out). And how long R (the sprint) has been held, up to 10 (+0x11B0, game_task
 # 09A703F0): found by tools/ratecheck.py, twice as fast at 60
 COUNTDOWN = "a hunter's countdown (+0x1D7) or R held (+0x11B0): its game frames counted in 30ths"
-
 # The herd animals' countdown +0x54E (game_task 09AC5C30, from their tick 09AC4950: a minute or so, a game frame at a
 # time): found by tools/ratecheck.py with their vtable (089BC680) converted
 COUNTDOWN54E = "a herd animal's countdown +0x54E: 1 less a 30th, not a game frame"
@@ -88,12 +87,12 @@ COUNTED = {
 PLACED = {
     "game_task": {0x200, 0x208},
     "em": {0x200, 0x208},
+}
 # Not those: a place moved once, by a distance of its own (along the facing), not a step for the frame - scaled, it went
 # only part of the way. The hunter's grab of a ledge (game_task 09A9D0B0: 55 units forward onto it; at 60 only half,
 # so the ground below was not the ledge's - he fell off at once and grabbed it again, round and round) and his drop
 # to hang from one (09A9D478: 30 back, 195 down)
 NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x09A9D584)}
-}
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
@@ -105,6 +104,29 @@ CAMERA = "the hunt's camera: its own turns away from the scenery, left out while
 # 1 if it is to be drawn): what is drawn casts the renderer's shadows, so with them a model is drawn when within
 # rt_cull_margin (units) of the view - the shadows of what is just out of view do not come and go as the camera turns.
 CULL = "the view test of a model's sphere: the sphere larger by rt_cull_margin (the shadows of what is just out of view)"
+
+# The game's list windows (the menus, shops, quest lists...) are drawn by EBOOT 0882F580 (a0 the drawer, a1 the
+# window's layout, a2 its title, a3 the row the cursor's bar is on, below 0 none): noted for the mouse (menu.c)
+MENU = "a list window drawn: its layout and the cursor's row noted, for the mouse to point at its rows (menu.c)"
+# The cursor's bar (pulsing), drawn by EBOOT 0882F4A4 and 08831F3C (a0 the drawer, a1 x, a2 y, a3 width, t0 height):
+# for the lists drawn otherwise, noted too
+BAR = "a menu cursor's bar drawn: its place noted, for the mouse to move it (menu.c)"
+# The quest lists' plates (lobby_task 09A8C068, a plate a row: EBOOT 0882AF70 with a1 x, a2 y, a3 width, t0 height;
+# s3 the row, the cursor's at +0x62 of the list, s5): each noted as it is laid out, before the call (and the cursor's
+# sound made there, for a cursor the mouse has put on another plate)
+ITEM = "a quest list's plate drawn: its place noted, and whether the cursor is on it, for the mouse (menu.c)"
+# The arrows either side of a page number or a setting (EBOOT 0882E6F0: a1 x, a2 y, a3 from the left one to the right):
+# noted, for a click on one to press left or right
+ARROWS = "a left and right arrow drawn: their place noted, for a click on one to press left or right (menu.c)"
+# The menus' cursors (EBOOT 0881C2E4: a1 the cursor's byte, a2 the buttons, up or down a row, a3 how many rows, round
+# and round): where the mouse points another row, the cursor put next to it and the step to it pressed, at once
+CURSOR = "a menu's cursor moved by the buttons: to the row the mouse points at, in one step (menu.c)"
+# The Options (EBOOT 08839824, its window drawn with no cursor's bar: the setting's arrows on the cursor's row, s0+0x57F)
+OPTIONS = "the Options' window drawn: its layout (sp+0x38) and the cursor's row noted, for the mouse (menu.c)"
+# The supply box (EBOOT 08847CB0, drawn: 24 slots in rows of 8, the first at 230,54, 28 and 24 pixels apart, 26 square;
+# its cursor the hunter's byte +0x55D, $s7 the hunter; EBOOT 088476F4 moves it, with the sound 0x16): noted as its
+# cursor's frame is about to be drawn, and the sound made there for a cursor the mouse has put on another slot
+BOX = "the supply box's slots drawn: their places and the cursor noted, for the mouse (menu.c)"
 
 
 # The game's main loop (EBOOT 0888FD38), as it wakes for a game frame: whether a 30th falls on it
@@ -207,14 +229,6 @@ PATCHES = {
     ("EBOOT", 0x08864368): ("lwc1 $f0, 0x14($v1)", scaled_load(0, 3, 0x14), REACHED),
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
-    ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
-    ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
-    ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
-    ("EBOOT", 0x088596C8): ("sll $v0, $a3, 2", "rt_list_link(c->r[4], c->r[5], c->r[6], c->r[7]); c->r[2] = c->r[7] << 2;", LINK),
-    # the screen's tint (EBOOT 088CACD4, the render pass's at layer 8: the object at *0x09A4F1A0, its +0x3D4)
-    ("EBOOT", 0x088CAEB4): ("sb $zero, 0x3D4($s0)", "if (rt_next_frame30()) SB((c->r[16] + 0x3D4u), 0);", ONCE),
-    ("EBOOT", 0x0888FDF0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_frame30;", COUNT),
-    ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
     ("game_sub", 0x09CC0CE0): ("addiu $sp, $sp, -0x110", "{ extern int rt_snow_haze(void); if (!rt_snow_haze()) return; } "
                                "c->r[29] = c->r[29] + 0xFFFFFEF0u;", SNOW),
     ("game_sub", 0x09C57E08): ("addiu $sp, $sp, -0x140", "{ extern int rt_snow_haze(void); if (!rt_snow_haze()) return; } "
@@ -260,4 +274,23 @@ PATCHES = {
     ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
     ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
     ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
+    ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
+    ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
+    ("EBOOT", 0x088596C8): ("sll $v0, $a3, 2", "rt_list_link(c->r[4], c->r[5], c->r[6], c->r[7]); c->r[2] = c->r[7] << 2;", LINK),
+    # the screen's tint (EBOOT 088CACD4, the render pass's at layer 8: the object at *0x09A4F1A0, its +0x3D4)
+    ("EBOOT", 0x088CAEB4): ("sb $zero, 0x3D4($s0)", "if (rt_next_frame30()) SB((c->r[16] + 0x3D4u), 0);", ONCE),
+    ("EBOOT", 0x0888FDF0): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_frame30;", COUNT),
+    ("EBOOT", 0x0882F4A4): ("addiu $sp, $sp, -0x30", "rt_menu_bar(c->r[5], c->r[6], c->r[7], c->r[8]); c->r[29] = c->r[29] + 0xFFFFFFD0u;", BAR),
+    ("EBOOT", 0x08831F3C): ("addiu $sp, $sp, -0x30", "rt_menu_bar(c->r[5], c->r[6], c->r[7], c->r[8]); c->r[29] = c->r[29] + 0xFFFFFFD0u;", BAR),
+    ("lobby_task", 0x09A8C210): ("andi $a2, $v0, 0xFFFF", "c->r[6] = c->r[2] & 0xFFFFu; "
+                                 "rt_menu_item(c->r[5], c->r[6], c->r[7], c->r[8], c->r[19] == (uint32_t)LH(c->r[21] + 0x62u), c->r[21] + 0x62u); "
+                                 "rt_menu_sound(c);", ITEM),
+    ("EBOOT", 0x0882F580): ("addiu $sp, $sp, -0x40", "rt_menu_list(c->r[5], c->r[7]); c->r[29] = c->r[29] + 0xFFFFFFC0u;", MENU),
+    ("EBOOT", 0x0881C2E4): ("addiu $sp, $sp, -0x20", "rt_menu_cursor(c->r[5], c->r[7], &c->r[6]); c->r[29] = c->r[29] + 0xFFFFFFE0u;", CURSOR),
+    ("EBOOT", 0x0882E6F0): ("addiu $sp, $sp, -0x20", "rt_menu_arrows(c->r[5], c->r[6], c->r[7]); c->r[29] = c->r[29] + 0xFFFFFFE0u;", ARROWS),
+    ("EBOOT", 0x08839AE8): ("lhu $v1, 0x48($sp)", "rt_menu_list(c->r[29] + 0x38u, c->r[6]); c->r[3] = LHU((c->r[29] + 0x48u));", OPTIONS),
+    ("EBOOT", 0x08848094): ("addiu $a3, $zero, 0x1A", "rt_menu_grid(0xE6, 0x36, 28, 24, 0x1A, 0x1A, 8, 24, c->r[23] + 0x55Du, 0x16); "
+                            "rt_menu_sound(c); c->r[7] = 0x1Au;", BOX),
+    ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

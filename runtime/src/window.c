@@ -12,6 +12,8 @@
  *   Tab          reset the camera (L)             Esc          menu (START)
  *   arrows       D-pad (menus, camera)            Enter / Backspace   confirm / back in menus (cross / circle)
  *   C            SELECT
+ * While a menu is open (menu.c) the mouse is a pointer instead: over a row it moves the game's cursor there, a left
+ * click picks it (cross), a right click goes back (circle).
  * Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
 #include "hle.h"
 #include "render.h"
@@ -38,14 +40,77 @@ static uint32_t device_buttons;
 static uint8_t device_lx = 128, device_ly = 128;     /* the stick: the game reads it at frames (present.c) */
 static int mouse_captured;
 static float mouse_dx, mouse_dy;         /* motion since the game last took it */
+static int want_capture = 1;             /* the player's choice: captured unless F10 or the focus lost let it go */
+static int pointer_mode;                 /* a menu is open: the mouse is a pointer (menu.c) */
+static float pointer_x, pointer_y;       /* where it is, in the window's points */
+static int pointer_moved, pointer_clicks;
 
 /* The mouse drives the camera while it is captured: from the start, toggled with F10, released when the window loses
- * focus (and taken again when it is clicked) */
-static void capture_mouse(int on) {
+ * focus (and taken again when it is clicked), and while a menu is open, where it is a pointer */
+static void apply_capture(void) {
     if (!window)
         return;
-    mouse_captured = on;
-    SDL_SetWindowRelativeMouseMode(window, on);
+    mouse_captured = want_capture && !pointer_mode;
+    SDL_SetWindowRelativeMouseMode(window, mouse_captured);
+}
+
+static void capture_mouse(int on) {
+    want_capture = on;
+    apply_capture();
+}
+
+/* The picture's place in the window (points): letterboxed to the PSP's shape, centred (as render.c presents it) */
+static int picture(float *x0, float *y0, float *scale) {
+    int w, h;
+    if (!window || !SDL_GetWindowSize(window, &w, &h) || w <= 0 || h <= 0)
+        return 0;
+    float vw = (float)w, vh = (float)w * 272.0f / 480.0f;
+    if (vh > (float)h) {
+        vh = (float)h;
+        vw = (float)h * 480.0f / 272.0f;
+    }
+    *x0 = ((float)w - vw) / 2;
+    *y0 = ((float)h - vh) / 2;
+    *scale = vw / 480.0f;
+    return 1;
+}
+
+/* A menu opened (at: the point on the PSP's screen to put the pointer, its cursor) or closed */
+void window_pointer_mode(int on, float at_x, float at_y) {
+    if (on == pointer_mode)
+        return;
+    pointer_mode = on;
+    pointer_moved = pointer_clicks = 0;
+    apply_capture();
+    float x0, y0, k;
+    if (on && window && want_capture && picture(&x0, &y0, &k)) {
+        pointer_x = x0 + at_x * k;
+        pointer_y = y0 + at_y * k;
+        SDL_WarpMouseInWindow(window, pointer_x, pointer_y);
+    }
+}
+
+/* The pointer on the PSP's screen; 0 if there is none (no window, or not in pointer mode) */
+int window_pointer(float *x, float *y) {
+    float x0, y0, k;
+    if (!pointer_mode || !picture(&x0, &y0, &k))
+        return 0;
+    *x = (pointer_x - x0) / k;
+    *y = (pointer_y - y0) / k;
+    return 1;
+}
+
+/* Whether the pointer moved, and the left clicks, since last asked */
+int window_pointer_moved(void) {
+    int m = pointer_moved;
+    pointer_moved = 0;
+    return m;
+}
+
+int window_pointer_clicks(void) {
+    int n = pointer_clicks;
+    pointer_clicks = 0;
+    return n;
 }
 
 void window_mouse_peek(float *dx, float *dy) {
@@ -125,7 +190,9 @@ static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
         if (k[map[i].key])
             b |= map[i].button;
-    SDL_MouseButtonFlags m = mouse_captured ? SDL_GetMouseState(NULL, NULL) : 0;
+    SDL_MouseButtonFlags m = mouse_captured || pointer_mode ? SDL_GetMouseState(NULL, NULL) : 0;
+    if (pointer_mode)                   /* the left button is the pointer's (menu.c) */
+        m &= SDL_BUTTON_RMASK;
     if (m & SDL_BUTTON_LMASK)
         b |= PSP_TRIANGLE;
     if (m & SDL_BUTTON_RMASK)
@@ -236,11 +303,22 @@ int window_poll(void) {
             render_window_resized();
         if (e.type == SDL_EVENT_WINDOW_FOCUS_LOST)
             capture_mouse(0);
-        if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
+        if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && pointer_mode) {
+            if (e.button.button == SDL_BUTTON_LEFT)
+                pointer_clicks++;
+            pointer_x = e.button.x;
+            pointer_y = e.button.y;
+            want_capture = 1;           /* (taken when the menu closes) */
+        } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
             capture_mouse(1);
         if (e.type == SDL_EVENT_MOUSE_MOTION && mouse_captured) {
             mouse_dx += e.motion.xrel;
             mouse_dy += e.motion.yrel;
+        }
+        if (e.type == SDL_EVENT_MOUSE_MOTION && pointer_mode) {
+            pointer_x = e.motion.x;
+            pointer_y = e.motion.y;
+            pointer_moved = 1;
         }
         if (e.type == SDL_EVENT_GAMEPAD_ADDED && !pad)
             pad = SDL_OpenGamepad(e.gdevice.which);

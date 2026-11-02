@@ -65,6 +65,15 @@ void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    
 void rt_trace_call(Ctx *c, uint32_t fn);   /* a call of fn (recomp.py's RECOMP_TRACE): logged with MHFU_CALL_LOG */
 extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
 extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
+void rt_menu_list(uint32_t layout, uint32_t row);   /* a list window drawn, its cursor's bar on row (menu.c) */
+void rt_menu_bar(uint32_t x, uint32_t y, uint32_t w, uint32_t h);   /* a menu cursor's bar drawn (menu.c) */
+void rt_menu_item(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int selected, uint32_t cursor);  /* a list's item drawn
+                                                                                                (menu.c) */
+void rt_menu_sound(Ctx *c);     /* the cursor's sound, for a cursor the mouse moved (menu.c) */
+void rt_menu_grid(int x, int y, int pitch_x, int pitch_y, int w, int h, int cols, int n, uint32_t cursor,
+                  int sound);    /* a grid of slots drawn, its cursor a byte (menu.c) */
+void rt_menu_cursor(uint32_t cursor, uint32_t rows, uint32_t *buttons);  /* a menu's cursor moved (menu.c) */
+void rt_menu_arrows(uint32_t x, uint32_t y, uint32_t w);    /* a left and right arrow drawn (menu.c) */
 
 /* Instructions done by the runtime */
 void vfpu_exec(Ctx *c, uint32_t instr, uint32_t at);    /* any VFPU instruction but a branch */

@@ -50,7 +50,14 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
-hunter, the movement keys turning with it. With `MHFU_FPS` the camera moves at the display's rate.
+hunter, the movement keys turning with it. With `MHFU_FPS` the camera moves at the display's rate. While the game shows
+its own camera (talking to someone, cutscenes) the mouse leaves it alone.
+
+In the menus (the start menu and the game's other list windows - the item pouch, shops... -, the quest lists, the
+title's, the supply box's slots) the mouse is a pointer: over an item it moves the game's cursor there, a left click picks it and a right click
+goes back; it is captured for the camera again when the menu closes. A window opened from another (an item's choices,
+a yes or no) takes the pointer while it is open. A click on the arrows beside a page number or a setting (the Options)
+turns the page or changes the setting. Menus drawn some other way still go by the keys alone.
 
 A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
 
