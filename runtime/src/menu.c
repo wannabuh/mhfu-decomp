@@ -416,7 +416,7 @@ static void menu_step(uint32_t *buttons) {
     if (going && !undo && !jump_tried && menu.kind != 2 && menu.sel != target) {
         jump_tried = 1;
         jump.from = menu.sel, jump.to = target, jump.rows = menu.n, jump.done = 0;
-        if (menu.cursor && (menu.byte ? LBU(menu.cursor) : LH(menu.cursor)) == (uint32_t)menu.sel) {
+        if (menu.cursor && (menu.byte ? (int)LBU(menu.cursor) : (int)LH(menu.cursor)) == menu.sel) {
             if (menu.byte)              /* the cursor's place known: put there */
                 SB(menu.cursor, (uint32_t)target);
             else

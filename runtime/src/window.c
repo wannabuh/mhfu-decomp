@@ -4,23 +4,19 @@
  * Drawing is the Vulkan renderer's (render.c), into this window or offscreen; with MHFU_RENDERER=soft, or without
  * Vulkan, the software GE draws into VRAM and its frames are shown here through SDL's renderer.
  *
- * Keyboard and mouse, laid out for playing on a PC (the PSP buttons they press, with MHFU's default controls):
- *   W A S D      move (the analog stick)          Shift        sprint (R)
- *   Space        dodge / roll (cross)             F            interact: talk, gather, carve (cross)
- *   left mouse   primary attack (triangle)        right mouse  secondary attack (circle)
- *   middle / E   special attack (triangle + circle)   Q        use item / sheathe (square)
- *   Tab          reset the camera (L)             Esc          menu (START)
- *   arrows       D-pad (menus, camera)            Enter / Backspace   confirm / back in menus (cross / circle)
- *   C            SELECT
- * While a menu is open (menu.c) the mouse is a pointer instead: over a row it moves the game's cursor there, a left
- * click picks it (cross), a right click goes back (circle).
- * Gamepad: as laid out (south cross, east circle, west square, north triangle), left stick. */
+ * The keyboard, the mouse and a gamepad are bound to actions, the actions pressing the PSP's buttons as the game wants
+ * them (controls.c: controls.ini). The mouse turns the camera (camera.c), and so does a gamepad's right stick; the
+ * wheel goes through the items. While a menu is open (menu.c) the mouse is a pointer instead: over a row it moves the
+ * game's cursor there, a left click picks it (cross), a right click goes back (circle). F1 opens the controls screen
+ * (overlay.c), the game paused while it is open. */
 #include "hle.h"
 #include "render.h"
 #include "savestate.h"
+#include "controls.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 #include <time.h>
 
@@ -42,6 +38,7 @@ static int mouse_captured;
 static float mouse_dx, mouse_dy;         /* motion since the game last took it */
 static int want_capture = 1;             /* the player's choice: captured unless F10 or the focus lost let it go */
 static int pointer_mode;                 /* a menu is open: the mouse is a pointer (menu.c) */
+static int overlay_mode;                 /* the controls screen is open (overlay.c): the mouse a pointer */
 static float pointer_x, pointer_y;       /* where it is, in the window's points */
 static int pointer_moved, pointer_clicks;
 
@@ -50,7 +47,7 @@ static int pointer_moved, pointer_clicks;
 static void apply_capture(void) {
     if (!window)
         return;
-    mouse_captured = want_capture && !pointer_mode;
+    mouse_captured = want_capture && !pointer_mode && !overlay_mode;
     SDL_SetWindowRelativeMouseMode(window, mouse_captured);
 }
 
@@ -89,6 +86,25 @@ void window_pointer_mode(int on, float at_x, float at_y) {
         SDL_WarpMouseInWindow(window, pointer_x, pointer_y);
     }
 }
+
+/* The controls screen opened or closed (overlay.c) */
+void window_overlay_mode(int on) {
+    overlay_mode = on;
+    apply_capture();
+}
+
+/* A point in the window (its points) on the PSP's screen; 0 if there is no window */
+int window_point(float wx, float wy, float *x, float *y) {
+    float x0, y0, k;
+    if (!picture(&x0, &y0, &k))
+        return 0;
+    *x = (wx - x0) / k;
+    *y = (wy - y0) / k;
+    return 1;
+}
+
+/* Whether a menu has the pointer (menu.c) */
+int window_in_menu(void) { return pointer_mode; }
 
 /* The pointer on the PSP's screen; 0 if there is none (no window, or not in pointer mode) */
 int window_pointer(float *x, float *y) {
@@ -129,6 +145,7 @@ void window_init(void) {
     const char *r = getenv("MHFU_RENDERER");
     int want_vulkan = !(r && !strcmp(r, "soft"));
     disabled = headless;
+    controls_init(!headless);
     if (!headless && !SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         fprintf(stderr, "no window: %s\n", SDL_GetError());
         disabled = headless = 1;
@@ -159,6 +176,12 @@ void window_init(void) {
     }
 }
 
+float camera_sens(void);
+int overlay_open(void);
+void overlay_toggle(void);
+int overlay_event(const SDL_Event *e);
+void overlay_tick(void);
+
 static int enabled(void) { return !disabled; }
 
 /* F9: the game's RAM to build/snap-<time>.bin - for finding the game's variables by comparing snapshots (named by
@@ -175,58 +198,6 @@ static void ram_snapshot(void) {
     fwrite(MEM(0x08800000u), 1, 0x01800000u, f);
     fclose(f);
     fprintf(stderr, "snapshot %d saved (%s)\n", n, path);
-}
-
-static uint32_t keyboard_buttons(uint8_t *lx, uint8_t *ly) {
-    const bool *k = SDL_GetKeyboardState(NULL);
-    uint32_t b = 0;
-    static const struct { SDL_Scancode key; uint32_t button; } map[] = {
-        {SDL_SCANCODE_SPACE, PSP_CROSS}, {SDL_SCANCODE_F, PSP_CROSS}, {SDL_SCANCODE_Q, PSP_SQUARE},
-        {SDL_SCANCODE_E, PSP_TRIANGLE | PSP_CIRCLE}, {SDL_SCANCODE_LSHIFT, PSP_R}, {SDL_SCANCODE_RSHIFT, PSP_R},
-        {SDL_SCANCODE_TAB, PSP_L}, {SDL_SCANCODE_ESCAPE, PSP_START}, {SDL_SCANCODE_C, PSP_SELECT},
-        {SDL_SCANCODE_UP, PSP_UP}, {SDL_SCANCODE_DOWN, PSP_DOWN}, {SDL_SCANCODE_LEFT, PSP_LEFT},
-        {SDL_SCANCODE_RIGHT, PSP_RIGHT}, {SDL_SCANCODE_RETURN, PSP_CROSS}, {SDL_SCANCODE_BACKSPACE, PSP_CIRCLE},
-    };
-    for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
-        if (k[map[i].key])
-            b |= map[i].button;
-    SDL_MouseButtonFlags m = mouse_captured || pointer_mode ? SDL_GetMouseState(NULL, NULL) : 0;
-    if (pointer_mode)                   /* the left button is the pointer's (menu.c) */
-        m &= SDL_BUTTON_RMASK;
-    if (m & SDL_BUTTON_LMASK)
-        b |= PSP_TRIANGLE;
-    if (m & SDL_BUTTON_RMASK)
-        b |= PSP_CIRCLE;
-    if (m & SDL_BUTTON_MMASK)
-        b |= PSP_TRIANGLE | PSP_CIRCLE;
-    int x = 128 + (k[SDL_SCANCODE_D] ? 127 : 0) - (k[SDL_SCANCODE_A] ? 128 : 0);
-    int y = 128 + (k[SDL_SCANCODE_S] ? 127 : 0) - (k[SDL_SCANCODE_W] ? 128 : 0);
-    *lx = (uint8_t)x;
-    *ly = (uint8_t)y;
-    return b;
-}
-
-static uint32_t gamepad_buttons(uint8_t *lx, uint8_t *ly) {
-    if (!pad)
-        return 0;
-    static const struct { SDL_GamepadButton pad; uint32_t button; } map[] = {
-        {SDL_GAMEPAD_BUTTON_SOUTH, PSP_CROSS}, {SDL_GAMEPAD_BUTTON_EAST, PSP_CIRCLE},
-        {SDL_GAMEPAD_BUTTON_WEST, PSP_SQUARE}, {SDL_GAMEPAD_BUTTON_NORTH, PSP_TRIANGLE},
-        {SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, PSP_L}, {SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, PSP_R},
-        {SDL_GAMEPAD_BUTTON_START, PSP_START}, {SDL_GAMEPAD_BUTTON_BACK, PSP_SELECT},
-        {SDL_GAMEPAD_BUTTON_DPAD_UP, PSP_UP}, {SDL_GAMEPAD_BUTTON_DPAD_DOWN, PSP_DOWN},
-        {SDL_GAMEPAD_BUTTON_DPAD_LEFT, PSP_LEFT}, {SDL_GAMEPAD_BUTTON_DPAD_RIGHT, PSP_RIGHT},
-    };
-    uint32_t b = 0;
-    for (size_t i = 0; i < sizeof map / sizeof map[0]; i++)
-        if (SDL_GetGamepadButton(pad, map[i].pad))
-            b |= map[i].button;
-    int x = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX), y = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY);
-    if (x > 6000 || x < -6000 || y > 6000 || y < -6000) {
-        *lx = (uint8_t)((x + 32768) >> 8);
-        *ly = (uint8_t)((y + 32768) >> 8);
-    }
-    return b;
 }
 
 /* Read input; returns 0 if the window was closed */
@@ -282,14 +253,44 @@ static void state_key(SDL_Scancode key) {
     }
 }
 
+/* The right stick turns the camera as the mouse does (its motion added to the mouse's, by the time since the last) */
+static void pad_camera(void) {
+    static uint64_t last;
+    uint64_t now = SDL_GetTicksNS();
+    float dt = last ? (float)(now - last) / 1e9f : 0;
+    last = now;
+    if (dt > 0.1f)
+        dt = 0.1f;
+    float dx, dy;
+    controls_pad_camera(pad, dt, camera_sens(), &dx, &dy);
+    if (mouse_captured || !window) {
+        mouse_dx += dx;
+        mouse_dy += controls_invert_y() ? -dy : dy;
+    }
+}
+
 int window_poll(void) {
     test_mouse();
-    if (!enabled())
+    if (!enabled()) {                   /* (no devices: the actions a test script holds, MHFU_TEST_ACTION) */
+        uint8_t lx = 128, ly = 128;
+        device_buttons = controls_buttons(NULL, 0, NULL, pointer_mode, &lx, &ly);
+        device_lx = lx;
+        device_ly = ly;
         return 1;
+    }
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_EVENT_QUIT)
             return 0;
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F1 && !e.key.repeat && !overlay_open()) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the controls screen needs the Vulkan renderer: controls.ini");
+            else
+                overlay_toggle();
+            continue;
+        }
+        if (overlay_event(&e))          /* (the controls screen open: its events) */
+            continue;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
             ram_snapshot();
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&
@@ -313,8 +314,17 @@ int window_poll(void) {
             capture_mouse(1);
         if (e.type == SDL_EVENT_MOUSE_MOTION && mouse_captured) {
             mouse_dx += e.motion.xrel;
-            mouse_dy += e.motion.yrel;
+            mouse_dy += controls_invert_y() ? -e.motion.yrel : e.motion.yrel;
         }
+        if (e.type == SDL_EVENT_MOUSE_WHEEL && (mouse_captured || pointer_mode))
+            controls_wheel(e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y);
+        /* the device last used (for the hints shown: controls.c) */
+        if (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_MOUSE_BUTTON_DOWN || e.type == SDL_EVENT_MOUSE_WHEEL ||
+            (e.type == SDL_EVENT_MOUSE_MOTION && (fabsf(e.motion.xrel) + fabsf(e.motion.yrel) > 4)))
+            controls_note_device(0);
+        if (e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
+            (e.type == SDL_EVENT_GAMEPAD_AXIS_MOTION && (e.gaxis.value > 16000 || e.gaxis.value < -16000)))
+            controls_note_device(1);
         if (e.type == SDL_EVENT_MOUSE_MOTION && pointer_mode) {
             pointer_x = e.motion.x;
             pointer_y = e.motion.y;
@@ -327,9 +337,19 @@ int window_poll(void) {
             pad = NULL;
         }
     }
+    if (overlay_open()) {               /* (the game paused: nothing pressed) */
+        overlay_tick();
+        device_buttons = 0;
+        device_lx = device_ly = 128;
+        return 1;
+    }
+    pad_camera();
     uint8_t lx = 128, ly = 128;
-    uint32_t b = keyboard_buttons(&lx, &ly);
-    b |= gamepad_buttons(&lx, &ly);
+    SDL_MouseButtonFlags m = mouse_captured || pointer_mode ? SDL_GetMouseState(NULL, NULL) : 0;
+    /* (in a menu the left button is the pointer's, and the right goes back: circle - menu.c) */
+    uint32_t b = controls_buttons(SDL_GetKeyboardState(NULL), pointer_mode ? 0 : m, pad, pointer_mode, &lx, &ly);
+    if (pointer_mode && (m & SDL_BUTTON_RMASK))
+        b |= PSP_CIRCLE;
     device_buttons = b;
     device_lx = lx;
     device_ly = ly;

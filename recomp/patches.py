@@ -127,6 +127,10 @@ OPTIONS = "the Options' window drawn: its layout (sp+0x38) and the cursor's row 
 # its cursor the hunter's byte +0x55D, $s7 the hunter; EBOOT 088476F4 moves it, with the sound 0x16): noted as its
 # cursor's frame is about to be drawn, and the sound made there for a cursor the mouse has put on another slot
 BOX = "the supply box's slots drawn: their places and the cursor noted, for the mouse (menu.c)"
+# The HUD's sprites (EBOOT 0882AF70: a1 x, a2 y, a3 width, t0 height, t1 the sprite; 0882A9DC: a1 x, a2 y, a3 the
+# sprite, at its own size - the item bar's buttons): the PSP's buttons among them left out where the renderer shows
+# the keys or gamepad buttons bound instead (glyphs.c)
+SPRITE = "a HUD sprite drawn: a PSP button's left out, the input bound shown in its place (glyphs.c)"
 
 
 # The game's main loop (EBOOT 0888FD38), as it wakes for a game frame: whether a 30th falls on it
@@ -292,5 +296,9 @@ PATCHES = {
     ("EBOOT", 0x08839AE8): ("lhu $v1, 0x48($sp)", "rt_menu_list(c->r[29] + 0x38u, c->r[6]); c->r[3] = LHU((c->r[29] + 0x48u));", OPTIONS),
     ("EBOOT", 0x08848094): ("addiu $a3, $zero, 0x1A", "rt_menu_grid(0xE6, 0x36, 28, 24, 0x1A, 0x1A, 8, 24, c->r[23] + 0x55Du, 0x16); "
                             "rt_menu_sound(c); c->r[7] = 0x1Au;", BOX),
+    ("EBOOT", 0x0882AF70): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[9], c->r[5], c->r[6], c->r[7], c->r[8])) return; "
+                            "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
+    ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "
+                            "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

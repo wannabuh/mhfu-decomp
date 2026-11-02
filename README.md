@@ -36,17 +36,43 @@ tools/.venv/bin/python tools/difftest.py           # check recompiled functions 
 
 ## Controls
 
-| Key | Does (PSP button) | Key | Does (PSP button) |
-|-----|-------------------|-----|-------------------|
-| W A S D | move (analog stick) | Shift | sprint (R) |
-| Space | dodge / roll (×) | F | interact: talk, gather, carve (×) |
-| Left mouse | primary attack (△) | Right mouse | secondary attack (○) |
-| Middle mouse / E | special attack (△ + ○) | Q | use item / sheathe (□) |
-| Tab | reset camera (L) | Esc | menu (START) |
-| Arrows | D-pad: menus, camera | Enter / Backspace | confirm / back in menus (× / ○) |
-| C | SELECT | F10 | release / capture the mouse |
-| F11 | fullscreen on / off | F2 / F4 | save / load a save state |
-| F3 | the next save state slot (1-9) | | |
+Each action has its own key; the runtime presses the PSP buttons the game wants for it (`runtime/src/controls.c`):
+
+| Action | Keyboard / mouse | Gamepad | What it presses |
+|--------|------------------|---------|-----------------|
+| Move | W A S D | left stick | the analog stick |
+| Camera | mouse | right stick | (turns the camera) |
+| Attack / attack 2 | left / right mouse | Y / B | △ / ○ |
+| Special attack | middle mouse, E | RB | △ + ○ |
+| Roll / dodge | Space | A | × |
+| Sprint / guard | Shift | RT | R |
+| Interact (talk, gather, carve, open) | F | LT | ○ - with the weapon out, it is put away first |
+| Use item | R | X | □ - with the weapon out, it is put away first (sword and shield: used drawn) |
+| Sheathe | X | D-pad down | □, only with the weapon out |
+| Next / previous item | wheel down / up, 3 / 1 | D-pad right / left | L held, then □ / ○ |
+| Reset camera | Tab | LB, L3 | L |
+| Map | M, C | Back, D-pad up | SELECT |
+| Menu | Esc | Start | START |
+| D-pad | arrows | | the D-pad |
+| Confirm / back in menus | Enter / Backspace | A / B | × / ○ |
+
+F1 opens the controls screen (the game paused under it): choose an action and press the input to bind to it (Enter
+or a click; + or a right click adds it to those it has, Delete clears them), Tab between the keyboard and mouse's and
+the gamepad's; closing it saves them. They are kept in `controls.ini` (in the working directory, else
+`~/.config/mhfu-recomp/`, written with the defaults on the first run): `action = input, input...` under `[keyboard]` and `[gamepad]`, with the camera stick's speed, its
+dead zone and an inverted tilt under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
+the shoulders L and R, the D-pad) and the wheel moves the cursor.
+
+The game's button hints (the item bar's, and others drawn with the HUD's button pictures) show the keys and mouse
+buttons bound instead of the PSP's, or the gamepad's buttons once the gamepad is used (`MHFU_PSP_HINTS=1`: the PSP's).
+
+| Key | Does |
+|-----|------|
+| F1 | the controls screen |
+| F10 | release / capture the mouse |
+| F11 | fullscreen on / off |
+| F2 / F4 | save / load a save state |
+| F3 | the next save state slot (1-9) |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
@@ -58,8 +84,6 @@ title's, the supply box's slots) the mouse is a pointer: over an item it moves t
 goes back; it is captured for the camera again when the menu closes. A window opened from another (an item's choices,
 a yes or no) takes the pointer while it is open. A click on the arrows beside a page number or a setting (the Options)
 turns the page or changes the setting. Menus drawn some other way still go by the keys alone.
-
-A gamepad works as laid out (south ×, east ○, west □, north △, left stick).
 
 Save states keep the whole game as it is - anywhere, in a hunt or a menu - and load it again at once, as PPSSPP's do:
 F2 saves into the slot, F4 loads it, F3 moves on to the next slot (the window's title says which, and what was done).

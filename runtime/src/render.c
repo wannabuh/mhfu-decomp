@@ -26,6 +26,7 @@
 #include "grass.h"
 #include "hle.h"
 #include "post.h"
+#include "glyphs.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -1576,7 +1577,7 @@ void render_finish_frame(void) {
 
 /* The picture onto an image of w x h being drawn into (the window's): letterboxed to 480:272; its own size there when
  * that is within a pixel of what fits (as the window's when the internal resolution follows it), at a whole pixel */
-static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorSet set, uint32_t w, uint32_t h) {
+static void picture_place(uint32_t w, uint32_t h, float *x0, float *y0, float *vw_out, float *vh_out) {
     float sw = (float)w, sh = (float)h, src[2] = {(float)scaled(480), (float)scaled(272)};
     float vw = sw, vh = sw * 272.0f / 480.0f;
     if (vh > sh) {
@@ -1590,7 +1591,16 @@ static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorS
         vw = roundf(vw);
         vh = roundf(vh);
     }
-    float pc[6] = {src[0], src[1], floorf((sw - vw) / 2), floorf((sh - vh) / 2), vw, vh};
+    *x0 = floorf((sw - vw) / 2);
+    *y0 = floorf((sh - vh) / 2);
+    *vw_out = vw;
+    *vh_out = vh;
+}
+
+static void present_draw(VkCommandBuffer cmd, VkPipeline pipeline, VkDescriptorSet set, uint32_t w, uint32_t h) {
+    float x0, y0, vw, vh;
+    picture_place(w, h, &x0, &y0, &vw, &vh);
+    float pc[6] = {(float)scaled(480), (float)scaled(272), x0, y0, vw, vh};
     VkViewport vp = {pc[2], pc[3], vw, vh, 0, 1};
     VkRect2D sc = {{0, 0}, {w, h}};
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -1620,30 +1630,6 @@ void render_note(const char *text) {
     note_until = note_clock() + 2.5;
 }
 
-static const uint8_t *note_glyph(char ch) {
-    static const char signs[] = ":()-./";
-    static const uint8_t letters[26][7] = {
-        {14, 17, 17, 31, 17, 17, 17}, {30, 17, 17, 30, 17, 17, 30}, {14, 17, 16, 16, 16, 17, 14}, {30, 17, 17, 17, 17, 17, 30},
-        {31, 16, 16, 30, 16, 16, 31}, {31, 16, 16, 30, 16, 16, 16}, {14, 17, 16, 23, 17, 17, 15}, {17, 17, 17, 31, 17, 17, 17},
-        {14, 4, 4, 4, 4, 4, 14}, {7, 2, 2, 2, 2, 18, 12}, {17, 18, 20, 24, 20, 18, 17}, {16, 16, 16, 16, 16, 16, 31},
-        {17, 27, 21, 21, 17, 17, 17}, {17, 17, 25, 21, 19, 17, 17}, {14, 17, 17, 17, 17, 17, 14}, {30, 17, 17, 30, 16, 16, 16},
-        {14, 17, 17, 17, 21, 18, 13}, {30, 17, 17, 30, 20, 18, 17}, {15, 16, 16, 14, 1, 1, 30}, {31, 4, 4, 4, 4, 4, 4},
-        {17, 17, 17, 17, 17, 17, 14}, {17, 17, 17, 17, 17, 10, 4}, {17, 17, 17, 21, 21, 21, 10}, {17, 17, 10, 4, 10, 17, 17},
-        {17, 17, 17, 10, 4, 4, 4}, {31, 1, 2, 4, 8, 16, 31}};
-    static const uint8_t figures[10][7] = {
-        {14, 17, 19, 21, 25, 17, 14}, {4, 12, 4, 4, 4, 4, 14}, {14, 17, 1, 2, 4, 8, 31}, {31, 2, 4, 2, 1, 17, 14},
-        {2, 6, 10, 18, 31, 2, 2}, {31, 16, 30, 1, 1, 17, 14}, {6, 8, 16, 30, 17, 17, 14}, {31, 1, 2, 4, 8, 8, 8},
-        {14, 17, 17, 14, 17, 17, 14}, {14, 17, 17, 15, 1, 2, 12}};
-    static const uint8_t sign[6][7] = {{0, 12, 12, 0, 12, 12, 0}, {2, 4, 8, 8, 8, 4, 2}, {8, 4, 2, 2, 2, 4, 8},
-                                       {0, 0, 0, 31, 0, 0, 0}, {0, 0, 0, 0, 0, 12, 12}, {1, 1, 2, 4, 8, 16, 16}};
-    if (ch >= 'A' && ch <= 'Z')
-        return letters[ch - 'A'];
-    if (ch >= '0' && ch <= '9')
-        return figures[ch - '0'];
-    const char *at = ch ? strchr(signs, ch) : NULL;
-    return at ? sign[at - signs] : NULL;
-}
-
 static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     if (!note_text[0] || note_clock() > note_until)
         return;
@@ -1657,7 +1643,7 @@ static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     vkCmdClearAttachments(cmd, 1, &box, 1, rects);
     nr = 0;
     for (int i = 0; i < n; i++) {
-        const uint8_t *g = note_glyph(note_text[i]);
+        const uint8_t *g = glyph_font(note_text[i]);
         for (int row = 0; g && row < 7; row++)
             for (int col = 0; col < 5; col++)
                 if (g[row] >> (4 - col) & 1)
@@ -1667,6 +1653,34 @@ static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     VkClearAttachment ink = {VK_IMAGE_ASPECT_COLOR_BIT, 0, {{{0.92f, 0.9f, 0.82f, 1}}}};
     if (nr)
         vkCmdClearAttachments(cmd, 1, &ink, (uint32_t)nr, rects);
+}
+
+/* The button hints (glyphs.c): the keys and buttons bound, over the PSP's buttons' places in the picture - and the
+ * controls screen (overlay.c) over all */
+int overlay_rects(float x0, float y0, float scale, HintRect *out, int max);
+static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
+    static HintRect rects[8192];
+    static VkClearRect by_color[8192];
+    float x0, y0, vw, vh;
+    picture_place(w, h, &x0, &y0, &vw, &vh);
+    int n = glyphs_rects(x0, y0, vw / 480.0f, rects, 8192);
+    n += overlay_rects(x0, y0, vw / 480.0f, rects + n, 8192 - n);    /* (the controls screen over them) */
+    for (int i = 0; i < n;) {           /* (in order, each run of one colour cleared at once) */
+        int c = rects[i].color;
+        uint32_t k = 0;
+        for (; i < n && rects[i].color == c; i++) {
+            const HintRect *r = &rects[i];
+            int x = r->x < 0 ? 0 : r->x, y = r->y < 0 ? 0 : r->y;
+            int x1 = r->x + r->w > (int)w ? (int)w : r->x + r->w, y1 = r->y + r->h > (int)h ? (int)h : r->y + r->h;
+            if (x1 > x && y1 > y)
+                by_color[k++] = (VkClearRect){{{x, y}, {(uint32_t)(x1 - x), (uint32_t)(y1 - y)}}, 0, 1};
+        }
+        if (!k)
+            continue;
+        VkClearAttachment ink = {VK_IMAGE_ASPECT_COLOR_BIT, 0, {{{hint_palette[c][0], hint_palette[c][1],
+                                                                  hint_palette[c][2], hint_palette[c][3]}}}};
+        vkCmdClearAttachments(cmd, 1, &ink, k, by_color);
+    }
 }
 
 void render_flip(uint32_t addr) {
@@ -1715,6 +1729,7 @@ void render_flip(uint32_t addr) {
                           NULL};
     vkCmdBeginRendering(cmd, &ri);
     present_draw(cmd, present_pipeline, present_sets[vk.frame], vk.swap_extent.width, vk.swap_extent.height);
+    draw_hints(cmd, vk.swap_extent.width, vk.swap_extent.height);
     draw_note(cmd, vk.swap_extent.width, vk.swap_extent.height);
     vkCmdEndRendering(cmd);
     vk_transition(&swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -1781,6 +1796,7 @@ uint32_t *render_readback_present(uint32_t addr, int w, int h) {
                           &ca, NULL, NULL};
     vkCmdBeginRendering(cmd, &ri);
     present_draw(cmd, pipeline, present_sets[vk.frame], (uint32_t)w, (uint32_t)h);
+    draw_hints(cmd, (uint32_t)w, (uint32_t)h);
     vkCmdEndRendering(cmd);
     vk_transition(&out, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     VkBufferImageCopy copy = {0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {(uint32_t)w, (uint32_t)h, 1}};

@@ -136,6 +136,7 @@ double rt_game_30ths(void);
  * default the hunt's hunter, 089BB3CC - while it has it) position, state function and ticks in it, by the game's time - to compare runs
  * at 30 and at N a second */
 static uint32_t traced;
+uint32_t rt_local_player;      /* the local player's object (the hunt's hunter: controls.c), as last ticked */
 #define LWF(a) (*(float *)MEM(a))
 static void trace(void) {
     static FILE *f;
@@ -315,6 +316,8 @@ void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
         trace_vt = getenv("MHFU_TRACE_VT") ? (uint32_t)strtoul(getenv("MHFU_TRACE_VT"), NULL, 16) : 0x089BB3CCu;
         trace_obj = getenv("MHFU_TRACE_OBJ") ? (uint32_t)strtoul(getenv("MHFU_TRACE_OBJ"), NULL, 16) : 0;
     }
+    if (at == 0x088DB474u)              /* the local player's tick */
+        rt_local_player = c->r[4];
     /* (the one traced: the first object ticked with that vtable, kept while it has it - a herd's animals each the same;
      * MHFU_TRACE_OBJ=hex: the one at that address, while it has the vtable) */
     if (LW(c->r[4]) == trace_vt && (!traced || LW(traced) != trace_vt) && (!trace_obj || c->r[4] == trace_obj))
@@ -368,8 +371,11 @@ void rt_trace_call(Ctx *c, uint32_t fn) {
     if (on < 0)
         on = getenv("MHFU_CALL_LOG") != NULL;
     if (on)
-        fprintf(stderr, "call: %.2f %s %08x from %08x (%08x %08x %08x)\n", rt_game_30ths(),
-                rt_time_scale == 1 && real_scale != 1 ? "30" : "--", fn, c->r[31], c->r[4], c->r[5], c->r[6]);
+        fprintf(stderr, "call: %.2f %s %08x from %08x (%08x %08x %08x %08x %08x %08x %08x %08x)\n", rt_game_30ths(),
+                rt_time_scale == 1 && real_scale != 1 ? "30" : "--", fn, c->r[31], c->r[4], c->r[5], c->r[6], c->r[7],
+                c->r[8], c->r[9], c->r[10], c->r[11]);
+    if (on && getenv("MHFU_CALL_LOG_S"))       /* (MHFU_CALL_LOG_S: s0-s2 and the caller's return address too) */
+        fprintf(stderr, "  s0 %08x s1 %08x s2 %08x\n", c->r[16], c->r[17], c->r[18]);
 }
 
 /* A gate of what makes ready for the logic of a 30th: run on the frame before one */

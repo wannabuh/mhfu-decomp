@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 static int dump_every = -1;
@@ -583,7 +584,11 @@ void present_input_read(void) {
     record_input(0, 0);
 }
 
+void glyphs_frame_end(void);
+int overlay_open(void);
+
 void present_frame(void) {
+    glyphs_frame_end();             /* (the button hints drawn in this frame: those shown) */
     static uint64_t frame_wall;
     uint64_t wall = wall_time_us();
     if (frame_wall && wall - frame_wall > longest_frame_us)
@@ -665,6 +670,15 @@ void present_frame(void) {
     }
     if (!window_poll())
         exit(0);
+    while (overlay_open()) {        /* the controls screen (F1): the game paused, the frame shown again under it */
+        if (!window_poll())
+            exit(0);
+        uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
+        if (render_on && shown)
+            render_flip(shown);
+        struct timespec ts = {0, 16000000};
+        nanosleep(&ts, NULL);
+    }
     /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
      * taken again as the game reads them: present_input_read) */
     if (input_due) {                /* (not read last frame: the menus noted all the same) */

@@ -72,6 +72,8 @@ void rt_menu_item(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int selected, 
 void rt_menu_sound(Ctx *c);     /* the cursor's sound, for a cursor the mouse moved (menu.c) */
 void rt_menu_grid(int x, int y, int pitch_x, int pitch_y, int w, int h, int cols, int n, uint32_t cursor,
                   int sound);    /* a grid of slots drawn, its cursor a byte (menu.c) */
+int rt_sprite(Ctx *c, uint32_t sprite, uint32_t x, uint32_t y, int w, int h);  /* a HUD sprite drawn (w < 0: its own
+                                                                   size): 1 if a PSP button's, a key shown instead (glyphs.c) */
 void rt_menu_cursor(uint32_t cursor, uint32_t rows, uint32_t *buttons);  /* a menu's cursor moved (menu.c) */
 void rt_menu_arrows(uint32_t x, uint32_t y, uint32_t w);    /* a left and right arrow drawn (menu.c) */
 
