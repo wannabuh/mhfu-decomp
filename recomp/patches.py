@@ -88,6 +88,11 @@ COUNTED = {
 PLACED = {
     "game_task": {0x200, 0x208},
     "em": {0x200, 0x208},
+# Not those: a place moved once, by a distance of its own (along the facing), not a step for the frame - scaled, it went
+# only part of the way. The hunter's grab of a ledge (game_task 09A9D0B0: 55 units forward onto it; at 60 only half,
+# so the ground below was not the ledge's - he fell off at once and grabbed it again, round and round) and his drop
+# to hang from one (09A9D478: 30 back, 195 down)
+NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x09A9D584)}
 }
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is

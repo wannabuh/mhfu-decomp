@@ -22,7 +22,7 @@ import rabbitizer  # noqa: E402
 rabbitizer.config.pseudos_enablePseudos = False
 
 import modules  # noqa: E402
-from patches import COUNTED, GATES, PATCHES, PLACED  # noqa: E402
+from patches import COUNTED, GATES, NOT_PLACED, PATCHES, PLACED  # noqa: E402
 
 # RECOMP_TRACE=hex,...: functions whose every call is logged at run time (MHFU_CALL_LOG: native.c), for finding who
 # calls what at which rate
@@ -135,7 +135,9 @@ class Translator:
         """A step of a character's place (patches.py PLACED): add.s (or sub.s) $fd, $fs, $ft stored by the next
         instruction or the one after to one of the module's place fields, $fs loaded from that field (same base) in
         the 8 before - the step ($ft: a displacement, a velocity) times the time scale. Not where a patch is among
-        those 8 (the step scaled there already)"""
+        those 8 (the step scaled there already), nor those in NOT_PLACED (a place moved once)"""
+        if (mod.name, a) in NOT_PLACED:
+            return None
         fields = PLACED.get(mod.name)
         if fields is None:
             fields = PLACED.get("em") if mod.name.startswith("em") else None
