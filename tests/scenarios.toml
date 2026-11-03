@@ -1,0 +1,216 @@
+# The test scenarios (tools/suite.py). Each: a recording from tests/data/rec (played from the game's start), the saves
+# it was made with (tests/data/saves/<saves>), the rate it was made at, and what to check:
+#
+#   rec      the recording                     rate     30 or 60 (the user's tick_hz when made; 30 if none)
+#   cut      input after this frame dropped    lines    lines added (input, "poke", "end"): see runtime/src/present.c
+#   switch   (made at 30) the run at 60 plays at 30 up to this frame, then at 60 - pick a moment in the hunt
+#   checks   of "rate", "baseline", "state"    tags     to pick with --only
+#   allow    rate findings expected (text they contain), state_frames [save, load] for "state" (default: the end's
+#            last 400 to 100 frames), until  the rate check up to this 30th only
+#
+# Input lines: "<frame> <buttons hex> <stick x> <stick y> <mouse x> <mouse y>" - buttons: 0x200 R (sprint / guard),
+# 0x100 L, 0x1000 triangle, 0x2000 circle, 0x4000 cross, 0x8000 square, 0x8 start, 0x1 select; stick 128 centred, y 0
+# forward. Each line holds until the next.
+
+[defaults]
+saves = "kit"
+
+# -- the hunt: moving, the stamina ----------------------------------------------------------------------------------
+
+[[scenario]]
+name = "popo"
+rec = "popo.rec"
+switch = 3300
+tags = ["field", "walk"]
+checks = ["rate", "baseline", "state"]
+
+[[scenario]]
+name = "sprint"
+rec = "popo.rec"
+cut = 3574
+switch = 3574
+tags = ["field", "sprint", "stamina"]
+lines = """
+3576 0 128 128 0 0
+3600 200 128 0 0 0
+3660 200 128 255 0 0
+3720 200 128 0 0 0
+3820 0 128 128 0 0
+end 4200
+"""
+
+[[scenario]]
+name = "out-of-breath"
+rec = "popo.rec"
+cut = 3574
+switch = 3574
+tags = ["field", "sprint", "stamina"]
+# stamina down to 40, then a sprint to the end of it: the hunter out of breath, and back
+lines = """
+3576 0 128 128 0 0
+poke 3590 hunter+55A h 40
+3600 200 128 0 0 0
+3700 0 128 128 0 0
+end 4100
+"""
+
+[[scenario]]
+name = "camp"
+rec = "camp.rec"
+switch = 7000
+tags = ["field", "grass"]
+# at 30th 7559 a stop after a sprint ends a 30th apart in the two runs (half a 30th of drift from the input's
+# conversion), the stick's next press falls on either side of it: idle at 60, a run at 30 - compared up to there
+until = 7555
+
+[[scenario]]
+name = "grass"
+rec = "grass-test.rec"
+switch = 2700
+tags = ["field", "grass"]
+
+[[scenario]]
+name = "shadow"
+rec = "shadow-bug.rec"
+switch = 3600
+tags = ["field"]
+# the hunter's tint (+0x2AC, +0x2B0: two colours eased toward the place's light) eases a step a game frame - twice as
+# fast at 60; only seen, nothing else follows from it
+allow = ["+02AC", "+02AD", "+02AE", "+02B0", "+02B1", "+02B2"]
+
+[[scenario]]
+name = "quest-start"
+rec = "quest.rec"
+cut = 2262
+switch = 3380
+tags = ["camp", "walk"]
+lines = """
+2262 0 128 128 0 0
+3400 0 128 255 0 0
+3520 0 128 128 0 0
+end 3700
+"""
+
+# -- climbing, falling ------------------------------------------------------------------------------------------------
+
+[[scenario]]
+name = "ledge"
+rec = "ledge.rec"
+rate = 60
+tags = ["climb", "ledge"]
+checks = ["rate", "baseline", "state"]
+
+[[scenario]]
+name = "cliff"
+rec = "cliff.rec"
+tags = ["climb", "fall"]
+
+# -- weapons ----------------------------------------------------------------------------------------------------------
+
+[[scenario]]
+name = "gs-charge"
+rec = "gs-charge.rec"
+rate = 60
+tags = ["weapon", "greatsword"]
+
+# -- places -----------------------------------------------------------------------------------------------------------
+
+[[scenario]]
+name = "snow"
+rec = "snow.rec"
+rate = 60
+tags = ["field", "snow"]
+
+[[scenario]]
+name = "ice-cave"
+rec = "ice-cave.rec"
+rate = 60
+tags = ["field", "snow", "village"]
+
+[[scenario]]
+name = "ice-cave-long"
+rec = "low-fps-ice-cave.rec"
+rate = 60
+tags = ["field", "snow"]
+
+[[scenario]]
+name = "guild"
+rec = "guild.rec"
+tags = ["village", "menu"]
+checks = ["baseline"]
+
+# -- from the old test kit (~/.claude/plans/gpu-vertex-kit): made at 30 on top of camp.rec / popo.rec / quest.rec -----
+
+[[scenario]]
+name = "actions"
+rec = "kit-act30.rec"
+switch = 7790
+tags = ["field", "weapon", "attack"]
+
+[[scenario]]
+name = "popo-hits"
+rec = "kit-popohit30.rec"
+switch = 3574
+tags = ["field", "weapon", "attack", "hit"]
+# the walk to the Popo covers ~8% more at 60 (a run's start: docs/testing.md), the sword meets it otherwise - compared
+# up to the first hit
+until = 3624
+
+[[scenario]]
+name = "items"
+rec = "kit-items.rec"
+switch = 3574
+tags = ["field", "item"]
+
+[[scenario]]
+name = "cliff-north"
+rec = "kit-cliffn.rec"
+switch = 7790
+tags = ["field", "climb", "fall"]
+
+[[scenario]]
+name = "cliff-south"
+rec = "kit-cliffs.rec"
+switch = 7790
+tags = ["field", "climb", "fall"]
+
+[[scenario]]
+name = "lake"
+rec = "kit-lake.rec"
+switch = 3400
+tags = ["field", "water"]
+
+# -- scripted on top of a recording ----------------------------------------------------------------------------------
+
+[[scenario]]
+name = "moves"
+rec = "popo.rec"
+cut = 3574
+switch = 3574
+tags = ["field", "weapon", "attack", "roll", "guard"]
+# the weapon drawn with an attack, a combination, circle, triangle + circle, a roll, guard, put away, a roll put away,
+# drawn again and triangle held (a charge)
+lines = """
+3576 0 128 128 0 0
+3600 1000 128 128 0 0
+3602 0 128 128 0 0
+3640 1000 128 128 0 0
+3642 0 128 128 0 0
+3660 1000 128 128 0 0
+3662 0 128 128 0 0
+3700 2000 128 128 0 0
+3702 0 128 128 0 0
+3740 3000 128 128 0 0
+3742 0 128 128 0 0
+3800 4000 128 0 0 0
+3802 0 128 128 0 0
+3840 200 128 128 0 0
+3880 0 128 128 0 0
+3900 8000 128 128 0 0
+3902 0 128 128 0 0
+3960 4000 255 128 0 0
+3962 0 128 128 0 0
+4000 1000 128 128 0 0
+4045 0 128 128 0 0
+end 4200
+"""

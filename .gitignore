@@ -15,3 +15,6 @@ __pycache__/
 /ghidra/
 *.rec
 *.rec.*
+
+# The test suite's recordings, saves, baselines and runs (tools/suite.py)
+/tests/data/

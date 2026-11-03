@@ -56,6 +56,12 @@ def convert(src, dst, factor, after=0):
                 inputs[f] = [b, sx, sy, mx, my]
         elif p and p[0] == "pointer":
             pointers.append(f"pointer {at(int(p[1]))} {' '.join(p[2:])}")
+        elif p and p[0] == "poke":         # (frames first-last: at 60 the last's second frame too)
+            a, _, b = p[1].partition("-")
+            first, last = at(int(a)), at(int(b or a))
+            if factor >= 1 and int(b or a) > after:
+                last += 1
+            pointers.append(f"poke {first}-{last} {' '.join(p[2:])}")
         elif p and p[0] == "end":
             end = at(int(p[1]))
         elif p and p[0] == "camera":

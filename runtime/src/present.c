@@ -62,7 +62,11 @@ static int skip_intro(void) {
  * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
  * "pointer <frame> <x> <y> <clicks>" for the mouse moved (or clicked) in a menu (menu.c: what it moves is not all in
  * the buttons), and "end <frame>": the input as the game had it (the stick as turned by the mouse's orbit, camera.c). A save changed
- * since, or a runtime that runs the game differently, can make a replay go astray. */
+ * since, or a runtime that runs the game differently, can make a replay go astray.
+ * Test scenarios add "poke <frame>[-<last>] <where> <b|h|w|f> <value>": the game's memory written as the frame starts
+ * (each frame to the last), where an address (hex) or "hunter+<hex>" (the hunt's hunter, if there is one) - a byte,
+ * half, word (value in hex or decimal) or float (tools/suite.py). A recording made while replaying one carries its
+ * pokes over. */
 typedef struct { unsigned long frame; uint32_t buttons; int lx, ly; float mx, my; } Input;
 static Input *replay;
 static size_t replay_n;
@@ -75,6 +79,69 @@ typedef struct { unsigned long frame; float x, y; int clicks; } Pointer;
 static Pointer *replay_pointer;
 static size_t replay_pointer_n;
 SAVED static size_t replay_pointer_at;
+typedef struct { unsigned long first, last; uint32_t addr; int hunter; char type; uint32_t value; } Poke;
+static Poke *replay_poke;
+static size_t replay_poke_n;
+
+static void parse_poke(const char *line) {
+    Poke k = {0};
+    char where[64], type;
+    char value[32];
+    if (sscanf(line, "%lu-%lu %63s %c %31s", &k.first, &k.last, where, &type, value) != 5) {
+        if (sscanf(line, "%lu %63s %c %31s", &k.first, where, &type, value) != 4) {
+            fprintf(stderr, "a poke line not understood: poke %s", line);
+            return;
+        }
+        k.last = k.first;
+    }
+    k.hunter = strncmp(where, "hunter+", 7) == 0;
+    k.addr = (uint32_t)strtoul(k.hunter ? where + 7 : where, NULL, 16);
+    k.type = type;
+    if (type == 'f') {
+        float v = strtof(value, NULL);
+        memcpy(&k.value, &v, 4);
+    } else
+        k.value = (uint32_t)strtoul(value, NULL, 0);
+    replay_poke = realloc(replay_poke, (replay_poke_n + 1) * sizeof *replay_poke);
+    replay_poke[replay_poke_n++] = k;
+}
+
+static void write_poke(FILE *f, const Poke *k) {
+    char where[32];
+    if (k->hunter)
+        snprintf(where, sizeof where, "hunter+%X", k->addr);
+    else
+        snprintf(where, sizeof where, "%08X", k->addr);
+    if (k->type == 'f') {
+        float v;
+        memcpy(&v, &k->value, 4);
+        fprintf(f, "poke %lu-%lu %s f %.9g\n", k->first, k->last, where, v);
+    } else
+        fprintf(f, "poke %lu-%lu %s %c 0x%X\n", k->first, k->last, where, k->type, k->value);
+}
+
+extern uint32_t rt_local_player;
+
+/* This frame's pokes (a scenario's: the game's memory written) */
+static void replay_pokes(void) {
+    for (size_t i = 0; i < replay_poke_n; i++) {
+        Poke *k = &replay_poke[i];
+        if (frame < k->first || frame > k->last)
+            continue;
+        uint32_t a = k->addr;
+        if (k->hunter) {
+            uint32_t h = rt_local_player;
+            if (!h || LW(h) != 0x089BB3CCu)     /* (no hunt's hunter now) */
+                continue;
+            a += h;
+        }
+        switch (k->type) {
+        case 'b': SB(a, k->value); break;
+        case 'h': SH(a, k->value); break;
+        default: SW(a, k->value); break;
+        }
+    }
+}
 
 static void load_replay(void) {
     if (replay_loaded)
@@ -102,6 +169,8 @@ static void load_replay(void) {
             ;
         else if (sscanf(line, "camera %lu", &replay_free_from) == 1)
             ;
+        else if (strncmp(line, "poke ", 5) == 0)
+            parse_poke(line + 5);
         else if (strncmp(line, "pointer ", 8) == 0) {
             Pointer p;
             if (sscanf(line + 8, "%lu %g %g %d", &p.frame, &p.x, &p.y, &p.clicks) == 4) {
@@ -222,6 +291,8 @@ static void record_input(float mx, float my) {
                 fprintf(stderr, "recording to %s\n", name);
                 fprintf(record, "mhfu-replay 1\nepoch %llu\nsens %.9g\ncamera %lu\n", (unsigned long long)run_epoch_us(),
                         camera_sens(), camera_free_from());
+                for (size_t i = 0; i < replay_poke_n; i++)     /* (the replay's pokes: a scenario extended keeps them) */
+                    write_poke(record, &replay_poke[i]);
                 atexit(end_record);
             }
         }
@@ -691,6 +762,7 @@ void present_frame(void) {
     window_mouse(&mx, &my);
     buttons_now();
     replay_input(&mx, &my);
+    replay_pokes();
     int orbit_drawn = display_fps() != 0 || gpu_native_smoothing();   /* (with MHFU_FPS, or at the native frame rate) */
     if (camera_orbit_ready != orbit_drawn + 1)
         camera_orbit_ready = orbit_drawn + 1, camera_orbit_enable(orbit_drawn);

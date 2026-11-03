@@ -32,6 +32,7 @@ tools/.venv/bin/python recomp/recomp.py            # the functions as C, to buil
 make -j$(nproc)                                    # compile them and the runtime (build/)
 build/mhfu path/to/mhfu.iso                        # run it (controls below)
 tools/.venv/bin/python tools/difftest.py           # check recompiled functions against PPSSPP
+tools/suite.py                                     # play the test scenarios, compare 30 and 60 (docs/testing.md)
 ```
 
 ## Controls

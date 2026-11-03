@@ -504,22 +504,42 @@ static void state_test(void) {
     long f = (long)present_frame_number();
     /* each frame from A to B, a hash of each 64 KB of RAM: the first frame (and pages) the second time differs */
     #define PAGES (RAM_SIZE >> 16)
+    /* (from the game's memory, 0x08800000: below it the renderer's scratch, gpu.c SCRATCH_VERTICES - redrawn frames) */
+    #define GAME_PAGE ((0x08800000u - RAM_START) >> 16)
     static uint64_t *hashes;
     static long last_hashed = -1, first_bad = -1;
+    static uint8_t *page0;
     if (phase >= 1 && f > a && f <= b && f != last_hashed) {
         if (!hashes)
             hashes = calloc((size_t)(b - a + 1) * PAGES, sizeof *hashes);
         last_hashed = f;
         uint64_t *h = hashes + (size_t)(f - a) * PAGES;
-        for (size_t pg = 0; pg < PAGES; pg++) {
+        for (size_t pg = GAME_PAGE; pg < PAGES; pg++) {
             const uint64_t *w = (const uint64_t *)(rt_mem + RAM_START + (pg << 16));
             uint64_t x = 0xCBF29CE484222325ull;
             for (size_t i = 0; i < (1u << 13); i++)
                 x = (x ^ w[i]) * 0x100000001B3ull;
-            if (phase == 1)
+            if (phase == 1) {
                 h[pg] = x;
-            else if (h[pg] != x && first_bad < 0) {
+                if (pg == GAME_PAGE) {  /* (the first page kept whole: what differs in it is printed) */
+                    if (!page0)
+                        page0 = calloc((size_t)(b - a + 1), 1u << 16);
+                    memcpy(page0 + (size_t)(f - a) * (1u << 16), w, 1u << 16);
+                }
+            } else if (h[pg] != x && first_bad < 0) {
                 first_bad = f;
+                if (pg == GAME_PAGE && page0) {
+                    const uint8_t *was = page0 + (size_t)(f - a) * (1u << 16), *now = (const uint8_t *)w;
+                    int shown = 0;
+                    for (size_t i = 0; i < (1u << 16) && shown < 16; i += 4)
+                        if (memcmp(was + i, now + i, 4)) {
+                            uint32_t x0, x1;
+                            memcpy(&x0, was + i, 4);
+                            memcpy(&x1, now + i, 4);
+                            fprintf(stderr, "state test: %08zX was %08X, after the load %08X\n", (size_t)0x08800000u + i, x0, x1);
+                            shown++;
+                        }
+                }
                 fprintf(stderr, "state test: first differs at frame %ld:", f);
                 for (size_t q = pg; q < PAGES; q++) {
                     const uint64_t *v = (const uint64_t *)(rt_mem + RAM_START + (q << 16));
@@ -548,7 +568,7 @@ static void state_test(void) {
         phase = 2;
     } else if (phase == 2 && f >= b) {
         size_t differ = 0, first = 0;
-        for (size_t i = 0; i < RAM_SIZE; i++)
+        for (size_t i = GAME_PAGE << 16; i < RAM_SIZE; i++)
             if (noted[i] != rt_mem[RAM_START + i] && !differ++)
                 first = i;
         if (differ) {
@@ -612,6 +632,18 @@ static void state_script(void) {
         }
         fprintf(stderr, "state note: frame %ld's RAM to %s\n", f, note_path);
         note_at = -1;
+    }
+    /* MHFU_RAM_HASH=N: a hash of the game's RAM every N frames, printed (tools/suite.py: where two runs part) */
+    static long hash_every = -1, hashed = -1;
+    if (hash_every < 0)
+        hash_every = getenv("MHFU_RAM_HASH") ? atol(getenv("MHFU_RAM_HASH")) : 0;
+    if (hash_every > 0 && f % hash_every == 0 && f != hashed) {
+        hashed = f;
+        const uint64_t *w = (const uint64_t *)(rt_mem + 0x08800000u);   /* (the game's: not the renderer's scratch) */
+        uint64_t x = 0xCBF29CE484222325ull;
+        for (size_t i = 0; i < (RAM_START + RAM_SIZE - 0x08800000u) / 8; i++)
+            x = (x ^ w[i]) * 0x100000001B3ull;
+        fprintf(stderr, "ram hash %ld %016llx\n", f, (unsigned long long)x);
     }
 }
 
