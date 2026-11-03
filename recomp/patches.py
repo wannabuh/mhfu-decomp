@@ -24,6 +24,9 @@ COMBINE = "the attack buttons' wait for a second one: in 30ths of a second (rt_t
 # the player): the pad is read at 30ths, so its pressed and released are seen at a 30th only - not again on the frames
 # between, as a second press
 EDGES = "the buttons pressed and released, seen at 30ths only (the pad is read at 30ths: not pressed again between)"
+# How long L has been held (EBOOT 088D61CC, the local player's +0x61C: +1 a game frame while held; at 10 the item
+# bar's choice opens, game_task 09A6EE48 / 09A6A94C): counted in 30ths
+L_HELD = "how long L is held (the item bar's choice opens at 10): counted in 30ths"
 # A character's turn to where it is going (EBOOT 088D6B00): its facing (+0x1F4) steps by so much a game frame, its lean
 # (+0x41A) by 0x80 - times the time scale
 TURN = "a character's turn and lean: their steps a game frame times the time scale"
@@ -227,6 +230,7 @@ PATCHES = {
     ("EBOOT", 0x088D6200): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
     ("EBOOT", 0x088D6230): ("lw $a1, 0x2D8C($a1)", "c->r[5] = rt_tick30 ? LW((c->r[5] + 0x2D8Cu)) : 0;", EDGES),
     ("EBOOT", 0x088D6238): ("lw $v1, 0x2D90($v1)", "c->r[3] = rt_tick30 ? LW((c->r[3] + 0x2D90u)) : 0;", EDGES),
+    ("EBOOT", 0x088D6348): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", L_HELD),
     ("EBOOT", 0x088D6C0C): ("lhu $a0, 0x324($s0)", "c->r[9] = (uint32_t)(int32_t)((float)(int32_t)c->r[9] * rt_time_scale + 0.5f); "
                              "c->r[4] = LHU((c->r[16] + 0x324u));", TURN),
     ("EBOOT", 0x088D6C20): ("lw $a3, 0x1F4($s0)", "c->r[8] = (uint32_t)(int32_t)((float)(int32_t)c->r[8] * rt_time_scale + 0.5f); "

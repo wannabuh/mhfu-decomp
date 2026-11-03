@@ -160,6 +160,7 @@ again for each), near all of a 144th.
 | the hunter (`MHFU_NATIVE_VT=089bb3cc`) | object gates; its input, matrices, pose (above) | walks as at 30: the same distance and state timing (within a 60th) |
 | the hunt's cameras | a native call (`08812BD0`) | follow every frame |
 | the local player's buttons | `088D61CC`'s copies of the pad's pressed and released: at 30ths only (the pad is read at 30ths) | a press is seen once, not again between 30ths as a second press (combinations) |
+| how long L is held | `088D61CC`: the local player's `+0x61C`, +1 a game frame while L is held (the item bar's choice opens at 10) - a 30th | the item bar's choice opens as late as at 30 |
 | the attack buttons' combination | the wait for a second button (`09A68DB0`, +0x1128) counts 30ths | special attacks as at 30 |
 | a character's turn | `088D6B00`: the facing's step to where it goes (+0x1F4) and its lean (+0x41A) times the time scale | turns as fast as at 30 |
 | the sprint | `09A9E288`: its push forward (5 units a game frame) times the time scale | runs as far |
