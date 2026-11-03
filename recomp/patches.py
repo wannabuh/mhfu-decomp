@@ -27,9 +27,13 @@ EDGES = "the buttons pressed and released, seen at 30ths only (the pad is read a
 # A character's turn to where it is going (EBOOT 088D6B00): its facing (+0x1F4) steps by so much a game frame, its lean
 # (+0x41A) by 0x80 - times the time scale
 TURN = "a character's turn and lean: their steps a game frame times the time scale"
-# The hunter's sprint (game_task 09A9E288): a push of 5 units forward a game frame on top of the motion's, and a
-# point of stamina a game frame
-SPRINT = "the sprint's push (units a game frame) times the time scale, its stamina a 30th"
+# The hunter's sprint (game_task 09A9E288): a push of 5 units forward a game frame on top of the motion's
+SPRINT = "the sprint's push (units a game frame) times the time scale"
+# Stamina (+0x55A) used or got back a game frame (game_task 09A6A370 and 09A6A480: so much a frame, less with the
+# skills - they test the hunt's count of 30ths, *0x089CC558 + 0x1C; their callers, all a point or two a frame: the
+# sprints 09A9E288 and 09A9E690, 09A99228, the weapons' 09BA67D0 09BA72F8 09BA78D8 09BB6D10) and the states that get it
+# back so much a frame (09A9EAE8 out of breath +4, 09A8F990 +2): at 30ths
+STAMINA = "stamina used or got back so much a game frame: at 30ths"
 # A motion's frame reached (EBOOT 08864348: frame N in [a layer's frame, its frame + its speed) - the step the player
 # takes next): the speed times the time scale, or a sound or event at frame N comes again each game frame until the
 # frame passes it
@@ -229,7 +233,10 @@ PATCHES = {
                              "c->r[7] = LW((c->r[16] + 0x1F4u));", TURN),
     ("game_task", 0x09A9E4F4): ("lwc1 $f1, 0x10($sp)", scaled_load(1, 29, 0x10), SPRINT),
     ("game_task", 0x09A9E4F8): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), SPRINT),
-    ("game_task", 0x09A9E374): ("addiu $a1, $zero, -0x1", "c->r[5] = rt_tick30 ? 0xFFFFFFFFu : 0;", SPRINT),
+    ("game_task", 0x09A6A370): ("addiu $sp, $sp, -0x10", "if (!rt_tick30) return; c->r[29] = c->r[29] + 0xFFFFFFF0u;", STAMINA),
+    ("game_task", 0x09A6A480): ("addiu $sp, $sp, -0x10", "if (!rt_tick30) return; c->r[29] = c->r[29] + 0xFFFFFFF0u;", STAMINA),
+    ("game_task", 0x09A9EAFC): ("addiu $a1, $zero, 0x4", "c->r[5] = rt_tick30 ? 4u : 0;", STAMINA),
+    ("game_task", 0x09A8FBB0): ("addiu $a1, $zero, 0x2", "c->r[5] = rt_tick30 ? 2u : 0;", STAMINA),
     ("EBOOT", 0x08864368): ("lwc1 $f0, 0x14($v1)", scaled_load(0, 3, 0x14), REACHED),
     ("EBOOT", 0x08863894): ("add.s $f1, $f1, $f2", "c->f[1].f = c->f[1].f + c->f[2].f * rt_time_scale;", BLEND),
     ("EBOOT", 0x088638A0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", BLEND),
