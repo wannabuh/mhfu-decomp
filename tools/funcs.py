@@ -114,11 +114,18 @@ def jump_table(mod, mods, start, jr_addr):
                     val = ("t", x[1])
                 elif x[0] == "c" and y[0] == "c":
                     val = ("c", (x[1] + y[1]) & 0xFFFFFFFF)
+                    base, small = max(x[1], y[1]), min(x[1], y[1])
+                    if base >= 0x08800000 and small < 0x10000:
+                        val = ("u", base)   # (or a table and an index scaled on another path: below, if bounded)
+            elif bool(x and x[0] == "c") != bool(y and y[0] == "c"):
+                # a table base and an index scaled on another path (overwritten on this one, as the straight line
+                # sees it): a table only if bounded (below)
+                val = ("u", (x if x and x[0] == "c" else y)[1])
         elif u == I.cpu_lw:
             dst = reg(i.rt)
             src = regs.get(reg(i.rs))
-            if src and src[0] == "t":
-                val = ("e", (src[1] + i.getProcessedImmediate()) & 0xFFFFFFFF)
+            if src and src[0] in ("t", "u"):
+                val = ("e" if src[0] == "t" else "eu", (src[1] + i.getProcessedImmediate()) & 0xFFFFFFFF)
         elif u == I.cpu_sltiu:
             dst, bound = reg(i.rt), i.getImmediate()
         else:
@@ -131,7 +138,7 @@ def jump_table(mod, mods, start, jr_addr):
                 regs[dst] = val
         a += 4
     v = regs.get(reg(mod.ins(jr_addr).rs))
-    if not v or v[0] != "e":
+    if not v or v[0] not in ("e", "eu") or (v[0] == "eu" and not bound):
         return None
     table = v[1]
     holder = next((m for m in (mod, mods[0]) if m.contains(table)), None)
