@@ -11,7 +11,7 @@
 #include <stdint.h>
 
 /* A variable of the game's state: in the section a save state copies */
-#define SAVED __attribute__((section("mhfu_state")))
+#define SAVED __attribute__((section("mhfu_state"), used))     /* (used: kept whole, under its own name) */
 
 void *st_malloc(size_t size);
 void *st_calloc(size_t n, size_t size);

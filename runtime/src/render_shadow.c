@@ -5,6 +5,7 @@
  * The point lights' (render_lights.c): the two strongest lights' cube maps (6 faces each, distance from the light over
  * its reach), drawn in one pass from what casts shadows - each draw once into all twelve faces (instances; the vertex
  * shader picks the face's layer) - in a command buffer of their own before the frame's (MHFU_POINT_SHADOWS=0: none). */
+#include "savestate.h"
 #include "render_internal.h"
 
 #include <stdlib.h>
@@ -230,7 +231,7 @@ static int shadow_finish(VkCommandBuffer *out) {
 }
 
 /* gpu.c: this frame's shadows - the world to the shadow map (by columns), or off */
-float rt_cull_margin;
+SAVED float rt_cull_margin;
 
 void render_shadow_frame(const float *m, int on) {
     /* with shadows, what is just out of view is drawn too (MHFU_CULL_MARGIN: how far, 1200) */

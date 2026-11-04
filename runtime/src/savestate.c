@@ -283,6 +283,7 @@ static void save(int slot) {
         return;
     }
     writer_wait(slot);                  /* (its copy being written: not changed under it) */
+    render_queue_sync();                /* (the renderer thread's writes to what is saved: rt_cull_margin) */
     State *s = &states[slot];
     state_clear(s);
     s->game = io_game_id();

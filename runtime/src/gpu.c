@@ -226,8 +226,9 @@ static int prim_world;              /* this primitive's vertices get their place
  * of the lighting, its material's diffuse colour (in sr, sg, sb) and its normal in the world */
 static int prim_pixel_light;
 static uint32_t pixel_lights;       /* the lights (bits) the GPU does */
-static float sun_dir[3];            /* towards the sun, in the world (as last seen) */
-static int sun_known;
+/* (SAVED: rt_cull_margin, which the game's run depends on, goes by whether the sun is known) */
+SAVED static float sun_dir[3];      /* towards the sun, in the world (as last seen) */
+SAVED static int sun_known;
 
 int camera_game(float *inv, float *target);
 void camera_invert(const float *v, float *out);
