@@ -1,0 +1,223 @@
+[[function]]
+module = "lobby_task"
+address = "09AF0278"
+name = "npc_record_menu_list_handle_input"
+purpose = "Reads buttons for the 5-row list: mask 0x2000 plays cue 3 and returns 3; mask 0x4000 returns 0 with cue 0 if the selected row can be chosen, otherwise cue 7 and 1 or 2 (the choosable test is row +0x18 == 0, or a nonempty record at game +0x69BEC + (cursor + page base)*0x70 when +3 == 0, flag 0x5D is set and +5 == 1); with neither mask it moves the cursor at +6, and in that same case also the page at +0xB, resetting the cursor on a page change, and returns 2."
+confidence = "inferred"
+evidence = "Input masks and cues in the body; caller 09AEF898 state 4 treats 3 as back and 0 as chosen; ran in shops only."
+
+[[function]]
+module = "lobby_task"
+address = "09AF04B8"
+name = "npc_record_menu_confirm_prompt_input"
+purpose = "Handles the two-choice prompt with cursor +8: mask 0x4000 returns 0 on choice 0, else cue 3 and 3; mask 0x2000 plays cue 3 and returns 3 on choice 1, else moves to choice 1; mask 0x80 moves to choice 0 and mask 0x20 to choice 1, with cue 1 when the cursor moves; otherwise returns 2."
+confidence = "inferred"
+evidence = "Body gives the mechanics; caller 09AEF898 states 5 to 7 commit on 0 and go back to the list on 3; ran in shops only."
+
+[[function]]
+module = "lobby_task"
+address = "09AF05C0"
+name = "npc_record_menu_commit_row_deduct_cost_add_or_remove"
+purpose = "Applies the chosen row: option +5 == 1 removes it (clearing the slot at game +0x69BEC, its bit in +0x6A1A0 and 8 bytes at +0x6A1A8 when +3 == 0 and flag 0x5D is set, else removing the list entry with 09C1BCC8, first copying it to game +0x69948 and setting flag 0x30 if an object of kind 7 exists and the record matches the key at menu +0 and +0x26C); option +5 == 0 deducts row +0x14 from the counter at game +0x696F0, adds the record to a free slot of the 13 at +0x69BEC or through 09C1B9C0, logs it with kind 3 or 2, saves the key and clears flag 0x30 when +3 == 1, removes it from the source with 09AF0D98 and sets flag 0x25."
+confidence = "inferred"
+evidence = "All steps read in the body; called from the commit paths of 09AEF898 in shops."
+
+[[function]]
+module = "lobby_task"
+address = "09AF0BB0"
+name = "record70_copy"
+purpose = "Copies a 0x70-byte record field by field from param_2 to param_1, leaving the unused bytes +0x17 and +0x2D to +0x2F."
+confidence = "confirmed"
+evidence = "The body is only the field copies, ending with 9 and 8 two-byte loops at +0x4E and +0x60."
+
+[[function]]
+module = "lobby_task"
+address = "09AF0D98"
+name = "record70_list_699b8_remove_at_or_clear_69948"
+purpose = "With mode argument 0, clears the record at the given index of the list at game +0x699B8 (0x4A0 + 0x69518) and moves later records down through index 4, clearing each source; with any other mode, clears only the single record at game +0x69948."
+confidence = "confirmed"
+evidence = "Memset 0x70 and the shifting copy loop are in the body; ran with the commit in shops."
+
+[[function]]
+module = "lobby_task"
+address = "09AF1050"
+name = "npc_record_menu_fill_rows_from_699b8_or_69948"
+purpose = "Clears the 5 0x78-byte rows at menu +0x14 and, when +3 == 0, copies the 5 records at game +0x699B8 into them with +0x14 = record byte +3 times 500 (times 0 if flag 0x25 is clear) and +0x18 = 0, or 2 for an empty record; otherwise row 0 comes from the record at game +0x69948 with +0x14 = 0 and the other rows get +0x18 = 2."
+confidence = "inferred"
+evidence = "Memset 600 and copy loops in the body; called from menu refresh 09AEFEA8 in shops."
+
+[[function]]
+module = "lobby_task"
+address = "09AF1768"
+name = "npc_record_menu_option_1_is_available"
+purpose = "Returns 0 if flag 0x25 is clear, or if +3 == 0, flag 0x5D is set and all 13 records at game +0x69BEC are empty; otherwise 1."
+confidence = "inferred"
+evidence = "Body; the option column draw 09AF1940 uses it to colour option index 1 with text colour 9."
+
+[[function]]
+module = "lobby_task"
+address = "09AF1828"
+name = "npc_record_menu_draw"
+purpose = "Sets up 2D UI and text state, then for state +2 of 1 to 3 draws the option column, and for 4 to 7 also draws the 09AF2488 panel when +3 == 0, flag 0x5D is set and +5 == 1, or otherwise the list panel and prompt."
+confidence = "inferred"
+evidence = "Switch on the state that caller 09AEF898 advances; ran in shops only."
+
+[[function]]
+module = "lobby_task"
+address = "09AF1940"
+name = "npc_record_menu_draw_option_column"
+purpose = "Draws the option bars and labels from string table 09B055C8: in state 1 the +4 bars with a cursor sprite, in states 2 and 3 the bars with the selected one interpolated over counter +0xC against 6, otherwise only the selected option at a fixed position; option index 1 can get text colour 9 from 09AF1768."
+confidence = "inferred"
+evidence = "Branches on +2, text_printf_at of table strings, menu_draw_bar_with_end_cap; ran in shops only."
+
+[[function]]
+module = "lobby_task"
+address = "09AF1F30"
+name = "npc_record_menu_draw_list_panel_with_zenny"
+purpose = "Sets text size and colour, draws a window, prints the int at game +0x696F0, then draws the rows with 09AF2008 and the selected row's panel with 09AF2248."
+confidence = "inferred"
+evidence = "Body calls in order; the same counter is the one 09AF05C0 deducts from."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2008"
+name = "npc_record_menu_draw_rows"
+purpose = "Draws the list with cursor +6, then for each of 5 rows prints a placeholder string if +0x18 == 2, otherwise a label from table 09B05400 indexed by record byte +1, the value at +0x14 when option +5 == 0, and a 16x16 sprite; rows with +0x18 != 0 use text colour 10."
+confidence = "inferred"
+evidence = "Loop stepping 0x78 over the rows; menu_list_draw and text_printf_at calls; ran in shops only."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2248"
+name = "npc_record_menu_draw_selected_row_panel"
+purpose = "Draws the selected row's record with menu_draw_roster_member_status_panel when +3 == 0 and flag 0x5D is set, otherwise with EBOOT 0883D6D0, at the position in 09B0D798."
+confidence = "inferred"
+evidence = "Body indexes the row by +6 * 0x78 and passes +0x1C to the panel."
+
+[[function]]
+module = "lobby_task"
+address = "09AF22F8"
+name = "npc_record_menu_draw_prompt_with_row_value"
+purpose = "If text pointer +0x10 is set, copies it, replaces the part from the last '$' with the selected row's +0x14 value and the text after it, draws it in a window, and when +0xE has mask 1 also centres a string chosen by cursor +8 through table 089AC6A8."
+confidence = "inferred"
+evidence = "str_rchr of 0x24, libc_sprintf, str_cat, menu_draw_window_with_title; caller 09AEF898 sets the text and mask 1."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2450"
+name = "hud_draw_sprite_ef_stretched_white"
+purpose = "Draws sprite index 0xEF stretched to the given x, y, width and height with tint 0xFF, 0xFF, 0xFF."
+confidence = "inferred"
+evidence = "Wrapper of hud_draw_sprite_stretched_tinted, whose last three parameters read as tint then sprite index in EBOOT 0882BE60."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2600"
+name = "class_089bb194_construct"
+purpose = "Runs base init 09C56F00, installs vtable 089BB194 and copies 4 0x18-byte vertices from table 09B0D7E0 to +0x68; returns the object."
+confidence = "inferred"
+evidence = "Called from class_089bb194_create_type_2c; the vertices at +0x68 are what 09AF27B0 draws."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2700"
+name = "class_089bb194_create_for_owner_and_link"
+purpose = "Creates a class 089BB194 object, runs fx_base_init on it, stores the argument as owner at +0xC, pushes it on the head of the list at manager +0x19030 (next +4, previous +8) and increments the count at +0x19034."
+confidence = "inferred"
+evidence = "Body; callers in lobby_task pass an object whose byte +0x484 is nonzero."
+
+[[function]]
+module = "lobby_task"
+address = "09AF27B0"
+name = "class_089bb194_draw_textured_strip"
+purpose = "Writes GE commands directly to the display list: identity world matrix, the first texture and CLUT of tagged-heap asset 0 found by tmh_find_image_and_clut, then a 4-vertex triangle strip from the vertices at +0x68."
+confidence = "inferred"
+evidence = "Vtable +0x10; PRIM word 0x04040004 and VADDR of param_1 + 0x68 in the command stream."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2BC8"
+name = "class_089bb194_queue_render_if_shown_and_view_depth_below_minus_10"
+purpose = "If byte +0x60 is nonzero and the node at +0x44 has a camera-row depth below -10, inserts the node in the depth-sorted render queue as kind 7."
+confidence = "inferred"
+evidence = "Vtable +0x14; dot product with the row at camera +0xB88 to +0xBB8, then render_queue_insert_depth_sorted."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2C58"
+name = "class_089bb194_init_alloc_node"
+purpose = "Allocates one element with entity_manager_alloc_element_run into +0x44; on failure sets the member function from 09B0D840, on success sets node count +0x41 to 1, makes this the node's owner, sets flag mask 0x10 at +0x48, runs tick slot +0x20 and sets the member function from 09B0D850."
+confidence = "inferred"
+evidence = "Vtable +0x1C; body calls in order."
+
+[[function]]
+module = "lobby_task"
+address = "09AF2D78"
+name = "class_089bb194_tick_place_strip_near_owner"
+purpose = "Steps counter +0x38 modulo 0x20; if owner byte +0x484 is 0 clears flag mask 0x10 and sets the member function from 09B0D860; otherwise copies owner +0x230 to +0x60, places node +0x44 at owner +0x200 plus a matrix-transformed offset whose height comes from table 09B0D7C8 by owner byte +0x1E8, scaled by view depth, and rewrites the 4 strip vertices around it, shrunk to 0.8 when the counter has mask 0x10."
+confidence = "inferred"
+evidence = "Vtable +0x20; vtfm3 with camera matrices at +0xC80 and +0xCC0; the owner is not shown to be a hunter, so +0x1E8 and +0x200 are cited as owner fields."
+
+[[function]]
+module = "lobby_task"
+address = "09AF7F20"
+name = "class_089bb25c_setup"
+purpose = "Sets +4 to 3, clears +8 and +0xC, sets member function +0x1C from 09B0DC60 if set, and stores the data pointer param_2 at +0x34."
+confidence = "inferred"
+evidence = "Called from stage_object_create_kind_1f after that sets vtable 089BB25C."
+
+[[function]]
+module = "lobby_task"
+address = "09AF7FB0"
+name = "class_089bb25c_draw_models_on_loop_between_two_points"
+purpose = "Draws data count +2 model copies of group data byte +0 spaced evenly along a period of data +4 from phase +0x38: in each quarter a copy turns by pi at a point, or moves straight between the data points at +0x10 and +0x20."
+confidence = "inferred"
+evidence = "Vtable +0xC; quarter-section switch, vsub/vscl interpolation, vrot, gpu_set_world_matrix_scaled and model_draw_group."
+
+[[function]]
+module = "lobby_task"
+address = "09AF8258"
+name = "class_089bb25c_queue_render_if_fn_1c_is_09b0dc40"
+purpose = "Inserts the object in the depth-sorted render queue as kind 5, at data +0x10, if member function +0x1C equals the one at 09B0DC40."
+confidence = "inferred"
+evidence = "Vtable +0x10; member_fn_not_equal then render_queue_insert_depth_sorted."
+
+[[function]]
+module = "lobby_task"
+address = "09AF82E0"
+name = "class_089bb25c_reset_phase_and_set_fn_1c"
+purpose = "Clears phase +0x38 and sets member function +0x1C from 09B0DC50 if set."
+confidence = "confirmed"
+evidence = "The whole body; vtable +0x14."
+
+[[function]]
+module = "lobby_task"
+address = "09AF8350"
+name = "class_089bb25c_advance_phase_wrapped"
+purpose = "Adds 1 to phase +0x38, modulo the short at data +4."
+confidence = "confirmed"
+evidence = "The whole body; vtable +0x18, ran each sampled frame while the object lived."
+
+[[function]]
+module = "lobby_task"
+address = "09AF8370"
+name = "class_089bb25c_destructor_set_base_vtables"
+purpose = "Non-null object: stores vtables 089BB25C, 089BB28C and 089BB27C in turn and does nothing else; does not free."
+confidence = "inferred"
+evidence = "Vtable +8, ran once at teardown; the vtable chain is the usual destructor shape."
+
+[[function]]
+module = "lobby_task"
+address = "09B0FE00"
+name = "crt_static_init_lobby_task_09b100c0"
+purpose = "Calls 16 init helpers with addresses of lobby_task globals from 09B100C0 to 09B22D34 and registers destructor 09A7C5E8 for 09B100C0."
+confidence = "inferred"
+evidence = "Run once by crt_run_init_functions_and_add_range; ends in cxx_register_global_destructor."
+
+[[function]]
+module = "lobby_task"
+address = "09B0FF54"
+name = "crt_static_init_pointer_list_09b23b30"
+purpose = "Sets DAT_09B23B98 to global 09B23B30, clears its 20 words from +0xC and count +0x5C, sets its member function at +0 from 09B08B60 if set, and registers destructor 09ADCA48."
+confidence = "inferred"
+evidence = "Run once by crt_run_init_functions_and_add_range; lobby_task 09ADC538 reads this global as a pointer array at +0xC with count +0x5C."

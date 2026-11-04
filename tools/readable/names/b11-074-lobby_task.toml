@@ -1,0 +1,359 @@
+[[function]]
+module = "lobby_task"
+address = "09ABB658"
+name = "npc_reset"
+purpose = "Vtable reset of class 089BB154: runs object_reset_defaults and object_set_mode_280_and_flags, zeroes its fields in +0x482..+0x506 (+0x4FE becomes 0xFFFF), updates +0x485 through 09ABE418 and sets +0x1C0 to 7."
+confidence = "inferred"
+evidence = "Slot +0x10 of vtable 089BB154, ran once at the start of a recording's area; 'npc' comes from the spawn table and turn-to-hunter state of this class."
+
+[[function]]
+module = "lobby_task"
+address = "09ABB700"
+name = "npc_tick_dispatch_phase_field_1d4"
+purpose = "Per-object tick method that picks by +0x1D4: 0 first-tick setup, 1 update, 2 09ABC670, 3 09ABC680 alone; after phases 0 to 2 it sets +0x260 from place and, when +0x4E9 mask 0x2 is clear, updates matrices."
+confidence = "inferred"
+evidence = "Slot +0x38 of vtable 089BB154, called from EBOOT 08864634; the switch is in the body, phases 2 and 3 not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABB7B8"
+name = "npc_first_tick_setup_from_spawn_record"
+purpose = "First-tick setup: loads the spawn record, advances +0x1D4, clears counters, sets +0x230 by hunter distance when +0x4E9 mask 0x10 or 0x20 is set, picks the initial state and motion from +0x1E8 and the state sequence at +0x4E0, starts the motions, probes manager 09B22E70 and may link the object into the 09D19860 list."
+confidence = "inferred"
+evidence = "Called from phase 0 of 09ABB700, ran on a single sampled frame early in most recordings; calls 09ABCAE0 then the set-state and motion helpers."
+
+[[function]]
+module = "lobby_task"
+address = "09ABC560"
+name = "npc_update"
+purpose = "Per-frame update: sets +0x2BA to 10, advances counters, saves position to +0x210, runs the state dispatch and timed position delta, sets motion fields +0x94/+0xD4/+0x114/+0x154 from +0x488 when +0x4E9 mask 0x2 is clear, probes the manager, updates culling and motions, and unless +0x4E9 mask 0x1 is set queries 09C3EE98 and copies +0x2CC to height +0x204 when +0x280 is not 2."
+confidence = "inferred"
+evidence = "Phase 1 of 09ABB700, ran across frames in the recordings; order read from the body."
+
+[[function]]
+module = "lobby_task"
+address = "09ABC688"
+name = "npc_update_world_matrix_and_turn_matrix_toward_hunter"
+purpose = "Unless +0x33C is nonzero: updates the world matrix; for +0x1E8 of 0 or 1 turns a matrix under +0x190 (+0x2D40 for 0, +0x1D10 for 1) toward the hunter in slot game+0x28, clamped to 20 or 10 degrees and smoothed by 0.2 in +0x4D8; then updates skeleton bone roots."
+confidence = "inferred"
+evidence = "Angle from object to hunter minus heading +0x1F4, clamp, vmmul into that matrix, then skeleton_update_bone_roots; which bone the matrix is was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABCAE0"
+name = "npc_load_spawn_record"
+purpose = "Finds the table for id +0x29A through table_09ce4808_find_id and 09B0AE68, takes the 0x18-byte record at index +0x481 and copies id +0x480, +0x481, +0x1E8, flags +0x4E9, +0x488, heading +0x1F4, scale fields +0x220..+0x228, +0x4E4 and sequence +0x4E0; applies overrides, then sets position and home +0x490 from the sequence's first point (zero if none); with no table it only calls 09ABC680."
+confidence = "inferred"
+evidence = "Field copies in the body; called first in the first-tick setup."
+
+[[function]]
+module = "lobby_task"
+address = "09ABCC48"
+name = "npc_apply_spawn_overrides_by_id_field_480"
+purpose = "For ids 0x0D, 0x16, 0x17, 0x18, 0x1A, 0x1B and 0x1D in +0x480, tests game flags and fields and swaps sequence +0x4E0 and heading +0x1F4, or clears +0x4E9 mask 0x10; id 0x18 also always calls 09CA7638 with 0.3."
+confidence = "inferred"
+evidence = "Chain on +0x480 in the body; what each game flag means was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABCEC0"
+name = "npc_set_field_4eb_to_0xff"
+purpose = "Sets byte +0x4EB to 0xFF."
+confidence = "inferred"
+evidence = "One store; used by the first-tick setup when +0x1E8 is 0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABCED0"
+name = "npc_call_game_sub_09c57ca0_by_field_1e8"
+purpose = "Calls 09C57CA0 with argument 1 when +0x1E8 is 0 and with argument 0 when it is 1 to 4."
+confidence = "inferred"
+evidence = "Body read; callee not followed, first-tick setup calls it when +0x4E9 mask 0x8 is clear."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD0D8"
+name = "npc_find_motion_by_id_with_manager_bank"
+purpose = "Vtable motion lookup: ids under 1000 use the bank at hunter manager +0x40 (group id/100, entry id%100, returning 0 for an out-of-range or -1 entry), falling back to object_find_motion_by_id when manager or bank is null, as other ids always do."
+confidence = "inferred"
+evidence = "Slot +0x20 of vtable 089BB154, called with +0x324 ids before motion_player_change_blended."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD1A0"
+name = "npc_request_motion_both_layers"
+purpose = "Requests a motion on layer 0 and the same id plus 100 on layer 1, passing the same two extra values to both."
+confidence = "inferred"
+evidence = "Two calls to 09ABD210 with layer 0 and 1, id and id+100."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD208"
+name = "npc_request_motion_layer_forward"
+purpose = "Forwards its five arguments unchanged to 09ABD210."
+confidence = "inferred"
+evidence = "Body is one call with the same arguments, directly before the callee."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD210"
+name = "npc_request_motion_layer"
+purpose = "If layer's motion id at +0x324 differs from the request, stores the id, half of param_3 at +0x334, param_4 at +0x32C and clears +0x48C so the next motion update starts it."
+confidence = "inferred"
+evidence = "Stores read here; 09ABD290 passes +0x32C and +0x334 to motion_player_change_blended when +0x48C is 0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD290"
+name = "npc_start_requested_motions_and_update_layers"
+purpose = "When +0x33C is 0 and +0x4E9 mask 0x2 is clear: starts layer 0's requested motion if +0x48C is 0, layer 1's if +0x48D is 0 and +0x1A4 is above 1, then runs motion_update_layers."
+confidence = "inferred"
+evidence = "Vtable +0x20 lookup then motion_player_change_blended on each layer, flag set to 1 first."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD370"
+name = "npc_advance_counters_unless_field_33c"
+purpose = "When +0x33C is 0: adds 2 to +0x3F4 (above 99999 back to 10000), decrements nonzero +0x276, and increments +0x4EC, wrapping above 100 to 0."
+confidence = "inferred"
+evidence = "Body read; start of the per-frame update."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD3E0"
+name = "npc_apply_field_396_to_countdown_field_33c"
+purpose = "If +0x396 is nonzero adds it to +0x33C and clears it; otherwise decrements a nonzero +0x33C."
+confidence = "inferred"
+evidence = "Body read; +0x33C nonzero stops counters, matrices and motions in sibling functions."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD418"
+name = "npc_apply_timed_position_delta"
+purpose = "While countdown +0x4D0 is nonzero, adds vector +0x4C0 to position +0x200 and decrements the countdown."
+confidence = "inferred"
+evidence = "Body read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD4B8"
+name = "npc_set_state"
+purpose = "Sets +0x298 and state +0x299 and clears substates +0x1D5..+0x1D7, sets +0x3F4 through 09ABD580 and rewrites +0x94/+0xD4 to 2.0; first, with +0x4E8 clear it saves the old pair to +0x460/+0x461 and a random value to +0x322, otherwise it clears the +0x1A8..+0x1BE fields."
+confidence = "inferred"
+evidence = "Called with state literals by every state handler and the sequence step."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD580"
+name = "npc_set_field_3f4_from_motion_fields"
+purpose = "Sets +0x3F4 to +0x32C minus the absolute value of +0x334; with a nonzero param_2 also adjusts +0x426 by the same fields."
+confidence = "inferred"
+evidence = "Body read; the visible call in the set-state function passes 0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD5E8"
+name = "npc_update_camera_cull_flag_and_field_230_fade"
+purpose = "When +0x4E9 mask 0x4 is set, sets +0x4E9 mask 0x2 if the object is on the negative side of the camera heading, if object flags mask 0x2 is clear, or at 2264.99 or more from the eye, and clears it otherwise; when mask 0x10 or 0x20 is set, steps +0x230 by 09B08758 toward 0xFF inside 2000 or 3000 units of the eye and toward 0 beyond."
+confidence = "inferred"
+evidence = "camera_get_eye and heading in the body; +0x4E9 mask 0x2 gates motions and matrices elsewhere in this class, +0x230's reader was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABDC70"
+name = "npc_get_table_pair_scaled_by_fields_220_228"
+purpose = "Returns two floats from table 09B08B80 indexed by +0x1E8, the first multiplied by +0x220 and the second by +0x228."
+confidence = "inferred"
+evidence = "Slot +0x34 of vtable 089BB154, called from game_sub 09C57E08 in traces; what the pair means was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABDCC8"
+name = "npc_probe_manager_and_link_into_09d19860_list"
+purpose = "When manager 09B22E70's first word and +0x482 and +0x484 are all 0, runs the probe 09A95A38 on this object, and if that sets +0x484 links a new node for it into the list at 09D19860 +0x19030."
+confidence = "inferred"
+evidence = "Followed 09A95A38 (clears +0x484, restores manager words) and 09AF2700 (node push, count +1); what the probe tests was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABDE20"
+name = "npc_play_3d_sound_arg_0x07_if_field_29a_matches_game"
+purpose = "If object_29a_matches_game_6af0e holds, updates the sound field through 09ABE500 and calls sound_play_3d with first argument 7, the given id and position."
+confidence = "inferred"
+evidence = "Body read; what argument 7 selects in sound_play_3d was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABDEB8"
+name = "npc_play_3d_sound_arg_0x03_if_field_29a_matches_game"
+purpose = "If object_29a_matches_game_6af0e holds, updates the sound field through 09ABE500 and calls sound_play_3d with first argument 3, the given id and position."
+confidence = "inferred"
+evidence = "Same body as 09ABDE20 except the argument; ran in the guild recording in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE118"
+name = "motion_sound_cues_npc_play_arg_0x07_at_frame_remapped"
+purpose = "When layer 0 of the motion at +0x80 reaches the given frame, remaps the sound id through 09ABE898 and plays it at the object's position through 09ABDE20."
+confidence = "inferred"
+evidence = "motion_frame_reached then the sound helpers; called from the 09AD50A8 family."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE178"
+name = "motion_sound_cues_npc_play_arg_0x03_at_frame"
+purpose = "When layer 0 of the motion at +0x80 reaches the given frame, plays the given sound id at the object's position through 09ABDEB8, without remapping."
+confidence = "inferred"
+evidence = "motion_frame_reached then 09ABDEB8; called from 09AD50A8 in the guild recording."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE2C8"
+name = "npc_play_3d_sound_by_id_field_480"
+purpose = "Plays a given sound at a given position through 09ABDEB8 for +0x480 of 0x0E or 0x13, through 09ABDE20 for 0x01, 0x03, 0x06, 0x08, 0x0A or 0x0B, and not at all otherwise."
+confidence = "inferred"
+evidence = "Chain on +0x480; called from 09A6DED0, ran only in the shops recording."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE360"
+name = "motion_sound_cues_npc_dispatch_and_play_3d_at_frame"
+purpose = "When layer 0 of the motion at +0x80 reaches the given frame, updates the sound field, calls unknown_sound_dispatch_889eac4_or_889ee80 with param_2 and then sound_play_3d with param_2 and param_3 at the object's position."
+confidence = "inferred"
+evidence = "motion_frame_reached then both sound calls; called from 09AD50A8."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE418"
+name = "npc_update_field_485_mask_01_if_game_6af0e_is_0x0d"
+purpose = "If game +0x6AF0E is 0x0D, sums 09C1B700 and 09C276C8; under 3 it toggles +0x485 mask 0x1, otherwise it sets the mask."
+confidence = "inferred"
+evidence = "Body read; callees not followed, reached from reset and 09A9F7B0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE4A8"
+name = "npc_clear_field_485_masks_01_02_if_game_6af0e_is_0x0d"
+purpose = "If game +0x6AF0E is 0x0D, clears masks 0x1 and 0x2 of +0x485."
+confidence = "inferred"
+evidence = "Test-then-xor on each mask; called from 09A95890."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE500"
+name = "npc_copy_field_485_to_sound_field_562466"
+purpose = "If game +0x6AF0E is 0x0D, writes +0x485 to byte +0x562466 of sound object 08A62EAC when its mask 0x1 is set, otherwise 0."
+confidence = "inferred"
+evidence = "Body read; DAT_08a62eac is the sound_play_3d first argument; called before each play here."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE898"
+name = "npc_remap_sound_id_by_motion_and_game_counts"
+purpose = "Remaps a sound id: 0x46/0x47/0x4C to 0x82/0x83/0x84 when 09C276C8 is above 1, +0x1E8 is 3, +0x485 mask 0x2 is set and motion +0x324 is one of 0x44C-0x44E, 0x44F or 0x451; 0x4B/0x43 to 0x85/0x86 when 09C1B700 is at least 2, 09C1C208 returns 1 or 3 and the motion is 0x442 or 0x443."
+confidence = "inferred"
+evidence = "Result is passed to the sound helper 09ABDE20 by 09ABE118; what the game_sub calls count was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEB68"
+name = "npc_dispatch_state_and_step_timed_sequence"
+purpose = "Clears +0x482, dispatches by +0x1E8 zero or not and subtype +0x481 to a state handler, then when a sequence is set and state is not 0x64 or 0x65 counts +0x4DC and steps the sequence once it reaches the entry's nonzero duration."
+confidence = "inferred"
+evidence = "Two switches in the body; entry duration at +0x10 of a 0x14-byte record at index +0x4D6."
+
+[[function]]
+module = "lobby_task"
+address = "09ABECF0"
+name = "npc_step_state_sequence"
+purpose = "Adds a signed step to sequence index +0x4D6, wraps to entry 0 when the entry's state is -1, sets the entry's state if it differs from +0x299, and clears timer +0x4DC when the step is nonzero."
+confidence = "inferred"
+evidence = "Record stride 0x14, state at +0xC, calls the set-state function."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEDA0"
+name = "npc_field_1e8_0_subtype_1_to_5_state_dispatch"
+purpose = "Calls the handler for state +0x299 (0x64..0x72, default 09ABEEA0 with variant 0) for objects with +0x1E8 of 0 and +0x481 of 1 to 5."
+confidence = "inferred"
+evidence = "Switch in the body; reached from those cases of 09ABEB68."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEEA0"
+name = "npc_state_hold_motion_variant_or_id_04_enter_state_0x64"
+purpose = "If +0x480 is 4 and manager 09B22E70's first word is 0x0E, clears +0x484 and sets state 0x64; otherwise on substate 0 requests the variant's motion: 0 motion 1, 1 motion 0x3E9 on layer 0, 2 motion 0x3F, 3 motion 0x35A."
+confidence = "inferred"
+evidence = "Body read; also used by the handlers 09AC00F0 and 09AC05B0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEF98"
+name = "npc_state_0x6c_hold_motion_0x293"
+purpose = "On substate 0, moves to substate 1 and requests motion 0x293 on both layers."
+confidence = "inferred"
+evidence = "Case 0x6C of 09ABEDA0; body read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEFE0"
+name = "npc_state_0x6d_hold_motion_0x294_set_field_4ea"
+purpose = "On substate 0, sets +0x4EA to 1, moves to substate 1 and requests motion 0x294 on both layers with value 0x14."
+confidence = "inferred"
+evidence = "Case 0x6D of 09ABEDA0; +0x4EA makes state 0x64 skip its turn."
+
+[[function]]
+module = "lobby_task"
+address = "09ABF380"
+name = "npc_state_hold_motion_0x291_0x290_until_manager_0x06_then_state_0x65"
+purpose = "On substate 0 requests motion 0x291 (variant 0) or 0x290 (variant 1) on both layers; on substate 1 sets state 0x65 once manager 09B22E70's first word is 6."
+confidence = "inferred"
+evidence = "Cases 0x70 and 0x71 of 09ABEDA0; body read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABF420"
+name = "npc_talk_turn_to_hunter_wait_turn_back_resume_path_2"
+purpose = "Keeps +0x482 set while it turns +0x1F4 toward the hunter over 10 ticks (no turn when +0x4EA is 1) with a turn motion, waits until 09A9F7B0 reports release from manager 09B22E70, counts 16 ticks, restores a motion, turns back by the same step, then sets state 0x66 or the sequence entry's state."
+confidence = "inferred"
+evidence = "Substate switch on +0x1D5; ran only in the shops recording, which suggests talking to villagers, though the manager's states were not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABF9B8"
+name = "npc_field_1e8_0_subtype_0_state_dispatch"
+purpose = "Calls 09ABFAE0 for state 0x73, 09ABFB48 for state 0x64, otherwise 09ABFA18."
+confidence = "inferred"
+evidence = "Case 0 of 09ABEB68 with +0x1E8 of 0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABFA18"
+name = "npc_state_hold_motion_0x28a_random_time_or_state_0x73"
+purpose = "Requests motion 0x28A and waits a random 0x1E to 0x9D ticks in +0x414, then on an even random value starts over and on an odd one sets state 0x73."
+confidence = "inferred"
+evidence = "Body read; default handler of 09ABF9B8."
+
+[[function]]
+module = "lobby_task"
+address = "09ABFAE0"
+name = "npc_state_0x73_motion_0x28e_then_state_0x69"
+purpose = "Requests motion 0x28E on both layers, then sets state 0x69 once mask 0x1 of +0xBC is clear."
+confidence = "inferred"
+evidence = "State 0x73 handler of 09ABF9B8; +0xBC is inside the motion block at +0x80, its meaning inferred from this wait."
+
+[[function]]
+module = "lobby_task"
+address = "09ABFCD8"
+name = "npc_subtype_1_state_dispatch"
+purpose = "Calls 09ABFEF0 for state 0x74, 09AC0130 for state 0x64, otherwise 09ABFD38."
+confidence = "inferred"
+evidence = "Case 1 of 09ABEB68 with +0x1E8 nonzero."
+
+[[function]]
+module = "lobby_task"
+address = "09ABFD38"
+name = "npc_state_random_motion_cycle_0x3e9_0x3ed_0x3ee"
+purpose = "Holds motion 0x3E9 for a random 0 to 255 ticks in +0x414, then picks by a percent roll: under 40 repeats, under 80 plays 0x3ED, otherwise 0x3EE, returning to 0x3E9 once mask 0x1 of +0xBC is clear."
+confidence = "inferred"
+evidence = "Substate switch on +0x1D5 and +0x1D6 in the body."

@@ -1,0 +1,215 @@
+[[function]]
+module = "lobby_task"
+address = "09AAA788"
+name = "lobby_hunter_state_dispatch"
+purpose = "Runs the handler for state byte +0x299 (cases 0 to 0x1F), and calls 09AAE408 when +0x1E6 differs from the index at DAT_089cc558+0x28; first, under global flag mask 0x1 and for a matching +0x1E6 in states 0x0F-0x1B except 0x11, it can reset to state 0,0 and clear +0xAC of a 6-byte-id entry in the table at DAT_09a0b684+0x57C, then call EBOOT 0889D6EC."
+confidence = "inferred"
+evidence = "The switch on +0x299 and the head block that searches 200-byte entries by 6-byte id; handlers use hunter_ motion and input helpers."
+
+[[function]]
+module = "lobby_task"
+address = "09AAAD60"
+name = "lobby_hunter_state_00_idle"
+purpose = "State 0: with +0x10F8 mask 0x1 it switches to state 0,0xC; otherwise, once +0x3F4 is at least 0xF0 and byte +0x4E0 is 1, plays motion 0x3F, and resets to idle (motion 1) if the motion is not 1 or 0x3F; then polls input through 09AAE370."
+confidence = "inferred"
+evidence = "Dispatcher case 0; 09AAF218 writes motion 1 with state 0,0, and this state keeps motion 1 or 0x3F."
+
+[[function]]
+module = "lobby_task"
+address = "09AAAE60"
+name = "lobby_hunter_state_01_face_input_motion_02"
+purpose = "State 1: on entry sets counters +0x1D7 and +0x414 to 10 and plays motion 2 (0x40 if byte +0x4E0 is 1, or 600 with +0x10F8 mask 0x1); each tick counts down, and at level 0 from 09AA98E0 with +0x414 expired leaves for state 0,4 or idle; otherwise turns yaw +0x320 to the input angle for the local index and polls input."
+confidence = "inferred"
+evidence = "Dispatcher case 1; 09AAD350 enters it at levels 1-3 from 09AA98E0, which reads +0x49E against thresholds."
+
+[[function]]
+module = "lobby_task"
+address = "09AAB088"
+name = "lobby_hunter_state_02_move_forward_motion_03"
+purpose = "State 2: on entry plays motion 3 (0x27 with +0x10F8 mask 0x1), sets +0x630 to 0x1E and yaw +0x320 from +0x1F4; each tick the local-index hunter turns to the input angle when +0x49E is above 0x27 and adds a transformed forward step of 5.0 (1.0 with the mask) to +0x200 and +0x208, then goes to state 0,4 at level 0 or state 0,1 when level is below 5 and +0x630 is 0."
+confidence = "inferred"
+evidence = "Dispatcher case 2; vtfm3 of the step through the matrix at +0x10 added to place."
+
+[[function]]
+module = "lobby_task"
+address = "09AAB318"
+name = "lobby_hunter_state_03_motion_2a"
+purpose = "State 3: with +0x10F8 mask 0x1 it switches to state 0,2; otherwise on entry clears +0x3F4, copies yaw +0x320 to +0x1F4 and plays motion 0x2A, and once +0xBC mask 0x1 is clear calls 09AAEF70."
+confidence = "inferred"
+evidence = "Dispatcher case 3; the body is short and only touches these fields."
+
+[[function]]
+module = "lobby_task"
+address = "09AAB3E8"
+name = "lobby_hunter_state_04_motion_1e_then_idle"
+purpose = "State 4: with +0x10F8 mask 0x1 it switches to state 0,0xC; otherwise on entry plays motion 0x1E, and once +0xBC mask 0x1 is clear resets to idle through 09AAF1B0 with argument 10."
+confidence = "inferred"
+evidence = "Dispatcher case 4; states 1 and 2 enter it at level 0 from 09AA98E0."
+
+[[function]]
+module = "lobby_task"
+address = "09AAD350"
+name = "lobby_hunter_poll_move_and_interaction"
+purpose = "Picks a move state from the level of 09AA98E0 (level 5: state 2 or, for a 0x6000-0xA000 yaw difference, 09AAEF70; levels 1-3: state 1); then for the local index handles field +0x565, the target at +0x2F4 (mask 0x4000 of +0x484, branching on target byte +0x1E9) and the zone record at +0x554 (masks 0xB000 of +0x484, switch on zone kind 0 to 0x15), which write the mode word at DAT_09b22e70, open subsystems and set hunter states."
+confidence = "inferred"
+evidence = "The stick-level branch at the head, then the kind switch on the zone record that 09AAF290 stores at +0x554."
+
+[[function]]
+module = "lobby_task"
+address = "09AAE370"
+name = "lobby_hunter_local_rotate_or_poll_input"
+purpose = "For the local index only: when the mode word at DAT_09b22e70 is 0x18 or 09A610C8(DAT_09b10080) returns 1, rotates yaw through 09AAF6D8; otherwise, if byte +8 of DAT_09b22e70 is 0, runs 09AAD350."
+confidence = "inferred"
+evidence = "The whole body is this gate; callers are the state handlers."
+
+[[function]]
+module = "lobby_task"
+address = "09AAEE10"
+name = "lobby_hunter_set_state_method_6c"
+purpose = "Vtable slot +0x6C: saves state bytes +0x298/+0x299 to +0x460/+0x461, sets the new pair, clears phase bytes +0x1D5-+0x1D7, draws a random +0x322, clears +0x410 mask 0x4, clears the +0x1A8 channel fields unless argument 4 has mask 0x1, masks +0x288 to 0x80100, resets +0x94/+0xD4 to 2.0, and sends message type 9 through 09AB08E8 when +0x1E6 is 0 (a non-local hunter returns early unless in state 0,0, where it may reset to idle)."
+confidence = "inferred"
+evidence = "Slot +0x6C of vtable 089BB05C, called with state pairs by the state handlers; the same shape as 09AAEFA8."
+
+[[function]]
+module = "lobby_task"
+address = "09AAEF70"
+name = "lobby_hunter_call_set_state_method_set_field_410_mask_04"
+purpose = "Calls vtable slot +0x6C with whatever argument registers it was given, then sets mask 0x4 in +0x410."
+confidence = "inferred"
+evidence = "Two-statement body; the view shows no arguments passed, so the state it sets is unread."
+
+[[function]]
+module = "lobby_task"
+address = "09AAEFA8"
+name = "lobby_hunter_set_state_keep_field_1a8"
+purpose = "Direct variant of the state setter: saves +0x298/+0x299 to +0x460/+0x461, sets the new pair, clears phase bytes, draws a random +0x322, clears +0x614 mask 0x800 when the new +0x298 is 2, masks +0x288 to 0x100100, resets +0x94/+0xD4 to 2.0 and sends message type 9 through 09AB08E8 when +0x1E6 is 0, leaving the +0x1A8 channel fields alone."
+confidence = "inferred"
+evidence = "Same shape as 09AAEE10 without the +0x1A8 clearing and the +0x410 change."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF0D0"
+name = "lobby_hunter_clear_state_work_fields"
+purpose = "Zeroes the per-state working fields: +0x1D4 word, +0x1D8, +0x614 masks 0x80, 0x100 and 0x800, +0x45C, +0x3F4, +0x426, +0x427, +0x28C, +0x45E, +0x35E, +0x414, +0x282, +0x410 mask 0x2, +0x672 and the +0x1A8 channel fields, masks +0x288 to 0x100, and sets +0x94/+0xD4 to 2.0."
+confidence = "inferred"
+evidence = "A flat list of clears, called first by the idle reset 09AAF1B0."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF1B0"
+name = "lobby_hunter_reset_and_enter_idle"
+purpose = "Clears state fields (09AAF0D0), velocity-like fields (09AAF188) and byte +0x280, then sets motion 1 and state 0,0 through 09AAF218 with its two arguments and refreshes +0x3F4 through unknown_sets_field_3f4_from_32c_334."
+confidence = "inferred"
+evidence = "The call sequence; state handlers use it to return to state 0."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF218"
+name = "lobby_hunter_set_motion_01_and_state_00"
+purpose = "Writes argument 3 to +0x32C/+0x32E and half of argument 2 to +0x334/+0x336, sets motion fields +0x324 to 1 and +0x326 to 0x65, sets state 0,0 and calls 09AB08E8 when +0x1E6 is 0, which returns without sending for state 0,0 and argument 0."
+confidence = "inferred"
+evidence = "Direct field writes; the literal motion values are in the body."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF290"
+name = "lobby_hunter_find_zone_at_position"
+purpose = "For the local index, walks the 0x18-byte zone records returned by slot +0x28 of the object at *DAT_09a4f1a0; at the first record whose radius (+0x10) contains the hunter's x,z with height from -50 to +300 of the record, stores it in +0x554 if 09AAF408 accepts it, otherwise +0x554 stays 0."
+confidence = "inferred"
+evidence = "Distance and height tests against the record position; 09AAD350 reads +0x554 as the record with kind at +2."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF408"
+name = "lobby_hunter_zone_passes_angle_check"
+purpose = "For a zone record of kind 9 returns 09AAF458 of the zone position with 0x5A, which that function converts from degrees to angle units; every other kind returns 1."
+confidence = "inferred"
+evidence = "The body, and the degrees conversion at the head of 09AAF458; that function's comparison was not read in full."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF6D8"
+name = "lobby_hunter_rotate_yaw_by_field_480_masks"
+purpose = "Mask 0x800000 of +0x480 subtracts 0x400 from +0x1F4 and mask 0x200000 adds 0x400, copying the result to yaw +0x320."
+confidence = "inferred"
+evidence = "The body; in traces it ran only in the shops and misc recordings, called from 09AAE370."
+
+[[function]]
+module = "lobby_task"
+address = "09AAFC20"
+name = "lobby_hunter_set_field_614_mask_04_maybe_set_state"
+purpose = "Sets mask 0x4 in +0x614; if mask 0x40 was already set, also sets mask 0x8 and calls 09AAEF70."
+confidence = "inferred"
+evidence = "The body; called at the end of input polling and when state 1 ends."
+
+[[function]]
+module = "lobby_task"
+address = "09AB08D8"
+name = "lobby_hunter_field_1e6_is_zero"
+purpose = "Returns 1 when short +0x1E6 is 0."
+confidence = "inferred"
+evidence = "One-line body; the hunter class is taken from its callers."
+
+[[function]]
+module = "lobby_task"
+address = "09AB08E8"
+name = "lobby_hunter_send_net_message_09_state"
+purpose = "When +0x1E6 is 0, builds a record of state bytes +0x298/+0x299, yaw +0x320, x and z, a +0x10F8 mask 0x1 flag and a state-dependent byte (the zone id in state 0x11, DAT_09b22e70+0x20 in states 0x0F-0x1B), and sends it as type 9 through net_build_and_send_message_by_type, restarting the timer at DAT_09b22e70+0x2A at 0x14; states 0,0-4 and 0,0xC are skipped unless argument 3 is nonzero."
+confidence = "inferred"
+evidence = "The record built on the stack and the call to net_build_and_send_message_by_type with 9."
+
+[[function]]
+module = "lobby_task"
+address = "09AB0B58"
+name = "lobby_hunter_tick_send_net_message_0a_position"
+purpose = "When +0x1E6 is 0, counts down the timer at DAT_09b22e70+0x2A and at 0 or below sends x, z, +0x1F4 and the state bytes as type 10 through net_build_and_send_message_by_type, restarting the timer at 0x14."
+confidence = "inferred"
+evidence = "The timer is shared with 09AB08E8; the condition helper 09AB0D50 always returns 1."
+
+[[function]]
+module = "lobby_task"
+address = "09AB53B0"
+name = "class_089bb0d8_reset_fields_and_default_state_fn"
+purpose = "Vtable slot +0x10: resets flags and matrix through object_reset_flags_and_matrix, zeroes +0x1F0-+0x21F, sets +0x220-+0x228 to 1.0, clears +0x324-+0x32A, +0x10FC and +0x1100-+0x110F, sets +0x2AC-+0x2B4 to -1 and +0x230 to 0xFF, and copies the member function at DAT_09b086c0 to the state function +0x3FC if set."
+confidence = "inferred"
+evidence = "Direct writes, slot +0x10 of vtable 089BB0D8; ran once in shops at frame 2800."
+
+[[function]]
+module = "lobby_task"
+address = "09AB83B0"
+name = "npc_ctor"
+purpose = "Runs object_ctor, sets the vtable to 089BB154 and byte +0x1E9 to 2, and returns the object."
+confidence = "confirmed"
+evidence = "The vtable write and base constructor call in the body."
+
+[[function]]
+module = "lobby_task"
+address = "09AB84B0"
+name = "npc_draw"
+purpose = "Vtable slot +0xC: updates skin matrices, and when +4 has mask 0x3 and byte +0x230 is nonzero, sets up lights, world matrix and GPU commands (using +0x230 when it is not 0xFF), adjusts material records through 09ABADF8 and 09ABB008 for +0x1E8 values 2 and 3, emits the mesh of each model group that is enabled, draws extras through 09AB8880 and restores GPU state."
+confidence = "inferred"
+evidence = "Calls gpu_emit_model_mesh per group and gpu_set_world_matrix; slot +0xC of vtable 089BB154, called from EBOOT 0884BB58."
+
+[[function]]
+module = "lobby_task"
+address = "09AB8880"
+name = "npc_draw_extra_model_groups"
+purpose = "For +0x1E8 value 2 or 3 only, draws additional groups of the model at *DAT_09a4f1a0 with model_draw_group, placed by object_build_bone_attach_matrix or fixed matrices, chosen by +0x1E8, the word at DAT_089cc558+0x6AF0E, byte +0x480, motion id and motion frames; the +0x1E8 value 2 path also makes a few other calls on a frame schedule."
+confidence = "inferred"
+evidence = "Branch outline and the model_draw_group calls of the 1265-line body, not read line by line; called from 09AB84B0."
+
+[[function]]
+module = "lobby_task"
+address = "09ABA340"
+name = "npc_apply_model_parts_and_material_colors"
+purpose = "With a nonzero description argument, stores it in +0x4E4 and clears group-enable bytes +0x2FF-+0x31E; then enables the groups it lists and copies its material values, and for +0x1E8 value 3 writes colour table DAT_0899CAD8 entries to material records, picking the index from +0x4FA or the per-index record at DAT_089cc558+0x69BEE, with further group and byte +3 choices by +0x480 and the byte at DAT_089cc558+0x6A19C."
+confidence = "inferred"
+evidence = "The fields match those 09AB84B0 reads (+0x2FF enables, +0x58 material records); the class is taken from those fields, the caller 09ABB7B8 was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ABADF8"
+name = "npc_select_material_byte_3_by_field_4ee"
+purpose = "Unless byte +0x480 is 7, picks a choice from +0x4EE minus 1, or when +0x4EE is 0 from a list of values of +0x4EC, then sets byte +3 of the material record to 0xFF for the chosen index (choice 0: index 1, choice 1: index 2, choice 2: index 3) and 0 for the others among 1 to 4."
+confidence = "inferred"
+evidence = "The body; called for each material of a group from 09AB84B0 with the loop index."

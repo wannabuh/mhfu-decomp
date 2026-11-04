@@ -1,0 +1,207 @@
+[[function]]
+module = "lobby_task"
+address = "09AC00F0"
+name = "npc_states_0x64_or_motion_0x03e9_dispatch"
+purpose = "If state +0x299 is 0x64 runs 09AC0130, otherwise runs the shared simple-motion state 09ABEEA0 with argument 1, which starts motion 0x3E9 once."
+confidence = "inferred"
+evidence = "Two-way branch on +0x299; called from the state dispatchers 09ABEA38 and 09ABEB68; npc prefix follows 09AC05F0-style talk code on the same fields."
+
+[[function]]
+module = "lobby_task"
+address = "09AC05F0"
+name = "npc_talk_turn_to_hunter_wait_turn_back_resume_path"
+purpose = "Sub-state machine on +0x1D5 that sets +0x482 each frame, unless +0x4EA is 1 turns yaw +0x1F4 toward the hunter in slot game +0x28 over 10 frames with motion 0x405 then 0x406, waits for 09A9F7B0 on the talk state to return 1, waits 0x10 frames, turns back with motion 0x3E9, restores position +0x200 from +0x490, and sets the state from waypoint entry +0xC, or 0x6A with no path table."
+confidence = "inferred"
+evidence = "Code shows the turn, wait and restore; ran only in shops 2320-2470 in traces; talk word comes from DAT_09b22e70 being the talk state of 09A95890."
+
+[[function]]
+module = "lobby_task"
+address = "09AC0A70"
+name = "npc_states_0x64_or_idle_dispatch_09ac0a70"
+purpose = "If state +0x299 is 0x64 runs the talk turn 09AC0C20, otherwise runs the idle loop 09AC0AB0."
+confidence = "inferred"
+evidence = "Two-way branch on +0x299; callee meanings from their own bodies."
+
+[[function]]
+module = "lobby_task"
+address = "09AC0AB0"
+name = "npc_idle_loop_motion_0x0407_random_motion_0x0408"
+purpose = "Holds motion 0x407 for a random 0x80-0xFF frames, then with 1 in 4 chance plays motion 0x408 once before returning; while holding, if byte +0x230 is -1, every 16 frames of game +0x1C it calls 09C611C8 with the position of bone 0xC."
+confidence = "inferred"
+evidence = "Sub-state values 0, 1, 0xA, 0xB in the code; effect of 09C611C8 not read, so it is named only by address."
+
+[[function]]
+module = "lobby_task"
+address = "09AC0C20"
+name = "npc_talk_turn_fixed_angle_wait_turn_back_resume_path"
+purpose = "Sub-state machine on +0x1D5 that sets +0x482 each frame, turns yaw +0x1F4 by -0x2AAA over 60 frames with motion 0x409, plays 0x40A until 09A9F7B0 on the talk state returns 1, waits 0x10 frames, plays 0x40B for 8 frames, turns back over 60 frames, and sets the state from waypoint entry +0xC, or 0x6B with no path table."
+confidence = "inferred"
+evidence = "Steps 0 to 6 of the switch; same wait and resume as 09AC05F0; ran at camp 1300-1440 in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09AC0E48"
+name = "npc_states_0x76_to_0xa9_dispatch"
+purpose = "Dispatches on state +0x299 to handlers for 0x76 to 0x82 (0x7D included), 0x64 and 0xA9, with 09AC1010 as the default."
+confidence = "inferred"
+evidence = "Chain of comparisons on +0x299 with one callee each; 0x64 goes to the talk handler 09AC1D18."
+
+[[function]]
+module = "lobby_task"
+address = "09AC1010"
+name = "npc_idle_loop_motion_0x03e9_random_motions_0x03ea_to_0x03ec"
+purpose = "Records the state in +0x4EF and clears +0x4EE, holds motion 0x3E9 for a random 0x80-0xFF frames, then on 2 random bits restarts the hold or plays one of motions 0x3EA, 0x3EB, 0x3EC once before holding again."
+confidence = "inferred"
+evidence = "Sub-state table in the code, with math_rng_next & 3 choosing among 1, 0xA, 0x14, 0x1E; default case of dispatcher 09AC0E48."
+
+[[function]]
+module = "lobby_task"
+address = "09AC1230"
+name = "npc_path_motion_0x03f3_turn_to_waypoint_advance_within_50"
+purpose = "Records the state in +0x4EF, starts motion 0x3F3, then each frame turns yaw +0x1F4 a tenth of the way toward the waypoint at +0x4E0 index +0x4D6 and advances the path with 09ABECF0 when the distance is at most 50."
+confidence = "inferred"
+evidence = "Waypoint stride 0x14, atan to yaw, length compare with 50.0 then the path advance."
+
+[[function]]
+module = "lobby_task"
+address = "09AC15F0"
+name = "npc_path_play_motion_0x03ea_once_then_advance"
+purpose = "Records the state in +0x4EF, clears +0x4EE, starts motion 0x3EA, and advances the path with 09ABECF0 once +0xBC mask 0x1 is clear."
+confidence = "inferred"
+evidence = "Two sub-states in the code; 09ABECF0 steps +0x4D6 through the table at +0x4E0."
+
+[[function]]
+module = "lobby_task"
+address = "09AC1670"
+name = "npc_state_0x77_start_motion_0x0431_and_hold"
+purpose = "Records the state in +0x4EF, sets +0x4EE to 3 and starts motion 0x431 once, then does nothing further in this state."
+confidence = "inferred"
+evidence = "Only sub-state 0 has a body; reached for state 0x77 from 09AC0E48."
+
+[[function]]
+module = "lobby_task"
+address = "09AC1D18"
+name = "npc_talk_state_0x64_by_previous_state_and_face_hunter"
+purpose = "Large sub-state machine on +0x1D5 chosen by the earlier state +0x4EF: sets +0x482 each frame, unless +0x4EA is 1 turns toward the hunter in slot game +0x28 with +0x288 flag 0x20000 set, plays per-state motions, waits on 09A9F7B0, turns back and clears the flag, then resumes via the path; for earlier state 0xA9 it also calls 09CAE4D0 at table frames during motion 0x44C and alternates motions 0x450 and 0x451 with +0x4EE set by frame range."
+confidence = "inferred"
+evidence = "Body read except a middle stretch of build/read; case 0x64 of dispatcher 09AC0E48; ran only in ledge 2290-2670 in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09AC79F8"
+name = "npc_states_0x84_to_0x91_dispatch"
+purpose = "Dispatches on state +0x299 to handlers for 0x84 to 0x91 and 0x64, passing 1 or 0 to 09AC7FB8 for 0x86 and 0x85, with 09AC7BC0 as the default."
+confidence = "inferred"
+evidence = "Chain of comparisons on +0x299 with one callee each."
+
+[[function]]
+module = "lobby_task"
+address = "09AC95C0"
+name = "npc_path_motion_0x03eb_to_waypoint_random_pause_motion_0x03ef"
+purpose = "Starts motion 0x3EB and turns toward the current waypoint; within distance 50 it advances +0x4D6, and unless the table wrapped, on a random bit plays motion 0x3EF for 0x136-0x155 frames before taking the waypoint's next state, restarting this state when that state is the same."
+confidence = "inferred"
+evidence = "Waypoint table +0x4E0 stride 0x14 with terminator -1 at +0xC; case 0x8C of dispatcher 09AC79F8."
+
+[[function]]
+module = "lobby_task"
+address = "09AD46B8"
+name = "npc_tick_count_motion_frames_and_field_1e8_3_extra"
+purpose = "Counts frames in +0x4FC, resetting it and storing the id in +0x4FE when motion id +0x324 changes, and calls 09AD4740 when byte +0x1E8 is 3."
+confidence = "inferred"
+evidence = "Vtable 089BB154 slot +0x1C called from object_tick; every frame in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09AD50A8"
+name = "motion_sound_cues_npc_by_field_1e8"
+purpose = "Refreshes +0x40C from table 089AA344 when object_29a_matches_game_6af0e holds, returns if +0x4E9 mask 0x2 is set, then by byte +0x1E8 and motion id +0x324 plays sounds at motion frames, with some motions also calling 09C60F48 or 09C6F470 at frames and cycling counter +0x500."
+confidence = "inferred"
+evidence = "Hundreds of calls to helpers such as 09ABE118 that test motion_frame_reached then play a sound; vtable 089BB154 slot +0x18; 09C60F48 and 09C6F470 effects not read."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB308"
+name = "npc_group_tick_call_member_fn"
+purpose = "Calls the member function held at the start of the manager if it is set."
+confidence = "inferred"
+evidence = "member_fn_is_set then member_fn_call; the stored function is 09ADB350 then 09ADB3C8."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB340"
+name = "npc_group_render_object_list_7"
+purpose = "Adds object list 7 of the manager at DAT_08a62d7c to the render queue."
+confidence = "inferred"
+evidence = "One call with literal 7; 09ADB3C8 updates the same list and checks its array for removal."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB350"
+name = "npc_group_first_tick_clear_field_60_install_update"
+purpose = "Clears manager +0x60, runs the update 09ADB3C8 once, and installs the member function read from DAT_09b08b70 (which points to 09ADB3C8) if it is set."
+confidence = "inferred"
+evidence = "Ran on one frame per recording in traces; PTR_f_lobby_task_9ADB3C8 is in the copied struct."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB3C8"
+name = "npc_group_update_list_7_remove_flag_0x1_clear"
+purpose = "Updates object list 7 and passes each entry of its array at +0xC whose +4 mask 0x1 is clear to the removal 09ADC200."
+confidence = "inferred"
+evidence = "Loop over count +0x5C; 09ADC200 frees the object's model part and unlinks it."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB450"
+name = "npc_group_add_object_max_0x14"
+purpose = "Appends an object to the array at +0xC when count +0x5C is below 0x14 and stores its index in the object's byte +0x1E4."
+confidence = "inferred"
+evidence = "Bound check, store, increment; called from the spawner 09ADBC50."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB510"
+name = "npc_asset_slot_start_load_for_index"
+purpose = "Starts loading asset slot index+0x10 from file 0x150B+index, except index 4, which uses slot 0x14, file 0x150F plus game byte +0x6A5EB and last argument 0x43000."
+confidence = "inferred"
+evidence = "Two asset_slot_start_load calls; only index 0-4 from 09ADB5B0; 09ADB650 reads the same slots."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB5B0"
+name = "npc_asset_slots_start_load_all_five"
+purpose = "Calls 09ADB510 for indices 0 to 4."
+confidence = "inferred"
+evidence = "Simple loop; ran about 50 frames before the objects in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB5F8"
+name = "npc_asset_slot_free_for_index"
+purpose = "Frees asset slot index+0x10."
+confidence = "inferred"
+evidence = "One asset_slot_free call with index+0x10, matching 09ADB510."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB608"
+name = "npc_asset_slots_free_all_five"
+purpose = "Calls 09ADB5F8 for indices 0 to 4."
+confidence = "inferred"
+evidence = "Simple loop; ran on one frame per recording in traces (camp 1450)."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB650"
+name = "npc_init_model_skeleton_textures_from_asset_slot"
+purpose = "Reads the offset-table file in asset slot index+0x10 and initialises the object's model, its skeleton at +0x80 and its texture set from entries 1, 0 and 2, storing entry 3 at +0x1AC and setting +0x1A2 to 1 for indices 1, 2 and 4; index 0 copies the display list once into VRAM slot 0x29 and uses that copy."
+confidence = "inferred"
+evidence = "object_init_model, skeleton builder 09ADB8E0, object_init_texture_set, sceDmacMemcpy to the VRAM slot; called from 09ABB7B8."
+
+[[function]]
+module = "lobby_task"
+address = "09ADB8E0"
+name = "skeleton_init_from_data_with_scale"
+purpose = "Clears the skeleton, constructs its bones in an array with stride 0x250 from the data, sets each bone's three index links and tracks the largest +0x50 value plus 1 in +0x122, stores the root bones at +0x110, count +0x120, then computes inverse bind matrices using a scale built from the three float arguments and updates roots and skin matrices."
+confidence = "inferred"
+evidence = "skeleton_clear, bone_init_from_data, bone_compute_inverse_bind_tree, skeleton_update_skin_matrices calls."
