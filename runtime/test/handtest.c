@@ -232,11 +232,21 @@ static void randomise_upkeep(Ctx *c, uint32_t hunter) {
     self->weapon7_gauge = (int16_t)PICK(0, 1, 100, -1);
     self->charge_time = (int16_t)PICK(0, 0, 1, 1, 2, -1, 300);
     self->quest_flags = PICK(0, 0x10, -1, ~0x10);
-    self->misc_flags = PICK(0, 0, 0, 0x10, 0x10, ~0x10, 0xFF, -1);
-    self->state_group = (uint8_t)PICK(0, 0, 1, 1, 1, 2, 2, 3, 5, 5, 4, 6, 0xFF);
-    self->state = (uint8_t)(rnd() % 4 == 0 ? rnd() : PICK(0x25, 0x7E, 0x6E, 0x6D, 0x6C, 0x6B, 0x44, 0x32, 0x31, 0x2D, 0x1C, 0x78, 0x77, 0x76, 0x12, 0x0A,
-                                                          0x08, 0x10, 0x05, 0x0E, 0x03, 0x04, 0x0D, 0x0C, 0x1A, 0x1B, 0x1D, 0x1E, 0x1F, 0x20, 0x21,
-                                                          0x22, 0x23, 0x24, 0x47, 0x4A, 0x5B, 0x0B));
+    self->misc_flags = PICK(0, 0, 0, 0, 0, 0x10, 0x10, ~0x10, 0xFF, -1);
+    self->state_group = (uint8_t)PICK(0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 3, 5, 5, 4, 6, 0xFF);
+    /* the states each group and weapon class lists, and their neighbours */
+    if (rnd() % 4 == 0)
+        self->state = (uint8_t)rnd();
+    else if (self->state_group == 0)
+        self->state = (uint8_t)PICK(0x25, 0x7E, 0x6E, 0x6D, 0x6C, 0x6B, 0x44, 0x32, 0x31, 0x2D, 0x1C, 0x78, 0x77, 0x76, 0x6A, 0x47, 0x4A, 0x5B);
+    else if (self->state_group == 1 && self->weapon_class == 10)
+        self->state = (uint8_t)PICK(0x12, 0x0A, 0x08, 0x09, 0x11);
+    else if (self->state_group == 1 && self->weapon_class == 3)
+        self->state = (uint8_t)PICK(0x10, 0x05, 0x0E, 0x03, 0x04);
+    else if (self->state_group == 1 && self->weapon_class == 2)
+        self->state = (uint8_t)PICK(0x04, 0x0E, 0x0D, 0x0C, 0x03, 0x05);
+    else
+        self->state = (uint8_t)PICK(0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x0A, 0x0B, 0x0C, 0x0D);
     self->buildup_decay_delay_ticks = (int16_t)PICK(0, 1, 2, -1, -0x8000);
     self->buildup_state_2_13 = (int16_t)PICK(0, 1, 50, -1);
     self->flag_1000_lockout_ticks = (uint8_t)T8;
