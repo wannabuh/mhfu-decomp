@@ -22,7 +22,8 @@ RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
 all: build/mhfu build/difftest
 
 # Generate the C (one stamp for the whole set of files), then compile each file
-build/gen/.stamp: recomp/recomp.py recomp/patches.py tools/modules.py game/analysis/functions.json
+build/gen/.stamp: recomp/recomp.py recomp/patches.py tools/modules.py game/analysis/functions.json \
+                  $(wildcard tools/readable/names/*.toml)
 	$(PY) recomp/recomp.py
 	touch $@
 
