@@ -53,6 +53,7 @@ typedef struct { uint32_t fn, a[8], f[8], stack0; } Call;     /* a0-a3 t0-t3, f1
 #define STUB_RECORD 0x09FF8000u         /* what a call returning a pointer to a record gets */
 #define RECORD_TYPE 0x3C
 static int stubbing;            /* within the function under test */
+static int running;             /* it is running, stubs or not */
 static uint32_t target;         /* it: not a stub */
 static uint32_t results[MAX_CALLS], fresults[MAX_CALLS];
 static int16_t stub_stamina[MAX_CALLS];     /* what a call leaves stamina at (0x7FFF: it leaves it alone): callees do change it */
@@ -99,16 +100,30 @@ static void load_signatures(const char *path) {
     fclose(f);
 }
 
+/* Callees that reach the kernel, which isn't here, even with no stubs asked for: the sound. Stubbed in any case, their arguments still
+ * compared. A bit each for what they read, as in `reads`. In a build without RECOMP_TRACE_ALL a function calling them can't run alone. */
+static const struct { uint32_t fn; uint16_t mask; } kernel_bound[] = {
+    {0x08883988u, 0x00FF}, {0x088862A8u, 0x0003}, {0x08885E3Cu, 0x0003},
+};
+
+static int kernel_bound_mask(uint32_t fn) {
+    for (size_t i = 0; i < sizeof kernel_bound / sizeof kernel_bound[0]; i++)
+        if (kernel_bound[i].fn == fn)
+            return kernel_bound[i].mask;
+    return -1;
+}
+
 int rt_trace_all(Ctx *c, int module, uint32_t fn) {
     (void)module;
-    if (!stubbing || fn == target)
+    int bound = running && !stubbing ? kernel_bound_mask(fn) : -1;
+    if (bound < 0 && (!stubbing || fn == target))
         return 0;
     int n = ncalls[current]++;
     if (n < MAX_CALLS) {
         Call *call = &calls[current][n];
         memset(call, 0, sizeof *call);
         call->fn = fn;
-        uint16_t mask = READS(fn);
+        uint16_t mask = bound >= 0 ? (uint16_t)bound : READS(fn);
         for (int i = 0; i < 8; i++) {
             if (mask >> i & 1)
                 call->a[i] = c->r[4 + i];
@@ -117,6 +132,10 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         }
         if (fn == NINE_ARGUMENTS)
             call->stack0 = LW(c->r[29]);
+        if (bound >= 0) {
+            c->r[2] = 0;
+            return 1;
+        }
         c->r[2] = results[n];
         c->f[0].u = fresults[n];
         if (fn == record_method) {
@@ -378,8 +397,9 @@ int main(int argc, char **argv) {
                 current = mode;
                 target = stub_mode ? cases[k].addr : 0;
                 stubbing = stub_mode;
+                running = 1;
                 cases[k].fn(c);
-                stubbing = 0;
+                running = stubbing = 0;
                 for (int r = 0; r < 8; r++)
                     after[mode][r] = c->r[16 + r];
                 after[mode][8] = c->r[30];
@@ -397,7 +417,7 @@ int main(int argc, char **argv) {
             int same = !memcmp(generated, c->mem + SNAP_START, SNAP_SIZE);
             same = same && !memcmp(after[0], saved, sizeof saved) && !memcmp(after[1], saved, sizeof saved);
             same = same && (!cases[k].returns || v0[0] == v0[1]);
-            if (stub_mode && (ncalls[0] != ncalls[1] || memcmp(calls[0], calls[1], sizeof(Call) * (size_t)(ncalls[0] < MAX_CALLS ? ncalls[0] : MAX_CALLS)))) {
+            if ((ncalls[0] != ncalls[1] || memcmp(calls[0], calls[1], sizeof(Call) * (size_t)(ncalls[0] < MAX_CALLS ? ncalls[0] : MAX_CALLS)))) {
                 same = 0;
                 printf("%s: calls differ\n", cases[k].name);
                 for (int m = 0; m < 2; m++)
