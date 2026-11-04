@@ -34,6 +34,7 @@ enum {
 #define PROBE_AHEAD 85.0f
 #define PROBE_HEIGHT -60.0f
 #define VSLOT_SET_STATE 0x6C
+#define set_motion f_EBOOT_088D5C74     /* one instruction's jump to hunter_set_motion_id_both_parts: called as the game does */
 
 static void set_state(Ctx *c, Hunter *self, uint32_t state) {
     call4(c, hunter_set_state_then_set_flag_410_mask4, GAME_ADDR(self), 0, state, 0);
@@ -59,9 +60,9 @@ static void enter(Ctx *c, Hunter *self, uint32_t mode) {
     self->state_ticks = 0;
     self->state_hold_timer = SPRINT_HOLD_TICKS;
     if (mode == 1)
-        call4(c, hunter_set_motion_id_both_parts, GAME_ADDR(self), MOTION_SPRINT, 4, SPRINT_HOLD_TICKS);
+        call4(c, set_motion, GAME_ADDR(self), MOTION_SPRINT, 4, SPRINT_HOLD_TICKS);
     else if (self->motion_id != MOTION_SPRINT)
-        call4(c, hunter_set_motion_id_both_parts, GAME_ADDR(self), MOTION_SPRINT, 0, 0);
+        call4(c, set_motion, GAME_ADDR(self), MOTION_SPRINT, 0, 0);
     self->motion_part0_speed = SPRINT_ANIM_SPEED;
     self->motion_part1_speed = SPRINT_ANIM_SPEED;
     self->facing_target = (uint16_t)self->facing;

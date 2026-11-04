@@ -1,6 +1,6 @@
 /* Code rewritten by hand against the generated code it replaces (recomp/patches.py HAND), on inputs the recordings never reach.
  *
- * Usage: handtest <RAM snapshot from a quest> [iterations] [stubs]
+ * Usage: handtest <RAM snapshot from a quest> [iterations] [stubs <WORK/signatures.tsv>]
  * Takes the snapshot's hunter and game state, randomises what a function's branches depend on, then runs each version from the same
  * state and compares all of RAM but the stack (dead bytes there are not behaviour), the callee-saved registers and, where the
  * function returns one, v0. The random numbers are fixed, so a run repeats. Build it with HAND_FLAGS for coverage to see what it
@@ -41,12 +41,45 @@ static const Case cases[] = {
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
 #define MAX_CALLS 64
-typedef struct { uint32_t fn, a[4], f[2]; } Call;
+typedef struct { uint32_t fn, a[8], f[8]; } Call;     /* a0-a3 t0-t3, f12-f19: only those the callee reads, others 0 */
 static int stubbing;            /* within the function under test */
 static uint32_t target;         /* it: not a stub */
 static uint32_t results[MAX_CALLS], fresults[MAX_CALLS];
 static Call calls[2][MAX_CALLS];
 static int ncalls[2], current;
+
+/* What each function reads, from tools/readable/signatures.py's table: registers it doesn't read aren't arguments, and what they
+ * happen to hold differs between versions without mattering. A bit each: a0-a3 t0-t3, then f12-f19. */
+static uint16_t *reads;
+#define READS(fn) reads[((fn) - 0x08800000u) >> 2]
+
+static void load_signatures(const char *path) {
+    reads = malloc(0x01800000u);
+    memset(reads, 0xFF, 0x01800000u);       /* not in the table: every register compared */
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        perror(path);
+        exit(2);
+    }
+    char line[512];
+    static const char *names[16] = {"a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19"};
+    while (fgets(line, sizeof line, f)) {
+        char *module = strtok(line, "\t"), *addr = strtok(NULL, "\t"), *ret = strtok(NULL, "\t"), *args = strtok(NULL, "\t\n");
+        (void)module;
+        (void)ret;
+        uint32_t a = addr ? (uint32_t)strtoul(addr, NULL, 16) : 0;
+        if (a < 0x08800000u || a >= 0x0A000000u)
+            continue;
+        uint16_t mask = 0;
+        for (char *r = args ? strtok(args, ",") : NULL; r; r = strtok(NULL, ","))
+            for (int i = 0; i < 16; i++)
+                if (!strcmp(r, names[i]))
+                    mask |= (uint16_t)(1u << i);
+        /* an address several overlays share: anything any of them reads (first seen replaces "not in the table") */
+        READS(a) = READS(a) == 0xFFFF ? mask : READS(a) | mask;
+    }
+    fclose(f);
+}
 
 int rt_trace_all(Ctx *c, int module, uint32_t fn) {
     (void)module;
@@ -54,7 +87,16 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         return 0;
     int n = ncalls[current]++;
     if (n < MAX_CALLS) {
-        calls[current][n] = (Call){fn, {c->r[4], c->r[5], c->r[6], c->r[7]}, {c->f[12].u, c->f[13].u}};
+        Call *call = &calls[current][n];
+        memset(call, 0, sizeof *call);
+        call->fn = fn;
+        uint16_t mask = READS(fn);
+        for (int i = 0; i < 8; i++) {
+            if (mask >> i & 1)
+                call->a[i] = c->r[4 + i];
+            if (mask >> (8 + i) & 1)
+                call->f[i] = c->f[12 + i].u;
+        }
         c->r[2] = results[n];
         c->f[0].u = fresults[n];
     }
@@ -102,11 +144,13 @@ static void randomise(Ctx *c, uint32_t hunter, uint32_t *a1, int *tick30) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs]\n", argv[0]);
+        fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs <signatures.tsv>]\n", argv[0]);
         return 2;
     }
     int iterations = argc > 2 ? atoi(argv[2]) : 3000;
-    int stub_mode = argc > 3 && !strcmp(argv[3], "stubs");
+    int stub_mode = argc > 4 && !strcmp(argv[3], "stubs");
+    if (stub_mode)
+        load_signatures(argv[4]);
     static Ctx ctx;
     Ctx *c = &ctx;
     c->mem = rt_mem_init();
