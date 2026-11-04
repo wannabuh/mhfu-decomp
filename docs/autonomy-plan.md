@@ -57,9 +57,10 @@ Agreed with the readable-code session (branch `auto/readable-code`, also from `d
 - Hand code keeps no state of its own outside game memory unless it is `SAVED`.
 - `savestate.c`, `thread.c` and the resume runtime are this phase's; the shape of hand code is the readable session's;
   changes to what `recomp.py` emits are agreed first.
-- Open: game RAM differs between the soft and Vulkan renderers (on `quest.rec`, from between frames 1100 and 1200;
-  Vulkan is the same as itself over 6500 frames), cause unknown. Phase 1 is tested on Vulkan, the renderer played.
-  Should the suite move to it?
+- Found: game RAM differs by renderer because `rt_cull_margin` (1200 with Vulkan's shadows, else 0) widens the game's
+  view test. Models just out of view get drawn and animated, and effects on them draw from the game's random stream 1,
+  which gameplay also uses (`overnight-fight1.rec`: it parts at frame 1937). So a recording made with shadows does not
+  replay the same random numbers on soft or with shadows off. Decision open: `docs/testing.md`.
 
 Status: done - new format, old one removed; the same as the old build with no state (6500 frames on Vulkan at 30); four
 states loaded across builds, no frame differing in about 41,000 (Vulkan, 60). To do: the speed cost (not measured: the

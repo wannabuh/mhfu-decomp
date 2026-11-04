@@ -30,8 +30,11 @@ run of the 21 scenarios takes about 40 minutes at -j 4.
 - **state** - a save state saved and loaded at 60 (`MHFU_STATE_TEST=A,B`, default the end's last 400 to 100 frames):
   every frame after the load as before (savestate.c; the test prints the first words that differ).
 
-The suite runs on the software renderer. Game RAM differs between the renderers (on `quest.rec`, from between frames
-1100 and 1200), so compare runs within one renderer, and test save states on Vulkan, which is what is played: with
+The suite runs on the software renderer, whose game RAM is not the same as Vulkan's: with shadows on, `rt_cull_margin`
+(1200; patches.py `CULL`, `render_shadow_frame`) widens the game's own view test, so models just out of view are drawn
+and animated, and those with effects draw from the game's random numbers (EBOOT 088900C4, stream 1) - the stream
+gameplay uses too. Off, or on soft, it is 0. So compare runs within one renderer and shadow setting; `MHFU_CULL_MARGIN=0`
+on Vulkan matches soft (`quest.rec`, sampled to frame 2140). Test save states on Vulkan, which is what is played: with
 `MHFU_HEADLESS=1`, leaving out `MHFU_RENDERER=soft`, it runs without a window, the same every time.
 
 Save states across builds (by hand, not in the suite yet): a second binary from a worktree with something unrelated
