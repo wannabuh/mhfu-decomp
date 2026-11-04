@@ -98,7 +98,7 @@ evidence = "Read directly with 088D6A1C scanning six bytes at +0x676; what +0x67
 module = "EBOOT"
 address = "088D1DD0"
 name = "hunter_tick_copy_324_to_684_count_682_call_slot_74"
-purpose = "Vtable slot +0x1C: copies short +0x324 to +0x6A4, counts short +0x6A2 down to 0, and calls vtable slot +0x74 when object_29a_matches_game_6af0e passes."
+purpose = "Vtable slot +0x1C: copies short +0x324 to +0x684, counts short +0x682 down to 0, and calls vtable slot +0x74 when object_29a_matches_game_6af0e passes."
 confidence = "inferred"
 evidence = "Read directly; called from object_tick 08864634; prefix inferred."
 

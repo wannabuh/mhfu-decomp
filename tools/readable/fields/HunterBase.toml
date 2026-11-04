@@ -175,6 +175,15 @@ evidence = "lobby_task 9AB5890 converts it with +0x1F0 and facing to radians; EB
 
 [[field]]
 struct = "HunterBase"
+offset = 0x282
+name = "transient_282"
+type = "u8"
+confidence = "inferred"
+note = "cleared with the per-action fields; what it holds isn't settled"
+evidence = "game_task 9A68700 zeroes it"
+
+[[field]]
+struct = "HunterBase"
 offset = 0x290
 name = "ground_attribute_index"
 type = "u8"
@@ -276,6 +285,15 @@ evidence = "EBOOT 88D6B00 changes it by 0x80 during motion 3 and returns it towa
 
 [[field]]
 struct = "HunterBase"
+offset = 0x45E
+name = "transient_45e"
+type = "u16"
+confidence = "inferred"
+note = "cleared with the per-action fields; what it holds isn't settled"
+evidence = "game_task 9A68700 zeroes it"
+
+[[field]]
+struct = "HunterBase"
 offset = 0x460
 name = "previous_state_group"
 type = "u8"
@@ -355,6 +373,15 @@ type = "u32"
 confidence = "inferred"
 note = "released buttons, the same second copy"
 evidence = "EBOOT 88D61CC writes and zeroes it with +0x48C and +0x490"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x498
+name = "buttons_word_498"
+type = "u32"
+confidence = "inferred"
+note = "zeroed with the second copy of the buttons when input is off; never seen set here"
+evidence = "EBOOT 88D61CC"
 
 [[field]]
 struct = "HunterBase"

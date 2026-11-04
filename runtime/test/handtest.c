@@ -25,6 +25,7 @@
 #define HUNTER_VTABLE 0x089BB3CCu
 #define GAME_POINTER 0x089CC558u
 
+struct Pokes;
 typedef struct {
     const char *name;
     void (*fn)(Ctx *);
@@ -33,6 +34,7 @@ typedef struct {
     uint32_t addr;
     void (*randomise_more)(Ctx *, uint32_t hunter);     /* also: long chains of results that must be 0 are reached, callees change fields */
     void (*inputs)(Ctx *, uint32_t hunter, uint32_t args[3]);   /* the function's own inputs and a1-a3 (a2, a3 otherwise rubbish). Its row goes last */
+    const struct Pokes *pokes;      /* what callees may change, for a function that reads fields again after its calls */
 } Case;
 
 static void randomise_upkeep(Ctx *c, uint32_t hunter);
@@ -46,25 +48,50 @@ static void inputs_state_is(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_movement(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_classify(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_countdowns(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_overlays(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_airborne(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_transient(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_real_set_state(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_reset(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_run_state(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_group0(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_tick(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_set_motion(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_motion_copy(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_copy_pad(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_common(Ctx *c, uint32_t hunter, uint32_t args[3]);
+extern const struct Pokes upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 
 static const Case cases[] = {
-    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL, NULL},
-    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370, NULL, NULL},
-    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480, NULL, NULL},
-    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288, NULL, NULL},
-    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690, NULL, NULL},
-    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8, NULL, NULL},
-    {"hunter_tick_upkeep 09A68FC8", f_game_task_09A68FC8, 0, 0, 0x09A68FC8, randomise_upkeep, NULL},
-    {"hunter_stamina_loss_blocked 09A6A808", f_game_task_09A6A808, 1, 0, 0x09A6A808, NULL, inputs_loss_blocked},
-    {"hunter_has_active_skill 088D6A1C", f_EBOOT_088D6A1C, 1, 0, 0x088D6A1C, NULL, inputs_active_skill},
-    {"hunter_has_hunt_bonus 088D6A54", f_EBOOT_088D6A54, 1, 0, 0x088D6A54, NULL, inputs_hunt_bonus},
-    {"hunter_set_state_noted 09A67878", f_game_task_09A67878, 0, 0, 0x09A67878, NULL, inputs_set_state},
-    {"hunter_face_stick_direction 09A8B578", f_game_task_09A8B578, 0, 0, 0x09A8B578, NULL, inputs_face_stick},
-    {"object_set_state_flags 08865A64", f_EBOOT_08865A64, 0, 0, 0x08865A64, NULL, inputs_set_flags},
-    {"object_state_is 08865CB8", f_EBOOT_08865CB8, 1, 0, 0x08865CB8, NULL, inputs_state_is},
-    {"object_set_movement_mode_and_flags 09A6F5C0", f_game_task_09A6F5C0, 0, 0, 0x09A6F5C0, NULL, inputs_movement},
-    {"hunter_classify_move_input 09AA5FB0", f_game_task_09AA5FB0, 1, 0, 0x09AA5FB0, NULL, inputs_classify},
-    {"hunter_tick_countdowns 088D6488", f_EBOOT_088D6488, 0, 0, 0x088D6488, NULL, inputs_countdowns},
+    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL, NULL, NULL},
+    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370, NULL, NULL, NULL},
+    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480, NULL, NULL, NULL},
+    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288, NULL, NULL, NULL},
+    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690, NULL, NULL, NULL},
+    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8, NULL, NULL, NULL},
+    {"hunter_tick_upkeep 09A68FC8", f_game_task_09A68FC8, 0, 0, 0x09A68FC8, randomise_upkeep, NULL, &upkeep_pokes},
+    {"hunter_stamina_loss_blocked 09A6A808", f_game_task_09A6A808, 1, 0, 0x09A6A808, NULL, inputs_loss_blocked, NULL},
+    {"hunter_has_active_skill 088D6A1C", f_EBOOT_088D6A1C, 1, 0, 0x088D6A1C, NULL, inputs_active_skill, NULL},
+    {"hunter_has_hunt_bonus 088D6A54", f_EBOOT_088D6A54, 1, 0, 0x088D6A54, NULL, inputs_hunt_bonus, NULL},
+    {"hunter_set_state_noted 09A67878", f_game_task_09A67878, 0, 0, 0x09A67878, NULL, inputs_set_state, NULL},
+    {"hunter_face_stick_direction 09A8B578", f_game_task_09A8B578, 0, 0, 0x09A8B578, NULL, inputs_face_stick, NULL},
+    {"object_set_state_flags 08865A64", f_EBOOT_08865A64, 0, 0, 0x08865A64, NULL, inputs_set_flags, NULL},
+    {"object_state_is 08865CB8", f_EBOOT_08865CB8, 1, 0, 0x08865CB8, NULL, inputs_state_is, NULL},
+    {"object_set_movement_mode_and_flags 09A6F5C0", f_game_task_09A6F5C0, 0, 0, 0x09A6F5C0, NULL, inputs_movement, NULL},
+    {"hunter_classify_move_input 09AA5FB0", f_game_task_09AA5FB0, 1, 0, 0x09AA5FB0, NULL, inputs_classify, NULL},
+    {"hunter_tick_countdowns 088D6488", f_EBOOT_088D6488, 0, 0, 0x088D6488, NULL, inputs_countdowns, NULL},
+    {"hunter_clear_overlays 09A8B3F0", f_game_task_09A8B3F0, 0, 0, 0x09A8B3F0, NULL, inputs_overlays, NULL},
+    {"hunter_start_airborne_motion 09A67F30", f_game_task_09A67F30, 0, 0, 0x09A67F30, NULL, inputs_airborne, NULL},
+    {"hunter_clear_transient_action_fields 09A68700", f_game_task_09A68700, 0, 0, 0x09A68700, NULL, inputs_transient, NULL},
+    {"hunter_set_state 09A67630", f_game_task_09A67630, 0, 0, 0x09A67630, NULL, inputs_real_set_state, &set_state_pokes},
+    {"hunter_reset_to_base 09A678F8", f_game_task_09A678F8, 0, 0, 0x09A678F8, NULL, inputs_reset, &reset_pokes},
+    {"hunter_run_state 09A67568", f_game_task_09A67568, 0, 0, 0x09A67568, NULL, inputs_run_state, NULL},
+    {"hunter_group0_state 09A9A9E0", f_game_task_09A9A9E0, 0, 0, 0x09A9A9E0, NULL, inputs_group0, NULL},
+    {"hunter_state_function 09A66198", f_game_task_09A66198, 0, 0, 0x09A66198, NULL, inputs_tick, &tick_pokes},
+    {"hunter_set_motion 088D5C34", f_EBOOT_088D5C34, 0, 0, 0x088D5C34, NULL, inputs_set_motion, NULL},
+    {"hunter_tick_motion_copy 088D1DD0", f_EBOOT_088D1DD0, 0, 0, 0x088D1DD0, NULL, inputs_motion_copy, NULL},
+    {"hunter_copy_pad 088D61CC", f_EBOOT_088D61CC, 0, 0, 0x088D61CC, NULL, inputs_copy_pad, &copy_pad_pokes},
+    {"hunter_common_input 09AA5270", f_game_task_09AA5270, 0, 0, 0x09AA5270, NULL, inputs_common, &common_pokes},
 };
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
@@ -86,7 +113,13 @@ static int16_t stub_stamina[MAX_CALLS];     /* what a call leaves stamina at (0x
 static uint8_t stub_slot[MAX_CALLS];        /* the same for the local player's slot (0xFF: alone) */
 static uint8_t stub_record_type[MAX_CALLS];
 static uint32_t record_method;              /* the method returning that pointer: *(*(*0x09A4F1A0)) slot 0x28 */
-static const struct { uint16_t offset; uint8_t size; uint8_t in_game; } *pokable;   /* a callee may set one of these */
+typedef struct { uint32_t offset; uint8_t size; uint8_t in_game; } PokeField;
+/* What a callee answers more often than the random results would: a function's deep paths may need several answers at once. Ends with fn 0. */
+typedef struct { uint32_t fn; int count; int32_t values[8]; } Bias;
+struct Pokes { const PokeField *fields; size_t count; const Bias *bias; };
+static const PokeField *pokable;   /* a callee may set one of these */
+static const Bias *stub_bias;
+static uint32_t bias_pick[MAX_CALLS];
 #define MAX_POKES 16
 static int npokes;                          /* how many at each call, this time */
 static uint16_t stub_poke[MAX_CALLS][MAX_POKES];   /* indexes in them */
@@ -132,6 +165,8 @@ static void load_signatures(const char *path) {
  * compared. A bit each for what they read, as in `reads`. In a build without RECOMP_TRACE_ALL a function calling them can't run alone. */
 static const struct { uint32_t fn; uint16_t mask; } kernel_bound[] = {
     {0x08883988u, 0x00FF}, {0x088862A8u, 0x0003}, {0x08885E3Cu, 0x0003},
+    {0x088A5B50u, 0x0005},      /* the sound's queue: a1 points at the caller's stack, which differs */
+    {0x088B87B0u, 0x0003},      /* the file loader's queue */
 };
 
 static int kernel_bound_mask(uint32_t fn) {
@@ -170,6 +205,9 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         }
         c->r[2] = results[n];
         c->f[0].u = fresults[n];
+        for (const Bias *b = stub_bias; b && b->fn; b++)
+            if (b->fn == fn)
+                c->r[2] = (uint32_t)b->values[bias_pick[n] % (uint32_t)b->count];
         if (fn == record_method) {
             c->r[2] = STUB_RECORD;
             SB(STUB_RECORD + RECORD_TYPE, stub_record_type[n]);
@@ -243,7 +281,7 @@ static void randomise(Ctx *c, uint32_t hunter, uint32_t *a1, int *tick30) {
 #define T8 PICK(0, 0, 1, 1, 2, 0xFF)
 
 /* What the upkeep reads after a call, so a callee may have changed it. All of them, for the versions to be held to reading afresh. */
-static const struct { uint16_t offset; uint8_t size; uint8_t in_game; } upkeep_fields[] = {
+static const PokeField upkeep_fields[] = {
     {0x1C, 2, 1}, {0x28, 1, 1},
     {0x1E1, 1, 0}, {0x1E6, 2, 0}, {0x1E8, 1, 0}, {0x298, 1, 0}, {0x299, 1, 0}, {0x2BA, 2, 0}, {0x2E4, 2, 0}, {0x2E6, 1, 0}, {0x35E, 2, 0},
     {0x388, 2, 0}, {0x3D6, 2, 0}, {0x3DA, 2, 0}, {0x410, 4, 0}, {0x41C, 2, 0}, {0x41E, 2, 0}, {0x424, 2, 0}, {0x440, 2, 0}, {0x442, 2, 0},
@@ -252,6 +290,8 @@ static const struct { uint16_t offset; uint8_t size; uint8_t in_game; } upkeep_f
     {0x6AE, 2, 0}, {0x6B2, 2, 0}, {0x6B4, 2, 0}, {0x6C8, 2, 0}, {0x10F4, 2, 0}, {0x10F6, 2, 0}, {0x10F8, 2, 0}, {0x10FA, 2, 0}, {0x110E, 2, 0},
     {0x1112, 2, 0}, {0x111C, 4, 0}, {0x1138, 2, 0}, {0x1140, 2, 0}, {0x1142, 2, 0}, {0x1146, 2, 0}, {0x11B4, 2, 0},
 };
+
+const struct Pokes upkeep_pokes = {upkeep_fields, sizeof upkeep_fields / sizeof upkeep_fields[0], NULL};
 
 static void randomise_upkeep(Ctx *c, uint32_t hunter) {
     Hunter *self = (Hunter *)MEM(hunter);
@@ -452,6 +492,192 @@ static void inputs_countdowns(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     self->ticks_5f0 = (int8_t)PICK(0, 0, 1, 2, 5, 50, -1, -0x80, 0x7F);
 }
 
+/* -- the hunter's states, its tick and its input -------------------------------------------------------------------------------- */
+#define POKES(name, bias, ...) static const PokeField name##_fields[] = {__VA_ARGS__}; \
+    const struct Pokes name = {name##_fields, sizeof name##_fields / sizeof name##_fields[0], bias}
+static const Bias tick_bias[] = {
+    {0x088DE7C8u, 4, {1, 1, 1, 0}},         /* the assets wanted */
+    {0x0884FA5Cu, 4, {0, 0, 0, 1}},
+    {0x088C7424u, 5, {0, 1, 2, 0xE94F, 0xE950}},    /* the area's asset: added to the base, also "none" and 0 */
+    {0x088564F8u, 5, {0, 1, 2, 0xE94F, 0xE950}},
+    {0, 0, {0}},
+};
+static const Bias common_bias[] = {
+    {0x09AA5FB0u, 8, {0, 1, 2, 3, 3, 5, 5, 0x105}},     /* the move input */
+    {0x08865C88u, 8, {0, 0, 0x200, 0x1000, 0x400, 0x2000000, 0x600, 0x40}},     /* the state flags asked about */
+    {0x0884FA5Cu, 8, {0, 0, 0, 0, 0, 0, 1, 0x101}},     /* each answer of 1 ends it */
+    {0x09AA8FC8u, 4, {0, 1, 1, 0x101}},
+    {0x088D6A54u, 4, {0, 0, 1, 0x100}},
+    {0, 0, {0}},
+};
+POKES(set_state_pokes, NULL, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x298, 1, 0}, {0x322, 2, 0}, {0x410, 4, 0}, {0x614, 4, 0}, {0x288, 4, 0}, {0x28C, 4, 0});
+POKES(reset_pokes, NULL, {0x29C, 1, 0}, {0x440, 2, 0}, {0x614, 4, 0}, {0x280, 1, 0});
+POKES(tick_pokes, tick_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x4, 4, 0}, {0x298, 1, 0}, {0x29A, 2, 0}, {0x2E4, 2, 0}, {0x6A0, 2, 0}, {0x111C, 4, 0});
+POKES(copy_pad_pokes, NULL, {0x614, 4, 0}, {0x480, 4, 0}, {0x484, 4, 0}, {0x488, 4, 0}, {0x61C, 4, 0});
+POKES(common_pokes, common_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x2E, 1, 1}, {0x299, 1, 0}, {0x29C, 1, 0}, {0x1E0, 1, 0}, {0x1E8, 1, 0}, {0x2C0, 4, 0}, {0x1F4, 4, 0},
+      {0x320, 2, 0}, {0x410, 4, 0}, {0x440, 2, 0}, {0x480, 4, 0}, {0x484, 4, 0}, {0x49E, 2, 0}, {0x55A, 2, 0}, {0x565, 1, 0}, {0x614, 4, 0},
+      {0x641, 1, 0}, {0x674, 1, 0}, {0x111C, 4, 0}, {0x1120, 4, 0});
+
+static void inputs_overlays(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    for (uint32_t o = 0x1A8; o < 0x1C0; o++)    /* and those it leaves alone */
+        SB(hunter + o, rnd());
+}
+
+static void inputs_airborne(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)hunter;
+    args[0] = PICK(0, 1, 2, 3, 4, 7, -1, -2, -3, 0x7FFF, 0x8000, 0x10001, 0xFFFF0002);
+    (void)c;
+}
+
+static void inputs_transient(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->weapon_class = (uint8_t)PICK(0, 8, 9, 9, 10, 0x89);
+    self->charge_time = (int16_t)rnd();
+    self->hunter_flags = rnd();
+    self->state_flags = rnd();
+    self->misc_flags = rnd();
+    for (uint32_t o = 0x282; o < 0x284; o++)
+        SB(hunter + o, rnd());
+    self->listed_item_ticks = (uint16_t)rnd();
+    self->life_state = (uint8_t)rnd();
+    self->flagged_ticks = (uint16_t)rnd();
+    self->hit_immune_ticks = (uint16_t)rnd();
+    self->transient_45e = (uint16_t)rnd();
+    self->flag288_phase1_ticks = (uint8_t)rnd();
+    self->flag288_phase2_ticks = (uint8_t)rnd();
+    self->action_count = (int32_t)rnd();
+}
+
+static void inputs_real_set_state(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->instance_index = pick_slot(c);
+    self->reset_place_mode = (uint8_t)PICK(0, 0, 0, 1, 3);
+    self->state_group = (uint8_t)PICK(0, 1, 2, 3);
+    self->state = (uint8_t)rnd();
+    self->state_random = (uint16_t)rnd();
+    self->misc_flags = rnd();
+    self->hunter_flags = rnd();
+    self->state_flags = rnd();
+    self->signed_overlay_blend = (int8_t)rnd();
+    args[0] = PICK(0, 0, 0, 1, 2, 2, 4, 0x104, 0x10004, 0x8002);
+    args[1] = rnd() % 4 ? rnd() % 0x80 : rnd();
+    args[2] = PICK(0, 1, 2, 3, 0x10, 0x11, 0x12, 0x20, 0x21, 0x30, 0x33, 0x10000, 0x10021, 0xFFFF0010, 4, 0x40);
+}
+
+static void inputs_reset(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->attached_part_mode = (uint8_t)PICK(0, 0, 1, 0x80);
+    self->buildup_state_2_13 = (int16_t)PICK(0, 49, 50, 51, -1, 0x7FFF);
+    self->hunter_flags = rnd();
+    self->movement_mode = (uint8_t)PICK(0, 2, 0xF);
+    args[0] = PICK(0, 1, 2, 2, 3, 0x80, 0x82, 0x81, 0x102, 0x10002, 0xFFFFFF02);
+    args[1] = PICK(0, 4, 5, 8, 0x8000, 0x10003, -3);
+    args[2] = PICK(0, 1, 4, 0x10000);
+    (void)c;
+}
+
+static void inputs_run_state(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->state_group = (uint8_t)PICK(0, 1, 2, 3, 4, 5, 6, 7, 8, 0x80, 0xFF);
+    self->hunter_flags = rnd();
+    self->misc_flags = rnd();
+    (void)c;
+}
+
+static void inputs_group0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    ((Hunter *)MEM(hunter))->state = (uint8_t)(rnd() % 8 ? rnd() % 0x80 : rnd());
+    (void)c;
+}
+
+static void inputs_tick(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    GameState *g = (GameState *)MEM(LW(GAME_POINTER));
+    self->instance_index = pick_slot(c);
+    self->area_id = (uint16_t)(rnd() % 8 ? g->stage_id : g->stage_id ^ PICK(1, 0x100, 0x8000));
+    self->flags = rnd();
+    self->timed_effect_ticks = (int16_t)PICK(0, 1, 2, -1, 300);
+    self->quest_flags = PICK(0, 2, ~2, -1);
+    self->health = (int16_t)PICK(-1, 0, 1, 100);
+    self->state_group = (uint8_t)PICK(0, 1, 2, 3, 3);
+    self->reset_place_mode = (uint8_t)rnd();
+    uint32_t stage = LW(0x09A44D9Cu), assets = LW(0x09A4F210u);
+    SB(stage + 0x5C, PICK(0, 1, 1, 0x80));
+    SW(stage + 0x54, rnd());
+    SH(assets + 0xFC, PICK(0, 1, 2, 3, 0xFFFC, 0xFFFE));
+    SH(assets + 0xFE, PICK(0x16B0, 0x16B1, 0x16B2, 0xFFFF, 0));
+    for (uint32_t i = 1; i < 23; i++)   /* one past the last, too */
+        SH(assets + 0xFC + i * 12, rnd());
+    SW(assets + 0x204, rnd());
+    SW(assets + 0x208, rnd());
+}
+
+static void inputs_set_motion(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    ((Hunter *)MEM(hunter))->hunter_flags = rnd();
+    args[0] = rnd() % 2 ? rnd() % 0x400 : rnd();
+    args[1] = PICK(0, 1, 2, 3, 30, -1, -2, -3, 0x7FFFFFFF, 0x80000000, 0x80000001, 0x20001, 0x18000);
+    args[2] = PICK(0, 1, 30, -1, 0x10002);
+    (void)c;
+}
+
+static void inputs_motion_copy(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    HunterBase *self = (HunterBase *)MEM(hunter);
+    self->motion_id = (uint16_t)rnd();
+    self->motion_id_copy = rnd() % 2 ? self->motion_id : (uint16_t)rnd();
+    self->effect_cooldown = (uint16_t)PICK(0, 0, 1, 2, 0x8000, 0xFFFF);
+    (void)c;
+}
+
+static void inputs_copy_pad(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    HunterBase *self = (HunterBase *)MEM(hunter);
+    SW(0x08A62D88u, rnd());
+    SW(0x08A62D8Cu, rnd());
+    SW(0x08A62D90u, rnd());
+    SW(0x08A62D94u, rnd());
+    SH(0x08A62D98u, rnd());
+    SH(0x08A62D9Au, rnd());
+    self->hunter_flags = PICK(0, 0, 0, 1, 1, 2, 0x200, 3, 0x201, ~3 & ~0x200, -1);
+    self->l_held_frames = (int32_t)PICK(0, 1, 9, 10, -1);
+    self->buttons_word_498 = rnd();
+    uint32_t hud = LW(0x089CBD0Cu);
+    ((HudContext *)MEM(hud))->hud_flags = PICK(0, 0x20, ~0x20, -1);
+}
+
+static void inputs_common(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    GameState *g = (GameState *)MEM(LW(GAME_POINTER));
+    self->instance_index = rnd() % 8 ? g->local_hunter_slot : pick_slot(c);
+    g->quest_state = (uint8_t)PICK(0, 0, 0, 0, 0, 0, 2, 3, 4, 5, 6, 7, 8, 9);
+    self->attached_part_mode = (uint8_t)PICK(0, 0, 0, 0, 1, 0x80);
+    self->misc_flags = PICK(0, 8, ~8, -1);
+    self->hunter_flags = rnd() & rnd();
+    self->buttons_pressed = rnd() & rnd();
+    self->buttons_held = rnd() & rnd();
+    self->state = (uint8_t)PICK(0, 0, 0, 0, 0x40, 0x40, 1, 3, 0x12, 0x13, 0x1F, 0x24, 0x2C, 0x3B, 0x3F, 0x49, 0x49, 0x49, 0x74);
+    self->ground_forces_state_3b = (uint8_t)PICK(0, 0, 0, 1, 0x80);
+    self->hud_request = (uint8_t)PICK(0, 0, 1);
+    self->buildup_state_2_13 = (int16_t)PICK(0, 0, 0, 49, 50, -1);
+    self->item_use_lockout_ticks = (uint8_t)PICK(0, 0, 1);
+    self->selector_input_flags = (uint8_t)rnd();
+    self->button_action = PICK(0, 1, 1, 2, 2, 3, 0x101);
+    self->quest_flags = PICK(0, 0x100, ~0x100, -1);
+    self->stick_magnitude = (uint16_t)PICK(0, 84, 85, 86, 127, 0x8000);
+    self->stamina = (int16_t)PICK(0, 74, 75, 76, 300, -1);
+    self->weapon_class = (uint8_t)PICK(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0x80);
+    self->facing = rnd();
+    self->linked_monster_angle = self->facing + PICK(0x2000, 0x2001, 0x1FFF, -0x2000, -0x2001, 0x10000);
+    self->facing_target = (uint16_t)(self->facing + PICK(0, 0x5FFF, 0x6000, 0x6001, 0x9FFF, 0xA000, 0xA001, 0xFFFF));
+    args[0] = PICK(0, 0, 1, 2, 3, 0x101, 0x102);
+    args[1] = PICK(0, 0, 0, 1, 0x100, 0x101);
+    SW(LW(0x08A632C0u) + 0xF7A57Cu, PICK(0, 1, 2, 3));
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs <signatures.tsv>] [only <part of a case's name>]\n", argv[0]);
@@ -502,10 +728,15 @@ int main(int argc, char **argv) {
             randomise(c, hunter, &a1, &tick30);
             /* how rarely a call does anything: a chain of 14 tests all answering 0 isn't reached otherwise */
             uint32_t quiet = 0;
-            if (cases[k].randomise_more) {
+            const struct Pokes *pokes = cases[k].pokes;
+            pokable = NULL;
+            stub_bias = NULL;
+            if (cases[k].randomise_more)
                 cases[k].randomise_more(c, hunter);
+            if (pokes) {
                 quiet = PICK(0, 4, 8, 16, 32, 128);
-                pokable = (const void *)upkeep_fields;
+                pokable = pokes->fields;
+                stub_bias = pokes->bias;
                 npokes = PICK(0, 0, 1, 4, MAX_POKES);
             }
             if (cases[k].small_a1)
@@ -520,19 +751,20 @@ int main(int argc, char **argv) {
             for (int n = 0; n < MAX_CALLS; n++) {
                 results[n] = PICK(0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3, 5, 0x105, 0x100, 0x101);   /* (a classifier's, a test's, a low byte's) */
                 fresults[n] = rnd();
+                bias_pick[n] = rnd();
                 stub_stamina[n] = (int16_t)PICK(0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0, 0, -1, 1, 76, 300);
                 stub_slot[n] = (uint8_t)PICK(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 2);
                 stub_record_type[n] = (uint8_t)PICK(0, 0, 1, 2, 3, 4, 0x82);
-                if (cases[k].randomise_more) {
+                if (pokes) {
                     /* low bytes, low halves and whole words told apart */
-                    results[n] = PICK(0, 0, 1, 1, 1, 2, 3, 0x100, 0x101, 0x10000, 0x10002, 0x8000, 0xFFFF, 0x1FFFF, -1);
+                    results[n] = PICK(0, 0, 1, 1, 1, 2, 3, 0x100, 0x101, 0x10000, 0x10002, 0x8000, 0xFFFF, 0x1FFFF, -1, 5, 0x105);
                     if (quiet && rnd() % quiet) {
                         results[n] = 0;
                         stub_stamina[n] = 0x7FFF;
                         stub_slot[n] = 0xFF;
                     }
                     for (int m = 0; m < npokes; m++) {
-                        stub_poke[n][m] = (uint16_t)(rnd() % (sizeof upkeep_fields / sizeof upkeep_fields[0]));
+                        stub_poke[n][m] = (uint16_t)(rnd() % pokes->count);
                         stub_poke_value[n][m] = (int32_t)PICK(0, 0, 1, 2, 3, 10, 100, 150, -1, 0x10);
                     }
                 }

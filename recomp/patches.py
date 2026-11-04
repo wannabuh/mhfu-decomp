@@ -105,6 +105,18 @@ HAND = {
     ("game_task", 0x09A6F5C0): "hand_object_set_movement_mode_and_flags",
     ("game_task", 0x09AA5FB0): "hand_hunter_classify_move_input",
     ("EBOOT", 0x088D6488): "hand_hunter_tick_countdowns",
+    ("game_task", 0x09A8B3F0): "hand_hunter_clear_overlays",
+    ("game_task", 0x09A67F30): "hand_hunter_start_airborne_motion",
+    ("game_task", 0x09A68700): "hand_hunter_clear_transient_action_fields",
+    ("game_task", 0x09A67630): "hand_hunter_set_state",
+    ("game_task", 0x09A678F8): "hand_hunter_reset_to_base_state_and_motion",
+    ("game_task", 0x09A67568): "hand_hunter_run_state",
+    ("game_task", 0x09A9A9E0): "hand_hunter_group0_state",
+    ("game_task", 0x09A66198): "hand_hunter_state_function",
+    ("EBOOT", 0x088D5C34): "hand_hunter_set_motion",
+    ("EBOOT", 0x088D1DD0): "hand_hunter_tick_motion_copy",
+    ("EBOOT", 0x088D61CC): "hand_hunter_copy_pad",
+    ("game_task", 0x09AA5270): "hand_hunter_common_input",
 }
 
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to
