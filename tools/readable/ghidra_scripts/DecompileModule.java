@@ -1,9 +1,9 @@
 // Decompile one module of the game, on the function boundaries and jump tables tools/funcs.py found.
 // Args: <work> <module> <out>. Writes <out>/<module>/<address>.c and <out>/<module>/stats.tsv:
 //   address  status  lines  gotos  warnings  baddata  unrecovered_jumptables  vfpu_calls  seconds
-// and <out>/<module>/signatures.tsv: address, return kind (v/i/f), parameter kinds. With <work>/signatures.tsv (those of
-// a first pass, merged by tools/readable/all.sh) every function's signature is set from it, so a call shows the arguments
-// the function reads even when their registers were set long before; functions of other modules become named stubs.
+// and <out>/<module>/signatures.tsv: address, return register, argument registers read. With <work>/signatures.tsv (from
+// earlier passes, merged by tools/readable/all.sh) every function's signature is set from it, so a call shows the
+// arguments the function reads even when their registers were set long before; other modules' functions become named stubs.
 // Run by tools/readable/run.sh. The program holds the module at its base; an overlay also gets the EBOOT's bytes, so
 // its references to the EBOOT's data read as they do in the game.
 //@category MHFU
@@ -21,9 +21,11 @@ import ghidra.program.model.address.*;
 import ghidra.program.model.data.*;
 import ghidra.program.model.listing.*;
 import ghidra.program.model.mem.*;
-import ghidra.program.model.pcode.FunctionPrototype;
+import ghidra.program.model.lang.Register;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.JumpTable;
+import ghidra.program.model.pcode.PcodeOpAST;
+import ghidra.program.model.pcode.Varnode;
 import ghidra.program.model.symbol.SourceType;
 
 public class DecompileModule extends GhidraScript {
@@ -48,13 +50,37 @@ public class DecompileModule extends GhidraScript {
         return n;
     }
 
-    private static DataType kindType(char k) {
-        return k == 'f' ? FloatDataType.dataType : k == 'v' ? VoidDataType.dataType : Undefined4DataType.dataType;
+    /** Registers arguments can be passed in, in order (allegrex.cspec): what a signature records. */
+    private static final List<String> ARG_ORDER = List.of("a0", "a1", "a2", "a3", "t0", "t1", "t2", "t3",
+        "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19");
+
+    private DataType regType(String reg) {
+        return reg.startsWith("f") ? FloatDataType.dataType : Undefined4DataType.dataType;
     }
 
-    private static char kindOf(DataType t) {
-        if (t instanceof VoidDataType) return 'v';
-        return t instanceof FloatDataType ? 'f' : 'i';
+    private VariableStorage regStorage(String reg) throws Exception {
+        return new VariableStorage(currentProgram, currentProgram.getRegister(reg));
+    }
+
+    /** "<return register or ->\t<arg registers read, in order>": the registers it reads on entry, which include what it
+     *  only forwards to a callee once the callee's signature is known: hence the repeated passes (all.sh). */
+    private String signatureOf(HighFunction hf) {
+        Set<String> read = new HashSet<>();
+        Iterator<PcodeOpAST> ops = hf.getPcodeOps();
+        while (ops.hasNext()) {
+            for (Varnode vn : ops.next().getInputs()) {
+                if (vn != null && vn.isInput() && vn.isRegister()) {
+                    Register r = currentProgram.getRegister(vn);
+                    if (r != null && ARG_ORDER.contains(r.getName())) read.add(r.getName());
+                }
+            }
+        }
+        List<String> args = new ArrayList<>();
+        for (String r : ARG_ORDER) if (read.contains(r)) args.add(r);
+        String ret = "-";
+        VariableStorage rs = hf.getFunctionPrototype().getReturnStorage();
+        if (rs != null && rs.isRegisterStorage() && rs.getRegister() != null) ret = rs.getRegister().getName();
+        return ret + "\t" + String.join(",", args);
     }
 
     /** Which module(s) each function start is in, over all modules: the same address can be in several overlays. */
@@ -130,10 +156,15 @@ public class DecompileModule extends GhidraScript {
             if (sig == null) continue;
             String[] p = sig.split("\t", -1);
             List<Variable> params = new ArrayList<>();
-            for (int i = 0; i < p[1].length(); i++)
-                params.add(new ParameterImpl("param_" + (i + 1), kindType(p[1].charAt(i)), currentProgram));
-            fn.updateFunction(cc, new ReturnParameterImpl(kindType(p[0].charAt(0)), currentProgram), params,
-                Function.FunctionUpdateType.DYNAMIC_STORAGE_FORMAL_PARAMS, true, SourceType.ANALYSIS);
+            if (!p[1].isEmpty()) {
+                int n = 0;
+                for (String reg : p[1].split(","))
+                    params.add(new ParameterImpl("param_" + (++n), regType(reg), regStorage(reg), currentProgram));
+            }
+            Variable ret = p[0].equals("-")
+                ? new ReturnParameterImpl(VoidDataType.dataType, VariableStorage.VOID_STORAGE, currentProgram)
+                : new ReturnParameterImpl(regType(p[0]), regStorage(p[0]), currentProgram);
+            fn.updateFunction(cc, ret, params, Function.FunctionUpdateType.CUSTOM_STORAGE, true, SourceType.ANALYSIS);
             applied++;
         }
         println("signatures applied " + applied + ", owners disagreed on " + disagreed);
@@ -234,13 +265,7 @@ public class DecompileModule extends GhidraScript {
                         status = "ok";
                         code = r.getDecompiledFunction().getC();
                         HighFunction hf = r.getHighFunction();
-                        if (hf != null) {
-                            FunctionPrototype proto = hf.getFunctionPrototype();
-                            StringBuilder kinds = new StringBuilder();
-                            for (int i = 0; i < proto.getNumParams(); i++)
-                                kinds.append(kindOf(proto.getParam(i).getDataType()) == 'f' ? 'f' : 'i');
-                            signatures.write(f[0] + "\t" + kindOf(proto.getReturnType()) + "\t" + kinds + "\n");
-                        }
+                        if (hf != null) signatures.write(f[0] + "\t" + signatureOf(hf) + "\n");
                     } else {
                         status = "failed: " + String.valueOf(r.getErrorMessage()).replaceAll("\\s+", " ");
                     }
