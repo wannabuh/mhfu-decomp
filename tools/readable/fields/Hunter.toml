@@ -118,7 +118,7 @@ evidence = "game_task 9A655F0 copies +0x20C to it"
 [[field]]
 struct = "Hunter"
 offset = 0x2F4
-name = "linked_monster"
+name = "linked_object"
 type = "ptr"
 confidence = "inferred"
 note = "monster last linked by the scan; not cleared when none matches"
@@ -550,9 +550,9 @@ evidence = "EBOOT 883BA38 writes through its +0x530 hunter; game_task 9AA5270, 9
 [[field]]
 struct = "Hunter"
 offset = 0x566
-name = "monster_engaged"
+name = "monster_alert_on_hunter"
 type = "u8"
-confidence = "confirmed"
+confidence = "inferred"
 note = "set this frame when the scan links a monster other than types 0xF and 0x2D"
 evidence = "game_task 9A687C0 clears it, then sets 1; 9AA8FC8 fires once when it rises"
 

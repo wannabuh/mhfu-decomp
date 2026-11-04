@@ -6,7 +6,7 @@ call by accident; repeated over the whole game to a fixed point. Also:
 - stack arguments: loads through sp at or above the function's frame;
 - return register: v0 or f0 where a caller reads it straight after the call and the function writes it (or tail-calls one that
   does). A function no direct call reaches takes the decompiler's return, from HINTS, when that is v0 or f0;
-- methods (WORK/methods.json) take a0 as `this`; a virtual call passes what the methods in its vtable slot read, and a0;
+- methods (WORK/methods.json) take a0 as `this`; a virtual call passes what the method in that vtable slot of its own class reads, and a0;
 - variadic functions (saving their last argument registers to the stack on entry) take the ones before those, and "...";
 - imports take the registers the runtime's handlers read.
 Writes WORK/signatures.tsv: module, address, return register or -, arguments (registers, s<offset> for the stack)."""
@@ -293,36 +293,26 @@ def main():
             return [fns[(fn.mod, target)]]
         return [fns[(m, target)] for m in o]
 
-    # A virtual call takes what the methods in that slot read, of the caller's own class tree: other trees' slots mean other things
+    # A virtual call takes what the method in that slot of the caller's own class reads: other classes' slots mean other things
     with open(os.path.join(work, "vtables.json")) as f:
         vtables = json.load(f)
-    roots, this_root = {}, {}
+    this_class = {}
     classes_path = os.path.join(work, "classes.json")
     if os.path.exists(classes_path):
         with open(classes_path) as f:
             cdata = json.load(f)
-        for v, c in cdata["classes"].items():
-            r, seen = v, {v}
-            while cdata["classes"][r]["parent"] and cdata["classes"][r]["parent"] not in seen:
-                r = cdata["classes"][r]["parent"]
-                seen.add(r)
-            roots[v] = r
         for k, (v, _how) in cdata["this"].items():
             m, a = k.split()
-            this_root[(m, int(a, 16))] = roots[v]
-    slot_methods = collections.defaultdict(lambda: collections.defaultdict(set))
-    for v, slots in vtables.items():
-        for off, (m, a) in slots.items():
-            slot_methods[int(off)][roots.get(v, v)].add((m, int(a, 16)))
+            this_class[(m, int(a, 16))] = v
 
     def slot_args(fn, off):
-        # (with no class to go by, a0 only: every tree's methods together would invent arguments, and did)
-        family = this_root.get((fn.mod, fn.start))
+        # (with no class to go by, a0 only: all of a tree's methods together invented arguments, as one rare method's float
+        # reached every caller)
         mask = 1 << A0
-        for k in slot_methods.get(off, {}).get(family, ()):
-            t = fns.get(k)
-            if t:
-                mask |= t.fixed if t.variadic else t.args
+        entry = vtables.get(this_class.get((fn.mod, fn.start)), {}).get(str(off))
+        t = fns.get((entry[0], int(entry[1], 16))) if entry else None
+        if t:
+            mask |= t.fixed if t.variadic else t.args
         return mask
 
     def callee_args(fn, target):

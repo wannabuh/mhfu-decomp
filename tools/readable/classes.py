@@ -140,6 +140,27 @@ class Flow:
         return None
 
 
+def only_copied(m, a, i, name, end):
+    """A float register used only to copy a word (lwc1 then swc1, often the three words of a member function pointer) isn't a float."""
+    reg = i.getRaw() >> 16 & 31
+    step = 4 if name == "lwc1" else -4
+    at = a + step
+    for _ in range(6):
+        if not (m.text_start <= at < end):
+            return False
+        j = m.ins(at)
+        n = j.getOpcodeName()
+        if (j.getRaw() >> 16 & 31) == reg:
+            if name == "lwc1" and n == "swc1":
+                return True
+            if name == "swc1" and n == "lwc1":
+                return True
+        if n.endswith(".s") or n.startswith("c.") or n in ("mfc1", "mtc1"):
+            return False
+        at += step
+    return False
+
+
 def load_args(traces, mods):
     names = [m.name for m in mods]
     seen = collections.defaultdict(lambda: collections.defaultdict(set))
@@ -314,6 +335,8 @@ def main():
                 if not 0 <= off < MAX_FIELD:
                     return
                 write = name in STORES
+                if kind[0] == "f32" and name in ("lwc1", "swc1") and only_copied(m, a, i, name, x["end"]):
+                    kind = ("fcopy", 4)
                 fields[fact[1]][off][(kind[0], kind[1], write)] += 1
                 ex = examples[fact[1]][off]
                 label = f"{key[0]} {key[1]:x}"

@@ -386,6 +386,13 @@ int main(int argc, char **argv) {
                 for (int r = 0; r < 32; r++)
                     c->r[r] = 0xBAD00000u + (uint32_t)r;    /* no version may depend on a dead register */
                 c->r[0] = 0;
+                /* and the same in the others: what the last run left there is read by real callees that load registers partly */
+                c->hi = c->lo = 0;
+                memset(c->f, 0, sizeof c->f);
+                c->fcr31 = 0;
+                c->fpcond = 0;
+                memset(c->v, 0, sizeof c->v);
+                memset(c->vfpu_ctrl, 0, sizeof c->vfpu_ctrl);
                 c->r[29] = TEST_SP;
                 c->r[4] = hunter;
                 c->r[5] = a1;

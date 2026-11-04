@@ -131,7 +131,7 @@ def auto_type(access, pointer, deref, names):
         if kw == w:
             kinds[kind] += n
     if w == 4:
-        return "f32" if kinds["f32"] else "ptr" if deref else "s32"
+        return "f32" if kinds["f32"] else "ptr" if deref else "s32"     # ("fcopy" isn't one: a word copied through a float register)
     loads = [(n, k) for k, n in kinds.items() if k[0] in "su"]
     if loads:
         return max(loads)[1]

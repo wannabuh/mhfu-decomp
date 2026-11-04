@@ -446,7 +446,7 @@ evidence = "EBOOT 883F270; 8816BE4 seeds it"
 [[field]]
 struct = "HudContext"
 offset = 0x598
-name = "item_bar_slide_timer"
+name = "item_bar_cycle_timer"
 type = "s8"
 confidence = "inferred"
 decimal = true
@@ -999,7 +999,7 @@ evidence = "EBOOT 8841520 shifts the bytes down"
 [[field]]
 struct = "HudContext"
 offset = 0x11AB
-name = "top_banner_shown"
+name = "top_banner_target"
 type = "u8"
 confidence = "inferred"
 note = "Target for the top banner's slide"

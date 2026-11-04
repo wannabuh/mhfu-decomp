@@ -350,9 +350,9 @@ evidence = "EBOOT 88D61CC; game_task 9A6A868 and 9A6ADC8 step selector slots fro
 [[field]]
 struct = "HunterBase"
 offset = 0x494
-name = "buttons_released_unnarrowed"
+name = "buttons_released_raw"
 type = "u32"
-confidence = "confirmed"
+confidence = "inferred"
 note = "released buttons, the same second copy"
 evidence = "EBOOT 88D61CC writes and zeroes it with +0x48C and +0x490"
 

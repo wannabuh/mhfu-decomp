@@ -9,6 +9,7 @@ import struct
 import sys
 
 RAM = 0x08800000
+COMPARE = 0x400
 
 
 def main():
@@ -40,11 +41,12 @@ def main():
             """The owner whose code is what is loaded at addr."""
             if addr not in owners or not RAM <= addr < RAM + len(ram) - 16:
                 return None
-            here = ram[addr - RAM:addr - RAM + 16]
+            # Overlays share addresses, and functions there can start alike: compare well past a function's start
             for m in owners[addr]:
                 img = image(m)
                 off = addr - bases[m]
-                if img[off:off + 16] == here:
+                n = min(COMPARE, len(img) - off, len(ram) - (addr - RAM))
+                if n > 0 and img[off:off + n] == ram[addr - RAM:addr - RAM + n]:
                     return m
             return None
 

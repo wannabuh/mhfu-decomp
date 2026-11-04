@@ -47,7 +47,7 @@ It is a reading aid: when it matters, check the generated C. Known, with how to 
   a float's bits, not conversions. Real conversions are `rt_trunc_w` or `(float)...i` in the generated C.
 - **Unsigned range checks:** `*(byte *)x - 2 < 2` means "2 or 3". Read as C it would also be true for 0 and 1.
 - **Indirect calls can lose arguments:** `(**(code **)(*DAT_... + n))()` with assignments just before it, especially through a global
-  object. Calls through `param_1` have been right where checked.
+  object, or anywhere the caller's class isn't known.
 - **Leftover registers:** an `in_a3` that is only passed along is usually an artifact; one used as a pointer in the body is real.
 - **Skipped arguments:** `arg_a1` means earlier argument registers are unread; `param_N` the Nth argument register; `stack_N` a
   stack argument.
@@ -55,3 +55,7 @@ It is a reading aid: when it matters, check the generated C. Known, with how to 
 - **Thunks:** a call may show a `j` thunk's target; search both addresses.
 - **VFPU:** matrix transposition is not shown; vector operations appear as calls such as `vdot_t`.
 - **Patches and gates:** the view shows the game's original code, not `recomp/patches.py`'s changes.
+- **Calls through a vtable can drop `this`:** `(**(code **)(*(int *)self + 0x20))()` with nothing set beforehand usually means a0 still holds `self`.
+- **Local floats that are really words:** `float local_c = DAT_...; self->field_4C = local_c` copied through a float register, often the three words of a member function pointer. The field isn't a float: check the generated C.
+- **Structs of a class only as good as the evidence:** a function's `self` comes from what it ran on, its vtable or its callers, so one that ran only on hunters shows `Hunter *` even if it is more general.
+- **Rarely, a lost store:** one write to a stack struct was missing in `demo_task 9A60A28`. When a local array matters, check the generated C.
