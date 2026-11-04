@@ -44,6 +44,9 @@
  * looks about; let go, the picture turns back (in a tenth of a second or so). The game is given none of the mouse's
  * motion meanwhile (recorded so). In the frames shown: with MHFU_FPS or at the native frame rate.
  *
+ * MHFU_CAMERA_DISTANCE: how far the eye is from what it looks at, times the game's (default 1; e.g. 1.3 farther,
+ * 0.8 closer) - in the frames shown, as the pitch is: the game's camera left as it is, so farther can go into walls.
+ *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
 #include "hle.h"
 #include "savestate.h"
@@ -349,6 +352,26 @@ void camera_update(float dx, float dy) {
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
 }
 
+/* The eye's distance shown, times the game's (MHFU_CAMERA_DISTANCE) */
+static float distance_factor(void) {
+    static float k = -1;
+    if (k < 0) {
+        k = getenv("MHFU_CAMERA_DISTANCE") ? (float)atof(getenv("MHFU_CAMERA_DISTANCE")) : 1.0f;
+        if (!(k >= 0.3f && k <= 3.0f))
+            k = 1.0f;
+    }
+    return k;
+}
+
+/* A view (4x3, as gpu.c's) moved along the line to the point c it looks at, so that c is k times as far */
+static void view_distance(float *view, const float *c, float k) {
+    float tv[3];
+    for (int i = 0; i < 3; i++)
+        tv[i] = view[i] * c[0] + view[3 + i] * c[1] + view[6 + i] * c[2] + view[9 + i];
+    for (int i = 0; i < 3; i++)
+        view[9 + i] += tv[i] * (k - 1);
+}
+
 /* present.c, before camera_update (not replaying): free look held - the mouse's motion (dx, dy) the picture's alone,
  * taken from what the game is given; let go, the picture turned back towards the game's camera */
 void camera_free_look(int held, float *dx, float *dy) {
@@ -501,6 +524,8 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
                 shown[9 + i] += tv[i] * (k - 1);
         }
     }
+    if (distance_factor() != 1.0f)
+        view_distance(shown, c, distance_factor());
     if (log) {
         float ex[3];
         for (int i = 0; i < 3; i++)     /* the eye shown: -R^T t */
@@ -543,7 +568,7 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
         b = elevation_set ? clamp_elevation(elev + elevation + look_b + (looking ? 0 : dy) * sens * PI / 180.0f) - elev
                           : look_b;
     }
-    if (a == 0 && b == 0)
+    if (a == 0 && b == 0 && distance_factor() == 1.0f)
         return 0;
     const float up[3] = {0, 1, 0};
     float yaw_m[9], pitch_m[9], m[9];
@@ -559,6 +584,8 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
     for (int i = 0; i < 3; i++)
         q[9 + i] = c[i] - (q[i] * c[0] + q[3 + i] * c[1] + q[6 + i] * c[2]);
     compose(view, q, shown);
+    if (distance_factor() != 1.0f)
+        view_distance(shown, c, distance_factor());
     return 1;
 }
 
