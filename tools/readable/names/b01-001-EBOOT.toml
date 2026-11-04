@@ -1,0 +1,415 @@
+[[function]]
+module = "EBOOT"
+address = "0880D9EC"
+name = "libc_printf"
+purpose = "Variadic printf: formats to the current reent's stdout through vfprintf."
+confidence = "inferred"
+evidence = "Packs varargs, calls vfprintf wrapper with _impure_ptr-style struct +8 (newlib stdout)."
+
+[[function]]
+module = "EBOOT"
+address = "0880E430"
+name = "libc_sbrk_r"
+purpose = "Newlib _sbrk_r: clears errno, calls sbrk, copies errno into the reent struct on -1."
+confidence = "confirmed"
+evidence = "Callee 08804290 grows a sceKernelAllocPartitionMemory \"UserSbrk\" block; caller 0880B70C is malloc-shaped."
+
+[[function]]
+module = "EBOOT"
+address = "0880E8F0"
+name = "libc_sprintf"
+purpose = "Variadic sprintf: builds a fake string FILE, runs vfprintf on it, null-terminates."
+confidence = "confirmed"
+evidence = "Flags 0x208 (write, string), file -1, size 0x7fffffff, calls vfprintf 0880F68C."
+
+[[function]]
+module = "EBOOT"
+address = "0880EA08"
+name = "libc_swrite"
+purpose = "Newlib __swrite stdio write hook: seeks to end when appending, clears the known-offset flag, writes."
+confidence = "inferred"
+evidence = "Flag 0x100 lseek(fd,0,2), clears 0x1000, then calls _write_r; called from the __sfvwrite-like 0880A580."
+
+[[function]]
+module = "EBOOT"
+address = "0880EB4C"
+name = "str_cat"
+purpose = "strcat: finds the end of dest word-at-a-time, then copies src there."
+confidence = "confirmed"
+evidence = "Null-byte scan with 0xfefefeff/0x80808080 then tail call to strcpy 0880ED70."
+
+[[function]]
+module = "EBOOT"
+address = "0880EBF0"
+name = "str_chr"
+purpose = "strchr: word-at-a-time search for a byte; also returns the terminator when searching for 0."
+confidence = "confirmed"
+evidence = "Code is the newlib strchr pattern."
+
+[[function]]
+module = "EBOOT"
+address = "0880ED70"
+name = "str_cpy"
+purpose = "strcpy with a word-at-a-time fast path for aligned pointers."
+confidence = "confirmed"
+evidence = "Code copies through the terminating null."
+
+[[function]]
+module = "EBOOT"
+address = "0880EDF8"
+name = "str_len"
+purpose = "strlen."
+confidence = "confirmed"
+evidence = "Byte scan returning distance to the null."
+
+[[function]]
+module = "EBOOT"
+address = "0880EFF8"
+name = "str_ncmp"
+purpose = "strncmp with a word-at-a-time fast path."
+confidence = "confirmed"
+evidence = "Length-bounded compare, stops at null, returns byte difference."
+
+[[function]]
+module = "EBOOT"
+address = "0880F178"
+name = "str_ncpy"
+purpose = "strncpy: copies up to n bytes and zero-pads the rest."
+confidence = "confirmed"
+evidence = "Unrolled copy then zero fill of the remainder."
+
+[[function]]
+module = "EBOOT"
+address = "0880F32C"
+name = "str_rchr"
+purpose = "strrchr: repeated strchr, keeping the last match."
+confidence = "confirmed"
+evidence = "Loops strchr 0880EBF0 from match+1, returns the last hit."
+
+[[function]]
+module = "EBOOT"
+address = "0880F394"
+name = "str_str"
+purpose = "strstr: naive substring search."
+confidence = "confirmed"
+evidence = "Nested byte compare; empty needle returns haystack."
+
+[[function]]
+module = "EBOOT"
+address = "0880F630"
+name = "libc_sprint_flush_uio"
+purpose = "Newlib __sprint: flushes vfprintf's pending iovec list to the FILE and resets it."
+confidence = "inferred"
+evidence = "Checks uio resid at +8, calls 0880ADC4 (__sfvwrite-shaped), zeroes resid and iovcnt; only called by vfprintf."
+
+[[function]]
+module = "EBOOT"
+address = "0880F68C"
+name = "libc_vfprintf_r"
+purpose = "Newlib _vfprintf_r: the printf format engine."
+confidence = "confirmed"
+evidence = "String \"bug in vfprintf: bad base\"; % format switch."
+
+[[function]]
+module = "EBOOT"
+address = "08811408"
+name = "libc_vfprintf"
+purpose = "vfprintf wrapper: runs stdio init if needed, then _vfprintf_r with the current reent."
+confidence = "inferred"
+evidence = "Checks reent +0x38 (__sdidinit), calls 0880A754, then 0880F68C."
+
+[[function]]
+module = "EBOOT"
+address = "08811AC4"
+name = "libc_write_r"
+purpose = "Newlib _write_r: clears errno, calls write, copies errno into the reent struct on -1."
+confidence = "confirmed"
+evidence = "Callee 08804424 maps fds 0-2 to the kernel std handles and calls sceIoWrite."
+
+[[function]]
+module = "EBOOT"
+address = "08811B3C"
+name = "libc_swsetup"
+purpose = "Newlib __swsetup: prepares a FILE for writing (flags, frees ungetc buffer, makes a buffer, sets write count)."
+confidence = "inferred"
+evidence = "Flag tests 8/0x10/4 and +0x30 ub buffer freeing match __swsetup; called at the top of vfprintf."
+
+[[function]]
+module = "EBOOT"
+address = "08811C84"
+name = "vram_manager_init"
+purpose = "Initialises the VRAM slot table and block bitmaps, and allocates the framebuffer, depth and CLUT slots."
+confidence = "inferred"
+evidence = "sceGeEdramGetAddr/Size, 0x2E slots of 0x18 bytes, 512x272 buffers in slots 0-2, 256x32 8888 slot 0x2D at 0x1F8000."
+
+[[function]]
+module = "EBOOT"
+address = "08811E18"
+name = "vram_alloc_image_slot"
+purpose = "Allocates a VRAM slot for an image of given width, height and GE pixel format, 0xFF slot meaning any free, -1 offset meaning find space."
+confidence = "inferred"
+evidence = "Format switch aligns width and sizes 16-bit, 32-bit, T4 and T8; T4/T8 also take a CLUT block; 0x80-byte blocks; returns 0xFF on failure."
+
+[[function]]
+module = "EBOOT"
+address = "08812144"
+name = "vram_alloc_raw_slot"
+purpose = "Allocates a VRAM slot for a raw byte size rather than an image, state 5."
+confidence = "inferred"
+evidence = "Same find-slot and block logic as 08811E18 without a format; stores size rounded to 0x80 at slot +4."
+
+[[function]]
+module = "EBOOT"
+address = "08812264"
+name = "vram_free_slot"
+purpose = "Frees a VRAM slot's blocks, and its CLUT block when the state's bit 2 is set, then marks it empty."
+confidence = "inferred"
+evidence = "Clears slot state +1; calls 0881246C and 0881253C."
+
+[[function]]
+module = "EBOOT"
+address = "08812308"
+name = "vram_find_free_slot"
+purpose = "Returns the first empty slot of the 0x2E VRAM slots, or 0xFF."
+confidence = "inferred"
+evidence = "Scans 0x18-byte entries for state byte 0."
+
+[[function]]
+module = "EBOOT"
+address = "08812338"
+name = "vram_find_free_blocks"
+purpose = "First-fit search of the VRAM block bitmap for a run of free blocks; returns the start block or -1."
+confidence = "inferred"
+evidence = "Scans 0x4000 bits at +0x458, counting a consecutive run."
+
+[[function]]
+module = "EBOOT"
+address = "088123C8"
+name = "vram_alloc_clut_block"
+purpose = "Allocates one 0x400-byte block from the CLUT slot 0x2D and returns its address, or -1."
+confidence = "inferred"
+evidence = "First clear of 32 bits at +0xC58, address = slot 0x2D base + index*0x400; called only for T4/T8 images."
+
+[[function]]
+module = "EBOOT"
+address = "0881246C"
+name = "vram_free_clut_block"
+purpose = "Clears the sub-allocation bit of a CLUT block inside slot 0x2D, given its address."
+confidence = "inferred"
+evidence = "Inverse of 088123C8 with the same bitmap at +0xC58."
+
+[[function]]
+module = "EBOOT"
+address = "088124D8"
+name = "vram_mark_blocks_used"
+purpose = "Sets a run of bits in the VRAM block bitmap."
+confidence = "inferred"
+evidence = "ORs bits at +0x458 from start for count."
+
+[[function]]
+module = "EBOOT"
+address = "0881253C"
+name = "vram_mark_blocks_free"
+purpose = "Clears a run of bits in the VRAM block bitmap."
+confidence = "inferred"
+evidence = "ANDs out bits at +0x458 from start for count."
+
+[[function]]
+module = "EBOOT"
+address = "088125A4"
+name = "vram_get_slot_info"
+purpose = "Copies a used VRAM slot's 0x18-byte entry to the caller; returns whether the slot is in use."
+confidence = "inferred"
+evidence = "Field copy guarded by state byte +1."
+
+[[function]]
+module = "EBOOT"
+address = "08812610"
+name = "vram_get_slot_address"
+purpose = "Returns a VRAM slot's address, or -1 if the slot is empty."
+confidence = "inferred"
+evidence = "Reads slot +8 guarded by state byte +1."
+
+[[function]]
+module = "EBOOT"
+address = "0881263C"
+name = "vram_load_tmh_image_to_slot"
+purpose = "Reads an image from a .TMH texture file, allocates a VRAM slot for it, and queues GE block transfers uploading its pixels and CLUT."
+confidence = "inferred"
+evidence = "Callee 08859848 checks the \".TMH\" magic; builds GE commands 0xB2-0xB5, 0xEB, 0xEC, 0xEE, 0xEA, then submits through 08859480."
+
+[[function]]
+module = "EBOOT"
+address = "08812938"
+name = "camera_construct"
+purpose = "Constructs the camera object: stores the global camera pointer, builds 6 0x1A0-byte sub-objects, sets starting defaults."
+confidence = "inferred"
+evidence = "Global DAT_089cbd04, array-constructor-style call with 088129F8, same fov constant and +0xAAA field as the camera functions."
+
+[[function]]
+module = "EBOOT"
+address = "088129F8"
+name = "camera_sub_object_construct"
+purpose = "Constructor of the camera's 0x1A0-byte sub-objects: zeroes the bytes at +0x90 and +0x92."
+confidence = "inferred"
+evidence = "Passed as the element constructor by 08812938; only reached from the array helper 0890BFE0."
+
+[[function]]
+module = "EBOOT"
+address = "08812A08"
+name = "camera_init_defaults"
+purpose = "Sets the camera's default projection and an initial view from constant vectors, then clears state."
+confidence = "inferred"
+evidence = "Near 30, far 65000, fov ~0.872 rad, aspect 480/272; calls 08814268 with three vectors, likely eye, target, up."
+
+[[function]]
+module = "EBOOT"
+address = "08812B1C"
+name = "camera_reset_for_scene"
+purpose = "Resets camera state for a new scene: projection, shake slots, pending mode, and a value looked up from the global game state."
+confidence = "inferred"
+evidence = "Clears shake active bytes +0xAC0/+0xAE0/+0xB00 and +0xA80; runs from frame ~970 at scene changes in all recordings."
+
+[[function]]
+module = "EBOOT"
+address = "08812B9C"
+name = "camera_set_default_projection"
+purpose = "Sets near, far, fov and aspect to defaults, then calls 08815348."
+confidence = "inferred"
+evidence = "Near 30, far 65000, fov ~0.872 rad, aspect 480/272 written to +0, +4, +0xC, +8."
+
+[[function]]
+module = "EBOOT"
+address = "08812DB8"
+name = "camera_apply_shake_slot"
+purpose = "Adds one shake slot's vertical offset to the camera's +0xB44 and +0xB54 heights; decays by timer and optionally by distance from the shake origin."
+confidence = "inferred"
+evidence = "Sine of remaining-time ratio, sign flips with timer, distance falloff from table 08933BC8 unless type bit 0x80; slot layout matches 08812F90."
+
+[[function]]
+module = "EBOOT"
+address = "08812F90"
+name = "camera_start_shake_from_object"
+purpose = "Starts the first camera shake slot with a type and the object's position, only if 08865BAC accepts the object."
+confidence = "inferred"
+evidence = "Fills the slot read by 08812DB8; called from em20 monster and overlay code; ran only in fights and quests (fight1, fight2, misc, quest-q9)."
+
+[[function]]
+module = "EBOOT"
+address = "08813158"
+name = "unknown_camera_checks_dc4_a8d_1de"
+purpose = "Returns true when byte +0xDC4 is negative, +0xA8D is zero and +0x1DE is nonzero."
+confidence = "guess"
+evidence = "Only the three field tests; the receiver is taken as the camera because +0xA8D is also read by 08813CC8."
+
+[[function]]
+module = "EBOOT"
+address = "088131FC"
+name = "camera_set_focus_target"
+purpose = "Starts a focus state on a target object, copying its place, or (object null) refills the current level's parameters."
+confidence = "guess"
+evidence = "Writes mode +0x810, timers +0x814/+0x816, angle pi/6, object's +0x200 place; called from lobby overlay around frame 1300."
+
+[[function]]
+module = "EBOOT"
+address = "08813388"
+name = "camera_end_focus_target"
+purpose = "Ends or steps down the state 088131FC starts, setting transition timers, optionally from the distances between two vector pairs."
+confidence = "guess"
+evidence = "Mode +0x810 = 3, decrements depth +0x834, clears mode at depth 0; lobby overlay around frame 1340."
+
+[[function]]
+module = "EBOOT"
+address = "08813498"
+name = "camera_focus_mode_is_1_or_2"
+purpose = "Returns whether the mode byte at +0x810 is 1 or 2."
+confidence = "inferred"
+evidence = "Direct compare; those values are set by 088131FC and 08813388."
+
+[[function]]
+module = "EBOOT"
+address = "08813560"
+name = "camera_request_mode"
+purpose = "Writes a pending mode, a value and a flag to the camera (+0xA80, +0xA7C, +0xA7A) and clears +0xAAA."
+confidence = "inferred"
+evidence = "Field writes; +0xA80 is cleared by camera reset functions; mode meanings unproven."
+
+[[function]]
+module = "EBOOT"
+address = "08813CC8"
+name = "camera_request_mode_2"
+purpose = "Requests pending mode 2 unless +0xA8D is already 2."
+confidence = "inferred"
+evidence = "Calls 08813560(cam,2,0,0); ran only once in fight1, frame 5380, from an overlay."
+
+[[function]]
+module = "EBOOT"
+address = "08813CF8"
+name = "camera_request_mode_1_unless_global_6af10_is_12"
+purpose = "Requests pending mode 1 unless the byte copied from its record at +0x6AF10 equals 12."
+confidence = "inferred"
+evidence = "Calls 08813560(cam,1,0,0); ran only once in fight1, frame 5710, from an overlay."
+
+[[function]]
+module = "EBOOT"
+address = "08813DAC"
+name = "camera_clear_scripted_state"
+purpose = "Clears the scripted-mode fields, including +0x9BE, +0x9BF and +0xA80, and sets +0xAAA to 1."
+confidence = "inferred"
+evidence = "Zero writes that undo 08813560; ran around quest start in misc and quest-q5/q8/q9."
+
+[[function]]
+module = "EBOOT"
+address = "08813DD8"
+name = "camera_get_9bf_or_pending_mode"
+purpose = "Returns +0x9BF if set, otherwise 2 when +0xA80 or +0x9BE is set, otherwise 0."
+confidence = "inferred"
+evidence = "Direct field logic; meaning of the values unproven."
+
+[[function]]
+module = "EBOOT"
+address = "08813E10"
+name = "camera_get_field_9be"
+purpose = "Getter for byte +0x9BE of the camera."
+confidence = "inferred"
+evidence = "One-line field read; field is cleared by 08813DAC."
+
+[[function]]
+module = "EBOOT"
+address = "08813E18"
+name = "camera_get_field_a0a"
+purpose = "Getter for byte +0xA0A of the camera."
+confidence = "inferred"
+evidence = "One-line field read; field is cleared by 08813DAC."
+
+[[function]]
+module = "EBOOT"
+address = "08813E20"
+name = "camera_field_9be_in_50_to_69"
+purpose = "Returns true when +0x961 is set and +0x9BE is in 0x50..0x69."
+confidence = "inferred"
+evidence = "Direct switch on the field; what that range means is unproven."
+
+[[function]]
+module = "EBOOT"
+address = "08813E70"
+name = "camera_get_field_964_if_global_422"
+purpose = "Returns short +0x964, or -1 when the byte copied from its record at +0x422 is zero."
+confidence = "inferred"
+evidence = "Direct field logic; field is cleared by 08813DAC."
+
+[[function]]
+module = "EBOOT"
+address = "08813E90"
+name = "unknown_camera_checks_global_422_a0a_9be"
+purpose = "Returns true when byte copied from its record +0x422 is 1, or +0xA0A is set, or +0x9BE is 3-5 or 10-0x12."
+confidence = "guess"
+evidence = "Only field tests; game meaning of those values unknown."
+
+[[function]]
+module = "EBOOT"
+address = "08814048"
+name = "unknown_camera_checks_961_621_arg_564"
+purpose = "Returns false if +0x961 is set; otherwise true if the second object's +0x564 or the first's +0x621 is set."
+confidence = "guess"
+evidence = "Only field tests; second argument's type unknown."

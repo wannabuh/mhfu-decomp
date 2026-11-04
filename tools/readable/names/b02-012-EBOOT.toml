@@ -1,0 +1,319 @@
+[[function]]
+module = "EBOOT"
+address = "08860C54"
+name = "lights_refresh_diffuse_targets"
+purpose = "Calls f_EBOOT_8860848 in its colour-only mode (last argument 1) for the three lights stored from +0xC0 at stride 0x30, refreshing their RGB at +0xC0/+0xC4/+0xC8."
+confidence = "inferred"
+evidence = "8860848 with mode 1 writes only param_2[0..2]; 8860EC0 sends that colour with GE command 0x90."
+
+[[function]]
+module = "EBOOT"
+address = "08860CB0"
+name = "light_smooth_diffuse_color"
+purpose = "Moves the colour stored at param_3 +0x2AC + light*4 a fifth of the way toward the light's target RGB (it takes the target directly if the stored word is 0), writes it back with alpha 0xFF and returns it through param_1."
+confidence = "inferred"
+evidence = "The (target - old) / 5.0 lerp per channel; 8864554 starts +0x2AC..+0x2B4 at 0xFFFFFFFF; 8860EC0 sends the result as light colour."
+
+[[function]]
+module = "EBOOT"
+address = "08860EC0"
+name = "gpu_upload_directional_lights_smoothed"
+purpose = "Writes three lights to the GE list: type 0, direction from +0xE0 transformed by the 3x3 part of the matrix at DAT_089cbd04 +0xBC0, smoothed diffuse colour (0x90 family) and ambient colour from +0xCC (0x8F family), then enables lighting (0x17000001)."
+confidence = "inferred"
+evidence = "GE commands 0x5F, 0x63-0x65, 0x90, 0x8F and 0x17 stepped per light; colour comes from 8860CB0."
+
+[[function]]
+module = "EBOOT"
+address = "08861184"
+name = "gpu_upload_light_set_lighting_off"
+purpose = "Writes three lights of the light set chosen by param_2 (sets 0xA0 apart) to the GE list unsmoothed, then sets the ambient colour register to 0 (0x5C000000) and writes 0x17000000, which disables lighting."
+confidence = "inferred"
+evidence = "Same 0x5F/0x63/0x90/0x8F pattern as 8860EC0, indexed by (char)param_2 * 0xA0; ends with 0x5C000000 and 0x17000000."
+
+[[function]]
+module = "EBOOT"
+address = "088614DC"
+name = "object_base_construct"
+purpose = "Base constructor: sets vtables 089BAC54 then 089BAC38, vtable 089BAC48 for the motion player at +0x80, then zeroes fields and the blocks at +0x50 (0x20 bytes), +0x70 (0x10) and +0x80 (0x140)."
+confidence = "inferred"
+evidence = "8864440 calls it first and then installs its own vtable; 8862510 and 88626D0 fill +0x50 and +0x70; 8865648 passes +0x80 to the motion code. f_EBOOT_880C464 read as memset from its arguments."
+
+[[function]]
+module = "EBOOT"
+address = "0886159C"
+name = "motion_player_destruct"
+purpose = "Destructor for the sub-object with vtable 089BAC48: resets the vtable and calls f_EBOOT_890C0C4 on it when the short flag argument is above 0."
+confidence = "guess"
+evidence = "Null check, vtable reset, flag-gated call is the shape of a deleting destructor; f_EBOOT_890C0C4 not read; 089BAC48 is the vtable 88614DC puts at +0x80."
+
+[[function]]
+module = "EBOOT"
+address = "08861604"
+name = "object_base_destruct"
+purpose = "Destructor matching 88614DC: resets vtable 089BAC38, the +0x80 sub-object's 089BAC48, then 089BAC54, and calls f_EBOOT_88626DC when the short flag argument is above 0."
+confidence = "inferred"
+evidence = "Same three vtables as the constructor, in reverse order; the 0xFFFFFF80 test is the null check for the +0x80 sub-object."
+
+[[function]]
+module = "EBOOT"
+address = "0886171C"
+name = "model_draw_group"
+purpose = "Draws one group of a model instance: applies the group's state word, sets texture scale, then for each of its draw records sets material colours and alpha, loads the texture commands if the texture changed, and CALLs the record's display list; records whose material alpha is 0 are skipped; ends with colour test off."
+confidence = "inferred"
+evidence = "GE commands 0x48/0x49, 0x53/0x55/0x56/0x58, 0x1E, 0xC2-0xCB, 0x10/0x13/0x0A, 0x27 in a loop over 16-byte records."
+
+[[function]]
+module = "EBOOT"
+address = "08861D7C"
+name = "model_draw_group_tinted"
+purpose = "Draws one model group with a given matrix, blend mode and packed colour: sets the group's blend mode, alpha test 0xDBFF0006, the scaled world matrix, the group's materials' diffuse, ambient and alpha from param_6, draws it, then sets alpha test 0xDBFF8007."
+confidence = "inferred"
+evidence = "Sequence of calls to 8862D34, 8862354, 8862800, 88629DC, 8862BB8, 886171C; param_6 split into bytes."
+
+[[function]]
+module = "EBOOT"
+address = "08861E9C"
+name = "math_matrix_from_scale_rotation_translation"
+purpose = "Builds a 4x4 matrix in param_5 from scale param_1, Euler angles param_2 in radians and translation param_3, with axes chosen by param_4: 1 X, 2 Y, 3 Z, 4 X then Y, 5 Z then Y, 6 X,Y,Z, 7 Z,X,Y; other values apply no rotation."
+confidence = "confirmed"
+evidence = "Scale on the identity diagonal, a switch of vrot/vmmul per axis using vcst 5 as the angle factor, translation stored at [0xC..0xE] after the switch."
+
+[[function]]
+module = "EBOOT"
+address = "08862354"
+name = "gpu_set_world_matrix_scaled"
+purpose = "Multiplies a scale matrix from param_2 with matrix param_1 and passes the result to f_EBOOT_884CDE4, which puts it in the GE list as world matrix."
+confidence = "confirmed"
+evidence = "vmmul_q of the scale diagonal and *param_1, then 884CDE4, whose code writes GE 0x3A/0x3B."
+
+[[function]]
+module = "EBOOT"
+address = "088623DC"
+name = "model_instance_init"
+purpose = "Fills a model instance from model data: data pointer, display list base, scale from data +0x10, then copies materials (16 bytes each in the buffer) and each group's state pair into the work buffer param_2, recording their addresses at instance +8 and +0xC."
+confidence = "inferred"
+evidence = "Fields match what 886171C reads; 09C33AD8 sizes the buffer as materials*0x10 + groups*8 and passes 8862710's result as param_4."
+
+[[function]]
+module = "EBOOT"
+address = "08862510"
+name = "object_init_model"
+purpose = "Calls model_instance_init on the instance at +0x50 of its first argument."
+confidence = "inferred"
+evidence = "One-line wrapper; +0x50 is cleared as a 0x20 block in 88614DC."
+
+[[function]]
+module = "EBOOT"
+address = "08862518"
+name = "texture_set_build_gpu_commands"
+purpose = "Fills a texture set: for each image in the texture data at param_3 writes eight GE commands into a 0x20-byte record in buffer param_2 starting at slot param_4 (format, address, buffer width, size, CLUT format, CLUT address, CLUT load), then stores the data pointer, buffer and count."
+confidence = "inferred"
+evidence = "Words tagged 0xC3, 0xA0, 0xA8, 0xB8, 0xC5, 0xB0, 0xB1, 0xC4; 886171C copies these records from texture set +4 at stride 0x20."
+
+[[function]]
+module = "EBOOT"
+address = "088626D0"
+name = "object_init_texture_set"
+purpose = "Calls texture_set_build_gpu_commands on the texture set at +0x70 of its first argument, slot 0."
+confidence = "inferred"
+evidence = "One-line wrapper; +0x70 is cleared as a 0x10 block in 88614DC."
+
+[[function]]
+module = "EBOOT"
+address = "088626E4"
+name = "object_reset_flags_and_matrix"
+purpose = "Sets +4 to 3, clears +8 and +0xC, and sets the 4x4 matrix at +0x10 to identity."
+confidence = "inferred"
+evidence = "Code is direct; 8864554, an object init, calls it first, and 8865648 passes +0x10 to the root motion code."
+
+[[function]]
+module = "EBOOT"
+address = "08862710"
+name = "model_data_display_list_base"
+purpose = "Returns the model data address plus the offset at +0x34, used as the display list base of a model instance."
+confidence = "inferred"
+evidence = "09C33AD8 passes it as param_4 of 88623DC; 886171C adds that base to each record's offset for its CALL."
+
+[[function]]
+module = "EBOOT"
+address = "0886271C"
+name = "model_data_display_list_size"
+purpose = "Returns data +8 minus data +0x34, the bytes from the display list base to the value at +8."
+confidence = "guess"
+evidence = "Arithmetic is direct; 88C6DF8 calls it next to 8862710, but +8 being the total file size was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0886272C"
+name = "model_data_group"
+purpose = "Returns the address of group record param_2 (0x18 bytes each) in the table at the offset stored at data +0x20."
+confidence = "inferred"
+evidence = "Pointer arithmetic is direct; 886171C reads texture scale and record count from the result."
+
+[[function]]
+module = "EBOOT"
+address = "08862748"
+name = "model_data_group_material_count"
+purpose = "Returns byte +0x10 of a group record, the length of the group's material index list."
+confidence = "inferred"
+evidence = "8862800, 88629DC and 8862BB8 use it as the loop count over 8862768's list."
+
+[[function]]
+module = "EBOOT"
+address = "08862768"
+name = "model_data_group_material_indices"
+purpose = "Returns the address of entry param_3 of a group's byte list of material indices: table offset at data +0x28 plus the group's short +0x12."
+confidence = "inferred"
+evidence = "Callers index the materials at instance +8 by these bytes at stride 0x10."
+
+[[function]]
+module = "EBOOT"
+address = "088627AC"
+name = "model_data_material_count"
+purpose = "Returns the short at data +0x1E, the number of materials."
+confidence = "inferred"
+evidence = "88623DC loops over this count copying 16-byte records from the table at data +0x30."
+
+[[function]]
+module = "EBOOT"
+address = "088627B4"
+name = "model_data_group_draw_record"
+purpose = "Returns the address of 16-byte draw record param_3 of a group: table offset at data +0x24 plus the group's short +0x16 times 0x10."
+confidence = "inferred"
+evidence = "886171C walks these records, reading a material list index at +0 and a display list offset at +4."
+
+[[function]]
+module = "EBOOT"
+address = "08862800"
+name = "model_group_set_diffuse"
+purpose = "Writes RGB bytes to +0..+2 of every material in a model group."
+confidence = "inferred"
+evidence = "Loop over the group's material indices; 886171C sends these bytes with GE command 0x56."
+
+[[function]]
+module = "EBOOT"
+address = "088629DC"
+name = "model_group_set_ambient"
+purpose = "Writes RGB bytes to +4..+6 of every material in a model group."
+confidence = "inferred"
+evidence = "Loop over the group's material indices; 886171C sends these bytes with GE command 0x55."
+
+[[function]]
+module = "EBOOT"
+address = "08862BB8"
+name = "model_group_set_alpha"
+purpose = "Writes one byte to +3 of every material in a model group."
+confidence = "inferred"
+evidence = "886171C sends this byte with GE command 0x58 and skips records where it is 0."
+
+[[function]]
+module = "EBOOT"
+address = "08862D34"
+name = "model_group_set_blend_mode"
+purpose = "Stores a GE blend word in the group's state pair at +4 by mode: 1 is 0xDF000032, 2 is 0xDF0000A2, 3 is 0xDF0002A2; other modes leave it."
+confidence = "inferred"
+evidence = "Direct constants; 8862E64 sends that word after enabling blending; 8861D7C passes its mode argument."
+
+[[function]]
+module = "EBOOT"
+address = "08862E00"
+name = "model_group_set_fog_flag"
+purpose = "Sets mask 0x2 of the group's state word when param_3 is 1 and clears it otherwise; 8862E64 turns that mask into the GE 0x1F enable."
+confidence = "inferred"
+evidence = "8862E64 writes 0x1F000001 or 0x1F000000 from this mask."
+
+[[function]]
+module = "EBOOT"
+address = "08862E54"
+name = "model_instance_group_state"
+purpose = "Returns the address of group param_2's 8-byte state pair (instance +0xC plus param_2*8)."
+confidence = "inferred"
+evidence = "88623DC stores the pairs at instance +0xC; 8862D34 and 8862E00 change them; 8862E64 applies them."
+
+[[function]]
+module = "EBOOT"
+address = "08862E64"
+name = "gpu_apply_model_group_state"
+purpose = "If mask 0x80000000 of the state word is set, writes the lighting (mask 0x1) and fog (mask 0x2) enables to the GE list and, with mask 0x4, enables blending with the stored word; when that word is 0xDF0000A2 it also enables colour test with commands 0xD8000003 and 0xD9000000."
+confidence = "inferred"
+evidence = "GE commands 0x17, 0x1F, 0x21, 0x27, 0xD8 and 0xD9 written directly from the state pair."
+
+[[function]]
+module = "EBOOT"
+address = "08862FE0"
+name = "math_hermite_interpolate"
+purpose = "Evaluates a cubic Hermite curve at arg_f12 between key (time f14, value f13, tangent f15) and key (time f17, value f16, tangent f18)."
+confidence = "confirmed"
+evidence = "Basis 1+2u^3-3u^2, 3u^2-2u^3 and the tangent terms are written out; constants 0x4000 and 0x4200 are half floats 2.0 and 3.0."
+
+[[function]]
+module = "EBOOT"
+address = "088630D0"
+name = "motion_curve_sample"
+purpose = "Finds the keys around time arg_f12 with 8863668, updates the key cursor at param_3, and returns the Hermite value, or the key's value if no next key."
+confidence = "inferred"
+evidence = "Calls 8863668 and 8862FE0 with short key fields; used per channel by 8863198 and 88633CC."
+
+[[function]]
+module = "EBOOT"
+address = "08863198"
+name = "motion_sample_channels"
+purpose = "Samples all channels of the block at param_1 +100 into a float array, indexed via the table at 089A5D64: values with channel mask 0x38 are scaled by 2*pi/16384 (0.0003834952), the others by 0.0625."
+confidence = "inferred"
+evidence = "Loop over 88630D0; same scaling constants as 88633CC, where those slots become rotation and the others scale and translation."
+
+[[function]]
+module = "EBOOT"
+address = "088632D8"
+name = "motion_pose_to_matrix_no_scale"
+purpose = "Builds a 4x4 matrix in arg_a1 from three Euler angles at arg_a2 +0xC and a translation at arg_a2 +0x18; the scale at arg_a2 +0 is not used."
+confidence = "inferred"
+evidence = "vsin/vcos of the angles expanded into a rotation; same 9-float layout that 88633CC fills; called by 885FA0C like 8863198."
+
+[[function]]
+module = "EBOOT"
+address = "088633CC"
+name = "motion_sample_pose_matrix"
+purpose = "Copies nine default floats from param_2 to param_3, overrides them with channels sampled at time arg_f12 from the block at param_1 +100, then builds a matrix in param_4: scale [0..2], rotation X, Y, Z [3..5], translation [6..8]."
+confidence = "inferred"
+evidence = "Channel loop as in 8863198, then vrot/vmmul per axis; only caller 885FFBC is reached from the root motion path through 885F8E8."
+
+[[function]]
+module = "EBOOT"
+address = "0886364C"
+name = "motion_curve_last_frame"
+purpose = "Returns as a float the time of a curve's last key (the short at key +2, keys at curve +0xC, count at curve +4)."
+confidence = "confirmed"
+evidence = "Offset count*8+6 equals key(count-1)+2 in the key layout that 8863668 reads."
+
+[[function]]
+module = "EBOOT"
+address = "08863668"
+name = "motion_curve_find_keys"
+purpose = "Finds the key at or before time arg_f12 starting from cursor arg_t0, stepping either way; outputs that key and the next (0 when time is on a key or outside the range), returning the key index."
+confidence = "confirmed"
+evidence = "Clamps to first and last key, then walks 8-byte keys comparing the short time at key +2."
+
+[[function]]
+module = "EBOOT"
+address = "08863B70"
+name = "motion_player_root_motion_delta"
+purpose = "Computes the root movement for this step, transformed by the matrix param_3: from one sample of 885F8E8 over frame -step..frame when field +0x3E is 0; when it is non-zero, blends layers 0 and 1 by a smoothstep of +0x34, outputting (0,0,0,1) if +0x3E is negative."
+confidence = "inferred"
+evidence = "8865648 passes the object's +0x80 and +0x10 matrix and adds the result to +0x200 place."
+
+[[function]]
+module = "EBOOT"
+address = "08863D58"
+name = "motion_player_start"
+purpose = "Starts motion param_2 on slot param_3 at frame arg_f12 with no blend: clears the slot's byte +0x128 and short +0x130, sets the slot's fields via 886423C, then calls 885F9A0 for each entry in the pointer list at +0x110 (count at +0x120)."
+confidence = "inferred"
+evidence = "886423C stores frame, motion and field +0x14 = 2.0 in the 0x40-byte slot; ran mostly in early frames, not every frame."
+
+[[function]]
+module = "EBOOT"
+address = "08863E70"
+name = "motion_player_change_blended"
+purpose = "Changes slot param_5 to motion param_2 at frame param_3 over param_4 blend frames: with 0 it replaces directly; otherwise it saves frame, length and loop flag of the old motion once (byte +0x3F guard), stores blend step 1/(n+1) at +0x24 and +0x34, and sets direction byte +0x3E to 1, or 0xFF if param_4 was negative."
+confidence = "inferred"
+evidence = "Slot stride 0x40 and 0x38 motion pointer as in 886423C; blend fields read by 8863B70; called from game and lobby overlays throughout play."

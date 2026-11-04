@@ -1,0 +1,135 @@
+[[function]]
+module = "game_sub"
+address = "09C3EE98"
+name = "collision_floor_height_and_surface_for_object"
+purpose = "For an object in the current map (else table heights and zero surface), tests up to 5 upward-facing triangles of the grid +0x214 cell under the point and writes to param_5 the highest plane height at or below point y + 50 (+100 once a mask 0x80 triangle set object flag 0x40), or the lowest if none qualify, to param_4 that triangle's first 4 bytes, and to param_6 the mask 0x80 or mask 0x20 triangle's height (mask 0x20 less object +0x2A8), updating object +0x410 masks 0x20 and 0x40."
+confidence = "inferred"
+evidence = "Plane equation y = -(d + a*x + c*z) / b with b > 0; attribute table from DAT_09a4f1a0 vtable +0x28; 9C3A460 checks the +0x214 grid's bounds; runs through whole hunts."
+
+[[function]]
+module = "game_sub"
+address = "09C3F740"
+name = "collision_floor_height_nearest_above_for_object"
+purpose = "Writes to param_4 the lowest plane height above point y among up to 5 upward-facing grid +0x214 triangles without attribute mask 0x20, or the highest if none is above; returns 1, or 0 with a table height outside the grid, or -1 with a table height if the object is not in the current map; clears object +0x410 mask 0x40 and sets it on a mask 0x80 triangle."
+confidence = "inferred"
+evidence = "Same triangle walk as collision_floor_height_and_surface_for_object with the selection reversed; the three return paths are in the body."
+
+[[function]]
+module = "game_sub"
+address = "09C3FC70"
+name = "collision_floor_height_near_reference_y"
+purpose = "Returns a plane height at the point from grid +0x214 triangles, skipping attribute masks 0x20 and 0x40 and taking a mask 0x80 triangle at once; otherwise the highest height within point y + |reference y - point y| (100 if param_3 is null), or the lowest if none is within; with no candidates the result is an uninitialised local."
+confidence = "inferred"
+evidence = "Takes no object, reads only param_3 +4 from the reference; in traces called by game_task 09B79478 and ran only in fight1 3900-4130."
+
+[[function]]
+module = "game_sub"
+address = "09C40140"
+name = "map_table_pos_within_inset_bounds"
+purpose = "Returns 1 if the point's x and z are at least 8.0 and less than the extents at DAT_09cdf050 and DAT_09cdf054 minus 8.0, for the entry of id param_1 (stride 0x20), else 0."
+confidence = "inferred"
+evidence = "Same inset check as 9C3A460, on a table whose neighbouring words 09CDF058 and 09CDF05C are indexed by object +0x29A elsewhere in this file; in traces called from em20."
+
+[[function]]
+module = "game_sub"
+address = "09C404C0"
+name = "collision_segment_first_hit_against_map_grids"
+purpose = "Walks the grid cells between two points testing floor list triangles (skipping attribute mask 0x20, and also mask 0x80 for object +0x1E8 types 0x08, 0x0E, 0x1A, 0x22) and 9C3B720 list triangles (skipping those whose short +2 overlaps mask param_6); returns 1 with the hit point in param_5 at the first triangle hit or with an endpoint out of bounds, else 0 with the end point in param_5."
+confidence = "inferred"
+evidence = "Calls segment-plane intersection 9C3BE98 and 9C3BFF0 on each triangle, stepping cells via +0x218 and +0x21C; returns the point on the first hit."
+
+[[function]]
+module = "game_sub"
+address = "09C41558"
+name = "collision_cell_range_spanning_points_grid_210"
+purpose = "Calls collision_cell_range_spanning_points with the grid at +0x210."
+confidence = "inferred"
+evidence = "One-line wrapper; passes *(param_1 + 0x210) as the grid."
+
+[[function]]
+module = "game_sub"
+address = "09C41560"
+name = "collision_cell_range_spanning_points_grid_214"
+purpose = "Calls collision_cell_range_spanning_points with the grid at +0x214."
+confidence = "inferred"
+evidence = "One-line wrapper; passes *(param_1 + 0x214) as the grid."
+
+[[function]]
+module = "game_sub"
+address = "09C41568"
+name = "collision_cell_range_spanning_points"
+purpose = "Computes the x and z cell range covering two points widened by a margin, clamped to the grid inset by 8.0 and to its cell counts, stores it as bytes +0x8D0 (min x), +0x8D1 (min z), +0x8D2 (max x), +0x8D3 (max z) and returns 1, or returns 0 if the range lies wholly outside."
+confidence = "inferred"
+evidence = "Extent = cell size * cell count from the grid words +0, +8 and +4, +0xC; cell index from inverse sizes +0x218 and +0x21C, which it uses for both grids."
+
+[[function]]
+module = "game_sub"
+address = "09C41790"
+name = "collision_grid_210_cell_entry"
+purpose = "Returns the word at index (param_2 * grid +0xC + param_3) of the table at grid +0x18, for the grid at +0x210."
+confidence = "inferred"
+evidence = "Direct array read; its caller 9C38BA8 treats the result as a list of triangles."
+
+[[function]]
+module = "game_sub"
+address = "09C417B8"
+name = "collision_grid_214_cell_entry"
+purpose = "Returns the word at index (param_2 * grid +0xC + param_3) of the table at grid +0x18, for the grid at +0x214."
+confidence = "inferred"
+evidence = "Same read as collision_grid_210_cell_entry on the other grid; in traces called by 9C3DF10."
+
+[[function]]
+module = "game_sub"
+address = "09C417E0"
+name = "collision_object_sweep_against_map_grid_210"
+purpose = "If object +0x410 mask 0x1 is set and it is in the current map, and 9C38A88's radius is not -1, sweeps a scaled offset from +0x210 to +0x200 through 9C392C8 (object +0x1E9 == 1) or 9C38BA8 with flags and that radius; param_2 == 0 first clears the contact bits at +0x278."
+confidence = "inferred"
+evidence = "Passes DAT_09d1a160 and the two offset points to callees that walk grid +0x210 and OR bits into object +0x278; runs through whole hunts, including lobby_task."
+
+[[function]]
+module = "game_sub"
+address = "09C41EA0"
+name = "hit_manager_clear_hits_on_hunters_and_entities"
+purpose = "Calls vtable +0x2C on each of the 4 hunter slots and the 20 entity slots at DAT_09c122b0 +0x1220."
+confidence = "inferred"
+evidence = "First step of hit_manager_update, documented as clearing hits; hunter vtable +0x2C is hunter_clear_received_hit_fields; entity classes' +0x2C not read."
+
+[[function]]
+module = "game_sub"
+address = "09C41F58"
+name = "hit_manager_test_nodes_against_targets"
+purpose = "Walks the node list at DAT_09c190d0 +0x502C, runs hit_node_mark_overlapping_other_nodes on state 2 nodes, and tests each node with an owner present (or no owner, +0xE == -1) against the entity slots then hunter slots in its map (+0x18), skipping targets whose list at +0x33E holds the node's id +0x1A, and per filters on node type +0x1F and flag masks."
+confidence = "inferred"
+evidence = "Second step of hit_manager_update; its callee chain reaches 9C43000, which appends node +0x1A to target +0x33E."
+
+[[function]]
+module = "game_sub"
+address = "09C422E8"
+name = "hit_node_mark_overlapping_other_nodes"
+purpose = "Unless node type +0x1F is 5-9 or 0x0C or 9C45190 returns 1, tests this node's shape list +0x34 against the +0x38 list of other unmarked nodes of the same map (+0x18) and differing +0xF or either without an owner, setting the other's +0x3C = 1 and +0x60 = its owner, or 0 if this node's +0xE is -1."
+confidence = "inferred"
+evidence = "Shape overlap tests 9C34878, 9C36238, 9C359C8, 9C34718; only the other node's fields are written."
+
+[[function]]
+module = "game_sub"
+address = "09C426E0"
+name = "hit_node_test_target_if_in_current_map_and_state_2"
+purpose = "Calls hit_node_test_target_and_apply when the target is in the current map and node +0x14 == 2."
+confidence = "inferred"
+evidence = "Two-condition guard around 9C42750."
+
+[[function]]
+module = "game_sub"
+address = "09C42750"
+name = "hit_node_test_target_and_apply"
+purpose = "If target +0x35E is 0, tests the node's shape list +0x34 against the target's shapes (two at +0x4A0 when +0x1E9 == 0, else the per-type list at DAT_09bb8b00 + +0x1E8 * 0x1D0, with filters on shape flags and node type) and on the first overlap sets the target's angle +0x360 and calls 9C43000 or 9C43558 and then 9C2C370, ending the test."
+confidence = "inferred"
+evidence = "Called per target from hit_manager_test_nodes_against_targets; 9C43000 records the hit on the target (+0x2E8, +0x2EC, +0x33E) and checks hunter skills."
+
+[[function]]
+module = "game_sub"
+address = "09C42DA0"
+name = "hit_set_victim_field_360_angle16"
+purpose = "Writes short target +0x360: if node +0x21 mask 0x10 is clear, node +0x66 plus node +0x22 degrees in 16-bit angle units; else the x-z direction from param_4 to param_3 as a 16-bit angle plus 0x4000."
+confidence = "inferred"
+evidence = "Degree conversion 65536/360 and radian conversion 65536/2pi; the VFPU sequence reads as atan2; called only on overlap in hit_node_test_target_and_apply in traces."

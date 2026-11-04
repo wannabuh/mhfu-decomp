@@ -1,0 +1,87 @@
+[[function]]
+module = "game_task"
+address = "09A92028"
+name = "hunter_draw"
+purpose = "Draw method: sets up lights, takes alpha +0x230 from the camera helper, emits GE alpha state, calls vtable +0x4C, then +0x78 if +0x614 mask 0x400 is set, then +0x50, then restores GE and light state."
+confidence = "inferred"
+evidence = "Vtable 089BB3CC +0xC; slots +0x78 and +0x50 are 09A933C0 (weapon model) and 09A97238 (attached props); ran in all quest recordings."
+
+[[function]]
+module = "game_task"
+address = "09A92228"
+name = "hunter_weapon_attach_slot_for_motion"
+purpose = "Returns 0, 1 or 2 from weapon class +0x1E8, motion id +0x324 and motion frame, saying where the weapon model attaches; default is 2, or 1 when +0x410 mask 8 is set; param_2 only changes frame thresholds for class 6."
+confidence = "inferred"
+evidence = "09A66198 stores the result in +0x7F2; 09A933C0 uses it to choose attach matrices: 2 reads +0x1560/+0x17B0 of the object at +0x190, 0 bone 0x12, otherwise bone 0xE."
+
+[[function]]
+module = "game_task"
+address = "09A933C0"
+name = "hunter_draw_weapon_model"
+purpose = "Builds attach matrices from the +0x7F2 slot, weapon class +0x1E8 and motion frame tables (with per-class motion cases), then runs model effect ops and emits the meshes of the model at +0xF60."
+confidence = "inferred"
+evidence = "Switches on +0x1E8, calls bone_compute_skin_matrices_tree and gpu_emit_model_mesh; vtable +0x78 on 089BB3CC and 089BB450, called from hunter_draw when +0x614 mask 0x400 is set."
+
+[[function]]
+module = "game_task"
+address = "09A96FC0"
+name = "motion_interp_value_from_frame_table"
+purpose = "Walks a table of (frame, value) float pairs ended by frame -1; while the motion frame +0x90 lies between two keys, returns the value linearly interpolated between them, otherwise returns the terminator's value."
+confidence = "confirmed"
+evidence = "Loop tests each key with motion_frame_reached, interpolates with (frame - key0)/(key1 - key0), and stops at a key within 0.001 of -1."
+
+[[function]]
+module = "game_task"
+address = "09A97238"
+name = "hunter_draw_motion_attached_props"
+purpose = "Draws prop meshes attached to bones according to motion id +0x324 and frame windows, with +0x694 picking the prop under motion 0x1A0; +0x1138 nonzero defers to 09A98B10, +0x424 mask 0x40 draws mesh 0x91, and other motions go to hunter_draw_attached_prop_for_324."
+confidence = "inferred"
+evidence = "Calls object_build_bone_attach_matrix then prop_model_draw_mesh_at_matrix per motion id; vtable 089BB3CC +0x50, called from hunter_draw."
+
+[[function]]
+module = "game_task"
+address = "09A9A0D0"
+name = "hunter_pouch_find_last_listed_item"
+purpose = "If +0x1E6 equals the game global's +0x28 byte, scans the 24 pouch slots and returns the id of the last slot with nonzero +2 whose item is in a fixed set (0x36A, 0x36C-0x371, 0x45C-0x473); otherwise returns 0xFFFF."
+confidence = "inferred"
+evidence = "Loop over item_pouch_slot_ptr with id compares; in traces 09A68FC8 pushes a HUD message and calls pouch_change_item_count with -10 on the result, so the set's game meaning is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A9A9E0"
+name = "hunter_state_group0_dispatch"
+purpose = "Dispatches on state +0x299 to the handler of each state in group 0, passing a variant number for handlers shared between states; unlisted states call 09A678F8(self,0,4,0)."
+confidence = "inferred"
+evidence = "Switch over states 0 to 0x7F; 09A67568 calls it when +0x298 is 0, and its handlers use hunter_set_motion_id_both_parts."
+
+[[function]]
+module = "game_task"
+address = "09A9B1E0"
+name = "hunter_state_idle_select_motion"
+purpose = "Handler of state 0 (variant 0) and 0x76 (variant 1): with no entry step, chooses and changes among motions 1, 5, 6, 0x15, 0x3F, 0x193 and 0x1AF from field +0x3C of the object from *DAT_09a4f1a0, skills 0x7A/0x7B/0x7E/0x7F, +0x624/+0x626 and +0x62E, then runs 09AA5270."
+confidence = "inferred"
+evidence = "Lowest state in the dispatch, reselects its motion each tick; motion 0x3F needs +0x3F4 above 0xEF and +0x4E0 == 1; 09AA5270 is called in every path with its param_3 set from the variant."
+
+[[function]]
+module = "game_task"
+address = "09A9BA48"
+name = "hunter_state_move_motion_variants"
+purpose = "Handler shared by states 1, 3, 7, 0x12, 0x13, 0x1A, 0x24, 0x49 and 0x74: on entry starts a variant's motion (3, 0x3EC, 10, 0x31 or 0x3F3) with a 10-tick counter at +0x414, then while level 09AA5FB0 is nonzero turns via 09A8B578, and leaves by state when the level is 0 and the counter ended."
+confidence = "inferred"
+evidence = "09AA5FB0 grades +0x49E into levels, 09A8B578 sets +0x320 from +0x49C plus camera heading; the 0x3EC variant adds a rotated forward offset to place +0x200 for classes 8 and 6."
+
+[[function]]
+module = "game_task"
+address = "09A9C160"
+name = "hunter_state_draw_sheathe_weapon_variants"
+purpose = "Handler shared by states 4, 5, 0xA, 0xF, 0x10 and 0x17: on entry sets +0x410 mask 8 with motion 0x3EA or 0x3F2, or clears it with motion 0x3EB or a per-class table motion, clears +0x1138 if set, and on motion end moves on by variant and weapon class."
+confidence = "inferred"
+evidence = "hunter_weapon_attach_slot_for_motion moves the slot from 2 to 1 during 0x3EA and from 1 to 2 during 0x3EB, and mask 8 picks slot 1 by default; ran in fight1, fight2 and kit-act30."
+
+[[function]]
+module = "game_task"
+address = "09A9C530"
+name = "hunter_state_airborne_launch_and_land"
+purpose = "Handler of states 6 (variant 0, velocity y +18, z +20) and 9 (variant 1, velocity y -10, z +8): plays motion 0xF, applies per-tick acceleration +0x250 and rotated velocity +0x240 to place +0x200, stops at ground height +0x2CC with motion 0x10 or 0x3E, then ends the state."
+confidence = "inferred"
+evidence = "Sets +0x280 = 2 and integrates the velocity while y descends; on reaching the height with health +0x2E4 below 1 and +0x1E6 matching the global's +0x28, calls 09A6CF38 instead of a landing motion."

@@ -1,0 +1,159 @@
+[[function]]
+module = "game_task"
+address = "09AB4C68"
+name = "monster_script_run"
+purpose = "Bytecode interpreter for an object's script: unless byte +0x298 is 5 or 6, resumes at a pending entry or the saved position, then dispatches opcodes to handlers (at most 999 steps) until opcode 5 saves the position and suspends, the position is null, or an unknown opcode appears."
+confidence = "inferred"
+evidence = "Long opcode if-chain whose handlers return the next script pointer; opcode 5 calls 9AB74D0 to save it. The monster prefix rests on the em20 caller of the sibling 9AB9170 and on the object-type table at +0x1E8."
+
+[[function]]
+module = "game_task"
+address = "09AB6778"
+name = "monster_script_on_byte_noop"
+purpose = "Empty stub called with the address of each opcode and sub-code byte the script code reads."
+confidence = "inferred"
+evidence = "Body is a bare return; 9AB4C68 and 9AB7858 pass it script byte addresses."
+
+[[function]]
+module = "game_task"
+address = "09AB6788"
+name = "monster_script_op_ff_end_block"
+purpose = "Handler for opcode 0xFF: its sub-code decides how a script block ends, by clearing masks in +0x4C1 (0x1, 0x10, 0x2, 0x4, 0x8), resuming a saved position, jumping to main entry 0, repeating a block table entry under counters +0x533/+0x535, or (sub-codes 4 and 5) walking a per-+0x29A point table, where sub-code 4 can move the object and change +0x29A."
+confidence = "inferred"
+evidence = "Dispatched from opcode 0xFF in 9AB4C68; each sub-code returns a next script pointer from 9ABAB90, 9ABDB28, 9AC33C8, 9AB7490 or a saved field."
+
+[[function]]
+module = "game_task"
+address = "09AB7230"
+name = "monster_script_take_pending_entry"
+purpose = "Checks pending masks in +0x4BB (0x40, 0x80, 0x20, 0x10, 0x8, 0x4, 0x2); for each one 9AC9740 returns 0 for, fetches its script entry, records it in a per-mask slot where one exists, updates +0x4BB and +0x4C1, and returns the first entry found or 0."
+confidence = "inferred"
+evidence = "Sequence of mask tests in +0x4BB; slots +0x4D0, +0x4D4, +0x4DC, +0x4E4, +0x4E0; 9AB4C68 uses the result as its start position when nonzero."
+
+[[function]]
+module = "game_task"
+address = "09AB7490"
+name = "monster_script_get_saved_position"
+purpose = "Returns the saved script position chosen by +0x4C1: +0x4D0 for mask 0x20, else +0x4D4 for mask 0x10, else +0x4D8 for mask 0x1, else +0x4CC."
+confidence = "inferred"
+evidence = "Mask ladder returning fields; 9AB4C68 resumes from the result, and 9AB74D0 writes the same slots."
+
+[[function]]
+module = "game_task"
+address = "09AB74D0"
+name = "monster_script_set_saved_position"
+purpose = "Stores a script position into the slot chosen by +0x4C1: +0x4D0 for mask 0x20, else +0x4D4 for mask 0x10, else +0x4D8 for mask 0x1, else +0x4CC."
+confidence = "inferred"
+evidence = "Same mask ladder as 9AB7490 but writing; opcode 5 in 9AB4C68 passes it the next script pointer before suspending."
+
+[[function]]
+module = "game_task"
+address = "09AB7510"
+name = "monster_script_op_07_jump_main_entry"
+purpose = "Handler for opcode 7: stores its byte argument in +0x500 and returns that entry of the main table via 9ABAB90."
+confidence = "inferred"
+evidence = "Dispatched from opcode 7; 9ABAB90 indexes the table at +0x4C8 by +0x500."
+
+[[function]]
+module = "game_task"
+address = "09AB7520"
+name = "monster_script_op_39_if_field_4c4_nonzero"
+purpose = "Handler for opcode 0x39, an if/else/end block: sub-code 0 skips to the else or end when short +0x4C4 is 0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Sub-code 0 scans for (0x39,1) or (0x39,2) when +0x4C4 is 0; sub-code 1 calls 9AB8A38 with 0x39."
+
+[[function]]
+module = "game_task"
+address = "09AB7620"
+name = "monster_script_op_0b_if_field_4b9_equals"
+purpose = "Handler for opcode 0x0B, an if/else/end block: sub-code 0 copies +0x4B9 to +0x543 and skips to the else or end when +0x4B9 differs from the byte argument, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Same block shape as 9AB7520 with opcode 0x0B; compares the argument with +0x4B9."
+
+[[function]]
+module = "game_task"
+address = "09AB7728"
+name = "monster_script_skip_to_opcode_subcode"
+purpose = "Walks forward instruction by instruction to the given opcode with a nonzero sub-code or to a 0x95 byte, recursively stepping over nested blocks that open with that opcode and sub-code 0; after 1000 steps it resets +0x500 to 0 and restarts from the main entry."
+confidence = "inferred"
+evidence = "Uses 9AB7858 to step, recurses on (opcode, 0) until (opcode, param_4), and has a step guard of 1000."
+
+[[function]]
+module = "game_task"
+address = "09AB7858"
+name = "monster_script_next_instruction"
+purpose = "Returns the address after the script instruction at the pointer, using each opcode's and sub-code's fixed length, without executing it."
+confidence = "inferred"
+evidence = "Long opcode chain that only computes param_2 plus a length; the skip routines 9AB7728 and 9AB8A38 step with it."
+
+[[function]]
+module = "game_task"
+address = "09AB8A38"
+name = "monster_script_skip_past_block_end"
+purpose = "Advances to the given opcode with sub-code 2 and returns the address after that instruction."
+confidence = "inferred"
+evidence = "Loops 9AB7728 until (param_3, 2), then calls 9AB7858; if/else handlers use it for sub-code 1."
+
+[[function]]
+module = "game_task"
+address = "09AB8AE0"
+name = "monster_script_op_80_weighted_branch"
+purpose = "Handler for opcode 0x80: sub-code 0 walks a count of case headers summing their weight bytes and enters the first case whose running total exceeds (+0x322 & 0x1F), or one of weight 0xFF; sub-codes 1 to 0x0D, reached at the end of a case, skip to the (0x80,0xFF) end."
+confidence = "inferred"
+evidence = "Cumulative weight loop against the low bits of +0x322, stepping with 9AB7728(0x80,0xFF); opcode 0x7B or 0x84 in 9AB4C68 increments +0x322 through 9AC4518."
+
+[[function]]
+module = "game_task"
+address = "09AB8E48"
+name = "monster_script_op_06_set_target_spec"
+purpose = "Handler for opcode 6: stores a target kind in +0x506 and its parameters in +0x508 and +0x504; kind 0x0D searches the 20-slot object table for another object with the same +0x29A, kind 10 becomes kind 3 using the +0x29A of itself or of a hunter slot, and kind 3 takes a 16-bit value remapped through tables."
+confidence = "inferred"
+evidence = "Decodes script bytes into +0x504/+0x506/+0x508, which 9AB9170 reads to resolve a position."
+
+[[function]]
+module = "game_task"
+address = "09AB9170"
+name = "monster_script_resolve_target_position"
+purpose = "Writes a vec3 for the target spec in +0x506/+0x508/+0x504, by kind: a hunter slot's place, table points, a point at a set distance from the object along its angle +0x1F4 plus an offset, a stored point +0x5E0, a list entry, a +0x29A point table entry, or an offset from a hunter-indexed point; it also updates the resolved copy of the spec in +0x50A/+0x50C/+0x50E and, for kinds 1, 0x0B and 0x0D, field +0x2F4."
+confidence = "inferred"
+evidence = "Switch on +0x506 with every case writing param_2; called by em20 09D1BD98 and script handlers such as 9AB6788 and 9ABCC40 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AB9E50"
+name = "math_mat3_premul_rotate_z_radians"
+purpose = "Sets the 3x3 part of dst to a Z-axis rotation by an angle in radians times the 3x3 part of src, rows four words apart, and leaves the fourth column unwritten."
+confidence = "inferred"
+evidence = "vcst 5 scaling, vrot in rows 0 and 1, vmmul_t; callers pass the third angle of the 9ABA078 vector to it after the Y and X rotations."
+
+[[function]]
+module = "game_task"
+address = "09AB9F00"
+name = "math_mat3_premul_rotate_x_radians"
+purpose = "Sets the 3x3 part of dst to an X-axis rotation by an angle in radians times the 3x3 part of src, rows four words apart, and leaves the fourth column unwritten."
+confidence = "inferred"
+evidence = "vcst 5 scaling, vrot in rows 1 and 2 with row 0 identity, vmmul_t; callers pass the first angle of the 9ABA078 vector to it."
+
+[[function]]
+module = "game_task"
+address = "09AB9FB0"
+name = "math_mat3_premul_rotate_y_radians"
+purpose = "Sets the 3x3 part of dst to a Y-axis rotation by an angle in radians times the 3x3 part of src, rows four words apart, and leaves the fourth column unwritten."
+confidence = "inferred"
+evidence = "vcst 5 scaling, vrot in rows 0 and 2 with row 1 identity, vmmul_t; callers pass the second angle of the 9ABA078 vector to it."
+
+[[function]]
+module = "game_task"
+address = "09ABA078"
+name = "math_vec3_u16_angles_to_radians"
+purpose = "Converts the low 16 bits of three consecutive words from 65536-per-turn angle units to radians, writing them to a vector and setting its fourth element to 0."
+confidence = "confirmed"
+evidence = "Reads ushorts at indices 0, 2 and 4, multiplies by 9.58738e-05 (2*pi/65536), and writes param_1[3] = 0."
+
+[[function]]
+module = "game_task"
+address = "09ABA0C8"
+name = "monster_copy_slot_object_place"
+purpose = "Copies the place (+0x200) of a slot's object into an output vec3, from the 20-slot object table when param_4's low byte is 0 and +0x50A is 0x0D, otherwise from hunter_manager_get_slot; slot 0xFF or an empty slot leaves the output unchanged."
+confidence = "inferred"
+evidence = "Both lookups copy +0x200..+0x208; the branches on DAT_08a632c0+0xF7A57C mask 0x1 are identical; 9AB9170 calls it for target kinds 1 and 0x0D."

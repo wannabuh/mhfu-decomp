@@ -1,0 +1,255 @@
+[[function]]
+module = "cont_task"
+address = "09A5F380"
+name = "cont_task_load_save_setup_and_pick_next_task"
+purpose = "Step machine that resets object and hunter managers and runs save_menu_load_game_tick; on tick result 1 it frees demo images and object lists, applies post-load game flags, a one-time f_EBOOT_884FC0C(game, 3000) when bitflag 0xca is clear and +0x6adf8 mask 0x1000000 is set, then either finishes with next id 10 (bitflag 2 or 99 set) or adds and equips four fixed box entries and switches to handler 09A5F9B0; on result 2 it fades, cleans up and finishes with next id 3."
+confidence = "inferred"
+evidence = "Runs right after the demo menu in recordings; switch cases call the load tick, the frees, equip_set_equipped_box_index and set +0x11/+0x18."
+
+[[function]]
+module = "demo_sub"
+address = "09C19180"
+name = "demo_load_state_init_and_set_global"
+purpose = "Stores the object in global DAT_09c1b820 and clears its flag byte +0, step +4 and field +8, returning the object."
+confidence = "inferred"
+evidence = "Body; ran at frame 0 from 09C1B780; the other demo functions read those fields through DAT_09c1b820."
+
+[[function]]
+module = "demo_sub"
+address = "09C191F0"
+name = "demo_load_images_file_step"
+purpose = "Per-tick loader: returns 1 if flag mask 0x1 is already set; otherwise waits for loader call +0x38 to return 0, allocates 0x91000 bytes under heap tag 6, requests a file chosen by language from table 09C1AF90, and on completion sets mask 0x1 and clears the step (returning 0 that tick)."
+confidence = "inferred"
+evidence = "Step field +4 switch; tag 6 is the block 09C19540 finds with tmh_find_image_and_clut; language field 0xF7A574 indexes the table."
+
+[[function]]
+module = "demo_sub"
+address = "09C19328"
+name = "demo_free_images_and_clear_load_state"
+purpose = "Frees the heap tag 6 block if flag mask 0x1 is set, then clears the whole flag byte +0 and step +4."
+confidence = "inferred"
+evidence = "Body; called once as cont_task and lobby_task leave, in traces."
+
+[[function]]
+module = "demo_sub"
+address = "09C19370"
+name = "demo_queue_sound_table_step"
+purpose = "Per-tick while sound_loader_is_busy is 0: requests the next row of four sound ids from table 09C1AFA0 through sound_slot_queue_ids_request; on the 0xFFFF terminator sets flag mask 0x2, clears the step and returns 1."
+confidence = "inferred"
+evidence = "Body: 8-byte rows of ushorts, 0xFFFF end test, returned 1 also once mask 0x2 is set."
+
+[[function]]
+module = "demo_sub"
+address = "09C19448"
+name = "demo_request_track_files_step"
+purpose = "Per-tick while sound_loader_is_busy is 0: on the first row calls sound_select_track_layout(5, 0), then requests the next track file from table 09C1AFD0; on the -1 terminator sets flag mask 0x4, clears the step and returns 1."
+confidence = "inferred"
+evidence = "Body; 4-byte rows passed to sound_request_track_file_load."
+
+[[function]]
+module = "demo_sub"
+address = "09C19540"
+name = "demo_draw_fullscreen_image"
+purpose = "If the index argument is below 5, finds that image in the heap tag 6 block and adds GE commands to draw it as a 480x272 sprite; otherwise does nothing."
+confidence = "inferred"
+evidence = "tmh_find_image_and_clut with the argument; sprite corner words carry x 0x1E0 and y 0x110; callers pass 0, 1, 2 and 4."
+
+[[function]]
+module = "demo_sub"
+address = "09C19938"
+name = "demo_draw_tiled_band_from_image3"
+purpose = "Binds a 16x8 sub-area of image 3 from the heap tag 6 block (base plus stride*0x90+0x280) and draws one sprite across x 0 to 0x1E0 at y 0x28 to 0x30 with u running to 0x1E0."
+confidence = "inferred"
+evidence = "Literal GE words: texture size log2 of 0x10 and 8, vertex words 0x28, 0x801E0, 0x1E0FFFF, 0x30."
+
+[[function]]
+module = "demo_sub"
+address = "09C19C10"
+name = "demo_draw_centered_cell_row_for_language"
+purpose = "Reads u,v byte pairs up to a 0xFF terminator from table 09C1B688[arg][language], centres them at 0x18 pixels each across 480 wide, and draws each pair as a 0x18-square cell from image 3 at y 0x0A to 0x22, with pair (0,0) left empty and pair (0,1) drawn as a fixed 8-square piece from (0xF0,0xC0) at y 0x1A to 0x22."
+confidence = "inferred"
+evidence = "Body: the pair walk, (480 - count*0x18)/2, tmh image 3, and the two vertex branches; language field 0xF7A574 indexes the table."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A348"
+name = "movie_load_module_and_set_volume"
+purpose = "Calls sound_begin_hold_once and sceUtilityLoadModule(0x303), stores its result at +0x820, clears state byte +0, sets audio channel 0 data length 0x800, sets volumes +0x984 and +0x988 to arg*0x8000/7 and fade value +0x98C to 0x10."
+confidence = "inferred"
+evidence = "Body; the argument is game field +0x6ADDA; +0x984 is the volume the audio thread passes to audio_output_panned_blocking."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A3D0"
+name = "movie_tick"
+purpose = "If state byte +0 is non-zero, calls sceKernelPowerTick and advances the movie state machine one step."
+confidence = "inferred"
+evidence = "Body; called each tick from the movie task 09A60090."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A408"
+name = "movie_start"
+purpose = "If state byte +0 is 0, sets it to 1, stores the argument at +2 as the file id and creates the event flag \"movie_manager\" at +0x830."
+confidence = "confirmed"
+evidence = "String movie_manager in the body; +2 is what state 2 of 09C1A480 passes to the file call."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A458"
+name = "movie_unload_module_and_end_sound_hold"
+purpose = "Calls sceUtilityUnloadModule(0x303) and sound_end_hold_once."
+confidence = "inferred"
+evidence = "Body; the undo of 09C1A348, called when the movie's state byte is 0."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A480"
+name = "movie_state_step"
+purpose = "Steps state byte +0: 1 sets up MPEG and threads; 2 passes file id +2 to loader call +0x24; 3 reads 0x800 bytes through +0x28 and queries the stream offset and size in 0x800-byte units; 4 passes the offset to +0x30; 5 sets event flag mask 0x1; 6 sets mask 0x100 every tick and clears DAT_08a62d6c until flag bits 0xB0 are all set; 7 calls +0x2C, tears down and returns to 0."
+confidence = "inferred"
+evidence = "Switch on the state byte; sceMpegQueryStream calls, 0xB0 being the three thread exit bits 0x10, 0x20 and 0x80."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A650"
+name = "movie_read_thread"
+purpose = "Thread that puts up to 0x20 packets at a time into the MPEG ringbuffer every 10 ms, counting them at +0x80C against the total +0x814; sets flag masks 0x4 and 0x10 and exits when the data is all read or mask 0x4 is set, and masks 0x2 and 0x10 and exits on stop mask 0x8."
+confidence = "confirmed"
+evidence = "Created as \"readThread\" in 09C1ABB0; sceMpegRingbufferPut loop in the body."
+
+[[function]]
+module = "demo_sub"
+address = "09C1A7B8"
+name = "movie_video_thread"
+purpose = "Thread that waits on event flag mask 0x100, compares video clock +0x834 with audio clock +0x838, and decodes the next AVC unit unless video leads by more than 0x1775 (setting 0x100 itself when it trails by more than 0x1775), advancing +0x834 by 0xBBB or from the unit's stamp; sets mask 0x80 and exits on stop mask 0x8 or end of data."
+confidence = "confirmed"
+evidence = "Created as \"videoThread\" in 09C1ABB0; sceMpegGetAvcAu and sceMpegAvcDecode in the body."
+
+[[function]]
+module = "demo_sub"
+address = "09C1AA58"
+name = "movie_audio_thread"
+purpose = "Thread that decodes Atrac units, advances audio clock +0x838 by 0x1054 or from the unit's stamp, and outputs each after the first on channel 0 at volume +0x984 from two alternating 0x2000 buffers; sets mask 0x20 and exits on stop mask 0x8 or when out of data with mask 0x4 set."
+confidence = "confirmed"
+evidence = "Created as \"audioThread\" in 09C1ABB0; sceMpegGetAtracAu, sceMpegAtracDecode and audio_output_panned_blocking in the body."
+
+[[function]]
+module = "demo_sub"
+address = "09C1ABB0"
+name = "movie_init_mpeg_and_start_threads"
+purpose = "Allocates the movie buffers under heap tag 0x13, initialises the sceMpeg library, ringbuffer and AVC and Atrac streams, creates and starts readThread, videoThread and audioThread, and zeroes the clocks +0x834 and +0x838."
+confidence = "confirmed"
+evidence = "Thread name strings and sceMpeg calls in the body."
+
+[[function]]
+module = "demo_sub"
+address = "09C1AE28"
+name = "movie_stop_threads_and_free_mpeg"
+purpose = "Terminates and deletes the three threads and the event flag, flushes and unregisters the streams, destroys the MPEG objects and ringbuffer, and frees heap tag 0x13."
+confidence = "confirmed"
+evidence = "Thread handles +0x824 to +0x82C from 09C1ABB0, the sceMpeg teardown calls, and the frees in the body."
+
+[[function]]
+module = "demo_sub"
+address = "09C1B7BC"
+name = "movie_manager_global_static_init"
+purpose = "Points global DAT_09C1C1C8 at 0x9C1B838 and registers destructor 09C1AEC0 for it."
+confidence = "inferred"
+evidence = "Body; ran at frame 0; the movie task and threads use DAT_09C1C1C8 as their object."
+
+[[function]]
+module = "demo_task"
+address = "09A5F380"
+name = "demo_task_load_language_ui_file"
+purpose = "Unless game +0x424 is already set, allocates 0x53800 bytes under heap tag 0, requests a language-chosen file from table 09C1AF80, stores the block at game +0x424 and runs ui_load_asset_step until it returns 1; then switches to handler 09A5F520."
+confidence = "inferred"
+evidence = "Three-step switch with the alloc and file request, and the callee ui_load_asset_step; ran at frames 50-60."
+
+[[function]]
+module = "demo_task"
+address = "09A5F520"
+name = "demo_task_load_images_pack_and_sound"
+purpose = "Shows the loading screen and saves the fade state, loads the images file and the pack, starts the sound PRX loader and opens sound, queues sound ids 0x1588, 0x1587 and 0x1589, then switches to 09A5F770, or to 09A60290 with +0x20 = 3 when load-state field +8 is set; skips all loading when the flag byte is non-zero."
+confidence = "inferred"
+evidence = "Switch cases call each loader in order; ran at frames 60-70."
+
+[[function]]
+module = "demo_task"
+address = "09A5F770"
+name = "demo_task_run_save_boot_check"
+purpose = "Draws a full-screen image and restores the fade state, hides the loading screen, allocates 0x16A100 bytes under heap tag 0x18 for a save session, runs save_boot_check_tick until it returns 1 or 2 (snapshotting settings on 1), frees it and fades, then switches to 09A5F960."
+confidence = "inferred"
+evidence = "save_boot_check_tick, settings_snapshot_to_6af1c and savedata_session_init in the body; ran at frames 70-180."
+
+[[function]]
+module = "demo_task"
+address = "09A5F960"
+name = "demo_task_show_text_screen_while_queueing_sounds"
+purpose = "Fades in over image 2 with a multi-line centred string from the pack entry at DAT_089AD21C, holds 0x5A ticks and until the sound table queue step reports done, fades out and switches to 09A5FB48."
+confidence = "inferred"
+evidence = "text_draw_multiline_centered, the 0x5A counter, 09C19370 run each tick; ran at frames 180-300."
+
+[[function]]
+module = "demo_task"
+address = "09A5FB48"
+name = "demo_task_show_image0_while_requesting_tracks"
+purpose = "Fades in image 0, holds 0x3C ticks and until the track request step reports done, or ends the hold early once input mask 0x4008 was seen when +0x20 is above 1; after the fade goes to 09A60290 if that input was seen with +0x20 above 1, else raises +0x20 to 2 and goes to 09A5FDC0."
+confidence = "inferred"
+evidence = "Body: +0x28 set from DAT_08a62d8c mask 0x4008, the member function switches, and 09C19448 run each tick; ran at frames 300-400."
+
+[[function]]
+module = "demo_task"
+address = "09A5FDC0"
+name = "demo_task_show_image4_then_movie"
+purpose = "Fades in image 4, holds 0x5A ticks (setting +0x20 to 3) or ends early once input mask 0x4008 was seen with +0x20 above 2; after the fade goes to 09A60290 if that input was seen with +0x20 above 2, else to movie task 09A60090."
+confidence = "inferred"
+evidence = "Body: draw of index 4 and the two member function switches; ran at frames 400-520."
+
+[[function]]
+module = "demo_task"
+address = "09A60090"
+name = "demo_task_play_movie"
+purpose = "Starts movie file id 0x2F with volume from game +0x6ADDA and ticks the movie; on input mask 0x4008 fades the volume over 0x10 ticks and sets event flag mask 0x8; when the state byte reaches 0 unloads the module and switches to 09A60290."
+confidence = "confirmed"
+evidence = "Calls the movie functions 09C1A348, 09C1A408, 09C1A3D0 and 09C1A458; writes +0x984 and the stop flag at +0x830."
+
+[[function]]
+module = "demo_task"
+address = "09A60290"
+name = "demo_task_title_blink_text_wait_input"
+purpose = "Fades in image 1 and blinks a pack string (DAT_089ACD1C) centred at y 0xE8 on tick mask 0x20; on input mask 0x4008 plays a sound, fades out and switches to 09A605B0; after 0x1E0 ticks without it, fades out and returns to 09A5FB48."
+confidence = "inferred"
+evidence = "Body: the 0x20 test around the text print, the 0x1E0 counter, the two switches; ran at frames 530-570."
+
+[[function]]
+module = "demo_task"
+address = "09A605B0"
+name = "demo_task_finish_next_id_3"
+purpose = "Sets +0x11 to 1 and +0x18 to 3."
+confidence = "inferred"
+evidence = "Body; the menu 09A61568 runs next in recordings, and the same pair ends other tasks."
+
+[[function]]
+module = "demo_task"
+address = "09A605C8"
+name = "demo_task_language_select_menu"
+purpose = "Unless load-state field +8 is set: starts the sound PRX loader, queues sound ids 0x26, 0x27 and 0x28, loads file 0x29 under heap tag 0x19, sets the cursor from the current language, runs a five-row wrapping cursor on masks 0x10 and 0x40 until mask 0x4008, then stores the chosen language from table 09A61CE0 in DAT_09A1DC90 and +0xF7A574, calls main_apply_language_to_impose and switches to 09A5F380."
+confidence = "inferred"
+evidence = "Table mapping into the field 0xF7A574 that indexes the language tables, the call to main_apply_language_to_impose; ran at frames 0-50."
+
+[[function]]
+module = "demo_task"
+address = "09A60A28"
+name = "demo_draw_language_select_screen"
+purpose = "Adds GE commands to draw image 1 of the heap tag 0x19 block full screen, then the one row of image 0 at the cursor +0x2C, 0xB8 wide at x 0x90 and y (cursor+1)*0x28."
+confidence = "inferred"
+evidence = "Body; only caller in traces is the language task, whose cursor is +0x2C and whose block is tag 0x19."
+
+[[function]]
+module = "demo_task"
+address = "09A61568"
+name = "demo_task_menu_select_next_task"
+purpose = "Fades in and runs a six-row wrapping cursor in game +0x498 on masks 0x10 and 0x40, draws image 2, the band, cell row 0 and six pack strings with a pulsing highlight; mask 0x4008 confirms after 0xF ticks, finishing with next id 4, 5, 7, 6, 8 or 9 by row once unknown_sound_call_889eae8_optional_args(1,0,1) returns 0; mask 0x2000 fades out, sets load-state field +8 to 1 and finishes with next id 2."
+confidence = "inferred"
+evidence = "Body: the cursor switch and the text loop over table DAT_089ACC0C; cont_task runs after it in recordings at frames 580-650."

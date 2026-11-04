@@ -1,0 +1,207 @@
+[[function]]
+module = "game_task"
+address = "09B18280"
+name = "class_089bca70_state_03_02_hop_forward_50_then_motion_15"
+purpose = "Group 3 state 2: starts motion entry 0x14 with velocity Y 75, Z 50 and acceleration Y -10, Z -1.5, at motion frame 40 creates a heap object with a code chosen by type +0x1E8, from frame 22 moves by yaw-rotated velocity (Z velocity floored at 10), and when Y +0x204 is at or below +0x2CC snaps to it and plays entry 0x15, then calls 09B17060 once mask 0x1 of +0xBC clears."
+confidence = "inferred"
+evidence = "Case 2 of 09B19948; class from tick 09B153D8 at vtable 089BCA70 +0x7C; velocity constants and entity_add_rotated_velocity_to_position_then_add_250_to_velocity in the body."
+
+[[function]]
+module = "game_task"
+address = "09B18648"
+name = "class_089bca70_state_03_04_hop_forward_100_turning_then_motion_15"
+purpose = "Group 3 state 4: same hop as 09B18280 but with Z velocity 100 and Z acceleration -0.75, it zeroes rotation +0x7B0 and +0x7B8 each moving tick, and while +0x637 is set with +0x280 == 2 turns yaw through object_turn_yaw_toward_target_limited with limit 0x100."
+confidence = "inferred"
+evidence = "Case 4 of 09B19948; differs from 09B18280 in constants and the turn call."
+
+[[function]]
+module = "game_task"
+address = "09B19948"
+name = "class_089bca70_state_group_03_dispatch"
+purpose = "Runs the handler for state +0x299 in state group 3, with case 1 and values above 0x10 doing nothing; states 6 and 0xE share 09B18BA8 and states 0xF and 0x10 share 09B19840 with a variant argument."
+confidence = "inferred"
+evidence = "Case 3 of group dispatcher 09B161F0 on +0x298, called from 09B153D8 at vtable 089BCA70 +0x7C."
+
+[[function]]
+module = "game_task"
+address = "09B1C998"
+name = "class_089bca70_play_sound_at_bone_on_motion_frame"
+purpose = "When the motion reaches frame param_2 (frame 2 is first scaled by +0x4B0 when that is not 1.0), plays sound param_3 at the position of bone param_4 through entity_play_sound_3d_if_29a_matches_game."
+confidence = "inferred"
+evidence = "Called in traces from object_089bca70_motion_sound_events; motion_frame_reached, skeleton_get_bone and the sound call in the body."
+
+[[function]]
+module = "game_task"
+address = "09B1D800"
+name = "class_089bcc68_pose_bones_06_0a_from_timer_7da"
+purpose = "For types 0x43 and 0x57 only, turns timer +0x7DA into a ratio (over 5 with mask 0x20 of +0x638 set, over 8 with it clear), scales the two bones at +0x190 offsets 0xDE0 and 0x1720, and writes a rotation of up to 170 degrees into the matrix at +0x150 of bones 6 and 10."
+confidence = "inferred"
+evidence = "Slot +0x84 of vtable 089BCC68, called by entity_update_matrices_and_skeleton; 09B1E0B0 gives the ratio; ran only in quest-q9."
+
+[[function]]
+module = "game_task"
+address = "09B1DC58"
+name = "class_089bcc68_reload_area_values_and_set_550_by_592"
+purpose = "Calls entity_reload_area_values_and_reduce_494_498, then for types 0x43 and 0x57 with byte +0x592 above 1 and byte +0x7FB below 2 sets short +0x550 to 0x708."
+confidence = "inferred"
+evidence = "Slot +0x48 of vtable 089BCC68, reached in traces from monster_script_op_ff_end_block."
+
+[[function]]
+module = "game_task"
+address = "09B1DCD0"
+name = "class_089bcc68_attach_nodes_to_list_9d19860"
+purpose = "Calls 09C57CA0 with mode 0, and for types 0x30, 0x56, 0x43 and 0x57 also 09CA8360, each of which links a new node holding this object and a mode (0 or 5) onto the list at DAT_09d19860+0x19030."
+confidence = "inferred"
+evidence = "Slot +0x40 of vtable 089BCC68; both callees read: they fill +0xC and +0x24 of a node and push it on that list."
+
+[[function]]
+module = "game_task"
+address = "09B1DD38"
+name = "class_089bcc68_init_health_state_and_mask_2b8"
+purpose = "Sets health and max health from entity_scaled_health_from_type_table and resets runtime fields; for types 0x43 and 0x57 when short +0x6AF12 of the game global is 0x2849 and game flag 0x14C is clear, sets area +0x29A and a fixed position (10100, 1500, 6580) with +0x280 = 2; when param_2 is 0 starts an initial motion and calls vtable +0x88 with state (3,0x11) or (0,1); then calls vtable +0xF4, copies +0x592 to +0x7FC and sets mask byte +0x2B8 by type."
+confidence = "inferred"
+evidence = "Called from entity_tick_stage0_init on the same frame as slot +0x40 of vtable 089BCC68; same type tests as that class; no slot of its own, so the class is inferred."
+
+[[function]]
+module = "game_task"
+address = "09B1E100"
+name = "class_089bcc68_tick_damage_reactions_and_state_dispatch"
+purpose = "Per-tick update: counts down +0x7F8, ticks the alert timer and the +0x7DA pose timer with sound 0x2E on changes of mask 0x20 of +0x638, updates +0x7FD and +0x7D9, applies pending damage and maps its result code to state changes through vtable +0x88, forces group 6 states for two values of short +0x6AF12 of the game global, runs dispatcher 09B26610 (twice when +0x4B7 is set), and updates mask byte +0x2B8 and 09AD8048 calls."
+confidence = "inferred"
+evidence = "Slot +0x7C of vtable 089BCC68 called by entity_tick_stage1_active; switch on entity_apply_pending_damage_and_choose_result_code's result in the body."
+
+[[function]]
+module = "game_task"
+address = "09B1F410"
+name = "class_089bcc68_state_00_02_motion_33_then_state_00_01"
+purpose = "Group 0 state 2: plays motion entry 0x33 and when mask 0x1 of +0xBC clears calls 09B27828, which sets state (0,1)."
+confidence = "inferred"
+evidence = "Case 2 of 09B1FDE0; substate byte +0x1D5 steps 0 to 2."
+
+[[function]]
+module = "game_task"
+address = "09B1F5A0"
+name = "class_089bcc68_state_00_04_motion_34_then_state_00_02"
+purpose = "Group 0 states 4, 0x11 and 0x12: plays motion entry 0x34 and when mask 0x1 of +0xBC clears calls 09B27870, which sets state (0,2)."
+confidence = "inferred"
+evidence = "Cases 4, 0x11 and 0x12 of 09B1FDE0."
+
+[[function]]
+module = "game_task"
+address = "09B1FDE0"
+name = "class_089bcc68_state_group_00_dispatch"
+purpose = "Copies group +0x298 and state +0x299 to +0x460 and +0x461, then runs the handler for state +0x299 in state group 0."
+confidence = "inferred"
+evidence = "Case 0 of 09B26610, which the tick at vtable 089BCC68 +0x7C calls."
+
+[[function]]
+module = "game_task"
+address = "09B1FFA8"
+name = "class_089bcc68_state_01_turn_toward_5d0_with_offset"
+purpose = "Group 1 states 0, 3, 8, 9 and 0x1D: sets target yaw +0x76A to the angle toward +0x5D0 plus an offset chosen by param_2 (0, 0x8000, 0x4000, -0x4000 or -0x6AAB), plays motion entry 5 or 6 by turn direction, turns yaw by 409.6 times +0x4B0 per tick from motion frame 8, replays the motion if it ends short of the target, and calls 09B27828 when within one step."
+confidence = "inferred"
+evidence = "Called five ways from 09B21288 with param_2 0 to 4; math_angle16_xz_between_points(place, +0x5D0) and the yaw arithmetic on +0x1F4."
+
+[[function]]
+module = "game_task"
+address = "09B202A0"
+name = "class_089bcc68_state_01_move_by_root_motion_until_76c_spent"
+purpose = "Group 1 states 1 and 4: plays motion entry 2 (param_2 0) or 3 (param_2 1, negating the delta and facing 0x8000 away), turns yaw toward +0x5D0 while +0x637 is set, subtracts the root motion Z delta from remaining distance +0x76C and calls 09B27828 when it runs out; types 0x42 and 0x49 with +0x50A == 1 and +0x50C == 0 instead finish within 200 units of +0x5D0 or when counter +0x414 ends."
+confidence = "inferred"
+evidence = "Cases 1 and 4 of 09B21288; entity_root_motion_delta_scaled_220 and the +0x76C subtraction; 09B266C8 fills +0x76C with the distance to the target."
+
+[[function]]
+module = "game_task"
+address = "09B21288"
+name = "class_089bcc68_state_group_01_dispatch"
+purpose = "Copies group +0x298 and state +0x299 to +0x460 and +0x461, then runs the handler for state +0x299 in state group 1, passing each handler a variant argument."
+confidence = "inferred"
+evidence = "Case 1 of 09B26610."
+
+[[function]]
+module = "game_task"
+address = "09B21578"
+name = "class_089bcc68_state_02_01_turn_toward_5d0_then_state_02_03"
+purpose = "Group 2 state 1: sets +0x613, +0x2BA, +0x4C0, +0x523, +0x575 and +0x276 each tick, plays motion entry 0x23, turns yaw 0x400 per tick to the angle toward +0x5D0, snaps within one step, clears mask 0x20000 and calls 09B278C0, which sets state (2,3)."
+confidence = "inferred"
+evidence = "Case 1 of 09B21FF8; the yaw steps and the math_angle16_xz_between_points call."
+
+[[function]]
+module = "game_task"
+address = "09B21688"
+name = "class_089bcc68_state_02_advance_80_per_tick_with_camera_shake"
+purpose = "Group 2 states 2 and 0xA: plays motion entry 0x23 and each tick moves place 80 units along yaw on X and Z, subtracting from remaining distance +0x76C, turns toward +0x5D0 by 0x40 while +0x637 is set, every 8th game counter value shakes the camera and calls 09B28F60 with 0x45, and calls 09B278C0 when the distance runs out; variant 1 also clears mask 0x1 of +0x410 and sets +0x35E and +0x4B4 to 5."
+confidence = "inferred"
+evidence = "Cases 2 and 0xA of 09B21FF8; vtfm3 of (0,0,80) by the yaw matrix and camera_start_shake_from_object."
+
+[[function]]
+module = "game_task"
+address = "09B218F0"
+name = "class_089bcc68_state_02_03_hold_5a_ticks_then_restart"
+purpose = "Group 2 state 3: plays motion entry 0x23, sets +0x613, +0x2BA, +0x4C0, +0x575 and +0x276 each tick, counts +0x794 down from 0x5A, then calls 09B278C0, which sets this same state (2,3) again."
+confidence = "inferred"
+evidence = "Case 3 of 09B21FF8; 09B278C0 passes (2,3,0) to vtable +0x88."
+
+[[function]]
+module = "game_task"
+address = "09B21FF8"
+name = "class_089bcc68_state_group_02_dispatch"
+purpose = "Runs the handler for state +0x299 in state group 2, without the +0x460 and +0x461 copy the other groups do."
+confidence = "inferred"
+evidence = "Case 2 of 09B26610."
+
+[[function]]
+module = "game_task"
+address = "09B22980"
+name = "class_089bcc68_state_03_motion_30_then_state_03_09_or_02_03"
+purpose = "Group 3 states 8 (param_2 0) and 0x13 (param_2 1): plays motion entry 0x30 and for types other than 0x43 and 0x57 calls 09B65400 with 10, then param_2 0 sets state (3,9) (at motion end for those two types, at frame 46 for others) and param_2 1 calls 09B278C0 at motion end; in substep 2 with +0x6DB set it sets state (3,9)."
+confidence = "inferred"
+evidence = "Cases 8 and 0x13 of 09B24278; the vtable +0x88 arguments in the body."
+
+[[function]]
+module = "game_task"
+address = "09B22B60"
+name = "class_089bcc68_state_03_09_motion_22_clear_fields_then_state_00_01"
+purpose = "Group 3 state 9: plays motion entry 0x22 (by entity_start_motion_from_type_table for types 0x42 and 0x49), and when mask 0x1 of +0xBC clears zeroes +0x613, +0x2BA, +0x4C0 and +0x523 and calls 09B27828, which sets state (0,1)."
+confidence = "inferred"
+evidence = "Case 9 of 09B24278."
+
+[[function]]
+module = "game_task"
+address = "09B24278"
+name = "class_089bcc68_state_group_03_dispatch"
+purpose = "Copies group +0x298 and state +0x299 to +0x460 and +0x461, then runs the handler for state +0x299 in state group 3, with states 0x20 to 0x22 doing nothing."
+confidence = "inferred"
+evidence = "Case 3 of 09B26610."
+
+[[function]]
+module = "game_task"
+address = "09B266C8"
+name = "class_089bcc68_set_state_with_setup"
+purpose = "Sets state group param_2, state param_3, mode param_4: returns early for modes 3 and 4 when +0x6DB is 0, otherwise runs per-state setup (running group 0 helpers, remapping states when +0x4B9 == 1, picking target +0x5D0, distance +0x76C, timer +0x414 and velocity, choosing a random state in group 2 by +0x4AE, group 2 reset of +0x592 and mask +0x2B8), then ends in entity_set_state_by_global_flag_and_mode."
+confidence = "inferred"
+evidence = "Slot +0x88 of vtable 089BCC68; tail call to entity_set_state_by_global_flag_and_mode with the remapped arguments; handlers call it with (group, state, mode)."
+
+[[function]]
+module = "game_task"
+address = "09B27828"
+name = "class_089bcc68_reset_fields_and_set_state_00_01"
+purpose = "Sets +0x4B0 to 1.0 and +0x280 to 0, clears mask 0x2 and sets mask 0x1 of +0x410, sets +0x4B5 to 1, and calls vtable +0x88 with (0,1,0)."
+confidence = "inferred"
+evidence = "Body reads directly; tail call through vtable +0x88; called by handlers in traces when they finish."
+
+[[function]]
+module = "game_task"
+address = "09B27870"
+name = "class_089bcc68_reset_fields_and_set_state_00_02"
+purpose = "Same as 09B27828 but calls vtable +0x88 with (0,2,0)."
+confidence = "inferred"
+evidence = "Body reads directly; called in traces from 09B1F5A0."
+
+[[function]]
+module = "game_task"
+address = "09B278C0"
+name = "class_089bcc68_reset_fields_and_set_state_02_03"
+purpose = "Sets +0x4B0 to 1.0, clears mask 0x2 and sets mask 0x1 of +0x410, sets +0x4B5 and +0x613 to 1, and calls vtable +0x88 with (2,3,0), leaving +0x280 unchanged."
+confidence = "inferred"
+evidence = "Body reads directly; called in traces from group 2 and group 3 handlers."

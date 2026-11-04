@@ -1,0 +1,1046 @@
+[[field]]
+struct = "Camera"
+offset = 0x0
+name = "near"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "near plane distance; 30 by default"
+evidence = "EBOOT 8812B9C sets 30.0; 8815348 passes it to 88145C4 as math_mat4_perspective's near"
+
+[[field]]
+struct = "Camera"
+offset = 0x4
+name = "far"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "far plane distance; 65000 by default"
+evidence = "EBOOT 8812B9C sets 65000; 8815348 passes it as far; 8816264 makes the viewport's z from it"
+
+[[field]]
+struct = "Camera"
+offset = 0x8
+name = "aspect"
+type = "f32"
+confidence = "confirmed"
+note = "projection aspect; 480/272"
+evidence = "EBOOT 8812B9C sets 1.7647059; 8815348 passes it to math_mat4_perspective"
+
+[[field]]
+struct = "Camera"
+offset = 0xC
+name = "fov"
+type = "f32"
+confidence = "confirmed"
+note = "field of view in use, radians"
+evidence = "EBOOT 8814E18 takes it from the shown view's +0x138; 8815E9C halves it into vcos/vsin (times 2/pi); 8815348 passes it to the projection"
+
+[[field]]
+struct = "Camera"
+offset = 0x10
+name = "fov_in_projection"
+type = "f32"
+confidence = "confirmed"
+note = "the fov the projection was last built with"
+evidence = "EBOOT 8815348 stores it; 8815384 rebuilds the projection when it differs from +0xC"
+
+[[field]]
+struct = "Camera"
+offset = 0x14
+name = "hunt_height_preset"
+type = "u8"
+confidence = "confirmed"
+note = "which of the zone's camera presets the hunt uses, 0..4; default 3"
+evidence = "EBOOT 8886E50 steps it with up/down, clamped to 4, and picks the preset at +0x110 from it (camera.c: a preset behind +0x110); 8886B68 the same; 8812A08 sets 3; 88131B8 sets 2"
+
+[[field]]
+struct = "Camera"
+offset = 0x20
+name = "desired_eye"
+type = "f32x4"
+confidence = "confirmed"
+note = "eye the views ask for, before shake"
+evidence = "EBOOT 8814E18 copies it from the view in use (+0xA8D) +0x00; 8815D64 and 88158D8 store it; 8815964 eases +0xB40 toward it by a ninth"
+
+[[field]]
+struct = "Camera"
+offset = 0x30
+name = "desired_target"
+type = "f32x4"
+confidence = "confirmed"
+note = "target the views ask for, before shake"
+evidence = "EBOOT 8814E18 copies it from the view in use +0x10; 8815D64 stores it; 8815964 eases +0xB50 toward it"
+
+[[field]]
+struct = "Camera"
+offset = 0xA0
+name = "desired_roll"
+type = "f32"
+confidence = "inferred"
+note = "roll the view in use asks for, radians"
+evidence = "EBOOT 8814E18 copies it from view +0x130 and on to +0xB34; 888AFEC converts it to 16-bit angle by 10430.378"
+
+[[field]]
+struct = "Camera"
+offset = 0xA8
+name = "desired_fov"
+type = "f32"
+confidence = "confirmed"
+note = "fov the view in use asks for, radians"
+evidence = "EBOOT 8814E18 copies it from view +0x138 and on to +0xC; 8815964 eases +0xC toward it; 8815D64 stores it"
+
+[[field]]
+struct = "Camera"
+offset = 0x141
+name = "hunt_view_active"
+type = "u8"
+confidence = "confirmed"
+note = "view 0's +0x91: the hunt's view is running"
+evidence = "EBOOT 8886E50 sets its +0x91 to 1 and clears it when +0xA8D is not 0; 88883C0 stops when it reads 0 here"
+
+[[field]]
+struct = "Camera"
+offset = 0x142
+name = "last_override_view"
+type = "u8"
+confidence = "inferred"
+note = "view 0's +0x92: override view last shown (3, 4), 0xFF none"
+evidence = "EBOOT 8815004 stores +0xDC4 here, 5 and negatives as 0xFF; 8886E50 consumes it once, resetting 0xFF and taking a yaw from that view's eye and target"
+
+[[field]]
+struct = "Camera"
+offset = 0x1D0
+name = "hunt_yaw_goal"
+type = "s16"
+confidence = "confirmed"
+note = "view 0's +0x120: yaw it turns to, 65536 a turn"
+evidence = "camera.c documents view +0x120 as the yaw being turned to; 8886E50 eases +0x122 to it by a quarter; game_task 9AA19F0 through EBOOT 88131B8 writes it directly"
+
+[[field]]
+struct = "Camera"
+offset = 0x1D9
+name = "hunt_scenery_turn_pending"
+type = "u8"
+confidence = "inferred"
+note = "view 0's +0x129: a ray hit the scenery, so the hunt's yaw eases behind the hunter once"
+evidence = "EBOOT 8886E50 sets it from collision_sweep_sphere_find_hit, adds an eighth of the way to behind the hunter when set and clears it; 88131B8 clears it"
+
+[[field]]
+struct = "Camera"
+offset = 0x1DE
+name = "hunt_turning_behind_hunter"
+type = "u8"
+confidence = "inferred"
+note = "view 0's +0x12E: the hunt is swinging to behind the hunter"
+evidence = "EBOOT 8886E50 sets it with the yaw goal = facing - 0x8000 when camera_should_set_yaw_from_followed says so, clears it within 0x1000 of the goal; 8813158 reports it with no override and view 0 in use"
+
+[[field]]
+struct = "Camera"
+offset = 0x1DF
+name = "hunt_tracking_hunter_facing"
+type = "u8"
+confidence = "inferred"
+note = "view 0's +0x12F: the hunt's yaw is following the hunter's facing this frame"
+evidence = "EBOOT 8886E50 writes 1 in the branch that steps the goal to facing by 888E634, 0 otherwise; 88883C0 (view 1) starts only while set; game_task 9A665F0 hunter_state_run tests it"
+
+[[field]]
+struct = "Camera"
+offset = 0x621
+name = "view3_active"
+type = "u8"
+confidence = "confirmed"
+note = "view 3's +0x91: takes over what is shown"
+evidence = "EBOOT 8814E18: nonzero sets +0xDC4 to 3, after view 5 and before view 4; 8814048 reads it"
+
+[[field]]
+struct = "Camera"
+offset = 0x7C1
+name = "focus_view_active"
+type = "u8"
+confidence = "confirmed"
+note = "view 4's +0x91: takes over what is shown"
+evidence = "EBOOT 8814E18: nonzero sets +0xDC4 to 4; 888A8C0 (view 4's controller) clears +0x91 at its start"
+
+[[field]]
+struct = "Camera"
+offset = 0x7E0
+name = "focus_view_substate"
+type = "u8"
+confidence = "inferred"
+note = "view 4's +0xB0: sub-state of its controller"
+evidence = "EBOOT 88131FC, 8813320, 8813388, 88134E8 write 0 or 1 when focus starts or ends; camera_view_mode4 names record +0xB0 as a sub-state"
+
+[[field]]
+struct = "Camera"
+offset = 0x810
+name = "focus_view_mode"
+type = "u8"
+confidence = "inferred"
+note = "view 4's focus: 0 none, 1 started, 2 started with +0x816 = 15, 3 ending"
+evidence = "EBOOT 88131FC sets 1 or 2; 8813388 sets 3, and 0 when the depth falls to 0, 2 otherwise; 8813498 and 88134C0 test 1-or-2 and 1-or-3"
+
+[[field]]
+struct = "Camera"
+offset = 0x811
+name = "focus_view_kind"
+type = "u8"
+confidence = "inferred"
+note = "first of a byte per focus depth: what the focus is on"
+evidence = "EBOOT 8813320 writes 3 and 88134E8 writes 2 at [+0x834]; 88131FC tests 4 there; lobby_task 9A5FF38 writes 4 or 5, 9ADCB48 writes 1"
+
+[[field]]
+struct = "Camera"
+offset = 0x814
+name = "focus_view_countdown"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "frames of the focus's blend"
+evidence = "EBOOT 88131FC, 8813320, 8813388 write 15; 8813388 otherwise from the distances between the eye and target pairs"
+
+[[field]]
+struct = "Camera"
+offset = 0x834
+name = "focus_view_depth"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "index into the per-depth focus arrays: how many focuses are stacked"
+evidence = "EBOOT 8813388 decrements it and ends the focus at 0; 88131FC resets it to 0 for a new object; 8813320 and 88134E8 index +0x7E4, +0x811, +0x818, +0x824 by it"
+
+[[field]]
+struct = "Camera"
+offset = 0x961
+name = "sequence_view_active"
+type = "u8"
+confidence = "confirmed"
+note = "view 5's +0x91: takes over what is shown, first"
+evidence = "EBOOT 8814E18: nonzero sets +0xDC4 to 5 before the others; 888A1FC sets +0x91 when a sequence starts; 888D004 drops input while set"
+
+[[field]]
+struct = "Camera"
+offset = 0x964
+name = "sequence_frame"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "view 5's +0x94: frames the sequence has run"
+evidence = "EBOOT 888C9F8 zeroes it at start and end and adds one a frame; 8813E70 returns it when g_world +0x422 is set"
+
+[[field]]
+struct = "Camera"
+offset = 0x9BE
+name = "sequence_id"
+type = "u8"
+confidence = "inferred"
+note = "view 5's +0xEE: sequence being run"
+evidence = "EBOOT 888A1FC copies +0xA80 to it and clears it when the run ends; 888AFEC and 888C9F8 look it up in the tables at 08938354 and 0893855C; 8813C8C, 8813E20, 8813F04 test ranges of it"
+
+[[field]]
+struct = "Camera"
+offset = 0x9BF
+name = "sequence_run_result"
+type = "s8"
+confidence = "inferred"
+note = "view 5's +0xEF: 1 running, -1 the run returned below 0, 0 idle"
+evidence = "EBOOT 888A1FC writes these from what the sequence returned, 0 when it ends; 8813DD8 returns it, or 2 when +0xA80 or +0x9BE is pending"
+
+[[field]]
+struct = "Camera"
+offset = 0xA0A
+name = "sequence_skippable"
+type = "u8"
+confidence = "inferred"
+note = "view 5's +0x13A: select ends the sequence"
+evidence = "EBOOT 888AFEC and 888C9F8: when set, buttons_pressed & 1 with g_world +0x480 zero returns 1, which ends it; 8813594 and the table's flag 4 set it; 888A1FC clears it at the end"
+
+[[field]]
+struct = "Camera"
+offset = 0xA70
+name = "buttons_held"
+type = "u16"
+confidence = "confirmed"
+note = "buttons held, copied for the views"
+evidence = "EBOOT 8814D84 copies DAT_08A62D88, which 8868F50 builds from the pad, or 0; 8889CAC turns while 0x20/0x80 are held"
+
+[[field]]
+struct = "Camera"
+offset = 0xA72
+name = "buttons_pressed"
+type = "u16"
+confidence = "confirmed"
+note = "buttons pressed this frame, copied for the views"
+evidence = "EBOOT 8814D84 copies DAT_08A62D8C, which 8868F50 sets to ~previous & current; 888AFEC and 888C9F8 test mask 1 for a skip"
+
+[[field]]
+struct = "Camera"
+offset = 0xA7A
+name = "requested_sequence_no_start_delay"
+type = "u8"
+confidence = "inferred"
+note = "request argument: 1 starts the sequence without its two frames' delay"
+evidence = "EBOOT 8813560 stores its fourth argument; 888C9F8 sets +0x96 to 0 when 1, else 2, and counts it down"
+
+[[field]]
+struct = "Camera"
+offset = 0xA7C
+name = "requested_sequence_object"
+type = "ptr"
+confidence = "inferred"
+note = "request argument handed to view 5's +0xF0: an object or 0"
+evidence = "EBOOT 8813560 and 8813574 store it; 8813594 passes an Object; 888A1FC copies it to +0xF0"
+
+[[field]]
+struct = "Camera"
+offset = 0xA80
+name = "requested_sequence_id"
+type = "u8"
+confidence = "confirmed"
+note = "sequence asked for and not started yet"
+evidence = "EBOOT 8813560 and 8813574 write it; 888A1FC copies it to view 5's +0xEE and clears it"
+
+[[field]]
+struct = "Camera"
+offset = 0xA81
+name = "yaw_from_hunter_request"
+type = "u8"
+confidence = "confirmed"
+note = "this update's hunt yaw goal comes from the hunter's +0x2C0"
+evidence = "EBOOT 8813188 sets it when the hunter's +0x1E6 equals g_world +0x28; 8886E50 then sets the goal to +0x2C0 - 0x8000; 8812BD0 clears it after the views"
+
+[[field]]
+struct = "Camera"
+offset = 0xA84
+name = "followed_hunter"
+type = "ptr"
+confidence = "confirmed"
+note = "the hunter the cameras follow: slot g_world +0x28 of the hunter manager"
+evidence = "EBOOT 8812B1C, its only writer, hunter_manager_get_slot(DAT_09A4F204, g_world +0x28); 8815108 tests its +0x200 against zones; 8886E50 and 88883C0 follow it"
+
+[[field]]
+struct = "Camera"
+offset = 0xA88
+name = "hunt_view_in_charge"
+type = "u8"
+confidence = "inferred"
+note = "written, never read: 1 when the hunt controller ran"
+evidence = "EBOOT 8886E50 writes 1; 8812BD0, 88883C0 and 8814E18 write 0; no reader found"
+
+[[field]]
+struct = "Camera"
+offset = 0xA8B
+name = "zone_changed"
+type = "u8"
+confidence = "confirmed"
+note = "the followed hunter entered another zone this update"
+evidence = "EBOOT 8812BD0 clears it, sets it where it moves +0xAAB to +0xA94; 888E350 starts a blend when set; 8888B98 snaps to the path when set"
+
+[[field]]
+struct = "Camera"
+offset = 0xA8C
+name = "previous_view"
+type = "u8"
+confidence = "confirmed"
+note = "the view in use before this update"
+evidence = "EBOOT 8812BD0 copies +0xA8D here before changing it; 8886E50 acts on 0, 1 and other"
+
+[[field]]
+struct = "Camera"
+offset = 0xA8D
+name = "current_view"
+type = "u8"
+confidence = "confirmed"
+note = "index of the view in use, 0 hunt, 1 view 1, 2 village and tent"
+evidence = "camera.c documents it; EBOOT 8812BD0 sets 0 or 2 from the zone's +2; 8814E18 indexes the views by it; 88883C0 sets 1"
+
+[[field]]
+struct = "Camera"
+offset = 0xA90
+name = "current_zone"
+type = "ptr"
+confidence = "confirmed"
+note = "the camera zone record the followed hunter is in"
+evidence = "EBOOT 8815024 sets it from zone data +0x28 and the grid cell; 8812BD0 reads its +1 and +2; 8886E50 and 8888B98 use its +0x20 presets and paths"
+
+[[field]]
+struct = "Camera"
+offset = 0xA94
+name = "previous_zone_id"
+type = "u8"
+confidence = "confirmed"
+note = "id of the zone last left, 0xFF at first"
+evidence = "EBOOT 8812BD0 sets it from +0xAAB on a change; 888E350 finds it in the new zone's blend table"
+
+[[field]]
+struct = "Camera"
+offset = 0xA98
+name = "zone_path_distance"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "distance along the zone's path segment"
+evidence = "EBOOT 888A538 steps it toward the hunter's projection at most 0.5 a frame; 8888B98 evaluates spline_eval_cubic at it"
+
+[[field]]
+struct = "Camera"
+offset = 0xA9C
+name = "zone_path_fraction"
+type = "f32"
+confidence = "inferred"
+note = "the distance over the segment's length"
+evidence = "EBOOT 888A538 sets it to +0xA98 / segment +0x10C; 888B7FC multiplies it by the first path's length; 8888B98 lerps keys by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAA0
+name = "zone_path_segment"
+type = "u8"
+confidence = "inferred"
+note = "segment index on the zone's path"
+evidence = "EBOOT 888A538 compares it with the nearest segment; 8888B98 and 888B7FC index the spline by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAA9
+name = "menu_panel_open"
+type = "u8"
+confidence = "inferred"
+note = "a menu's panel is open: view 4 frames differently"
+evidence = "lobby_task 9A60518, 9A61108, 9ADCCD0 toggle it with their panel on button 8; EBOOT 888A8C0 picks other offsets when it is 1"
+
+[[field]]
+struct = "Camera"
+offset = 0xAAA
+name = "frustum_cull_enabled"
+type = "u8"
+confidence = "confirmed"
+note = "0 makes every sphere test visible"
+evidence = "EBOOT 88160F0 and 8816060 return 1 at once when 0; 8813560 and 8813574 clear it for a sequence, 8813DAC and 888A1FC set it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAAB
+name = "current_zone_id"
+type = "u8"
+confidence = "confirmed"
+note = "id of the current zone, 0xFF at first"
+evidence = "EBOOT 8812BD0 sets it from +0xA90's +1 and looks for a zone while it is 0"
+
+[[field]]
+struct = "Camera"
+offset = 0xAAC
+name = "zone_data"
+type = "ptr"
+confidence = "confirmed"
+note = "the area's camera zone file, offsets relocated"
+evidence = "EBOOT 8814A14 attaches and relocates it; 8814984 reads its header, 8814BE0 writes a default; 8815024 walks its grid"
+
+[[field]]
+struct = "Camera"
+offset = 0xAB0
+name = "shake_a_origin"
+type = "f32x4"
+confidence = "inferred"
+note = "where the shake came from; w copied from the object's +0x20C, unread"
+evidence = "EBOOT 8812F18, 8813024 writes it from an Object's place or the argument; 8812DB8 takes distance from the eye to it. Used when no override or view 4 is shown (8814E18)."
+
+[[field]]
+struct = "Camera"
+offset = 0xAC0
+name = "shake_a_active"
+type = "u8"
+confidence = "confirmed"
+note = "shake record in use"
+evidence = "EBOOT 8812F18, 8813024 sets 1; 8814E18 clears it when the ticks run out; 8812DB8 does nothing at 0"
+
+[[field]]
+struct = "Camera"
+offset = 0xAC1
+name = "shake_a_kind"
+type = "u8"
+confidence = "confirmed"
+note = "low 7 bits index the duration table and pick amplitude; bit 7 no falloff with distance"
+evidence = "EBOOT 8812DB8: index into DAT_08933BB8, below 2 amplitude 10 else 12, bit 7 skips the distance factor; 8812F18, 8813024 stores it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAC2
+name = "shake_a_ticks_left"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames left"
+evidence = "EBOOT 8812F18, 8813024 takes it from DAT_08933BB8; 8814E18 counts it down and clears active below 1; 8812DB8 makes the sine from it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAC4
+name = "shake_a_radius_index"
+type = "u8"
+confidence = "confirmed"
+note = "index into the falloff distances"
+evidence = "EBOOT 8812DB8 divides the distance by DAT_08933BC8[this]; 8812F18, 8813024 stores it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAD0
+name = "shake_b_origin"
+type = "f32x4"
+confidence = "inferred"
+note = "where the shake came from; w copied from the object's +0x20C, unread"
+evidence = "EBOOT 88130C4 writes it from an Object's place or the argument; 8812DB8 takes distance from the eye to it. Used when view 3 is shown (8814E18)."
+
+[[field]]
+struct = "Camera"
+offset = 0xAE0
+name = "shake_b_active"
+type = "u8"
+confidence = "confirmed"
+note = "shake record in use"
+evidence = "EBOOT 88130C4 sets 1; 8814E18 clears it when the ticks run out; 8812DB8 does nothing at 0"
+
+[[field]]
+struct = "Camera"
+offset = 0xAE1
+name = "shake_b_kind"
+type = "u8"
+confidence = "confirmed"
+note = "low 7 bits index the duration table and pick amplitude; bit 7 no falloff with distance"
+evidence = "EBOOT 8812DB8: index into DAT_08933BB8, below 2 amplitude 10 else 12, bit 7 skips the distance factor; 88130C4 stores it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAE2
+name = "shake_b_ticks_left"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames left"
+evidence = "EBOOT 88130C4 takes it from DAT_08933BB8; 8814E18 counts it down and clears active below 1; 8812DB8 makes the sine from it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAE4
+name = "shake_b_radius_index"
+type = "u8"
+confidence = "confirmed"
+note = "index into the falloff distances"
+evidence = "EBOOT 8812DB8 divides the distance by DAT_08933BC8[this]; 88130C4 stores it"
+
+[[field]]
+struct = "Camera"
+offset = 0xAF0
+name = "shake_c_origin"
+type = "f32x4"
+confidence = "inferred"
+note = "third record's origin: used when view 5 is shown; no writer found"
+evidence = "EBOOT 8814E18 passes +0xAF0 to 8812DB8 for view 5; 8812B1C clears its active byte"
+
+[[field]]
+struct = "Camera"
+offset = 0xB00
+name = "shake_c_active"
+type = "u8"
+confidence = "inferred"
+note = "third record's active byte"
+evidence = "EBOOT 8812B1C clears it; 8814E18 counts this record down as the third by the 0x20 stride"
+
+[[field]]
+struct = "Camera"
+offset = 0xB10
+name = "views_initialised"
+type = "u8"
+confidence = "confirmed"
+note = "the views are set up: the first update inits them"
+evidence = "EBOOT 8812BD0 sets it, finds the zone and calls camera_view_init_mode on all six when 0; 8812B1C clears the word"
+
+[[field]]
+struct = "Camera"
+offset = 0xB14
+name = "zone_lookup_disabled"
+type = "u8"
+confidence = "inferred"
+note = "nonzero makes the zone lookup find nothing; only ever written 0"
+evidence = "EBOOT 8815024 returns 0 when set; 8812BD0 clears it every update"
+
+[[field]]
+struct = "Camera"
+offset = 0xB16
+name = "zone_cell_column"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "grid cell the lookup starts from; cleared every update"
+evidence = "EBOOT 8815024 takes cell = this + +0xB1C * row; 8812BD0 writes 0, the only writer found"
+
+[[field]]
+struct = "Camera"
+offset = 0xB18
+name = "zone_cell_row"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "grid cell row; cleared every update"
+evidence = "EBOOT 8815024 multiplies it by +0xB1C; 8812BD0 writes 0, the only writer found"
+
+[[field]]
+struct = "Camera"
+offset = 0xB1C
+name = "zone_grid_columns"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "cells a row in the zone grid"
+evidence = "EBOOT 8814984 copies header +4; 8815024 uses it as the row stride; 8814BE0 default 1"
+
+[[field]]
+struct = "Camera"
+offset = 0xB1E
+name = "zone_grid_rows"
+type = "u16"
+confidence = "guess"
+decimal = true
+note = "header +6; unread; default 1"
+evidence = "EBOOT 8814984 copies it; default in 8814BE0 beside +4"
+
+[[field]]
+struct = "Camera"
+offset = 0xB20
+name = "zone_cell_size_x"
+type = "u16"
+confidence = "guess"
+decimal = true
+note = "header +8; unread; default 20000"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 20000"
+
+[[field]]
+struct = "Camera"
+offset = 0xB22
+name = "zone_cell_size_z"
+type = "u16"
+confidence = "guess"
+decimal = true
+note = "header +10; unread; default 20000"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 20000"
+
+[[field]]
+struct = "Camera"
+offset = 0xB24
+name = "zone_grid_min_x"
+type = "s32"
+confidence = "guess"
+decimal = true
+note = "header +0xC; unread; default 0"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 0"
+
+[[field]]
+struct = "Camera"
+offset = 0xB28
+name = "zone_grid_min_z"
+type = "s32"
+confidence = "guess"
+decimal = true
+note = "header +0x10; unread; default 0"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 0"
+
+[[field]]
+struct = "Camera"
+offset = 0xB2C
+name = "zone_grid_max_x"
+type = "s32"
+confidence = "guess"
+decimal = true
+note = "header +0x14; unread; default 20000"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 20000"
+
+[[field]]
+struct = "Camera"
+offset = 0xB30
+name = "zone_grid_max_z"
+type = "s32"
+confidence = "guess"
+decimal = true
+note = "header +0x18; unread; default 20000"
+evidence = "EBOOT 8814984 copies it; 8814BE0 default 20000"
+
+[[field]]
+struct = "Camera"
+offset = 0xB34
+name = "roll"
+type = "f32"
+confidence = "inferred"
+note = "roll in use, radians; makes the up vector"
+evidence = "EBOOT 8814E18 sets it from the shown view; 8815384 passes it to math_up_vector_from_roll; 8812B9C zeroes it"
+
+[[field]]
+struct = "Camera"
+offset = 0xB40
+name = "eye"
+type = "f32x4"
+confidence = "confirmed"
+note = "the eye of the frame"
+evidence = "camera.c documents it; EBOOT 8814E18 fills it with shake added by 8812DB8; 8814268 builds the matrices from it; 88140C4 returns it"
+
+[[field]]
+struct = "Camera"
+offset = 0xB50
+name = "target"
+type = "f32x4"
+confidence = "confirmed"
+note = "the target of the frame"
+evidence = "camera.c documents it; EBOOT 8814E18 fills it; 8814268 builds the matrices from it; 88140E4 returns it"
+
+[[field]]
+struct = "Camera"
+offset = 0xB60
+name = "up"
+type = "f32x4"
+confidence = "confirmed"
+note = "up vector of the frame"
+evidence = "EBOOT 8814268 stores it and passes it to math_mat4_look_at; 8815384 computes it from the roll; 88158D8 sets (0,1,0)"
+
+[[field]]
+struct = "Camera"
+offset = 0xB80
+name = "view_col0"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix, column 0"
+evidence = "camera.c documents it; EBOOT 8814268 math_mat4_look_at; 8816060 and 88160F0 take view-space depth as +0xB88*x + +0xB98*y + +0xBA8*z + +0xBB8, so the words go by column"
+
+[[field]]
+struct = "Camera"
+offset = 0xB90
+name = "view_col1"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix, column 1"
+evidence = "camera.c documents it; EBOOT 8814268 math_mat4_look_at; 8816060 and 88160F0 take view-space depth as +0xB88*x + +0xB98*y + +0xBA8*z + +0xBB8, so the words go by column"
+
+[[field]]
+struct = "Camera"
+offset = 0xBA0
+name = "view_col2"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix, column 2"
+evidence = "camera.c documents it; EBOOT 8814268 math_mat4_look_at; 8816060 and 88160F0 take view-space depth as +0xB88*x + +0xB98*y + +0xBA8*z + +0xBB8, so the words go by column"
+
+[[field]]
+struct = "Camera"
+offset = 0xBB0
+name = "view_col3"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix, column 3"
+evidence = "camera.c documents it; EBOOT 8814268 math_mat4_look_at; 8816060 and 88160F0 take view-space depth as +0xB88*x + +0xB98*y + +0xBA8*z + +0xBB8, so the words go by column"
+
+[[field]]
+struct = "Camera"
+offset = 0xBC0
+name = "scaled_view_col0"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix built with eye and target times the float at DAT_08A62D60, column 0"
+evidence = "EBOOT 8814268 scales both by *DAT_08A62D60 and looks at; 884CDE4, 8860EC0, 8861184 multiply by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xBD0
+name = "scaled_view_col1"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix built with eye and target times the float at DAT_08A62D60, column 1"
+evidence = "EBOOT 8814268 scales both by *DAT_08A62D60 and looks at; 884CDE4, 8860EC0, 8861184 multiply by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xBE0
+name = "scaled_view_col2"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix built with eye and target times the float at DAT_08A62D60, column 2"
+evidence = "EBOOT 8814268 scales both by *DAT_08A62D60 and looks at; 884CDE4, 8860EC0, 8861184 multiply by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xBF0
+name = "scaled_view_col3"
+type = "f32x4"
+confidence = "confirmed"
+note = "view matrix built with eye and target times the float at DAT_08A62D60, column 3"
+evidence = "EBOOT 8814268 scales both by *DAT_08A62D60 and looks at; 884CDE4, 8860EC0, 8861184 multiply by it"
+
+[[field]]
+struct = "Camera"
+offset = 0xC00
+name = "projection_col0"
+type = "f32x4"
+confidence = "confirmed"
+note = "projection matrix, column 0"
+evidence = "EBOOT 88145C4 math_mat4_perspective; 884BB58 render_pass writes its words to the GE as 0x3F commands"
+
+[[field]]
+struct = "Camera"
+offset = 0xC10
+name = "projection_col1"
+type = "f32x4"
+confidence = "confirmed"
+note = "projection matrix, column 1"
+evidence = "EBOOT 88145C4 math_mat4_perspective; 884BB58 render_pass writes its words to the GE as 0x3F commands"
+
+[[field]]
+struct = "Camera"
+offset = 0xC20
+name = "projection_col2"
+type = "f32x4"
+confidence = "confirmed"
+note = "projection matrix, column 2"
+evidence = "EBOOT 88145C4 math_mat4_perspective; 884BB58 render_pass writes its words to the GE as 0x3F commands"
+
+[[field]]
+struct = "Camera"
+offset = 0xC30
+name = "projection_col3"
+type = "f32x4"
+confidence = "confirmed"
+note = "projection matrix, column 3"
+evidence = "EBOOT 88145C4 math_mat4_perspective; 884BB58 render_pass writes its words to the GE as 0x3F commands"
+
+[[field]]
+struct = "Camera"
+offset = 0xC40
+name = "scaled_camera_to_world_col0"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the scaled view, column 0"
+evidence = "EBOOT 8814268 divides the rows of +0xBC0 by their squared lengths and takes the translation negated"
+
+[[field]]
+struct = "Camera"
+offset = 0xC50
+name = "scaled_camera_to_world_col1"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the scaled view, column 1"
+evidence = "EBOOT 8814268 divides the rows of +0xBC0 by their squared lengths and takes the translation negated"
+
+[[field]]
+struct = "Camera"
+offset = 0xC60
+name = "scaled_camera_to_world_col2"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the scaled view, column 2"
+evidence = "EBOOT 8814268 divides the rows of +0xBC0 by their squared lengths and takes the translation negated"
+
+[[field]]
+struct = "Camera"
+offset = 0xC70
+name = "scaled_camera_to_world_col3"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the scaled view, column 3"
+evidence = "EBOOT 8814268 divides the rows of +0xBC0 by their squared lengths and takes the translation negated"
+
+[[field]]
+struct = "Camera"
+offset = 0xC80
+name = "camera_to_world_col0"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the view: axes in the world, column 3 the eye, column 0"
+evidence = "EBOOT 8814268 builds it from +0xB80; 8815384 turns (0,0,1) by columns 0-2; many tick and draw functions read column 3 as the camera's place"
+
+[[field]]
+struct = "Camera"
+offset = 0xC90
+name = "camera_to_world_col1"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the view: axes in the world, column 3 the eye, column 1"
+evidence = "EBOOT 8814268 builds it from +0xB80; 8815384 turns (0,0,1) by columns 0-2; many tick and draw functions read column 3 as the camera's place"
+
+[[field]]
+struct = "Camera"
+offset = 0xCA0
+name = "camera_to_world_col2"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the view: axes in the world, column 3 the eye, column 2"
+evidence = "EBOOT 8814268 builds it from +0xB80; 8815384 turns (0,0,1) by columns 0-2; many tick and draw functions read column 3 as the camera's place"
+
+[[field]]
+struct = "Camera"
+offset = 0xCB0
+name = "camera_to_world_col3"
+type = "f32x4"
+confidence = "confirmed"
+note = "affine inverse of the view: axes in the world, column 3 the eye, column 3"
+evidence = "EBOOT 8814268 builds it from +0xB80; 8815384 turns (0,0,1) by columns 0-2; many tick and draw functions read column 3 as the camera's place"
+
+[[field]]
+struct = "Camera"
+offset = 0xCC0
+name = "yaw_rotation_col0"
+type = "f32x4"
+confidence = "inferred"
+note = "rotation about y by the camera's heading + 0x4000, column 0"
+evidence = "EBOOT 8815384 and 8815964 build it with vrot, the heading from +0xC80's columns; the two other rotations are by 0; read by game_task 9B6ABF0 and lobby_task 9AF2D78"
+
+[[field]]
+struct = "Camera"
+offset = 0xCD0
+name = "yaw_rotation_col1"
+type = "f32x4"
+confidence = "inferred"
+note = "rotation about y by the camera's heading + 0x4000, column 1"
+evidence = "EBOOT 8815384 and 8815964 build it with vrot, the heading from +0xC80's columns; the two other rotations are by 0; read by game_task 9B6ABF0 and lobby_task 9AF2D78"
+
+[[field]]
+struct = "Camera"
+offset = 0xCE0
+name = "yaw_rotation_col2"
+type = "f32x4"
+confidence = "inferred"
+note = "rotation about y by the camera's heading + 0x4000, column 2"
+evidence = "EBOOT 8815384 and 8815964 build it with vrot, the heading from +0xC80's columns; the two other rotations are by 0; read by game_task 9B6ABF0 and lobby_task 9AF2D78"
+
+[[field]]
+struct = "Camera"
+offset = 0xCF0
+name = "yaw_rotation_col3"
+type = "f32x4"
+confidence = "inferred"
+note = "rotation about y by the camera's heading + 0x4000, column 3"
+evidence = "EBOOT 8815384 and 8815964 build it with vrot, the heading from +0xC80's columns; the two other rotations are by 0; read by game_task 9B6ABF0 and lobby_task 9AF2D78"
+
+[[field]]
+struct = "Camera"
+offset = 0xD50
+name = "frustum_left"
+type = "f32x4"
+confidence = "inferred"
+note = "side plane through the view-space origin; x and z used"
+evidence = "EBOOT 8815E9C, first plane, with x negative; 88160F0 tests sphere against +0xD50 and +0xD58"
+
+[[field]]
+struct = "Camera"
+offset = 0xD60
+name = "frustum_right"
+type = "f32x4"
+confidence = "inferred"
+note = "side plane through the view-space origin; x and z used"
+evidence = "EBOOT 8815E9C, second plane, with x positive; 88160F0 tests +0xD60 and +0xD68"
+
+[[field]]
+struct = "Camera"
+offset = 0xD70
+name = "frustum_top"
+type = "f32x4"
+confidence = "inferred"
+note = "side plane through the view-space origin; y and z used"
+evidence = "EBOOT 8815E9C, third plane; 88160F0 tests +0xD74 and +0xD78"
+
+[[field]]
+struct = "Camera"
+offset = 0xD80
+name = "frustum_bottom"
+type = "f32x4"
+confidence = "inferred"
+note = "side plane through the view-space origin; y and z used"
+evidence = "EBOOT 8815E9C, fourth plane; 88160F0 tests +0xD84 and +0xD88"
+
+[[field]]
+struct = "Camera"
+offset = 0xD90
+name = "near_depth"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "minus the near distance: view-space z of the near plane"
+evidence = "EBOOT 8815E9C writes -near; 8816060 and 88160F0 say not visible past it"
+
+[[field]]
+struct = "Camera"
+offset = 0xD94
+name = "far_depth"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "minus the far distance: view-space z of the far plane"
+evidence = "EBOOT 8815E9C writes -far; 8816060 tests against it; 88160E8 passes it"
+
+[[field]]
+struct = "Camera"
+offset = 0xDA0
+name = "viewport_scale_x"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, 240: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDA4
+name = "viewport_scale_y"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, -136: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDA8
+name = "viewport_scale_z"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, far/2: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDAC
+name = "viewport_offset_x"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, 2048: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDB0
+name = "viewport_offset_y"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, 2048: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDB4
+name = "viewport_offset_z"
+type = "f32"
+confidence = "confirmed"
+note = "GE viewport word, far/2: float bits, written as such"
+evidence = "EBOOT 8816264 writes it (0x43700000 is 240.0); 884B284 sends the bits >> 8 as GE commands 0x42 to 0x47"
+
+[[field]]
+struct = "Camera"
+offset = 0xDB8
+name = "eye_target_distance"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "distance from eye to target"
+evidence = "EBOOT 8814268 stores the vsqrt of the dot of target - eye; written twice in that body, the square first"
+
+[[field]]
+struct = "Camera"
+offset = 0xDC4
+name = "override_view"
+type = "s8"
+confidence = "confirmed"
+note = "view taking over what is shown, 3, 4, 5, or -1"
+evidence = "camera.c documents it; EBOOT 8814E18 sets it from views 5, 3, 4 in that order; 8813158 tests it below 0"

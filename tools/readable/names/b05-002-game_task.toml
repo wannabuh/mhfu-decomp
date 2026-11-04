@@ -1,0 +1,239 @@
+[[function]]
+module = "game_task"
+address = "09A65118"
+name = "sound_state_lookup_ids_1c_for_stage"
+purpose = "Sets the two shorts +0x1C and +0x1E of the sound state to 0xFFFF, fills them from the 8-byte table at 09CE4D78 for records whose key equals the stage id, then blanks +0x1E again for ids 0x97 and 0x10 when +0x14 mask 1 is clear and a game byte test yields 0."
+confidence = "inferred"
+evidence = "Called in traces on DAT_08a62eb0 with DAT_089cc558 +0x6AF0E, the value 09A60AD8 also writes to DAT_09a4f1a0 +0x288 next to stage_mgr_deactivate_current; 09A60E80 reads the ids with sound_state_get_id_1c_at."
+
+[[function]]
+module = "game_task"
+address = "09A651D8"
+name = "sound_state_track_12_file_id_for_stage"
+purpose = "Returns the short +0xC of the sound state, or the table 09CE4948 entry for the stage id at DAT_09a4f1a0 +0x288 when +0xC equals +0x1C or +0x1E."
+confidence = "inferred"
+evidence = "09A60E80 passes the result to sound_request_track_files_load for track 0x12; the same table is compared to track 0x12's id in 09A65230."
+
+[[function]]
+module = "game_task"
+address = "09A65230"
+name = "sound_state_set_change_mask_24_for_stage"
+purpose = "Builds the sound state's +0x24 mask for a new stage id: 7 for some current-stage and +0x14 mask combinations, plus mask 1, 2 or 4 when tracks 0x12, 0x13 or 0x14 hold a different file id than the new stage wants; also sets +0x14 masks 0x4C and refreshes +0x1C and +0x1E."
+confidence = "inferred"
+evidence = "Compares sound_track_get_id(0x12/0x13/0x14) to the wanted ids; 09A60AD8 and 09A61280 call it with a new id and 09A60E80 reads the result through sound_state_get_field_24."
+
+[[function]]
+module = "game_task"
+address = "09A653A0"
+name = "hunter_construct_with_vtable_089bb3cc"
+purpose = "Runs hunter_construct on the object, then replaces its vtable with 089BB3CC and returns it."
+confidence = "confirmed"
+evidence = "Three-line body; vtable 089BB3CC is the one that holds 09A65498 and 09A655F0."
+
+[[function]]
+module = "game_task"
+address = "09A65498"
+name = "hunter_init_089bb3cc"
+purpose = "Vtable 089BB3CC +0x10: runs hunter_init, clears +0x111C, fills sharpness to the weapon's maximum and sets its level, copies the stored pouch for the hunter at the game's player index, does setup for weapon classes 6, 8 and 10, and zeroes +0x33E to +0x35D, +0x398 and +0x43E."
+confidence = "inferred"
+evidence = "Calls hunter_init, hunter_sharpness_max_from_weapon, pouch_copy_stored_43c8_to_active_and_hunter_mirror; ran once at load in traces from EBOOT 088DB608."
+
+[[function]]
+module = "game_task"
+address = "09A655F0"
+name = "hunter_place_and_reset_for_mode_2a4"
+purpose = "Vtable 089BB3CC +0x40: chooses a position source by mode byte +0x2A4 (modes 2 and 3, mode 1, or any other) and resets the hunter for it; modes other than 1 reset health, stamina and their maximums and many timers, mode 1 keeps them and raises health below 1 to 1, then all paths clear shared action fields."
+confidence = "inferred"
+evidence = "Body branches on +0x2A4; writes health_max 100, stamina_max 300 and place from tables 09CE11A0 and 09CE43B0 or DAT_09a44d9c +0x20; ran at load and again later in traces from EBOOT 088DB0B0."
+
+[[function]]
+module = "game_task"
+address = "09A67568"
+name = "hunter_state_dispatch_by_group_298"
+purpose = "Clears +0x614 mask 4, sets +0x410 mask 1, and calls one of seven handlers chosen by the state group byte +0x298."
+confidence = "inferred"
+evidence = "Switch on +0x298 with cases 0 to 6; called by hunter_state_run in traces; prefix follows that caller."
+
+[[function]]
+module = "game_task"
+address = "09A67630"
+name = "hunter_set_state_group_and_state"
+purpose = "Vtable +0x6C: saves +0x298 and +0x299 to +0x460 and +0x461, writes the new values, and resets per-state fields, refusing a group other than 4 for the hunter at the game's player index while +0x2A4 is nonzero; flag masks 1, 2, 0x10 and 0x20 of the last argument skip or alter parts of the reset."
+confidence = "inferred"
+evidence = "Writes +0x298 and +0x299 from arguments; 09A655F0 calls this slot as (self, group, state, flags); many state handlers call it in traces."
+
+[[function]]
+module = "game_task"
+address = "09A67878"
+name = "hunter_set_state_then_set_flag_410_mask4"
+purpose = "Applies the same +0x2A4 guard as the state setter, calls vtable +0x6C with its register arguments, then sets +0x410 mask 4."
+confidence = "inferred"
+evidence = "Short body; the setter clears +0x410 mask 4, so this variant ends with it set."
+
+[[function]]
+module = "game_task"
+address = "09A678F8"
+name = "hunter_reset_to_base_state_and_motion"
+purpose = "Clears transient action fields with 09A68700 and 09A8B3F0, updates +0x614 mask 4 from +0x29C and +0x440, then for mode 2 (ignoring mask 0x80) sets +0x280 to 2 and calls 09A67F30, otherwise clears velocity, sets +0x280 to 0 and calls 09A67AD8."
+confidence = "inferred"
+evidence = "Body shows the two paths; 09A67630 calls it for a hunter already in state 0,0 and many state handlers call it in traces."
+
+[[function]]
+module = "game_task"
+address = "09A67AD8"
+name = "hunter_enter_state_0_0_with_base_motion_pair"
+purpose = "Writes a pair of motion ids to +0x324 and +0x326 chosen from +0x29C, +0x410 mask 8, the stage object's byte +0x3C with active skills and timers, and +0x62E under 0x4C; stores half of the second argument and the third argument to the blend fields, sets +0x298 and +0x299 to 0, and may call vtable +0x54."
+confidence = "inferred"
+evidence = "Pairs 0x18/0x7C, 0x3E9/0x44D, 0x15/0x79, 0x1AF/0x213, 0x193/0x1F7, 1/0x65 written to the motion id fields; same choice as 09A68330."
+
+[[function]]
+module = "game_task"
+address = "09A67F68"
+name = "hunter_sharpness_add_with_skills"
+purpose = "Adds a signed amount to sharpness +0x10F2 clamped to 0..+0x60C, for the hunter at the game's player index when +0x5F3 is not 1; skill 0x1B halves a loss (at least 1), skill 0x1C doubles it unless the third argument is 1; pushes a HUD message when the level falls, rises, or the value exceeded the maximum."
+confidence = "confirmed"
+evidence = "Direct writes to the known sharpness fields, hunter_sharpness_level_from_value, and hud_message_queue_push_string_ptr with pack strings 089ACBB8, 089ACBBA, 089ACBBC."
+
+[[function]]
+module = "game_task"
+address = "09A68128"
+name = "hunter_find_first_pouch_slot_with_item_byte_1"
+purpose = "For the hunter at the game's player index, stores in +0x648 the first of 24 pouch slots holding an item with count above 0 whose item table byte at 0899D2B9 equals 1, or leaves it 0."
+confidence = "inferred"
+evidence = "Loop with item_pouch_slot_ptr up to 0x18; item id indexes a 0x18-byte table; what the byte means is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A68218"
+name = "hunter_set_fields_10f0_10f1_from_weapon_class"
+purpose = "Sets bytes +0x10F0 and +0x10F1 from the two-byte table 09BB75F0 indexed by weapon class, with overrides to 0x70 for class 7 when +0x610 is nonzero and to 0x70, 0x51 for class 3 when +0x111C mask 0x20 is set."
+confidence = "confirmed"
+evidence = "Whole body; +0x1E8 is the weapon_class field; called by 09A655F0 and the state setter in traces."
+
+[[function]]
+module = "game_task"
+address = "09A682B8"
+name = "hunter_clear_timed_arrays_5f7_6a0_114c"
+purpose = "Zeroes the 21 entries of the byte array +0x5F7, the short array +0x6A0 and the byte array +0x114C, then calls 09A6E3F0."
+confidence = "confirmed"
+evidence = "Loop of 7 at a time to 0x15; 09A68FC8 counts the +0x6A0 shorts down and clears the two byte arrays at expiry."
+
+[[function]]
+module = "game_task"
+address = "09A68330"
+name = "hunter_set_base_motion_pair"
+purpose = "Chooses the same motion id pair as 09A67AD8 and starts each with hunter_set_motion_id_for_part_forward on parts 0 and 1."
+confidence = "inferred"
+evidence = "Same selection tree with the same id pairs; ends in two calls for part 0 and part 1."
+
+[[function]]
+module = "game_task"
+address = "09A68700"
+name = "hunter_clear_transient_action_fields"
+purpose = "Clears a set of per-action fields: +0x1D4, +0x45C, +0x3F4, +0x426, +0x427, +0x28C, +0x45E, +0x35E, +0x414, +0x282, +0x1138, masks 0x980 of +0x614 and 2 of +0x410, keeps only mask 0x100 of +0x288, sets +0x94 and +0xD4 to 2.0 and +0x69C to 1.0, and clears +0x672 unless the weapon class is 9."
+confidence = "inferred"
+evidence = "Whole body is field resets; called before returning to base state by 09A678F8 and by 09A655F0; what the group means is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A68798"
+name = "hunter_clear_velocity_accel_and_flags_288_keep_104"
+purpose = "Zeroes the velocity vector +0x240 and the vector +0x250 (acceleration field) and keeps only masks 0x104 of +0x288."
+confidence = "confirmed"
+evidence = "Whole body; +0x240 is the known velocity field and the hunter struct names +0x250 acceleration."
+
+[[function]]
+module = "game_task"
+address = "09A687C0"
+name = "hunter_scan_entity_list_for_target_angle"
+purpose = "Each tick, walks 20 entity slots at DAT_09c122b0 +0x1220 and for a slot matching the hunter's +0x29A, with +0x638 mask 8, group not 5, the hunter's bit in +0x503 and +0x4B9 equal to 1: sets the bit in +0x4BA, stores the entity in +0x2F4 and the angle to it in +0x2C0, sets +0x566, and sets +0x111C masks 0x100 and 1 by entity type byte +0x1E8 or by angle against +0x1F4."
+confidence = "inferred"
+evidence = "Loop and atan2-style VFPU tail writing a 16-bit angle to +0x2C0; the control flow around the type tests decompiled poorly; what the filter selects is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A68B70"
+name = "hunter_clear_flag_111c_mask8_unless_480_mask200"
+purpose = "Clears +0x111C mask 8 when +0x480 mask 0x200 is not set."
+confidence = "confirmed"
+evidence = "One-condition body; +0x480 is used like a held-buttons word by its neighbours, not settled here."
+
+[[function]]
+module = "game_task"
+address = "09A68BB0"
+name = "hunter_update_flag_614_mask8000_from_buttons"
+purpose = "Sets or clears +0x614 mask 0x8000: for weapon classes 1 and 5 from +0x480 mask 0x200 with counter +0x11B0 when game +0x6ADE5 is 1, otherwise from the pad word DAT_08a62d88 masks 0x100 and 0xF0 with motion 0x3E9 or +0x410 mask 8; also sets it in some states when +0x564 is 0 and +0x614 mask 0x1000 is clear."
+confidence = "inferred"
+evidence = "Body shows these tests, plus ui_is_overlay_active and state checks that clear it; the bit's use is not shown here."
+
+[[function]]
+module = "game_task"
+address = "09A68DB0"
+name = "hunter_decode_buttons_480_484_to_action_1120"
+purpose = "Small state machine in +0x112C with frame counter +0x1128 that waits briefly after a new mask in +0x484 & 0xB000, then writes +0x1120 as 1 for mask 0x2000, 2 for mask 0x1000 (and +0x1124 = 2), 3 for 0x3000 together, 4 for mask 0x8000."
+confidence = "inferred"
+evidence = "Tests +0x480 and +0x484 with those masks; the two fields behave like held and newly pressed words, what +0x1120 drives is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A68FC8"
+name = "hunter_tick_timers_stamina_and_health"
+purpose = "Vtable +0x3C per-tick update: counts down many timers with HUD messages on some expiries, adds 2 stamina outside listed states, drains stamina by 1 while +0x410 mask 0x10 is set, runs the maximum-stamina decay, adds health through vtable +0x68 up to +0x41C at a skill-chosen interval, and counts down the 21 short array at +0x6A0, restoring max health when entry 3 expires."
+confidence = "inferred"
+evidence = "Calls 09A6A2D0(self,2), 09A6A370(self,-1), 09A6A050; health amounts capped by +0x41C minus +0x2E4; intervals 15, 30, 60, 120, 240 by skills 0x18, 0x17, 0x19, 0x1A."
+
+[[function]]
+module = "game_task"
+address = "09A6A050"
+name = "hunter_tick_max_stamina_decay"
+purpose = "For the hunter at the game's player index, unless stamina loss is blocked, subtracts a rate built from stage byte +0x3C values 3 and 4 and skills 0x46 to 0x49 and 0x7E to 0x81 from timer +0x632; at zero resets it to 0x2A30 and lowers maximum stamina by 75."
+confidence = "inferred"
+evidence = "Calls 09A6A738 with 0xFFFFFFB5; 09A6A738 clamps +0x62E which also caps stamina in 09A6A2D0; called each tick from 09A68FC8."
+
+[[function]]
+module = "game_task"
+address = "09A6A2D0"
+name = "hunter_stamina_add_clamped"
+purpose = "For the hunter at the game's player index, adds a signed amount to stamina +0x55A clamped to 0..+0x62E; a negative amount is ignored when 09A6A808 returns 1."
+confidence = "confirmed"
+evidence = "Whole body writes the known stamina field; called by 09A68FC8 with +2 and by the skill variants."
+
+[[function]]
+module = "game_task"
+address = "09A6A370"
+name = "hunter_stamina_add_with_skills_a8_a9"
+purpose = "Adjusts a negative stamina amount before 09A6A2D0: skill 0xA8 skips a -1 on odd frames of game +0x1C or halves larger losses, skill 0xA9 doubles it on frames divisible by 5."
+confidence = "confirmed"
+evidence = "Whole body; hunter_has_active_skill(0xA8, 0xA9) and game frame counter tests; 09A68FC8 passes -1 while +0x410 mask 0x10 is set."
+
+[[function]]
+module = "game_task"
+address = "09A6A480"
+name = "hunter_stamina_add_odd_frames_with_skills_a8_a9"
+purpose = "Same skill handling as 09A6A370, but acts only on odd frames of game +0x1C and uses that counter shifted right by 1 for the skill frame tests, so it applies at half rate."
+confidence = "confirmed"
+evidence = "Whole body; called from 09A9E288 in traces."
+
+[[function]]
+module = "game_task"
+address = "09A6A598"
+name = "hunter_stamina_add_scaled_by_skills_and_byte_list"
+purpose = "Scales an amount by a level from skills 0xCA (+2), 0xC9 (+1), 0xCB (-1), 0xCC (-2) plus list bytes 6 (+2) or 7 (+1): level 2 or more halves it, 1 takes off a quarter, -1 multiplies by 1.2, below -1 by 1.35; then calls 09A6A2D0."
+confidence = "confirmed"
+evidence = "Whole body; hunter_has_active_skill and player_byte_list_contains; what the amount is spent on is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A6A738"
+name = "hunter_max_stamina_add_clamped"
+purpose = "For the hunter at the game's player index, adds a signed amount to +0x62E clamped to 0x4B..0x1C2 and lowers stamina to it if above; hitting the upper clamp resets timer +0x632 to 0x2A30; a negative amount is ignored when 09A6A808 returns 1 and +0x1110 is 0."
+confidence = "inferred"
+evidence = "Stamina is capped by +0x62E in 09A6A2D0 and here; 09A6A050 passes -75 when its timer expires."
+
+[[function]]
+module = "game_task"
+address = "09A6A808"
+name = "hunter_stamina_loss_blocked"
+purpose = "Returns 1 for the hunter at the game's player index when timer +0x622 is above 0 or timed array entry 5 is positive, else 0."
+confidence = "inferred"
+evidence = "09A6A2D0, 09A6A738 and 09A6A050 skip stamina reductions on it; body tests +0x622 and hunter_short_array_6a0_entry_is_positive(5)."

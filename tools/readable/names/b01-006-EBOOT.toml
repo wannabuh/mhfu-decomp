@@ -1,0 +1,255 @@
+[[function]]
+module = "EBOOT"
+address = "08835F7C"
+name = "hud_draw_context_action_prompt"
+purpose = "For the local hunter's current interaction target (+0x554, kind at target+2) picks a two-part text, sizes a gradient banner to it and draws it with a blinking icon on a 40-frame timer at +0x535; skipped in some hunter states."
+confidence = "inferred"
+evidence = "Switch on target kind choosing strings, banner and icon 0x35 drawn behind them; runs in village and quest frames."
+
+[[function]]
+module = "EBOOT"
+address = "088378A8"
+name = "hud_draw_party_member_list"
+purpose = "When global flag bit 0 at 0xF7A57C is set, draws a titled window listing the local hunter and each entry of a 200-byte member table whose 6-byte id differs from ours; with HUD flag 0x2000 only a title and icon."
+confidence = "inferred"
+evidence = "Loop over count at +0xEE3 with stride 200, 6-byte compare (MAC-like id), row drawn per member; multiplayer meaning not exercised beyond the flag."
+
+[[function]]
+module = "EBOOT"
+address = "08837CA4"
+name = "equipment_usable_by_gender_and_weapon_class"
+purpose = "Returns 1 if an equipment record of category 5 or 6 (apparently weapons), else tests its flag byte against bit 1/2 chosen by a hunter field at +0x4B3 and bit 4/8 chosen by whether the equipped box entry is category 5."
+confidence = "guess"
+evidence = "Same flag layout and category 5/6 exemption as 08838458; called from shop menus; gender and blademaster/gunner meaning is from the game, not shown in code."
+
+[[function]]
+module = "EBOOT"
+address = "08837D54"
+name = "menu_draw_page_counter_with_arrows"
+purpose = "Draws \"page separator total\" with field width chosen by the total's digit count, and when total is above 1 draws two pulsing arrow sprites either side, one mirrored."
+confidence = "inferred"
+evidence = "Format strings %3d%s%3d, %2d%s%2d, %d%s%d with param_4+1 and param_5; mirrored sprites use 08838004's color; runs in shops only."
+
+[[function]]
+module = "EBOOT"
+address = "08838004"
+name = "menu_pulse_arrow_color"
+purpose = "Returns a packed color with one channel at 0xFF and alpha pulsing by a sine of the frame counter over 64 frames."
+confidence = "inferred"
+evidence = "sin of (frame & 0x3F) scaled by 80 plus 0x9F in the top byte, OR 0xFF00; only caller feeds it to the arrow sprites."
+
+[[function]]
+module = "EBOOT"
+address = "088380B4"
+name = "menu_draw_required_item_row"
+purpose = "Draws one material row: item icon, name, and \"have + other / required\" counts, with the name in color C10 when the two counts together fall short and color C02 marking counts that are zero or low."
+confidence = "inferred"
+evidence = "Format strings with %C10/%C00/%C02 and three numbers compared to param_5; item name and icon helpers; runs only in shops."
+
+[[function]]
+module = "EBOOT"
+address = "08838458"
+name = "menu_draw_equipment_restriction_label"
+purpose = "For a non-weapon equipment record (category not 5 or 6) reads its usability flags and draws one of eight centered labels from the table at 09B04F48 according to bits 1/2 and 4/8."
+confidence = "inferred"
+evidence = "Flags from 0885DC30 mapped to a string table index, skipped for categories 5 and 6; runs only in shops; label wording not seen."
+
+[[function]]
+module = "EBOOT"
+address = "08838AB4"
+name = "hunter_state_is_0f_to_1b_except_11"
+purpose = "Returns 1 when state group is 0 and state byte is 0x0F to 0x1B other than 0x11."
+confidence = "inferred"
+evidence = "Exact switch; caller passes hunter +0x298 and +0x299; game meaning of those states unknown."
+
+[[function]]
+module = "EBOOT"
+address = "08838B08"
+name = "hud_draw_gradient_bar"
+purpose = "Queues a through-mode triangle strip with a horizontal alpha gradient by writing vertices and GE commands directly into the display list, with an end-cap sprite or a pulsing alpha depending on param_7."
+confidence = "inferred"
+evidence = "Vertex words with VTYPE 0x80011C, PRIM strip of 4, BASE/VADDR/RET commands; color alphas differ left and right."
+
+[[function]]
+module = "EBOOT"
+address = "08838E0C"
+name = "hud_draw_sprite_if_timer_at_least"
+purpose = "Draws a HUD sprite only when param_5 is at least param_6, used for blinking on half a timer's period."
+confidence = "inferred"
+evidence = "One comparison and one call to the sprite draw; called with the blink timer and threshold 0x14."
+
+[[function]]
+module = "EBOOT"
+address = "0883D0EC"
+name = "hud_tick_timed_popup"
+purpose = "When request flag 0x80 at +0x5E8 is set and the global mode allows, starts a 150-frame timer at +0x600 and clears the flag; clears the timer if the mode disallows; draws through 0883D290 and counts down while it runs."
+confidence = "inferred"
+evidence = "Timer set to 0x96, decremented per call, gated on 0883D3D4; what the popup shows is in the unseen 0883D290."
+
+[[function]]
+module = "EBOOT"
+address = "0883D274"
+name = "hud_reset_five_slot_ids"
+purpose = "Sets to -1 the id field of five 0x18-byte slots at +0x620 to +0x680."
+confidence = "inferred"
+evidence = "Five writes of -1 with stride 0x18; slot contents unknown."
+
+[[function]]
+module = "EBOOT"
+address = "0883D3D4"
+name = "global_state_09b22e70_is_0_or_8_or_16h"
+purpose = "Returns 1 when the int pointed to by DAT_09B22E70 is 0, 8 or 0x16."
+confidence = "inferred"
+evidence = "Exact comparison; the meaning of that state is not visible here."
+
+[[function]]
+module = "EBOOT"
+address = "0883E400"
+name = "menu_draw_zenny_window"
+purpose = "Draws a small window from coordinates in a static table and prints the money value at game+0x696F0 in it."
+confidence = "inferred"
+evidence = "Runs only in shops; the same field is compared against prices and spent by many menu functions elsewhere."
+
+[[function]]
+module = "EBOOT"
+address = "0883E928"
+name = "hud_item_overflow_choice_tick"
+purpose = "State machine at +0x52F for a received item (id +0x590, amount +0x593) offering three choices: send to storage if there is room, swap it with a chosen pouch slot, or give it up; decrements a timer at +0x119E when idle and returns 1 while it owns input."
+confidence = "guess"
+evidence = "Three-option cursor with sounds, list cursor at +0x586, 088D839C on a slot then 088D72A4 with item and amount, and 08853ABC with item, amount and 0xFFFF; not seen active in a trace."
+
+[[function]]
+module = "EBOOT"
+address = "0883F0CC"
+name = "hud_load_quest_map_file_step"
+purpose = "Three-step loader at +0x1198: chooses a file id from a table by game+0x6AF10 (or 0x14FB/0x14FC for quests 20001-20006), reads it into memory slot 0x19, waits, hands it to a manager under id 0x2B, then frees the slot and returns 1."
+confidence = "guess"
+evidence = "Runs once at quest start from game_task and works on HUD object fields; file use (perhaps the minimap) is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0883F8B4"
+name = "hud_tick_player_alert_timers"
+purpose = "Advances four per-player frame timers at +0x56C up to 0x69 then to -1, playing sound 0x7B plus timer/20 every 20 frames while under 100."
+confidence = "inferred"
+evidence = "Loop of four shorts with the sound call; 08841908 passes the same timers to a per-player draw; what triggers them is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0883F988"
+name = "unknown_hunter_flag_614_10_or_check_369"
+purpose = "Returns 1 if hunter flag 0x10 at +0x614 is set, or if 088DACF8 on the hunter returns 1 and 088568AC on game with 0x369 is nonzero."
+confidence = "guess"
+evidence = "Mechanics only; neither helper is known and the caller is the HUD tick."
+
+[[function]]
+module = "EBOOT"
+address = "0883F9F8"
+name = "hud_draw_status_layer"
+purpose = "Draws HUD layer 9 unless 088567B4 reports 1: top meter, horn note history, and unless flag +0x5DB is set the clock, health and stamina bars, weapon gauge, party rows and 08842628."
+confidence = "inferred"
+evidence = "Calls the clock, bars, weapon gauge and party functions in this file; runs through all quest frames."
+
+[[function]]
+module = "EBOOT"
+address = "0883FAD4"
+name = "hud_draw_menu_layer"
+purpose = "Draws HUD layer 10: dispatches on open-menu state (+0x52D, +0x57C, +0x57D, +0x52F, +0x604) to the sub-screens, and always finishes with 08849478."
+confidence = "inferred"
+evidence = "Switch of ten sub-screen draws on menu indexes, shares the HUD object and layer setup with its siblings; sub-screen identities not checked."
+
+[[function]]
+module = "EBOOT"
+address = "0883FD44"
+name = "hud_draw_layer_11"
+purpose = "Draws HUD layer 11 unless 088567B4 reports 1: 08846FAC always, 08847CB0 and 088487B8 when no menu is open, and 08830D3C once when +0x5F0 is set."
+confidence = "inferred"
+evidence = "Same setup as sibling layers with layer index 2; content of the callees not known, so named by layer."
+
+[[function]]
+module = "EBOOT"
+address = "0883FDF4"
+name = "hud_draw_meter_and_corner_brackets"
+purpose = "Queries a manager at DAT_089CBD04 for the hunter and draws a five-segment meter with a marker placed by a float, and four corner sprites that animate inward with a sound; stores the manager's result at +0x57B or 0xFF."
+confidence = "guess"
+evidence = "Sprite positions and 0x579 count in the code; what the manager at 089CBD04 represents is not visible."
+
+[[function]]
+module = "EBOOT"
+address = "08840338"
+name = "hud_draw_quest_clock"
+purpose = "Reads remaining and total quest time from the timer object, draws the clock face tinted red with a pulse under 9000 frames and a faster pulse under 1800, then its two hands."
+confidence = "inferred"
+evidence = "Thresholds 0x2328 and 0x708 are 5 and 1 minutes at 30 fps; hand rotates by 1/12 turn per 9000 frames; runs through quest frames."
+
+[[function]]
+module = "EBOOT"
+address = "0884054C"
+name = "hud_draw_clock_hand"
+purpose = "Draws one clock hand rotated by time/9000 twelfths of a turn, with its style chosen by param_3."
+confidence = "inferred"
+evidence = "Angle (t/9000)*0x1555 where 0x1555 is 1/12 of a 16-bit circle; only caller is the quest clock."
+
+[[function]]
+module = "EBOOT"
+address = "088405E4"
+name = "hud_draw_health_stamina_bars"
+purpose = "Draws the hunter's health bar (red recoverable part plus current health) and stamina bar with end caps, with colors from the climate pulse helpers and a red flash when stamina is under 76."
+confidence = "confirmed"
+evidence = "Reads hunter +0x2E4 health via HUD +0x560 and +0x55A stamina, width scaled by max at +0x41E and +0x62E; runs through all quests."
+
+[[function]]
+module = "EBOOT"
+address = "08840BC0"
+name = "hud_health_bar_should_pulse"
+purpose = "Returns 1 when 09A6DFC0 on the hunter is positive, or hunter +0x424 bit 0 is set, or 09A6FB20 on the hunter returns 1; the health bar then pulses color."
+confidence = "inferred"
+evidence = "Result drives only the health bar pulse in its two callers; which condition each check is (perhaps poison) is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "08840C24"
+name = "hud_health_bar_color_hot_area"
+purpose = "Returns the health bar color: green by default, pulsing at a table rate when the area climate value is 1 or 2 with no timer at +0x624 and no 0x100 protection, or when hud_health_bar_should_pulse is true; used for climate values 0 to 2."
+confidence = "guess"
+evidence = "Climate byte from the area object, timer and level table; heat meaning comes from health draining in hot areas in this game, and +0x624 as a cool drink timer is unverified."
+
+[[function]]
+module = "EBOOT"
+address = "08840E30"
+name = "hud_health_bar_color_status_only"
+purpose = "Returns the health bar color for climate values 3 and 4: pulsing when hud_health_bar_should_pulse is true, otherwise green."
+confidence = "inferred"
+evidence = "Same pulse math and base as 08840C24 without climate logic; called together with the stamina color for values 3/4; ran only in fight1."
+
+[[function]]
+module = "EBOOT"
+address = "08840F30"
+name = "hud_stamina_bar_color_cold_area"
+purpose = "Returns the stamina bar color: yellow by default, pulsing at a table rate by climate value 3 or 4 when no timer at +0x626 and no 0x80 protection."
+confidence = "guess"
+evidence = "Mirror of 08840C24 on the stamina bar and ran only in fight1 (one map); cold meaning comes from stamina draining in cold areas, unverified."
+
+[[function]]
+module = "EBOOT"
+address = "08841100"
+name = "hud_draw_weapon_gauge"
+purpose = "By weapon class at hunter +0x1E8 draws the class-specific display (class 8 through 088415D0, class 7 a 0-100 gauge from +0x1140, class 9, 1/5 and 10 through helpers) and for the classes that continue draws the sharpness icon from the level of +0x10F2."
+confidence = "inferred"
+evidence = "Per-class branches, level from 088DAB94 indexing sprite and tint tables with a pulsing overlay; classes 1, 5 and 10 return before it, as ranged weapons would; class names not verified."
+
+[[function]]
+module = "EBOOT"
+address = "08841520"
+name = "hud_update_horn_note_history"
+purpose = "For weapon class 8, watches hunter +0x1102 and when it changes shifts +0x1103 into a history at +0x11A6..+0x11AA with a 7-frame animation counter; clears the history when +0x1103 is 0."
+confidence = "guess"
+evidence = "Shift register of note-like values for one weapon class only; hunting horn is a reading of its shape, not shown by a trace."
+
+[[function]]
+module = "EBOOT"
+address = "08841908"
+name = "hud_draw_party_status_rows"
+purpose = "Gathers the local hunter and other present hunters, draws a status row for each at 20-pixel spacing, then draws each one's alert effect from the per-player timers."
+confidence = "inferred"
+evidence = "Loop over 4 player slots via the hunter getter, row helper 08841AB4 with y stepping 0x14, timers at +0x56C indexed by hunter +0x1E6."

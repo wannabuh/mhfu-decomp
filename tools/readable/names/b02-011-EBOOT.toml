@@ -1,0 +1,359 @@
+[[function]]
+module = "EBOOT"
+address = "0885CCD0"
+name = "weapon_kind_table_lookup"
+purpose = "Returns the byte at table 089785A8 for a 16-bit id; a caller stores the result in hunter +0x1E8 from the id in hunter +0x534."
+confidence = "inferred"
+evidence = "One table read; 088CE298 stores the result in hunter +0x1E8, and 0885CD18 indexes the same table with the weapon tables' +0 field."
+
+[[function]]
+module = "EBOOT"
+address = "0885CCE8"
+name = "weapon_kind_from_equip"
+purpose = "Returns the table 089785A8 byte for an equipment record, using the id from equip_weapon_base_id."
+confidence = "inferred"
+evidence = "Composes 0885DF38 and the table; 088DAB94 calls it on hunter +0x4E8 after testing that record's type byte is 5."
+
+[[function]]
+module = "EBOOT"
+address = "0885CD18"
+name = "weapon_kind_by_type_and_id"
+purpose = "Returns the table 089785A8 byte for a weapon given as type 5 or 6 plus id, 0 for other types; ids of 0x5DD or more read byte table 089A56B7 instead."
+confidence = "inferred"
+evidence = "Type picks table 0895A0EC (stride 0x18) or 08960CBC (stride 0x1C) as in 0885DF38; 0885ECF4 branches on the result."
+
+[[function]]
+module = "EBOOT"
+address = "0885CDB8"
+name = "equip_type5_table_byte_13"
+purpose = "Returns byte +0x13 of the type 5 weapon table entry for an equipment record, or 0 if the id is 0 or the type is not 5."
+confidence = "inferred"
+evidence = "Direct table read; 088D66F4 stores the result in hunter +0x5F5 from hunter +0x4E8."
+
+[[function]]
+module = "EBOOT"
+address = "0885CE00"
+name = "weapon_kind_table_0893161c_lookup"
+purpose = "Returns the first byte of a two-byte-per-kind table at 0893161C for a kind byte."
+confidence = "inferred"
+evidence = "One table read; 088D66F4 passes hunter +0x1E8 and stores the result in hunter +0x5F3."
+
+[[function]]
+module = "EBOOT"
+address = "0885CF9C"
+name = "equip_skill_points_for_skill"
+purpose = "Sums the signed points an equipment record gives one skill id: up to five id and points pairs at armor table +0x1E for types 0 to 4, plus 0885D134 for each of the three slot ids at record +6; types 5 and 6 use the slots only."
+confidence = "inferred"
+evidence = "Paired byte comparison against param_3 plus slot loop; 088D8DF4 adds the result over the hunter's six equipment records. First argument is unused here."
+
+[[function]]
+module = "EBOOT"
+address = "0885D1D4"
+name = "hunter_skill_points_record_50c_multiplied"
+purpose = "Returns the skill's points from the record at hunter +0x50C multiplied by 1 plus the number of the six equipment records holding points in skill id 1; this has the shape of a Torso Up multiplier, though skill id 1's name was not read."
+confidence = "inferred"
+evidence = "Counts nonzero results of 0885CF9C with skill 1 over +0x4E8 to +0x524; 088D8DF4 uses this in place of the +0x50C term of its sum."
+
+[[function]]
+module = "EBOOT"
+address = "0885D300"
+name = "hunter_equipment_stat_by_selector"
+purpose = "Returns an equipment stat picked by selector: 0 from the weapon, 1 from five armor records through 0885EAA4 plus a weapon byte, 2 to 5 and 0xD by summing signed armor table bytes +9 to +0xD, 6 to 0xC through 0885DB70 and 0885DBD0; reads records from game global +0x4C0 unless flags mask 0x4 or 0x8 at +0x6AF14 are set, hunter +0x1E6 differs from global +0x28, or param_4 is 1."
+confidence = "inferred"
+evidence = "Switch on the selector over a local copy of six 12-byte equipment records; ran only from about frame 1530 on."
+
+[[function]]
+module = "EBOOT"
+address = "0885DC30"
+name = "equip_table_byte0_low_nibble"
+purpose = "Returns the low nibble of byte +0 of the armor table entry for types 0 to 4, 0xF for types 5 and 6, and 0 otherwise."
+confidence = "inferred"
+evidence = "Switch over the five 0x28-stride tables; the nibble's meaning was not read. Ran once in shops, frame 2840."
+
+[[function]]
+module = "EBOOT"
+address = "0885DD38"
+name = "equip_value_dispatch_by_type"
+purpose = "Returns a per-equipment value: 0885EBC8 for types 0 to 4, 0885ECF4 for types 5 and 6, 0 otherwise."
+confidence = "guess"
+evidence = "Plain type dispatch; 'value' comes from the halved table dword in 0885ECF4 and it ran near shop menus, but no caller use was read."
+
+[[function]]
+module = "EBOOT"
+address = "0885DF38"
+name = "equip_weapon_base_id"
+purpose = "Returns the u16 at +0 of the weapon table entry for an equipment record of type 5 or 6, otherwise 0."
+confidence = "inferred"
+evidence = "Direct table read; 088D66F4 stores the result in hunter +0x534."
+
+[[function]]
+module = "EBOOT"
+address = "0885DFA0"
+name = "recipe_check_material_availability"
+purpose = "Checks a recipe in one of three 0x1A-stride tables against up to four material id and count pairs, using counts from 0885AED0, 0885C33C or both as param_3 picks; returns 2 if all are met, 0 or 1 otherwise, from flagged materials, entry byte +1 and 08857A80(game, 0xE)."
+confidence = "inferred"
+evidence = "Per-material compare of required count against owned-count calls builds mask 0xF; called from a lobby task only in shops at frame 2840. Which menu uses it was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885E718"
+name = "equip_count_filled_slots"
+purpose = "Counts how many of the three u16 slot fields at equipment record +6 are nonzero."
+confidence = "confirmed"
+evidence = "The whole function is that loop; same fields as the slot loops in 0885CF9C and 0885EE48."
+
+[[function]]
+module = "EBOOT"
+address = "0885EAA4"
+name = "armor_stat_c_plus_capped_field4"
+purpose = "Returns armor table byte +0xC plus twice the lesser of record byte +4 and armor_field4_cap, or 0 if the record id is 0."
+confidence = "inferred"
+evidence = "Direct arithmetic; 0885D300 sums it over five armor records for selector 1. The stat's meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885ECF4"
+name = "equip_weapon_value_half_plus_slots"
+purpose = "Returns half a weapon table dword at entry +4, plus 0885E664 for each count in record +4 mask 0xF when the kind is 1 or 5, plus the slot sum from 0885EE48; may be a sell price."
+confidence = "guess"
+evidence = "Halving and slot sum shown in code; ran only through 0885DD38 near shop menus, and no use of the result was read."
+
+[[function]]
+module = "EBOOT"
+address = "0885EE48"
+name = "equip_sum_slot_table_dwords"
+purpose = "Sums a dword from table 0899D2C8 (stride 0x18) for each nonzero slot id at equipment record +6, or returns 0 if the record id is 0."
+confidence = "inferred"
+evidence = "Direct loop; only caller 0885ECF4 adds it to a weapon value."
+
+[[function]]
+module = "EBOOT"
+address = "0885EF20"
+name = "armor_field4_cap"
+purpose = "Returns the largest of armor table bytes +0x14 to +0x19, and +0x1A too when 08857A80(game, 0xE) returns 1, minus 1 and clamped to 0..0x3F; 0 for types 5 and up."
+confidence = "inferred"
+evidence = "Max chain in the code; 0885EAA4 uses it to cap record byte +4."
+
+[[function]]
+module = "EBOOT"
+address = "0885F290"
+name = "game_nibble_flag_set"
+purpose = "ORs a flag value into a per-id nibble in one of three game global arrays (selector 0 at +0x6AA38, 1 at +0x6A5EC, 2 at +0x6ABD7), low nibble for even ids and high for odd, ignoring out-of-range ids."
+confidence = "inferred"
+evidence = "Same addressing as 0885F354, with OR; called from a lobby task in shops at frame 2840. What the flags record was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885F354"
+name = "game_nibble_flag_test"
+purpose = "Returns 1 if the given mask is set in an id's nibble in one of three game global arrays (selector 0 at +0x6AA38, 1 at +0x6A5EC, 2 at +0x6ABD7), else 0; out-of-range ids and unknown selectors return 0."
+confidence = "inferred"
+evidence = "Mirror of 0885F290 with AND; lobby task callers in shops only. What the flags record was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885F7D4"
+name = "equip_find_type5_id_in_table_08979878"
+purpose = "For a type 5 equipment record, returns the index of its id in the -1 terminated table 08979878 (stride 10 bytes), otherwise -1."
+confidence = "inferred"
+evidence = "Linear search shown; what the table lists was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885F848"
+name = "motion_bind_tracks_to_bone_subtree"
+purpose = "Walks a bone subtree and gives each bone of the group, or every bone for group -1, the next variable-size track from motion data +0x14, stored in layer 0 (+0x150) or layer 1 (+0x1D0) at layer +0x64."
+confidence = "inferred"
+evidence = "Tree walk over +0x14C child, +0x148 sibling and +0x144 parent; pointer advances by each record's +8 size; layer base chosen as in 0885FA0C."
+
+[[function]]
+module = "EBOOT"
+address = "0885F8E8"
+name = "motion_bone_translation_delta_clamped"
+purpose = "Calls motion_bone_translation_delta, and if the start frame is negative uses start 0 and end minus start as the end frame."
+confidence = "inferred"
+evidence = "Only the clamp and the forward call; the frame meaning comes from 0885FFBC."
+
+[[function]]
+module = "EBOOT"
+address = "0885F928"
+name = "bone_find_first_in_group"
+purpose = "Depth-first searches a bone tree for the first bone whose +0x114 equals the group, returning 0 if none; group -1 returns the start bone."
+confidence = "inferred"
+evidence = "Walk over +0x14C, +0x148 and +0x144 comparing +0x114; every bone wrapper in this file calls it first."
+
+[[function]]
+module = "EBOOT"
+address = "0885F9A0"
+name = "motion_bind_tracks_for_group"
+purpose = "Finds the first bone of a group and binds motion tracks to its subtree."
+confidence = "inferred"
+evidence = "Wrapper of 0885F928 and 0885F848."
+
+[[function]]
+module = "EBOOT"
+address = "0885FA0C"
+name = "motion_sample_bone_tree"
+purpose = "Recursively, for bones of the group or all for -1, copies the 9 rest floats at +0x120 to layer +0x40, samples the layer's track at the integer frame through 08863198 if bound, and calls 088632D8 on the layer; non-matching bones skip their children."
+confidence = "inferred"
+evidence = "Layer base from param_3 mask 0xFF, float frame converted to uint, recursion through +0x14C and +0x148."
+
+[[function]]
+module = "EBOOT"
+address = "0885FB54"
+name = "motion_sample_group"
+purpose = "Finds the first bone of a group and samples the motion of its subtree at a frame on the chosen layer."
+confidence = "inferred"
+evidence = "Wrapper of 0885F928 and 0885FA0C."
+
+[[function]]
+module = "EBOOT"
+address = "0885FBB4"
+name = "bone_copy_layer0_to_layer1_for_group"
+purpose = "Finds the first bone of a group and copies layer 0 to layer 1 across its subtree."
+confidence = "inferred"
+evidence = "Wrapper of 0885F928 and 0885FBF4."
+
+[[function]]
+module = "EBOOT"
+address = "0885FBF4"
+name = "bone_copy_layer0_to_layer1_tree"
+purpose = "Recursively copies the 19 dwords at +0x150 to +0x1D0 for bones of the group, or all for -1; non-matching bones skip their children."
+confidence = "inferred"
+evidence = "Field-by-field copy with recursion through +0x14C and +0x148."
+
+[[function]]
+module = "EBOOT"
+address = "0885FC9C"
+name = "bone_blend_layers_tree"
+purpose = "For bones of the group or all for -1, writes into layer 0 the weighted sum of layers 0 and 1: scale floats at +0x190, translation row, and two rotation rows rebuilt into an orthonormal matrix by 0885FE44."
+confidence = "inferred"
+evidence = "Weights arg_f12 and arg_f13 scale +0x150.. and +0x1D0.. fields; walk over +0x14C, +0x148 and +0x144."
+
+[[function]]
+module = "EBOOT"
+address = "0885FE44"
+name = "math_mat4_orthonormal_from_xy"
+purpose = "Writes the rotation rows of a 4x4 matrix from two 3-vectors: normalized first vector, normalized cross product, and their cross product as second row; sets the w column to 0,0,0,1 and leaves the translation row alone."
+confidence = "confirmed"
+evidence = "Pure VFPU code showing the normalizations, two vcrsp_t calls and the writes."
+
+[[function]]
+module = "EBOOT"
+address = "0885FF5C"
+name = "bone_blend_layers_for_group"
+purpose = "Finds the first bone of a group and blends layers 0 and 1 across its subtree with two weights."
+confidence = "inferred"
+evidence = "Wrapper of 0885F928 and 0885FC9C."
+
+[[function]]
+module = "EBOOT"
+address = "0885FFBC"
+name = "motion_bone_translation_delta"
+purpose = "Samples a bone's layer at two frames through 088633CC and stores the translation at the second frame minus the first, with w 0."
+confidence = "inferred"
+evidence = "Two calls with arg_f12 and arg_f13; vsub_q of the output matrices' +0x30 rows."
+
+[[function]]
+module = "EBOOT"
+address = "0886005C"
+name = "bone_init_from_data"
+purpose = "Initializes a bone from a data record: 9 rest floats to +0x120 and scale to +0x190, id fields to +0x110, +0x114, +0x116 and +0x118, identity at +0x90, and local matrix at +0x150 built from scale, three rotations and translation."
+confidence = "inferred"
+evidence = "Rotation values multiply by vcst_s(5) and feed vrot_q; callers run during load phases with 0886053C and 08860758."
+
+[[function]]
+module = "EBOOT"
+address = "0886025C"
+name = "motion_max_track_value"
+purpose = "Returns the largest 0886364C result over all nested variable-size records in motion data, possibly a duration."
+confidence = "guess"
+evidence = "Nested counts at +4 and sizes at +8 with a max; 0886364C was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08860328"
+name = "bone_update_matrices_tree"
+purpose = "Builds a bone's matrix from its +0x190 scale times incoming scale, local rotation and inverse incoming scale, stores it times param_2 at +0xD0 and times param_3 at +0x90, then calls vtable +0xC on child and sibling."
+confidence = "inferred"
+evidence = "VFPU matrix products with fields written back; sibling call passes the same matrices. Child call arguments were lost in the decompile."
+
+[[function]]
+module = "EBOOT"
+address = "0886053C"
+name = "bone_compute_inverse_bind_tree"
+purpose = "Recursively computes a bone's world matrix at +0x90 as local +0x150 times parent, and stores its scale-aware inverse at +0x10; children get this bone's matrix and siblings the parent's."
+confidence = "inferred"
+evidence = "Row lengths, division by them twice and negated translation; runs in load phases with 0886005C, and 08860648 multiplies the result."
+
+[[function]]
+module = "EBOOT"
+address = "08860648"
+name = "bone_compute_skin_matrices_tree"
+purpose = "Recursively stores at +0x50 the product of +0x10 and +0x90 for a bone, its children and siblings."
+confidence = "inferred"
+evidence = "One vmmul_q and two recursive calls; +0x10 is written by 0886053C. Use by skinning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088606D0"
+name = "bone_set_scale"
+purpose = "Stores three floats at bone +0x190, +0x194 and +0x198."
+confidence = "inferred"
+evidence = "Direct writes; 08860328 uses these fields as scale. Ran only in recording quest-q8."
+
+[[function]]
+module = "EBOOT"
+address = "08860758"
+name = "return_first_argument"
+purpose = "Returns its first argument unchanged."
+confidence = "confirmed"
+evidence = "The whole function body; its callers are the same as those of the bone setup functions."
+
+[[function]]
+module = "EBOOT"
+address = "08860768"
+name = "light_block_init_global"
+purpose = "Stores a block's pointer in global DAT_08A62D78, zeroes 0x150 bytes of it and sets +0x15C to -1."
+confidence = "guess"
+evidence = "Runs at frame 0 from startup; 'light' is the same reading as 08860848. 088607A8 clears the same global."
+
+[[function]]
+module = "EBOOT"
+address = "088607F8"
+name = "light_block_copy_global_ca0_to_140"
+purpose = "Copies 16 bytes from DAT_089CBD04 +0xCA0 to block +0x140."
+confidence = "guess"
+evidence = "The odd loop reduces to this one copy; 'light' is the same reading as 08860848, and the data's meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08860848"
+name = "light_block_load_entry"
+purpose = "Fills one of three entries with a colour-like vec3 at +0, and for mode 0 also a vec3 at +3 and a negated vec3 at +8; reads default tables when block +0x15C is 0, otherwise the object at *DAT_09A4F1A0 +0x334 with stride 0x24."
+confidence = "guess"
+evidence = "08860CB0 turns entry +0xC0 floats into 0-255 colour bytes; three entries with a negated vector suggest lights but no use as a light was read."
+
+[[function]]
+module = "EBOOT"
+address = "08860A04"
+name = "light_block_reset_and_load"
+purpose = "Zeroes the block's 0x150 bytes, stores the id argument at +0x15C and loads all three entries in mode 0."
+confidence = "guess"
+evidence = "Direct code; a task caller passes global DAT_08A62D78 after setting up *DAT_09A4F1A0. 'light' is the same reading as 08860848."
+
+[[function]]
+module = "EBOOT"
+address = "08860A78"
+name = "light_block_set_colors_from_object"
+purpose = "For entries 0 and 1 copies a vec3 from the array at object +0x1DC when that pointer is set; entry 2, or no pointer, reloads from defaults through 08860848 in mode 1."
+confidence = "guess"
+evidence = "Loop shown in code; simpler form of 08860B24. 'light' is the same reading as 08860848."
+
+[[function]]
+module = "EBOOT"
+address = "08860B24"
+name = "light_block_set_colors_for_object"
+purpose = "As light_block_set_colors_from_object, but when block +0x15C is 0xC, 0xE, 0x1C or 0x1E and object +0x614 has mask 0x4000 set, all three entries come from table 089A5D34 instead."
+confidence = "guess"
+evidence = "Branches shown in code; 088DD26C calls it and then writes display list words. 'light' is the same reading as 08860848, and the id values' meaning was not read."

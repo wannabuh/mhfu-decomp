@@ -1,0 +1,143 @@
+[[function]]
+module = "lobby_task"
+address = "09ADBC50"
+name = "npc_group_spawn_for_id"
+purpose = "For the id in param_2 (read by its caller from DAT_089cc558+0x6af0e), allocates 0x510-byte objects, links them into object list 7, adds them to the group param_1, sets +0x1E6, +0x481 and +0x29A and calls vtable +0x10 and +0x14; table entries that pass 09ADC578 each get one, and id 0xD also gets a count from game_sub 09C1B418 and, when game_sub 09C1B4A0 returns 1, one per non-zero byte at DAT_089cc558+0x69BEC (3 entries, stride 0x70)."
+confidence = "inferred"
+evidence = "Three copies of alloc, construct and list 7 link around 09ADB450 (group add); the id indexes the tables 09B0AE68 and 09B0AE80 via table_09ce4808_find_id; ran once around load, longer in guild."
+
+[[function]]
+module = "lobby_task"
+address = "09ADC350"
+name = "npc_group_destroy_all"
+purpose = "For every object in the group's array at +0xC (count +0x5C): clears byte +0x484, frees its first model part and VRAM slot, unlinks it from its object list, calls vtable +8 with 1, frees it from the heap and clears the array slot; then zeroes the count."
+confidence = "inferred"
+evidence = "Doubly linked unlink using +0x1C4, +0x1C8 and list number +0x1C0, then mem_heap_free; the array is the one 09ADB450 fills; callers in lobby_task and game_task in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09ADC508"
+name = "npc_group_get_by_index"
+purpose = "Returns the entry at index param_2 of the array at param_1+0xC, or 0 if the index is negative or not below 0x14."
+confidence = "confirmed"
+evidence = "The whole body is this bounds check and load; 09ADB450 fills the same array with limit 0x14."
+
+[[function]]
+module = "lobby_task"
+address = "09ADC578"
+name = "lobby_spawn_entry_is_enabled"
+purpose = "Returns 1 if entry arg_a1 of the 0x18-byte table for id arg_a2 should get an object, by the entry's first byte: 0x20 and 0x1C never, codes 5, 7, 8 and 0x15 to 0x1D test the id, index, gamedata_bitflag_508 flags and DAT_09CFBCF0+5, other codes always; a null table gives 0; code 7 with id 0x8B also writes 0xFF to *DAT_09B23C20."
+confidence = "inferred"
+evidence = "Its only traced caller 09ADBC50 spawns when the result is 1; the branches are read directly, what the codes mean is not known."
+
+[[function]]
+module = "lobby_task"
+address = "09ADCA98"
+name = "item_box_menu_open"
+purpose = "Plays 2D sound 0x23, stores param_2 in mode byte +0x34 and sets the menu's state function at +0x24 to the init state 09ADCB48."
+confidence = "inferred"
+evidence = "Sets the first state of the state machine whose run state dispatches the item box tabs; ran once in shops and misc."
+
+[[function]]
+module = "lobby_task"
+address = "09ADCB40"
+name = "item_box_menu_call_state_fn"
+purpose = "Thunk that calls member_fn_call on its argument and returns the result."
+confidence = "inferred"
+evidence = "One-line body; ran every frame the item box menu states ran, from 09A7A678 in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09ADCB48"
+name = "item_box_menu_state_init_focus_camera"
+purpose = "Clears the menu's cursor and state fields, clears HUD flag mask 0x4 at +0x5E8 and sets HUD +0x5FC to 0, +0x5FE to 5 and +0x5FF to 0xFF, sets the camera focus with camera_set_focus_target when mode byte +0x34 is 0, sets +0x60 to 1, recomputes the active hunter's skills, moves to state 09ADCCD0 and returns 1."
+confidence = "inferred"
+evidence = "Installed by 09ADCA98 and installs 09ADCCD0; ran once in shops and misc."
+
+[[function]]
+module = "lobby_task"
+address = "09ADCCD0"
+name = "item_box_menu_state_run"
+purpose = "Per-frame menu state: button mask 0x8 (when mode byte +0x34 is 0) toggles the panel flag +0x60 with sounds and camera +0xAA9, and input is dropped while it is 0; in +0x38 state 0 moves cursor +0x36 over 6 tabs and mask 0x4000 enters a tab, refusing tab 3 when the mode byte is set; in +0x38 state 1 calls tab handler 09ADD170, 09ADD9B8, 09ADEC30, 09ADF750, 09AE2D00 or 09AE30F0 and mask 0x2000 returned from it goes back; mask 0x2000 at the tab list moves to the close state 09ADD110; always calls the draw 09AE38F8 and returns 1."
+confidence = "inferred"
+evidence = "Runs throughout the menu in shops and misc; tabs 0 to 2 are store, take and combine by their handlers, tab 3 holds the equipment change."
+
+[[function]]
+module = "lobby_task"
+address = "09ADD110"
+name = "item_box_menu_state_close"
+purpose = "Ends the camera focus with camera_end_focus_target when mode byte +0x34 is 0, plays 2D sound 0x14 and returns 0."
+confidence = "inferred"
+evidence = "Installed by 09ADCCD0 on mask 0x2000 at the tab list; ran once at the end of the menu in shops and misc, matching the focus set in 09ADCB48."
+
+[[function]]
+module = "lobby_task"
+address = "09ADD170"
+name = "item_box_menu_tab_store_pouch_items"
+purpose = "Tab 0 handler: picks a stored pouch slot (DAT_089cc558+0x43C8, 0x18 slots, cursor +0x46) and on mask 0x4000 moves the whole stack, or after mask 0x1000 when +0xA0 is 1 a chosen count +0x58, into the box with item_box_add, keeping what did not fit, refreshing the active pouch and showing a result message state; mask 1 opens a yes/no prompt that on yes calls EBOOT 088292AC and refreshes the pouch; returns the buttons left unconsumed."
+confidence = "inferred"
+evidence = "Subtracts the slot count by what item_box_add accepted; offset 0x4A0+0x3F28 is the stored pouch named by pouch_copy_stored_43c8_to_active; ran only in shops and misc item box sessions."
+
+[[function]]
+module = "lobby_task"
+address = "09ADD9B8"
+name = "item_box_menu_tab_take_to_pouch"
+purpose = "Tab 1 handler, states +0x39: 0 picks a box slot (DAT_089cc558+0x3428, cursor +0x40), going straight to quantity if the pouch has that item, refusing at its limit from item table 0899D2BB and moving one if 09AE7F80 returns 0; 1 picks a pouch slot; 2 chooses count +0x58 and moves it, or to state 3 if the slot holds a different item; 3 is a yes/no that swaps, returning the old stack to the box with item_box_add; 4 shows the result; each move refreshes the active pouch."
+confidence = "inferred"
+evidence = "Moves counts from slot table 0x2F88 to 0x3F28, the box and the stored pouch; ran only in shops 2060-2090."
+
+[[function]]
+module = "lobby_task"
+address = "09ADEC30"
+name = "item_box_menu_tab_combine_items"
+purpose = "Tab 2 handler, states +0x39: picks two box items checked by 09ADF5F8 and 09ADF6B8, then when _DAT_08a62d94 has mask 0x4000, +0x47 is 0 and +0x60 is 1 calls EBOOT 0885B82C for a result item and count and 0885BB00 for each ingredient, waits +0x9C frames, adds the result to the box with item_box_add, using item 0x9B count 1 and sound 0x18F9 when the result is below 1, then waits for input to repeat or return."
+confidence = "inferred"
+evidence = "Two ingredients in and one result with a failure item out, consuming item box stacks; ran only in shops 1500-1680; the callees are unnamed, so combining is read from the flow."
+
+[[function]]
+module = "lobby_task"
+address = "09ADF5F8"
+name = "item_box_slot_valid_and_in_table_089a48f0"
+purpose = "Returns 1 if table_89a48f0_any_entry_for_id finds entries for item param_2 with param_3, and either the box slot index param_1 is 0xFFFF or that box slot has a non-zero count of that item."
+confidence = "inferred"
+evidence = "Body read directly; the box meaning comes from the slot table at 0x4A0+0x2F88 used with item_box_find_slot in 09ADEC30."
+
+[[function]]
+module = "lobby_task"
+address = "09ADF750"
+name = "item_box_menu_tab3_submenu_dispatch"
+purpose = "Tab 3 handler: in +0x39 state 0 moves cursor +0x37 over the 09AEE378 count and on mask 0x4000 enters the entry, refusing kinds 4 and 5 when 09AEE420(2,5) or (3,5) returns 0, recomputing skills for kind 0 and setting HUD hints for kinds 1 to 3; in state 1 calls the handler given by table 09B0AED0 at row 09AEE3D0 (09ADFC30, 09AE11C8, 09AE0350, 09AE1540, 09AE19D8, 09AE1E58), and mask 0x2000 returned from it goes back to state 0."
+confidence = "inferred"
+evidence = "The switch on table 09B0AED0 with six handlers; kind 0 is the equipment change 09ADFC30, the others were not read; ran in misc and shops."
+
+[[function]]
+module = "lobby_task"
+address = "09ADFC30"
+name = "item_box_menu_equipment_change"
+purpose = "Tab 3 kind 0 handler: state +0x3A 0 browses equipment box entries (0xC bytes from DAT_089cc558+0x548, cursor +0x42), comparing with the equipped entry of the same type from DAT_089cc558+0x44C0 to 0x44CA, refusing type 5 or 6 when already equipped and entries whose data byte +4 lacks the masks chosen by DAT_089cc558+0x4B3 and the type of the 0x44C0 entry; state 1 confirms and calls equip_set_equipped_box_index, or 09AE9C50 to remove when the entry is the equipped one, then calls 09AA1538; state 2 polls 09A7CAA8 until it returns 0, calls 09AA16E8 and returns to state 0."
+confidence = "inferred"
+evidence = "Calls equip_get_data_entry and equip_set_equipped_box_index; HUD panel via menu_equipment_panel_page_count; ran in misc and shops."
+
+[[function]]
+module = "lobby_task"
+address = "09AE38F8"
+name = "item_box_menu_draw"
+purpose = "Sets HUD +0x534 to 10, text draw list 1 and the 2D UI render state; when panel flag +0x60 is 0 draws only 09AE6798(1); otherwise, when HUD flag mask 0x4 is set, draws the hint panel and a blinking sprite unless +0x5D is 1, then draws the current tab with 09AE3AB8, 09AE3C40, 09AE3E30, 09AE4B80, 09AE63F0 or 09AE6558 in +0x38 state 1, or the tab list 09AE66F0 in state 0."
+confidence = "inferred"
+evidence = "Called each frame by 09ADCCD0; its switch on +0x36 matches the tab handlers' switch there."
+
+[[function]]
+module = "lobby_task"
+address = "09AE3AB8"
+name = "item_box_menu_draw_tab_store"
+purpose = "Draws tab 0 by state: +0x39 1 draws the box list with 09AEC7A0; +0x39 0 draws the quantity panel 09AE7B40 when +0x3A is 1, the prompt 09AE6BC0 when +0x5F is set, or the icon label, 09AE6CA8 and, when +0xA0 is 1 and +0x5D is 0, a sprite with a number; then the pouch list and tab list 09AE66F0(1)."
+confidence = "inferred"
+evidence = "Same state bytes as the store handler 09ADD170; slot 0 of the switch in 09AE38F8; ran in the same frames as the handler."
+
+[[function]]
+module = "lobby_task"
+address = "09AE3C40"
+name = "item_box_menu_draw_tab_take"
+purpose = "Draws tab 1 by state +0x39: always the box list 09AEC7A0, with the prompt 09AE6BC0 in state 3 or while +0x5F is set, the quantity panel 09AE7B40 in state 2, the 09AE6CA8 panel in state 1, and in state 0 with +0x5D and +0x5F clear 09AE7860 and an icon label; then the pouch list except in state 0."
+confidence = "inferred"
+evidence = "Same state bytes as the take handler 09ADD9B8; slot 1 of the switch in 09AE38F8; ran only in shops 2060-2090, like the handler."

@@ -1,0 +1,183 @@
+[[function]]
+module = "lobby_task"
+address = "09A89598"
+name = "quest_menu_build_tier_lists_mode_0_1"
+purpose = "Clears the menu's list counts and id arrays, copies each of 9 tier lists from table 089b1fdc into +0x80 (stride 0xA0) keeping ids 09A8A878 does not rule out, sets the +0x8a0 mark for tiers with nothing left to pick (this draws RNG), and sets the pending quest id +0x8c8/+0x620 with +0x8ca and +0x8c3 from the current tier's table 089b2034 state and hard-coded ids."
+confidence = "inferred"
+evidence = "Called from 09A863D0 when +0x69 is 0 or 1; quest_id_flag_test on the same ids; 09A8C068 draws the +0x8a0 mark per row."
+
+[[function]]
+module = "lobby_task"
+address = "09A89EC0"
+name = "quest_tier_pick_unflagged_from_table_089b1fb0"
+purpose = "From a random start, walks tier list param_2 (table 089b1fdc if +0x69 is below 2, else 089b1fb0) with wraparound and returns the first id with quest_id_flag_test 0, not in the 09A8A1D0 set, and (when param_3 is 0) not ruled out by 09A8A878; returns 0 if none or the tier is -1."
+confidence = "inferred"
+evidence = "Body read: math_rng_next start, wrap loop, quest_id_flag_test; no guard for an empty list before the modulo."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A050"
+name = "quest_tier_pick_unflagged_from_table_089b2008"
+purpose = "Same random-start walk over the second table family (089b2034 if +0x69 is below 2, else 089b2008), without the 09A8A1D0 exclusion and returning 0 for an empty list: returns the first id with quest_id_flag_test 0 and, when param_3 is 0, not ruled out by 09A8A878."
+confidence = "inferred"
+evidence = "Body read; 09A89598 uses a 0 result from both param_3 values to set the tier's hard-coded quest id."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A1D0"
+name = "quest_id_in_hardcoded_skip_set"
+purpose = "Returns 1 if the id is one of a fixed set (0xFA1-0xFA7, 0x2778, 0x27DB, 0x283E, 0x28A1, 0x2905, 0x290D, 0x2AFD, 0x2B63, 0x2BC1, 0x2BD9 and others), else 0."
+confidence = "inferred"
+evidence = "Comparison chain; 09A89EC0 skips ids for which it returns nonzero after quest_id_flag_test."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A490"
+name = "quest_menu_load_entry_for_field_6b_if_changed"
+purpose = "Maps byte +0x6b through table 09b04a6a (or 09b04a68 when it equals a limit set by +0x69) to an id and, if that differs from +0x7c, calls DAT_089cc554 vtable +0x34 with the id and buffer +0x70, then stores the id in +0x7c."
+confidence = "guess"
+evidence = "Change-guarded virtual call with a buffer allocated in 09A863D0; that it loads data is not read from the callee."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A5B0"
+name = "quest_info_get_text_ptr"
+purpose = "Returns entry param_2 of the pointer array at +0x14 of the static quest record 09b04040, ignoring param_1."
+confidence = "inferred"
+evidence = "09A87E08 returns 09b04040; 09A8CB40 prints the returned values as text."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A878"
+name = "quest_id_availability_check"
+purpose = "For each listed quest id tests progress conditions (f_game_sub_9C19680, sometimes also gamedata_bitflag_508_test): returns 0 when they hold, 1 when they do not (always 1 for 0xCA1), and 2 for an id with no rule."
+confidence = "inferred"
+evidence = "Long id chain ending in return 2; callers keep an id when the result is not 1."
+
+[[function]]
+module = "lobby_task"
+address = "09A8BF30"
+name = "quest_menu_draw_for_state"
+purpose = "Dispatches on menu state +0x66: for 9, 6 or 0x10, or 3 it sets up 2D text state and calls 09A8DCC0, 09A8CB40 or 09A8C068 respectively; other states draw nothing."
+confidence = "inferred"
+evidence = "Switch on +0x66, the same byte 09A863D0 switches on; drawing setup calls."
+
+[[function]]
+module = "lobby_task"
+address = "09A8C068"
+name = "quest_menu_draw_tier_list"
+purpose = "Draws one row per tier for the current +0x69 mode with the +0x62 row highlighted and offset, a mark colored by the per-mode arrays starting at +0x8a0 and +0x8ad, and trailing rows whose text and color depend on +0x8ca and progress checks."
+confidence = "inferred"
+evidence = "Row loop to 09A87B90's count, hud_draw_sprite_stretched and text_print_with_shadow; cursor +0x62."
+
+[[function]]
+module = "lobby_task"
+address = "09A8CB40"
+name = "quest_menu_draw_detail_page"
+purpose = "Draws the static quest record 09b04040's details for page +0x6a (0, 1 or 2): frame, a mark if the record's id is flagged, category label, list position counter, labels, numeric fields +4 and +8, time +0x10 divided by 0x708 as minutes, and a glyph repeated by count +0x1a."
+confidence = "inferred"
+evidence = "Reads record fields and 09A8A5B0 text; 0x708 is 60 seconds at 30 fps; called for states 6 and 0x10."
+
+[[function]]
+module = "lobby_task"
+address = "09A8D978"
+name = "quest_menu_draw_detail_frame"
+purpose = "Draws the detail page's background sprite, tile rows from 09A8DB10, the 09A8DC58 sprite, a dim rectangle, a sprite blinking on frame-counter mask 0x10, and, when 09A7C0A8 is 0, a dim box plus pulsing end caps if the +0x5a tier list has more than one entry."
+confidence = "inferred"
+evidence = "Called from 09A8CB40 before the text; hud_* calls read directly."
+
+[[function]]
+module = "lobby_task"
+address = "09A8DB10"
+name = "quest_menu_draw_category_tile_rows"
+purpose = "Draws 8 half-alpha stretched tiles in each of two rows using a sprite picked by the category value (5 treated as 2; category 2 alternates between two sprites)."
+confidence = "inferred"
+evidence = "Argument is 09A885C8's classification of record flags; loop to 8 with two hud_draw_sprite_stretched_rgba calls."
+
+[[function]]
+module = "lobby_task"
+address = "09A8DC58"
+name = "quest_menu_draw_sprite_for_field_1c"
+purpose = "Draws one half-alpha stretched sprite chosen from table 09b04a80 by the quest record's byte +0x1c."
+confidence = "inferred"
+evidence = "Single hud_draw_sprite_stretched_rgba; 09A8D978 passes record +0x1c."
+
+[[function]]
+module = "lobby_task"
+address = "09A8E250"
+name = "quest_menu_field_69_below_2"
+purpose = "Returns 1 if byte +0x69 is below 2, else 0."
+confidence = "inferred"
+evidence = "One-line body; callers are quest menu code choosing tables and behaviour by it."
+
+[[function]]
+module = "lobby_task"
+address = "09A95890"
+name = "npc_talk_begin_for_target_type"
+purpose = "Clears talk fields +0x2c..+0x3f and, unless target type +0x480 is 0x1D with +0x1c set, sets +8, picks talk state 5 or 6 from target byte +0x299 (6 for 0x70 or 0x71), calls 09ABD4B8 and the type handler 09A95AA8, then per type focuses the camera on the target and may call 09ABE4A8 or prepare dialogue state 0xE."
+confidence = "inferred"
+evidence = "camera_set_focus_target on the object; same fields set in 09A95D08, whose dialogue is run by 09A9F1C0."
+
+[[function]]
+module = "lobby_task"
+address = "09A95A38"
+name = "npc_talk_rerun_type_handlers_keep_state"
+purpose = "Clears target +0x484, reruns type handler 09A95AA8 and line selection 09A95D90 with param 1 while preserving words +0 and +4, then zeroes halfword +0x3c."
+confidence = "inferred"
+evidence = "Saves and restores words 0 and 1 around both calls."
+
+[[function]]
+module = "lobby_task"
+address = "09A95AA8"
+name = "npc_type_handler_dispatch"
+purpose = "Calls the per-type handler selected by the talk target's byte +0x480, passing only the talk context; types 9-0xC, 0x13, 0x14, 0x1C, 0x1D have none."
+confidence = "inferred"
+evidence = "Switch on +0x480 with handlers that call 09A960B8; what each handler sets up is not read here."
+
+[[function]]
+module = "lobby_task"
+address = "09A95D08"
+name = "npc_talk_open_dialogue"
+purpose = "Resets talk fields +0x34, +0x38, +0x3c, fills +0x2c, +0x3b and +0x3e for the target's type, calls sound helper 09A7BB50 with 0xC, selects a line through 09A95D90 with param 0, and sets target +0x483 to 1 if it was 0."
+confidence = "inferred"
+evidence = "09A960D8 calls it at step 0 before running 09A9F1C0, which drives dialogue_text_typewriter_update from these fields."
+
+[[function]]
+module = "lobby_task"
+address = "09A95D90"
+name = "npc_dialogue_select_line_by_type"
+purpose = "Dispatches on target type +0x480 to a type-specific line selector, passing param_3 on most, and falls to the table lookup 09A95FE8 for types without one."
+confidence = "inferred"
+evidence = "If-chain on +0x480; default is 09A95FE8, which sets +0x3c; the selectors themselves are not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A95FE8"
+name = "npc_dialogue_select_line_from_condition_table"
+purpose = "Finds the target type's table in 09b063a0 and scans its 3-short entries up to 100 until the -1 terminator or f_overlay_9C19180 returns 1, then sets +0x3c to the entry's second short if target +0x483 is 0 or else its third; sets +0x3c to 0 at the limit, and also +0x2c to 0 when the type has no table."
+confidence = "inferred"
+evidence = "Table walk read directly; +0x3c is the id 09A9F1C0 passes to the text lookups."
+
+[[function]]
+module = "lobby_task"
+address = "09A960B8"
+name = "npc_talk_set_state_0x24_action"
+purpose = "Sets talk state word +0 to 0x24, word +4 to the given action id, and clears bytes +0x14 to +0x17."
+confidence = "inferred"
+evidence = "Called by type handlers; 09A960D8 switches on word +4 and steps on byte +0x14."
+
+[[function]]
+module = "lobby_task"
+address = "09A960D8"
+name = "npc_talk_update_run_end_action"
+purpose = "Runs the local hunter's talk with target +0x2f4 (closing if there is none): opens dialogue, steps 09A9F1C0, and when that returns 0 or 3 applies the action in word +4, which can set game flags, add zenny, give items after a room check, take pouch items or start further talk steps, then ends the talk and draws 09A98388."
+confidence = "inferred"
+evidence = "gamedata_bitflag_508_set, gamedata_add_zenny_clamped 0x5DC, 09A9F988 item room checks."
+
+[[function]]
+module = "lobby_task"
+address = "09A98388"
+name = "npc_talk_draw_action_0x53_item_window"
+purpose = "When action word +4 is 0x53 and counter +0x34 is negative or above 0x7F, draws a window and, if item +0x12da4 has a nonzero sum of +0x12da6 and +0x12da8, its name, icon and a value from item byte 0899d2ba, passing a tint chosen by whether the sum reaches the target's required count."
+confidence = "inferred"
+evidence = "pack_entry_section_2 and menu_draw_item_icon_weapon_check on the id; 09A960D8 uses +0x12da6 with pouch add count."

@@ -1,0 +1,303 @@
+[[function]]
+module = "game_sub"
+address = "09C2EA58"
+name = "class_089bdf10_create_type_10"
+purpose = "Allocates and zeroes a 0x340-byte object on the manager heap, gives it vtable 089bdf10, sets +0x20 to the manager's next serial with 0x10 in the top byte, and stores the asset tables +0x19040/+0x190a0/+0x19460 in the object at +0x2c/+0x34/+0x30; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable and id write read in the code; 09C56FB8 only stores three pointers."
+
+[[function]]
+module = "game_sub"
+address = "09C2EB90"
+name = "class_089bdf38_create_type_11"
+purpose = "Allocates and zeroes a 0x1C0-byte object on the manager heap, gives it vtable 089bdf38, clears byte +0x1a2 and sets +0x20 to the next serial with 0x11 in the top byte; unlike its neighbours it stores no asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Same factory shape without the 09C56FB8 call; ran only in fight2 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C2ECA0"
+name = "class_089bdf60_create_type_12"
+purpose = "Allocates and zeroes a 0x2D0-byte object on the manager heap, gives it vtable 089bdf60, copies the vec3 at DAT_09a5f254 to both +0xb0 and +0xbc, sets +0x20 to the next serial with 0x12 in the top byte and stores the asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable, vec3 copies and id write read in the code; ran only in fight1 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C2EE18"
+name = "class_089bdf88_create_type_13"
+purpose = "Allocates and zeroes a 0x60-byte object on the manager heap, gives it vtable 089bdf88, sets +0x20 to the next serial with 0x13 in the top byte and stores the asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable and id write read in the code."
+
+[[function]]
+module = "game_sub"
+address = "09C2EF50"
+name = "class_089bdfb0_create_type_14"
+purpose = "Allocates and zeroes a 0x300-byte object on the manager heap, gives it vtable 089bdfb0, sets +0x20 to the next serial with 0x14 in the top byte and stores the asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable and id write read in the code."
+
+[[function]]
+module = "game_sub"
+address = "09C309E0"
+name = "class_089be208_create_type_29"
+purpose = "Allocates and zeroes a 0x370-byte object on the manager heap, gives it vtable 089be208, sets +0x20 to the next serial with 0x29 in the top byte and stores the asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable and id write read in the code; ran only in fight2 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C30B18"
+name = "class_089be230_create_type_2a_count_09d1a1b8"
+purpose = "Allocates and zeroes a 0xC0-byte object on the manager heap, gives it vtable 089be230, increments the byte counter DAT_09d1a1b8, sets +0x20 to the next serial with 0x2A in the top byte and stores the asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation, vtable, counter and id write read in the code; ran in misc and shops at about frame 1100."
+
+[[function]]
+module = "game_sub"
+address = "09C30D98"
+name = "class_089bb194_create_type_2c"
+purpose = "Allocates and zeroes a 0xD0-byte object on the manager heap, constructs it with lobby_task 09AF2600 (which sets vtable 089bb194), frees it if that returns 0, and sets +0x20 to the next serial with 0x2C in the top byte; stores no asset tables; returns the object or 0."
+confidence = "inferred"
+evidence = "Factory shape with the lobby_task constructor; vtable read from 09AF2600; caller is lobby_task 09AF2700 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C337F0"
+name = "entity_manager_alloc_element_run"
+purpose = "Finds param_2 consecutive free bytes in a usage map and marks them param_3 | 0x80, resetting each matching 0x30-byte element with 09C56EA8; param_4 == 1 selects the 0x52-element pool at +0x19bc0 (map +0x19a60), otherwise the 0x100-element pool at +0x1ab20 (map +0x19ab2); returns the first element or 0."
+confidence = "inferred"
+evidence = "Run search and element stride read in the code; the entity_manager prefix comes from the layout shared with the factories."
+
+[[function]]
+module = "game_sub"
+address = "09C33970"
+name = "entity_manager_free_element_run"
+purpose = "Locates element param_2 in either the 0x52 or the 0x100 pool, then clears the usage byte and resets with 09C56EA8 each of the param_3 elements from it; a pointer in neither pool is not checked, and the code then runs with index -1 and unset registers."
+confidence = "inferred"
+evidence = "Mirrors 09C337F0's pool addresses and stride; the prefix is inferred from that layout."
+
+[[function]]
+module = "game_sub"
+address = "09C33A80"
+name = "entity_manager_list_19030_get_nth"
+purpose = "Returns the param_2-th node of the singly linked list with head at +0x19030 and next pointer at node +4, or 0 if param_2 is at least the count at +0x19034 or the list ends first; a param_2 of 0 or below returns the head."
+confidence = "inferred"
+evidence = "List walk read in the code; the prefix is inferred from the +0x19xxx manager layout."
+
+[[function]]
+module = "game_sub"
+address = "09C33AD8"
+name = "entity_manager_load_assets_refcounted"
+purpose = "For asset slot param_3: if its count at +0x19490 is 0, builds the model instance (+0x194a0, offset table entry 5), skeleton (+0x19520, entry 4, with initial pose) and texture set (+0x19a20, entry 6) from param_2, allocating from the heap at +0x19004, and sets the count to 1 if any entry exists; otherwise only increments the count."
+confidence = "inferred"
+evidence = "Named model, skeleton and texture calls; released by 09C33FE0 using the same tables."
+
+[[function]]
+module = "game_sub"
+address = "09C33D48"
+name = "skeleton_build_from_data"
+purpose = "Constructs the bones in buffer param_3 (0x250 each, vtable 089bac28) from skeleton data param_2, resolves each bone's three index links to pointers at +0x144/+0x14c/+0x148, records the maximum bone field 0x50 plus one at +0x122 and the data's root list at +0x110 (count +0x120), then computes inverse bind matrices for each root tree from the inverse of scale arg_f12..arg_f14."
+confidence = "inferred"
+evidence = "bone_init_from_data and bone_compute_inverse_bind_tree calls; the header's top bit reduces the bone count by one."
+
+[[function]]
+module = "game_sub"
+address = "09C33FE0"
+name = "entity_manager_release_assets_refcounted"
+purpose = "Decrements asset slot param_2's count at +0x19490 unless it is 0; when it reaches 0 frees the model, skeleton and texture buffers and zeroes the slot's three records."
+confidence = "inferred"
+evidence = "Uses the same tables as 09C33AD8; game_task caller in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C34118"
+name = "entity_manager_load_assets_base_table"
+purpose = "Builds, without reference counting, slot param_3's model instance (+0x19040, offset table entry 1), skeleton (+0x190a0, entry 0, with initial pose) and texture set (+0x19460, entry 2) from param_2, allocating from the heap at +0x19004."
+confidence = "inferred"
+evidence = "These are the tables the factories store with 09C56FB8; ran during loads from game_task and lobby_task callers."
+
+[[function]]
+module = "game_sub"
+address = "09C34350"
+name = "map_id_byte_to_table_09cd3488_index"
+purpose = "Maps an id byte to a small index: 0x57, 0x43, 0x49, 0x42, 0x37, 0x56, 0x30 give 7; 0x22, 0x08 give 6; 0x38, 0x18, 0x50, 0x13 give 2; anything else gives 0."
+confidence = "inferred"
+evidence = "Mapping read in the code; 09C7C028 passes its byte +0x40 and indexes 4-byte table DAT_09cd3488 with the result; what the ids mean is unread."
+
+[[function]]
+module = "game_sub"
+address = "09C34420"
+name = "game_6af0e_lookup_table_09cd34a8_word"
+purpose = "Writes to *arg_a1 the word of table DAT_09cd34a8 selected by the byte of DAT_09cd3378 indexed with the game global's halfword +0x6af0e."
+confidence = "confirmed"
+evidence = "The whole body is this double table lookup; the name states mechanics only."
+
+[[function]]
+module = "game_sub"
+address = "09C345D8"
+name = "math_capsule_prepare_derived"
+purpose = "Copies a capsule (ends +0x00 and +0x10, radius +0x20) to param_2 and adds the axis end2 - end1 at +0x30, the midpoint at +0x40 and the bounding sphere radius (half length + radius) at +0x50."
+confidence = "inferred"
+evidence = "Vector ops read in the code; the capsule layout comes from 09C37898 and the use of the fields in 09C35E88."
+
+[[function]]
+module = "game_sub"
+address = "09C34688"
+name = "math_points_within_radius"
+purpose = "Returns whether the squared distance between vec3 param_1 and vec3 param_2 is at most arg_f12 squared."
+confidence = "confirmed"
+evidence = "The whole body is this comparison."
+
+[[function]]
+module = "game_sub"
+address = "09C346D0"
+name = "math_spheres_overlap"
+purpose = "Returns whether the squared distance between centres param_1 and param_2 is at most the square of arg_f12 + arg_f13."
+confidence = "confirmed"
+evidence = "The whole body is this comparison."
+
+[[function]]
+module = "game_sub"
+address = "09C34718"
+name = "math_spheres_contact_point"
+purpose = "If centres param_1 (radius arg_f12) and param_2 (radius arg_f13) are within the sum of the radii, writes to param_3 the point at distance arg_f13 from param_2 towards param_1 (or param_2 itself if the distance is at most 0.001) and returns 1; otherwise returns 0."
+confidence = "confirmed"
+evidence = "The whole body is this vector calculation."
+
+[[function]]
+module = "game_sub"
+address = "09C347C8"
+name = "math_spheres_push_vector"
+purpose = "If centres param_1 (radius arg_f12) and param_2 (radius arg_f13) are within the sum of the radii, writes to param_3 the vector from param_2 towards param_1 with length equal to the overlap and the overlap to *param_4 (both zero if the distance is at most 0.001) and returns 1; otherwise returns 0."
+confidence = "confirmed"
+evidence = "The whole body is this vector calculation."
+
+[[function]]
+module = "game_sub"
+address = "09C35890"
+name = "math_closest_point_on_segment"
+purpose = "Writes to param_1 the point of segment param_2..param_3 closest to param_4 (param_2 if the squared length is under 0.001) and returns the distance from it to param_4."
+confidence = "confirmed"
+evidence = "Clamped projection read in the code."
+
+[[function]]
+module = "game_sub"
+address = "09C35E88"
+name = "math_capsule_sphere_push_vector"
+purpose = "Tests a prepared capsule (from 09C345D8) against sphere param_2 of radius arg_f12; on overlap writes to param_3 a vector pointing from the sphere towards the capsule's axis or nearer end with length equal to the overlap, writes the overlap to *param_4 and returns 1; otherwise returns 0."
+confidence = "inferred"
+evidence = "Bounding sphere test, side and end cases read in the code; callers subtract the vector to push the point away."
+
+[[function]]
+module = "game_sub"
+address = "09C36238"
+name = "math_capsule_sphere_contact_point"
+purpose = "Tests a prepared capsule (from 09C345D8) against sphere param_2 of radius arg_f12; on overlap writes to param_3 the point on the sphere's surface towards the capsule's axis or nearer end and returns 1; otherwise returns 0."
+confidence = "inferred"
+evidence = "Same case structure as 09C35E88, with the output being centre + direction * radius."
+
+[[function]]
+module = "game_sub"
+address = "09C367C0"
+name = "math_point_in_y_cylinder"
+purpose = "Returns whether point param_1 is within XZ distance arg_f12 of param_2 and, only when arg_f13 > 0, has Y between param_2.y + arg_f14 and param_2.y + arg_f13."
+confidence = "confirmed"
+evidence = "The whole body is this comparison."
+
+[[function]]
+module = "game_sub"
+address = "09C369D0"
+name = "math_capsule_plane_crossing"
+purpose = "Returns 1 and writes the crossing point to param_1 when capsule param_2's two ends lie on opposite sides of the plane through param_3 with normal param_4; otherwise returns 0, but if the end nearer the plane is within the capsule radius it first writes that end minus normal * absolute distance to param_1."
+confidence = "inferred"
+evidence = "Signed distances and interpolation read in the code; capsule layout as in 09C37898."
+
+[[function]]
+module = "game_sub"
+address = "09C36BA8"
+name = "camera_sweep_get_moved_distance"
+purpose = "Calls 09C3A920 with copies of param_4 and param_3, output param_3, mask 0x8001 and 30.0; writes to *param_2 the distance param_3 moved, or 0 if the call returned below 1."
+confidence = "inferred"
+evidence = "Caller camera_hunt_controller in traces; 09C3A920's test itself was only skimmed, so its meaning is not stated."
+
+[[function]]
+module = "game_sub"
+address = "09C36D30"
+name = "camera_push_position_out_of_entity_shapes"
+purpose = "For each of the 0x14 objects at DAT_09c122b0+0x1220 with flags mask 0x4 clear and +0x29a matching the game's +0x6af0e, tests its enabled shape records against a sphere of radius 30.0 at param_2, combining the push vectors per axis; if the result is nonzero, moves param_2 by it and raises its Y to at least 09C3DB00's return value + 10."
+confidence = "inferred"
+evidence = "Caller camera_hunt_controller in traces; uses 09C37898, 09C347C8 and 09C35E88 on the table at DAT_09bb8b00 indexed by byte +0x1e8."
+
+[[function]]
+module = "game_sub"
+address = "09C375D8"
+name = "hunter_update_collision_spheres"
+purpose = "From bone translations, with the bone array at +0x190, computes the midpoint of bones 5 and 8 and the position of bone 20, offsets each towards the other by arg_f12 along the line between them, and stores them as sphere centres at +0x4a0 and +0x4c0 with radius arg_f12 at +0x4b0 and +0x4d0."
+confidence = "inferred"
+evidence = "Caller hunter_state_run in traces; 09C38030 and 09C42750 test shapes against +0x4a0; bone numbers follow from the 0x250 stride with matrix at +0xd0."
+
+[[function]]
+module = "game_sub"
+address = "09C37818"
+name = "math_vec4_copy"
+purpose = "Copies four words from param_2 to param_1."
+confidence = "confirmed"
+evidence = "The whole body is this copy."
+
+[[function]]
+module = "game_sub"
+address = "09C37828"
+name = "math_vec3_dot"
+purpose = "Returns the dot product of vec3 param_1 and vec3 param_2."
+confidence = "confirmed"
+evidence = "The whole body is vdot_t."
+
+[[function]]
+module = "game_sub"
+address = "09C37850"
+name = "math_vec3_cross"
+purpose = "Writes the cross product of param_2 and param_3 to param_1 with w set to zero."
+confidence = "confirmed"
+evidence = "The whole body is vcrsp_t with a zero w."
+
+[[function]]
+module = "game_sub"
+address = "09C37868"
+name = "math_vec3_normalize"
+purpose = "Writes param_2 scaled to unit length to param_1, keeping param_2's w; the inverse length goes through a VFPU conditional move with zero as its alternative."
+confidence = "confirmed"
+evidence = "Dot, inverse square root and scale read in the code."
+
+[[function]]
+module = "game_sub"
+address = "09C37898"
+name = "collision_shape_from_bone_record"
+purpose = "Fills param_3 from record param_2 unless its bone id is 0x7f (then writes nothing): kind 1 gives out type 0 with two ends transformed by the bone's matrix at +0x10 and +0x20 and a radius at +0x30; kind 0 gives out type 1 with one centre at +0x10 and a radius at +0x20; any other kind gives out type 5; radii are scaled by object field +0x220."
+confidence = "inferred"
+evidence = "Bone matrix transforms read in the code; callers pass type 1 to sphere tests and other types to capsule tests."
+
+[[function]]
+module = "game_sub"
+address = "09C37A50"
+name = "collision_shape_from_position_record"
+purpose = "Fills param_3 like 09C37898 but without bones or scale: ends or centre are position param_1 plus the record's offsets; kind 1 gives out type 0, kind 0 gives out type 1, any other kind gives out type 5."
+confidence = "inferred"
+evidence = "Same output layout as 09C37898; 09C42750 passes a position such as +0x200 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C37BC0"
+name = "collision_capsule_from_two_points"
+purpose = "Fills param_4 as a type 0 shape with ends copied from param_1 and param_2 (w 1.0) and the radius from record param_3 +0xc."
+confidence = "inferred"
+evidence = "Same output layout as 09C37898; 09C42750 passes its object's +0x40 and +0x50 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C37C68"
+name = "entity_resolve_push_collisions_tick"
+purpose = "Clears +0x410 mask 0x80 on the 0x14 listed objects, then, for the hunter in slot game+0x28 and the one in slot 1 if its +0x1e8 is 0x0C, each with flags mask 0x2 and +0x2ba zero, runs 09C38030 against listed objects with flags mask 0x2, +0x2ba zero and equal +0x29a; finally runs 09C38538 on listed pairs with flags mask 0x2, +0x6db set, +0x2ba zero, equal +0x29a, the first matching the game's +0x6af0e, not both of +0x1e8 type 0x1D, and either one of type 0x1D or both with +0x2bc zero."
+confidence = "inferred"
+evidence = "Caller hunt_tick_objects in traces; 09C38030 moves both objects' +0x200 and sets +0x410 mask 0x80; 09C38538 was not read."

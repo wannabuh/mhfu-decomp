@@ -1,0 +1,263 @@
+[[function]]
+module = "EBOOT"
+address = "08841AB4"
+name = "hud_draw_party_member_row"
+purpose = "Draws one party member's HUD row: banner, colour-coded icon, name, health bar for others, a targeted-by-monster icon, and a status icon that cycles every 20 frames."
+confidence = "inferred"
+evidence = "Takes a hunter; colour table by player index +0x1E6, bar is +0x2E4 / +0x41E in green, skips the bar for the local player, tests monster +0x4BA target bits."
+
+[[function]]
+module = "EBOOT"
+address = "088421C4"
+name = "hud_draw_party_member_second_status_icon"
+purpose = "Cycles through the set bits of a 19-bit status mask from f_EBOOT_88DAEA8 every 20 frames and draws the matching icon at x+0x78 of the party row."
+confidence = "inferred"
+evidence = "Same bit-cycling timer as the row's first status icon, per-player state at +0x548/+0x550, icon table 0893AD28."
+
+[[function]]
+module = "EBOOT"
+address = "088423E0"
+name = "hud_draw_three_slice_banner_d_e_f"
+purpose = "Draws a horizontal bar of width param_4 from sprites 0xD, 0xE, 0xF: left cap, stretched middle, right cap, with the given colour."
+confidence = "inferred"
+evidence = "Cap, stretched middle at x+cap width, cap at x+width-cap width; only caller is the party row."
+
+[[function]]
+module = "EBOOT"
+address = "08842628"
+name = "hud_draw_other_player_nametags"
+purpose = "For each of the 4 player slots other than the local one, projects the position 200 units above the hunter to the screen and draws the player's name centred there if on screen."
+confidence = "inferred"
+evidence = "Loop to 4 skipping local index, +0x200 position with y+200 through a projection call, screen bounds test, string from a per-player 200-byte record."
+
+[[function]]
+module = "EBOOT"
+address = "08842EE8"
+name = "hud_draw_minimap_or_alternate"
+purpose = "Unless hidden, draws the minimap at (0x13C,0x20) with its pulse overlay, or the alternate map view when map mode +0x576 is set."
+confidence = "inferred"
+evidence = "Hide flags +0x1194 bit 4, +0x5DD, +0x5DB; +0x576 picks f_EBOOT_8842F70 or f_EBOOT_8843A7C; the pause menu's square button toggles +0x576."
+
+[[function]]
+module = "EBOOT"
+address = "08842F70"
+name = "hud_draw_minimap"
+purpose = "Draws the map at a position and scale: area circles for tracked monsters, the map texture (whole, or a box around the hunter without a map), a marker for the current area, monster markers and player arrows."
+confidence = "inferred"
+evidence = "152-unit map scaled by map-id table, positions from +0x260/+0x268, loops 20 monsters and 4 players, branches on f_EBOOT_8844654."
+
+[[function]]
+module = "EBOOT"
+address = "08844304"
+name = "hud_draw_minimap_pulse"
+purpose = "When counter +0x577 is nonzero, draws a white effect at (400,0x70) with radius 75.6 over the minimap, passing the counter as its parameter."
+confidence = "guess"
+evidence = "Called right after the minimap; f_EBOOT_8844390 sets +0x577 to 26; the drawn shape is not visible from this code."
+
+[[function]]
+module = "EBOOT"
+address = "08844390"
+name = "minimap_start_monster_pulse"
+purpose = "Sets the minimap pulse counter +0x577 to 26 for a monster the local hunter can detect, unless the pause menu or other HUD-off flags are set."
+confidence = "guess"
+evidence = "Only caller is em20 and only in misc; gated by f_EBOOT_88443EC; the in-game trigger is not known."
+
+[[function]]
+module = "EBOOT"
+address = "088443EC"
+name = "minimap_monster_is_detected"
+purpose = "Returns nonzero if a monster is marked (+0x3D0) or the local hunter, or a type 0xC party member in slot 1, has a detection effect or skill."
+confidence = "inferred"
+evidence = "Same hunter tests (+0x10F6, +0x10F8, +0x62A, f_EBOOT_88DA150 id 6) as the minimap flag update, plus skill query id 0x96."
+
+[[function]]
+module = "EBOOT"
+address = "088444A4"
+name = "minimap_update_detection_flags"
+purpose = "Recomputes minimap byte +0x5E7: bit 2 or 4 from skill query 0x39, and bit 1 if the hunter or slot 1 type 0xC member has a detection effect."
+confidence = "inferred"
+evidence = "Writes +0x5E7 each draw; f_EBOOT_8844578 reads it to decide monster visibility."
+
+[[function]]
+module = "EBOOT"
+address = "08844578"
+name = "minimap_should_show_monster"
+purpose = "Decides whether a monster appears on the current map page, from its table class by type +0x1E8, its mark +0x3D0, and the detection flags +0x5E7."
+confidence = "inferred"
+evidence = "Null and active checks, page match via f_EBOOT_88446CC, returns 0 when only bit 2 of the flags is set; gates the minimap monster loops."
+
+[[function]]
+module = "EBOOT"
+address = "08844654"
+name = "hunter_can_see_full_map"
+purpose = "Returns true if skill query 0x33 gives 0x85, or, with no such skill, if the pouch holds item 0x35F, which is presumably the map."
+confidence = "inferred"
+evidence = "True makes the minimap draw the whole texture, false only a box of +/-20 around the hunter; f_EBOOT_88568AC is the pouch item count."
+
+[[function]]
+module = "EBOOT"
+address = "0884469C"
+name = "minimap_update_current_page"
+purpose = "Stores in minimap +0x578 the map page for the local hunter's current area."
+confidence = "inferred"
+evidence = "Passes hunter +0x29A to f_EBOOT_88446CC and writes +0x578, which selects the page's texture and UVs."
+
+[[function]]
+module = "EBOOT"
+address = "088446CC"
+name = "minimap_page_for_area"
+purpose = "Maps an area id to a map page: on map ids 14 and 15, areas 0x79-0x7B give page 1 and others page 2; every other map gives page 0."
+confidence = "inferred"
+evidence = "Tests current map id at save +0x6AF10 and the area argument; result is compared with +0x578 by all minimap markers."
+
+[[function]]
+module = "EBOOT"
+address = "08844FC8"
+name = "minimap_draw_player_arrow"
+purpose = "Draws a player's rotated arrow at a map position in that player's colour, with a distinct sprite for the local player, plus a signal effect if that player's timer +0x56C is active."
+confidence = "inferred"
+evidence = "Builds a rotation from facing +0x1F4, transforms 4 corners into a quad, sprite 0x92 for local or 0x97 otherwise, colour table by player index."
+
+[[function]]
+module = "EBOOT"
+address = "0884558C"
+name = "minimap_draw_map_texture_region"
+purpose = "Builds and queues a GE display list drawing a textured rectangle of the map, with UVs adjusted for the map page, in opaque or alpha-blended form."
+confidence = "inferred"
+evidence = "Writes GE commands (prim 0x4060002 rectangles, vertex type, texture enable) to the list at DAT_08A62D60+0x80198; halves U and adds 0x4B for page 2."
+
+[[function]]
+module = "EBOOT"
+address = "08845A34"
+name = "hud_draw_item_bar"
+purpose = "Draws the item bar in closed or selector form, then the selected item's name and pouch count, and counts down the bar's scroll timers +0x598 and +0x59A."
+confidence = "inferred"
+evidence = "Hide flag +0x1194 bit 8; hunter +0x614 bit 1 picks the form; reads pouch slot +0x648, item name via f_EBOOT_8851528, stack limit table 0899D2BB."
+
+[[function]]
+module = "EBOOT"
+address = "08845C68"
+name = "hud_draw_item_bar_closed"
+purpose = "Draws the closed item bar: frames, button prompts, the selected item's icon, and when hunter +0x5F3 is 1 an extra panel for the slot at +0x686."
+confidence = "inferred"
+evidence = "The other branch of the item bar, runs in every quest recording; single icon from pouch slot +0x648; +0x686 is plausibly bowgun ammo, not settled here."
+
+[[function]]
+module = "EBOOT"
+address = "08845EA8"
+name = "hud_draw_item_selector_open"
+purpose = "Draws the open item selector: the current item and neighbours along the pouch list, with a sliding animation while scrolling, and the same treatment for the +0x686 slot panel."
+confidence = "confirmed"
+evidence = "Ran only in short windows (kit-items 3610-3650, fight1 5110-5300) while hunter +0x614 bit 1 is set; walks neighbours via f_EBOOT_88D81FC, icons by pouch slot."
+
+[[function]]
+module = "EBOOT"
+address = "08846FAC"
+name = "hud_draw_stacked_button_prompts_33_34"
+purpose = "When HUD flag +0x528 bit 2 is set, draws a panel and two vertically stacked sprites, 0x34 and 0x33, each shifted 2 pixels down while its bit in hunter +0x674 is set."
+confidence = "guess"
+evidence = "The item bar treats +0x674 bits the same way for sprites 0x32, 0x35, 0x36, so these look like held-button prompts; the action they stand for is unknown."
+
+[[function]]
+module = "EBOOT"
+address = "0884706C"
+name = "item_pouch_count_selectable_slots"
+purpose = "Counts the 24 pouch slots with a nonzero item and positive count whose f_EBOOT_885C580 record has byte +1 equal to 1."
+confidence = "inferred"
+evidence = "Loops 0x18 slots through the pouch accessor f_EBOOT_8856884; the count sets how many neighbours the selector shows; the meaning of byte +1 is unread."
+
+[[function]]
+module = "EBOOT"
+address = "0884711C"
+name = "hud_draw_three_slice_panel_21_23"
+purpose = "Draws a panel of width param_4 from sprites 0x21, 0x22, 0x23: left cap, stretched middle, right cap."
+confidence = "inferred"
+evidence = "Cap, stretched middle, cap layout; called only by the two item bar forms."
+
+[[function]]
+module = "EBOOT"
+address = "088476F4"
+name = "supply_box_menu_input"
+purpose = "Handles the quest supply box menu for the local player: cooldowns, circle to close, d-pad over the 8x4 grid, and cross to take the selected item if the pouch can hold it."
+confidence = "inferred"
+evidence = "Grid cursor +0x55D wraps by 8 and 32, cells at save +0x390 with a taken bitset at +0x410, toggles hunter +0x614 bit 2; ran only in fight1 2120-2200."
+
+[[function]]
+module = "EBOOT"
+address = "08847B74"
+name = "supply_box_take_selected_item"
+purpose = "Takes the selected cell: starts a 30-frame cooldown and cursor flash, then offline gives the item, marks the cell taken and starts the fly animation, or online sends a request and waits up to 0x708 frames."
+confidence = "inferred"
+evidence = "Calls f_EBOOT_88D72A4 with the cell's item and count, sets the bit in +0x410; the online flag 0xF7A57C bit 1 branches to f_EBOOT_88AB6D0."
+
+[[function]]
+module = "EBOOT"
+address = "08847CB0"
+name = "supply_box_menu_draw"
+purpose = "When hunter +0x614 bit 2 is set, draws the supply box: title, 32 cell grid with icons of untaken items, the flying item, cursor with flash, and the selected item's name, count and description."
+confidence = "inferred"
+evidence = "Grid at 0xE8+col*0x1C, 0x38+row*0x18 matches the input's cursor; reads save +0x390 and +0x410; item text helpers."
+
+[[function]]
+module = "EBOOT"
+address = "0884853C"
+name = "supply_box_start_item_fly_anim"
+purpose = "Stores the item and cell for the fly animation and sets its duration from the distance between the cell and the target point (232,150)."
+confidence = "inferred"
+evidence = "Writes +0x5A4, +0x5A3, +0x5A1, +0x5A2; the draw code interpolates between the cell and (232,150) using these."
+
+[[function]]
+module = "EBOOT"
+address = "0884860C"
+name = "supply_box_start_cursor_flash"
+purpose = "Starts the 31-frame cursor flash +0x59E and records the selected cell in +0x5A0."
+confidence = "inferred"
+evidence = "Only two writes; the draw code uses +0x59E for an expanding fading cursor."
+
+[[function]]
+module = "EBOOT"
+address = "088487B8"
+name = "hud_draw_item_value_list_overlay"
+purpose = "When hunter +0x614 bit 0x200 is set, draws a two-panel page of up to 10 items with icon, name, unit value and count, plus the list's total value and two amounts from the save; otherwise clears HUD flags in +0x1194."
+confidence = "guess"
+evidence = "Multiplies counts by the item table field 0899D2C8 for a total, reads save +0x696F0 and +0x696E8; the game screen this is, and what those amounts are, is not shown here."
+
+[[function]]
+module = "EBOOT"
+address = "08848D30"
+name = "quest_menu_open"
+purpose = "Opens the in-quest menu: sets menu flag +0x52D and save +0x10, resets its state and cursor, and clears the item selector flag and HUD panels."
+confidence = "inferred"
+evidence = "Exact counterpart of f_EBOOT_88490C8; ran at frame 1940 in small hunts just before the input handler, and is re-entered when backing out of the submenu."
+
+[[function]]
+module = "EBOOT"
+address = "08848E04"
+name = "quest_menu_input"
+purpose = "Handles input for the in-quest menu: moves the cursor over 12 entries, cross enters an entry, circle or start closes, square toggles the map mode, triangle online sends a signal; state 1 runs the submenu."
+confidence = "inferred"
+evidence = "f_EBOOT_881BF80 cursor with limit 0xC, 0x2008 closes, 0x8000 flips +0x576, state +0x57C; ran only frames 1940-1960."
+
+[[function]]
+module = "EBOOT"
+address = "088490C8"
+name = "quest_menu_close"
+purpose = "Closes the in-quest menu: clears menu flag +0x52D, its state, save +0x10 and bit 4 of +0x5E8, and clears HUD flag bits in +0x528."
+confidence = "inferred"
+evidence = "Undoes f_EBOOT_8848D30's writes; called only from the input handler's close paths, ran at frame 1960."
+
+[[function]]
+module = "EBOOT"
+address = "08849404"
+name = "hud_update_top_banner_slide"
+purpose = "Each frame moves slide counter +0x11AC toward 5 while request +0x11AB is set and f_EBOOT_88567B4 returns 1, otherwise back toward 0."
+confidence = "inferred"
+evidence = "Counter stepping with a cap of 5; f_EBOOT_8849478 turns the counter into the banner's y position; the condition itself is unread."
+
+[[function]]
+module = "EBOOT"
+address = "08849478"
+name = "hud_draw_top_message_banner"
+purpose = "When slide counter +0x11AC is nonzero, draws a panel and a centred game message at a y position from the counter, so it slides in from the top."
+confidence = "inferred"
+evidence = "y = (counter-1)*0x22-7, panel, text id DAT_089B56B4 centred on x 0xF0; which message it shows is not visible here."

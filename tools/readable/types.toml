@@ -1,0 +1,138 @@
+# The game's structures: offsets, names and types only, never game code. tools/readable/gen_types.py makes a C header with
+# every offset checked at compile time, and the table the view applies. Types: u8 s8 u16 s16 u32 s32 f32, ptr, ptr:Name,
+# f32x3, f32x4. `size` only where confirmed; unknown spans stay padding, never guessed fields. `span` is how far offsets are
+# known to reach, kept generous: past it the decompiler prints self[1].field_X, which reads wrongly.
+# Every class classes.py finds reaches the view, as Class_<vtable> with field_<offset>; what is here names them. `base` says what a
+# struct's fields start from: a field goes on the highest class it means the same thing for.
+# Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess. `decimal`: a quantity, shown in decimal.
+
+[[struct]]
+name = "Object"
+vtables = ["089BAC64"]
+fields = [
+  { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
+  { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed", note = "bit 0 clears: deleted" },
+  { offset = 0x010, name = "rotation", type = "f32x4", confidence = "confirmed", note = "first row of a 3x3, rows of 4" },
+  { offset = 0x020, name = "rotation_row1", type = "f32x4", confidence = "confirmed" },
+  { offset = 0x030, name = "rotation_row2", type = "f32x4", confidence = "confirmed", note = "its local Z: 09A9E288 pushes the hunter along it" },
+  { offset = 0x040, name = "position", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x1C4, name = "next", type = "ptr", confidence = "confirmed" },
+  { offset = 0x1D4, name = "life_state", type = "u8", confidence = "confirmed", note = "0 alive .. 3" },
+  { offset = 0x200, name = "place", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x210, name = "place_before", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x299, name = "state", type = "u8", confidence = "confirmed" },
+  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred", decimal = true, note = "ticks in its state; monsters' in 60ths" },
+  { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed", note = "member function pointer, 3 words" },
+  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed", decimal = true },
+]
+
+[[struct]]
+name = "HunterBase"
+base = "Object"
+vtables = ["089BAECC"]
+fields = [
+  { offset = 0x1E8, name = "weapon_class", type = "u8", confidence = "confirmed" },
+  { offset = 0x1F4, name = "facing", type = "u32", confidence = "confirmed" },
+  { offset = 0x2E4, name = "health", type = "s16", confidence = "inferred", decimal = true, note = "HUD +0x560 steps toward it; 08841AB4 tests it" },
+  { offset = 0x324, name = "motion_id", type = "u16", confidence = "inferred", note = "part 0's; 088D1DD0 copies it to +0x684" },
+  { offset = 0x41C, name = "health_red_limit", type = "s16", confidence = "inferred", decimal = true, note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
+  { offset = 0x41E, name = "health_max", type = "s16", confidence = "inferred", decimal = true, note = "100 + food + skill, capped at 150" },
+  { offset = 0x55A, name = "stamina", type = "s16", confidence = "confirmed", decimal = true, note = "300 full" },
+  { offset = 0x60C, name = "sharpness_max", type = "s16", confidence = "inferred", decimal = true, note = "current at +0x10F2" },
+  { offset = 0x62E, name = "stamina_max", type = "s16", confidence = "confirmed", decimal = true },
+  { offset = 0x684, name = "motion_id_copy", type = "u16", confidence = "inferred", note = "copy of +0x324 (088D1DD0); docs/testing.md and ratecheck call it the action: its values are the weapons' moves" },
+  { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred", decimal = true },
+]
+
+[[struct]]
+name = "Hunter"
+base = "HunterBase"
+vtables = ["089BB3CC"]
+
+[[struct]]
+name = "HunterLobby"
+base = "HunterBase"
+vtables = ["089BB05C"]
+
+[[struct]]
+name = "Monster"
+base = "Object"
+vtables = ["089BC098"]
+
+[[struct]]
+name = "Npc"
+base = "Object"
+vtables = ["089BB154"]
+
+[[struct]]
+name = "Stage"
+vtables = ["089BADFC"]
+
+# Structures with no vtable, reached through a global: `struct` makes one a class in classes.py. Without, a plain variable.
+[[global]]
+address = "089CC558"
+name = "g_game"
+struct = "GameState"
+
+[[global]]
+address = "089CBD04"
+name = "g_camera"
+struct = "Camera"
+
+[[global]]
+address = "089CBD0C"
+name = "g_hud"
+struct = "HudContext"
+
+[[global]]
+address = "08A632C8"
+name = "g_text"
+struct = "TextSystem"
+
+[[global]]
+address = "08A62EAC"
+name = "g_global_08A62EAC"
+struct = "Global_08A62EAC"
+
+[[global]]
+address = "08A62D9C"
+name = "g_quest"
+struct = "QuestState"
+
+[[global]]
+address = "08A632C0"
+name = "g_global_08A632C0"
+struct = "Global_08A632C0"
+
+[[struct]]
+name = "GameState"
+vtables = ["089CC558"]
+
+[[struct]]
+name = "Camera"
+vtables = ["089CBD04"]
+
+[[struct]]
+name = "HudContext"
+vtables = ["089CBD0C"]
+
+[[struct]]
+name = "TextSystem"
+span = 0x30000
+vtables = ["08A632C8"]
+
+[[struct]]
+name = "Global_08A62EAC"
+span = 0x1000000
+vtables = ["08A62EAC"]
+
+[[struct]]
+name = "QuestState"
+vtables = ["08A62D9C"]
+
+[[struct]]
+name = "Global_08A632C0"
+span = 0x1000000
+vtables = ["08A632C0"]

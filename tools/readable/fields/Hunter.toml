@@ -1,0 +1,1283 @@
+[[field]]
+struct = "Hunter"
+offset = 0xBC
+name = "motion_part0_flags"
+type = "u16"
+confidence = "inferred"
+note = "flags of part 0 motion layer: bit 0 clear means the motion has ended; bit 1 is loop"
+evidence = "motion struct at +0x80 (motion_frame_reached_08864408 is passed &self->field_80); game_task 9A9EAE8 and 9A8FBF0 go to the next step when (BC & 1)==0; EBOOT 8863E70 sets and clears mask 2 at struct +0x3C. Monsters read the same bit (em20): may belong on Object"
+
+[[field]]
+struct = "Hunter"
+offset = 0xBE
+name = "motion_part0_blending"
+type = "s8"
+confidence = "inferred"
+note = "nonzero while the part 0 motion is blending from the old one (1 or 0xFF); frame tests fail then"
+evidence = "EBOOT 8863E70 writes struct +0x3E 0, 0xFF or 1 with its blend setup; EBOOT 8864408 returns 0 unless it is 0; game_task 9A92228 tests it for 1. Monsters read it too: may belong on Object"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1D5
+name = "state_step"
+type = "u8"
+confidence = "confirmed"
+note = "step within the current state function; zeroed on every state change"
+evidence = "game_task 9A67630 and 9A68700 zero it; 9A9E288, 9A9E690 (0 to 1 on entry), 9A9EAE8 (steps 0..3) dispatch on it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1D6
+name = "state_scratch_a"
+type = "u8"
+confidence = "inferred"
+note = "per-state scratch counter, zeroed on every state change; each state uses it its own way"
+evidence = "game_task 9A67630 zeroes it; 9A8FBF0 increments it each frame; 9A665F0 tests it for state 0,0x27 and 0,0x36"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1D7
+name = "state_scratch_b"
+type = "u8"
+confidence = "inferred"
+note = "second per-state scratch byte, zeroed on every state change"
+evidence = "game_task 9A67630 zeroes it; 9A8FBF0 uses it as a 3-frame input delay, 9A8B650 and 9A91130 as a latch"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1E0
+name = "ground_forces_state_3b"
+type = "u8"
+confidence = "confirmed"
+note = "mask 8 of the ground attribute entry: moving goes to state 0,0x3B and items are refused"
+evidence = "game_task 9A6E900 sets it from the attribute of +0x290; 9AA5270, 9A9E288, 9A9E690 go to state 0x3B when set; EBOOT 88269C0 refuses items; 9A665F0 forces state 0,8 from it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1E1
+name = "ground_effect_kind"
+type = "u8"
+confidence = "confirmed"
+note = "low two bits of the ground attribute: 1 raises the drain timer to 10, 2 drains health by frame count"
+evidence = "game_task 9A6E978 sets it; 9A6D418 acts on 1 and 2 with negating skills; 9A68FC8 stops regeneration on nonzero"
+
+[[field]]
+struct = "Hunter"
+offset = 0x20C
+name = "place_w"
+type = "f32"
+confidence = "inferred"
+note = "fourth word of place, copied with it"
+evidence = "game_task 9A665F0 copies it to +0x21C next to place to place_before; 9A655F0 copies it to +0x2DC next to place to +0x2D0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x21C
+name = "place_before_w"
+type = "f32"
+confidence = "inferred"
+note = "fourth word of place_before"
+evidence = "game_task 9A665F0: only write, self->field_21C = self->field_20C beside the three place_before writes"
+
+[[field]]
+struct = "Hunter"
+offset = 0x29C
+name = "attached_part_mode"
+type = "u8"
+confidence = "inferred"
+note = "nonzero while attached to an object body part: 1 or 3 attached, 2 after being launched off; 0 ground rules apply"
+evidence = "game_task 9AD63C8 sets 1 or 3 when a same-area hunter lands on a body part and moves it along; 9A9C530 and 9A9D478 change nonzero to 2; 9A665F0 snaps to ground only at 0; 9A67AD8 gives motion 0x18 for nonzero; 9A6CF38 faints differently; EBOOT 88269C0 allows only item 0x5A at 1"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2C0
+name = "linked_monster_angle"
+type = "u32"
+confidence = "inferred"
+note = "angle to the monster 9A687C0 linked, 16-bit; sprint picks its state by comparing it to facing"
+evidence = "game_task 9A687C0 stores atan2 of monster minus place, plus 0x4000; 9AA5270, 9A9E288, 9A9E690 test (angle - facing + 0x2000)&0xFFFF against 0x4000 when +0x111C mask 0x100 is set"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2D0
+name = "spawn_place"
+type = "f32x3"
+confidence = "inferred"
+note = "place at the initial spawn, after snapping to ground; only ever written here"
+evidence = "game_task 9A655F0 copies place after hunter_place_with_offset_and_snap_to_ground in the default branch"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2DC
+name = "spawn_place_w"
+type = "f32"
+confidence = "inferred"
+note = "fourth word beside spawn_place"
+evidence = "game_task 9A655F0 copies +0x20C to it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2F4
+name = "linked_object"
+type = "ptr"
+confidence = "inferred"
+note = "monster last linked by the scan; not cleared when none matches"
+evidence = "game_task 9A687C0 stores the slot Monster when its area matches, +0x638 mask 8, its byte +0x503 has this hunter bit and +0x4B9 is 1. game_sub 9C43000 also writes it (param_2, the hit source)"
+
+[[field]]
+struct = "Hunter"
+offset = 0x322
+name = "state_random"
+type = "u16"
+confidence = "confirmed"
+note = "fresh random value on each state change, for the state to draw from"
+evidence = "game_task 9A67630 writes math_rng_next, keeping the low byte with argument mask 0x20; 9B114D8 and 9B11120 take bits; 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x33D
+name = "attack_connected"
+type = "u8"
+confidence = "inferred"
+note = "set on the attacker when its hit record lands"
+evidence = "game_sub 9C43000 sets param_2 +0x33D=1 with attacker fields; game_task 9A8B650, 9A8B5D0, 9BA0CD8 react"
+
+[[field]]
+struct = "Hunter"
+offset = 0x35E
+name = "hit_immune_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "while nonzero the hit test against this object is skipped; counts down each tick"
+evidence = "game_sub 9C42750 returns at once when it is nonzero; game_task 9A68FC8 counts it down; states write 2, 3, 10 each frame (9A8FBF0, 9AA3460, 9A91130); 9A6D418 skips ground effects"
+
+[[field]]
+struct = "Hunter"
+offset = 0x360
+name = "received_hit_angle"
+type = "u16"
+confidence = "inferred"
+note = "angle of the last hit taken; reactions turn to it"
+evidence = "game_sub 9C42750 sets target +0x360 on overlap; game_task 9A6B130 compares with facing and copies it to facing and +0x320; 9A6C968 passes it to the guard test"
+
+[[field]]
+struct = "Hunter"
+offset = 0x380
+name = "attack_multiplier"
+type = "f32"
+confidence = "confirmed"
+note = "attack_value / 100; multiplies the raw damage of hits from this hunter"
+evidence = "EBOOT 88D8ED4 computes it; game_sub 9C43000 multiplies record damage by attacker +0x380"
+
+[[field]]
+struct = "Hunter"
+offset = 0x384
+name = "defense_for_damage"
+type = "f32"
+confidence = "confirmed"
+note = "defense_value / 2, minimum 1; damage = d - d*def/(def+80)"
+evidence = "EBOOT 88D92F8 computes it; game_sub 9C43000 applies the formula with victim +0x384"
+
+[[field]]
+struct = "Hunter"
+offset = 0x388
+name = "drain_status_seconds"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "periodic health drain time left, in 30-frame units; nonzero is status bit 1"
+evidence = "game_task 9A6D418 counts it down via +0x452 and drains health; 9A6D0D8 adds to it; 9A704A8 clears it with +0x111C mask 0x8000; 9A6E190 bit 1"
+
+[[field]]
+struct = "Hunter"
+offset = 0x38A
+name = "attack_bonus"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "added to attack_value; carried from world +0x6993A at reset"
+evidence = "EBOOT 88D8ED4 adds it; game_task 9A655F0 loads it; 9AAB310 and game_sub 9C43000 raise it to 3 or 5"
+
+[[field]]
+struct = "Hunter"
+offset = 0x38B
+name = "defense_bonus"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "added to defense_value; carried from world +0x6993B at reset"
+evidence = "EBOOT 88D92F8 adds it; game_task 9A655F0 loads it; game_sub 9C43000 raises it to 10; 9A6B130 zeroes it with +0x110E"
+
+[[field]]
+struct = "Hunter"
+offset = 0x397
+name = "attack_connected_reaction"
+type = "u8"
+confidence = "inferred"
+note = "what the attacker does when its hit lands: 1 state change to group 1, 2 or 3 restart motion 2 frames back"
+evidence = "game_sub 9C43558 writes 0..3; game_task 9A8B650 dispatches it; 9A8B5D0 tests 1"
+
+[[field]]
+struct = "Hunter"
+offset = 0x398
+name = "hit_log_index"
+type = "u8"
+confidence = "confirmed"
+note = "next write index of the 16-entry hit ring at +0x33E"
+evidence = "game_sub 9C43000 stores at ring[idx], increments and wraps at 0x10; game_task 9A65498 clears ring and index"
+
+[[field]]
+struct = "Hunter"
+offset = 0x39C
+name = "resist_hit_mask_04"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "percent taken off damage from hit records with +0x25 mask 4; equipment selector 2"
+evidence = "game_sub 9C43000 picks it by mask and scales by (100-r)/100; EBOOT 88D96BC loads it; 88D9880 adds skill bonuses"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3A0
+name = "resist_hit_mask_10"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "percent taken off damage from records with +0x25 mask 0x10; equipment selector 3"
+evidence = "game_sub 9C43000; EBOOT 88D96BC"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3A4
+name = "resist_hit_mask_40"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "percent taken off damage from records with +0x25 mask 0x40; equipment selector 4"
+evidence = "game_sub 9C43000; EBOOT 88D96BC"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3A8
+name = "resist_hit_mask_20"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "percent taken off damage from records with +0x25 mask 0x20; equipment selector 5"
+evidence = "game_sub 9C43000; EBOOT 88D96BC"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3AC
+name = "resist_hit_mask_80"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "percent taken off damage from records with +0x25 mask 0x80; equipment selector 0xD"
+evidence = "game_sub 9C43000; EBOOT 88D96BC"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3CA
+name = "received_hit_type"
+type = "u16"
+confidence = "confirmed"
+note = "type of the last hit (record +0x1F): selects the reaction"
+evidence = "game_sub 9C43000 writes it; game_task 9A6B130 switches on it; 9A6C968 refuses guard for 0xE, 0xF"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3CC
+name = "received_hit_power"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "strength of the last hit (record +0x24): under 0xB is a light reaction, also picks the guard reaction"
+evidence = "game_sub 9C43000 writes it; game_task 9A6B130 tests 0xB; 9A6CB90 thresholds with skill offsets"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3D4
+name = "attack_bonus_timed"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "attack bonus lasting attack_bonus_ticks"
+evidence = "EBOOT 88D8ED4 adds it; game_task 9AAB310 sets 5, 10, 0x19; 9A68FC8 zeroes it when +0x3D6 expires"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3D6
+name = "attack_bonus_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "countdown of attack_bonus_timed"
+evidence = "game_task 9A68FC8 counts down and clears +0x3D4; 9AAB310 sets it with +0x3D4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3D8
+name = "defense_bonus_timed"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "defense bonus lasting defense_bonus_ticks"
+evidence = "EBOOT 88D92F8 adds it; game_task 9AAB310 sets 0x32; 9A68FC8 zeroes it when +0x3DA expires"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3DA
+name = "defense_bonus_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "countdown of defense_bonus_timed"
+evidence = "game_task 9A68FC8; 9AAB310; 9A6B130 zeroes it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x3F0
+name = "attached_object_id"
+type = "u8"
+confidence = "inferred"
+note = "+0x1E4 of the object this hunter is attached to"
+evidence = "game_task 9AD63C8 writes it with attached_part_mode; 9AAD238 compares it to a monster +0x1E4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x420
+name = "attack_value"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "equipment stat 0 + items + bonuses + skills, minimum 1; attack_multiplier is this / 100"
+evidence = "EBOOT 88D8ED4; game_task 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x422
+name = "defense_value"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "equipment stat 1 + items + bonuses + skills; halved during defense_halved_ticks"
+evidence = "EBOOT 88D92F8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x424
+name = "status_bits"
+type = "u16"
+confidence = "confirmed"
+note = "bit word of active statuses for the local hunter, rebuilt each frame, sent to peers and read from them"
+evidence = "game_task 9A6E190 builds it (1 drain, 2/4/8 states, 0x80 area ward, 0x4000 strong drain...); 9A70A30 sends it; 9A67AD8 and 9A6D418 read it for other hunters"
+
+[[field]]
+struct = "Hunter"
+offset = 0x426
+name = "flag288_phase1_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "countdown of phase 1 of flag288_phase"
+evidence = "game_task 9A6FB68"
+
+[[field]]
+struct = "Hunter"
+offset = 0x427
+name = "flag288_phase2_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "countdown of phase 2 of flag288_phase"
+evidence = "game_task 9A6FB68; 9A68700 clears it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x439
+name = "flag288_phase_repeat"
+type = "u8"
+confidence = "guess"
+note = "when phase 2 ends: 0 stops, nonzero re-enters phase 1 or 2"
+evidence = "game_task 9A6FB68 only reader; not seen written in hunter code"
+
+[[field]]
+struct = "Hunter"
+offset = 0x43E
+name = "flag288_phase"
+type = "u8"
+confidence = "inferred"
+note = "0, 1, 2: stepped while flags +0x288 mask 1 holds; mask 0x800 starts phase 1"
+evidence = "game_task 9A6FB68; 9A65498 clears it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x440
+name = "buildup_state_2_13"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "adds per hit; at 50 the hit reaction and the input handler go to state 2,0x13; decays by 1 per tick after buildup_decay_delay_ticks"
+evidence = "game_task 9A6B130 adds +0x394, tests 0x32; 9AA5270 tests 0x32; 9A68FC8 decays it; 9A909D8 clears it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x442
+name = "buildup_decay_delay_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "150 on each hit; buildup_state_2_13 decays only at 0"
+evidence = "game_task 9A6B130 sets 0x96; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x446
+name = "buildup_state_2_15"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "adds per hit; positive sends the hunter to state 2,0x15"
+evidence = "game_task 9A6B130 adds +0x38C; EBOOT 88D69F0 returns 1 when positive; 9A665F0 calls vtable +0x6C with 2,0x15"
+
+[[field]]
+struct = "Hunter"
+offset = 0x452
+name = "drain_status_second_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "30-frame divider of drain_status_seconds"
+evidence = "game_task 9A6D418 and 9A6D0D8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x454
+name = "drain_status_loss_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames until the next health loss; reloaded by skills to 10..60"
+evidence = "game_task 9A6D418 counts down; 9A704C8 sets by skills and +0x111C mask 0x8000"
+
+[[field]]
+struct = "Hunter"
+offset = 0x458
+name = "buildup_state_2_16"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "adds per hit; positive (with buildup_state_2_15 at 0) sends the hunter to state 2,0x16"
+evidence = "game_task 9A6B130 adds +0x392; EBOOT 88D69F0 returns 2; 9A665F0 calls 2,0x16"
+
+[[field]]
+struct = "Hunter"
+offset = 0x468
+name = "reaction_block_weapon_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "while nonzero, light hits do not cause a reaction; weapon moves set it"
+evidence = "game_task 9A6D280 tests it; 9A6B130 skips the light reaction when that returns 1; 9BA8450, 9BA51F8 set 0x3C or 2; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x4B0
+name = "hit_sphere_a_radius"
+type = "f32"
+confidence = "confirmed"
+note = "radius of the sphere centred at +0x4A0"
+evidence = "game_sub 9C375D8 writes arg_f12 (40.0 from 9A665F0) after the centre"
+
+[[field]]
+struct = "Hunter"
+offset = 0x4D0
+name = "hit_sphere_b_radius"
+type = "f32"
+confidence = "confirmed"
+note = "radius of the sphere centred at +0x4C0"
+evidence = "game_sub 9C375D8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x552
+name = "state_wait_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "countdown some states wait on before leaving; set to 60"
+evidence = "game_task 9AA3460, 9AA4C00 set 0x3C and reset at 0; 9A68FC8 counts down; 9A91068 clears it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x554
+name = "area_zone"
+type = "ptr"
+confidence = "confirmed"
+note = "area zone record containing the hunter, or 0"
+evidence = "game_task 9A6E738 scans 0x18-byte records and stores the first that holds the place"
+
+[[field]]
+struct = "Hunter"
+offset = 0x560
+name = "ridden_object"
+type = "ptr"
+confidence = "confirmed"
+note = "spawned object 0x12 the hunter rides until its motion 0x3EB"
+evidence = "game_task 9A91130 stores the spawn and takes place and facing from it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x564
+name = "flag_1000_lockout_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "while +0x614 mask 0x1000 is on, held at 10 (5 from weapon code); while nonzero mask 0x8000 stays off"
+evidence = "game_task 9A665F0 sets 10 and clears it when mask 0x1000 is off; 9A68BB0 tests it before setting 0x8000; 9A68FC8 counts down; 9BA3A70 sets 5"
+
+[[field]]
+struct = "Hunter"
+offset = 0x565
+name = "hud_request"
+type = "u8"
+confidence = "guess"
+note = "set from the HUD (EBOOT 883BA38, its +0x57F + 1); while nonzero the input handler calls 88DAA54; zeroed each state run"
+evidence = "EBOOT 883BA38 writes through its +0x530 hunter; game_task 9AA5270, 9A8BDF0 test it; 9A665F0 zeroes it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x566
+name = "monster_alert_on_hunter"
+type = "u8"
+confidence = "inferred"
+note = "set this frame when the scan links a monster other than types 0xF and 0x2D"
+evidence = "game_task 9A687C0 clears it, then sets 1; 9AA8FC8 fires once when it rises"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5C8
+name = "item_give_finished"
+type = "u8"
+confidence = "guess"
+note = "wait state 9AA3E00 (motion 0x3C) leaves when it is nonzero or on button 0x2000; cleared on entry"
+evidence = "game_task 9AA3E00, 9AA3F18; 9A70A30 packs its low bits"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5C9
+name = "item_give_target_slot"
+type = "u8"
+confidence = "inferred"
+note = "hunter slot this hunter is offering an item to"
+evidence = "game_task 9AA6220 compares a peer +0x5C9 with its own +0x1E6; 9A71AB0 and 9A70A30 carry it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5CA
+name = "item_give_id"
+type = "u16"
+confidence = "confirmed"
+note = "item id offered or just taken"
+evidence = "game_task 9AA6220 copies it from the peer and checks pouch room; 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5CC
+name = "item_give_count"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "count of item_give_id"
+evidence = "game_task 9AA6220"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5EE
+name = "item_give_world_slot"
+type = "u8"
+confidence = "inferred"
+note = "copy of world +0x420; states watch that slot word of the world"
+evidence = "game_task 9AA6220, 9A9F5B0 write it; 9AA3F18, 9AA4D00 index world +0x30 by it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5EF
+name = "repeat_use_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "uses of the states that cap at 7; from 4, a 50% chance (always at 7) starts repeat_use_ticks"
+evidence = "game_task 9AA3460, 9A99D18"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5F2
+name = "sharpness_level"
+type = "u8"
+confidence = "confirmed"
+note = "level from sharpness; HUD message when it changes"
+evidence = "game_task 9A67F68 sets it from hunter_sharpness_level_from_value and pushes a message; 9A65498; EBOOT 88DA398 reads it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5F6
+name = "weapon_second_pouch_slot"
+type = "u8"
+confidence = "inferred"
+note = "second pouch slot used by weapon class 10; 0xFF is none"
+evidence = "EBOOT 88D81F0 sets 0xFF; 88D8000 uses it with skill 0xD9; game_task 9BB68C8, 9BB6458"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5F7
+name = "timed_effect_0_level"
+type = "u8"
+confidence = "inferred"
+note = "first of the 21 level bytes paired with the effect timers at +0x6A0"
+evidence = "game_task 9A68FC8 clears (acceleration+0x3A7+i), i.e. +0x5F7+i, when entry i expires; 9A9BA48 tests entry 0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5F8
+name = "attack_effect_level"
+type = "u8"
+confidence = "confirmed"
+note = "entry 1: 1 multiplies attack 1.1, 2 and 3 multiply 1.15, 4 multiplies 1.2"
+evidence = "EBOOT 88D8ED4 under +0x6CC mask 2"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5F9
+name = "defense_effect_level"
+type = "u8"
+confidence = "confirmed"
+note = "entry 2: 1 multiplies defense 1.15, 2 and 3 multiply 1.2, 4 multiplies 1.3"
+evidence = "EBOOT 88D92F8 under +0x6CC mask 4; game_task 9A6B130 zeroes it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5FB
+name = "hit_type_5_6_7_immunity_level"
+type = "u8"
+confidence = "confirmed"
+note = "entry 4: level 1 ignores hit type 6, 2 also 5, 3 also 7"
+evidence = "game_task 9A6B130 under +0x6CC mask 0x10"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5FE
+name = "health_regen_effect_level"
+type = "u8"
+confidence = "confirmed"
+note = "entry 7: adds 1 to regeneration, 2 from level 3"
+evidence = "game_task 9A68FC8 under +0x6CC mask 0x20"
+
+[[field]]
+struct = "Hunter"
+offset = 0x602
+name = "hit_type_16_1e_immunity_level"
+type = "u8"
+confidence = "confirmed"
+note = "entry 0xB: nonzero ignores hit types 0x16..0x19, above 1 also 0x1A..0x1E"
+evidence = "game_task 9A6B130 and game_sub 9C43000 under +0x6CC mask 0x200"
+
+[[field]]
+struct = "Hunter"
+offset = 0x606
+name = "timed_effect_15_level"
+type = "u8"
+confidence = "guess"
+note = "entry 0xF level; 1 changes the weapon value"
+evidence = "EBOOT 88DA740; game_task 9A70A30 sends bit 1 of it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x610
+name = "weapon_mode_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "countdown: class 7 gets +10 attack and status bit 0x10 while it runs; class 9 sets 10 when +0x672 ends"
+evidence = "game_task 9A68FC8; EBOOT 88D8ED4; 9A68218 overrides +0x10F0 for class 7; 9A6E190"
+
+[[field]]
+struct = "Hunter"
+offset = 0x620
+name = "reaction_block_item_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "like reaction_block_weapon_ticks; item 0x14 sets it together with its defense bonus"
+evidence = "game_task 9A6D280; 9AAB310 copies +0x3DA; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x622
+name = "stamina_loss_block_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "while positive stamina and max stamina losses are ignored and max stamina does not decay"
+evidence = "game_task 9A6A808 returns 1, used by 9A6A2D0, 9A6A738, 9A6A050; 9AAB310 item 0xE sets it; HUD 0x15 at expiry (9A68FC8)"
+
+[[field]]
+struct = "Hunter"
+offset = 0x624
+name = "area_1_2_ward_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "while nonzero the health drain of area types 1 and 2 stops; counts faster in area type 2"
+evidence = "game_task 9A6D418 tests it; 9A68FC8 counts down, 2 on even frames in type 2; 9AAB310 item 0x15 sets 18000; 9A67AD8 base motion"
+
+[[field]]
+struct = "Hunter"
+offset = 0x626
+name = "area_3_4_ward_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "while nonzero the extra max stamina decay of area types 3 and 4 stops; counts faster in area type 4"
+evidence = "game_task 9A6A050 tests it; 9A68FC8; 9AAB310 item 0x16 sets 18000; 9A67AD8 base motion"
+
+[[field]]
+struct = "Hunter"
+offset = 0x628
+name = "health_regen_boost_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "while nonzero regeneration is 2 instead of 1"
+evidence = "game_task 9A68FC8; 9AAB310 item 0xC sets 18000"
+
+[[field]]
+struct = "Hunter"
+offset = 0x62A
+name = "map_detect_item_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "while nonzero monsters show on the map; item 0x18 sets 300"
+evidence = "EBOOT 88443EC; game_task 9AAB310; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x632
+name = "stamina_max_decay_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "10800 down by a skill and area rate; at 0 reloads and takes 75 off max stamina"
+evidence = "game_task 9A6A050; 9A6A738 reloads it at the upper clamp; 9A655F0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x640
+name = "weapon_selector_lockout_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "while nonzero the weapon pouch selector does nothing"
+evidence = "game_task 9A6ADC8 tests it; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x641
+name = "item_use_lockout_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "while nonzero the item button does nothing; 30 on recovering from a reaction"
+evidence = "game_task 9A909D8 sets 0x1E; 9AA5270, 9A90A00, 9AA9248 test it; 9A68FC8 counts down"
+
+[[field]]
+struct = "Hunter"
+offset = 0x642
+name = "selector_saved_count"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "+0x646 saved when the weapon selector opens, restored when it closes unchanged"
+evidence = "game_task 9A6ADC8; EBOOT 88D72A4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x644
+name = "selector_saved_loaded"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "+0x67C saved when the weapon selector opens"
+evidence = "game_task 9A6ADC8; EBOOT 88D72A4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x645
+name = "selector_saved_capacity"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "+0x67D saved when the weapon selector opens"
+evidence = "game_task 9A6ADC8; EBOOT 88D72A4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x648
+name = "selected_pouch_slot"
+type = "u16"
+confidence = "confirmed"
+note = "item slot picked in the pouch selector"
+evidence = "game_task 9A6A868 cycles it; 9A90A00 and 9AA6E70 use it with item_pouch_slot_ptr"
+
+[[field]]
+struct = "Hunter"
+offset = 0x64A
+name = "ui_token"
+type = "s16"
+confidence = "confirmed"
+note = "token from ui_acquire_or_refresh_token, passed back with UI calls"
+evidence = "game_task 9AA1EA0, 9AA2590, 9AAB310"
+
+[[field]]
+struct = "Hunter"
+offset = 0x674
+name = "selector_input_flags"
+type = "u8"
+confidence = "confirmed"
+note = "this frame: 1 item button used, 2/4 item selector stepped, 8/0x10 weapon selector stepped; read by the HUD"
+evidence = "game_task 9A665F0 zeroes it; 9A6A868, 9A6ADC8, 9AA5270 set it; EBOOT 8845EA8 reads 2 and 4"
+
+[[field]]
+struct = "Hunter"
+offset = 0x675
+name = "ledge_grabs_from_fall"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count of entering state 0,0x1B from state 0,9; zero in other states; 0x15 or more changes the landing"
+evidence = "game_task 9A9D0B0 increments it; 9A665F0 zeroes it; 9A9C530 tests it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x67C
+name = "weapon_loaded_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "loaded out of +0x646; capped by it, 0 on a slot change"
+evidence = "EBOOT 88D72A4, 88D8000; game_task 9A6ADC8; 9A70A30 sends zero or not"
+
+[[field]]
+struct = "Hunter"
+offset = 0x686
+name = "weapon_pouch_slot"
+type = "u16"
+confidence = "confirmed"
+note = "pouch slot the weapon draws on; 0xFF is none"
+evidence = "EBOOT 88D8000; game_task 9A6ADC8 steps it; 9A655F0 finds it with pouch_find_slot_by_weapon_mask"
+
+[[field]]
+struct = "Hunter"
+offset = 0x688
+name = "weapon_selector_snapshot_valid"
+type = "u8"
+confidence = "confirmed"
+note = "1 once +0x689, +0x642.. hold the saved state"
+evidence = "game_task 9A6ADC8; 9AA87C8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x689
+name = "selector_saved_kind"
+type = "u8"
+confidence = "confirmed"
+note = "+0x55C saved when the weapon selector opens, to see if it changed"
+evidence = "game_task 9A6ADC8; 9AA87C8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x68A
+name = "monster_engaged_before"
+type = "u8"
+confidence = "confirmed"
+note = "previous frame monster_engaged"
+evidence = "game_task 9A687C0; 9AA8FC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x694
+name = "using_item_id"
+type = "u16"
+confidence = "confirmed"
+note = "item id of the current use; removed from the pouch by the use states; drawn as a prop"
+evidence = "game_task 9A90A00 sets it from the selected slot; 9AA1EA0, 9AA96D0 call pouch_change_item_count with it; 9AAB310 dispatches on it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x696
+name = "area_drain_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames to the next health loss in area types 1 and 2; reloaded by skills"
+evidence = "game_task 9A6D418; 9A655F0 sets 0x5A"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6A0
+name = "timed_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "first of 21 effect timers; each positive entry sets a bit in +0x6CC and pairs with a level at +0x5F7+i; ends with HUD messages"
+evidence = "game_task 9A68FC8 counts them; 9A6E3F0 rebuilds +0x6CC; 9A66198 counts entry 0 also out of area"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6A4
+name = "defense_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "entry 2 of timed_effect_ticks: +0x6CC mask 4"
+evidence = "game_task 9A6E3F0; EBOOT 88D92F8; 9A6B130 zeroes it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6AA
+name = "stamina_block_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "entry 5: blocks stamina loss as stamina_loss_block_ticks does"
+evidence = "game_task 9A6A808 entry 5; 9A68FC8 HUD 0x15"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6AE
+name = "health_regen_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "entry 7: +0x6CC mask 0x20"
+evidence = "game_task 9A68FC8; 9A6E3F0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6B2
+name = "area_3_4_ward_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "entry 9: +0x6CC mask 0x80, as area_3_4_ward_ticks"
+evidence = "game_task 9A68FC8 HUD 0x13; 9A6A050; 9A68330"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6B4
+name = "area_1_2_ward_effect_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "entry 10: +0x6CC mask 0x100, as area_1_2_ward_ticks"
+evidence = "game_task 9A68FC8 HUD 0x12; 9A6D418; 9A68330"
+
+[[field]]
+struct = "Hunter"
+offset = 0x6CC
+name = "timed_effect_mask"
+type = "u32"
+confidence = "confirmed"
+note = "one bit per positive entry of timed_effect_ticks: indices 0-4 are bits 0-4, 7-0x14 are bits 5-0x12"
+evidence = "game_task 9A6E3F0; EBOOT 88DAE98; 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x7F2
+name = "weapon_attach_slot"
+type = "s16"
+confidence = "confirmed"
+note = "where the weapon is attached this frame: 0, 1 or 2"
+evidence = "game_task 9A66198 stores hunter_weapon_attach_slot_for_motion; 9A933C0 reads it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10F4
+name = "repeat_use_ticks"
+type = "s16"
+confidence = "guess"
+decimal = true
+note = "9000 when repeat_use_count triggers; no reader found, only a test before setting and the countdown"
+evidence = "game_task 9AAAED0; 9A68FC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10F6
+name = "map_detect_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "while nonzero monsters show on the map; 300 from 9A8BDF0"
+evidence = "EBOOT 88443EC; game_sub 9CA7280 tests it; game_task 9A68FC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10F8
+name = "map_detect_skill_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "map detection from skill 0x95: on each 9000-tick roll, 2/3 chance of 300"
+evidence = "game_task 9A68FC8; EBOOT 88443EC"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10FA
+name = "item_restrict_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "while positive items in list 9A6EF40 cannot be used; 1800 from a hit unless skill 0xD; status bit 0x200"
+evidence = "EBOOT 88269C0 via 9A6EF30; game_task 9A6B130; 9A68FC8; game_sub 9C43000 hit type 0x15 clears it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10FF
+name = "selector_saved_second_slot"
+type = "u8"
+confidence = "confirmed"
+note = "+0x5F6 saved when the weapon selector opens"
+evidence = "game_task 9A6ADC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x110E
+name = "defense_halved_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "while positive defense_value is halved; 5400 from a hit, which zeroes the defense bonuses"
+evidence = "EBOOT 88D92F8; game_task 9A6B130; 9A68FC8; status bit 0x800 in 9A6E190"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1112
+name = "stamina_debuff_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "1800 from a hit that also takes 375 off max stamina; while positive items in 9A70320 cannot be used; status bit 0x1000"
+evidence = "game_task 9A6B130; 9AAB310; EBOOT 88269C0 via 9A70310; 9A68FC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x111C
+name = "quest_flags"
+type = "u32"
+confidence = "inferred"
+note = "flags: 1 monster alert pending, 0x100 monster linked this frame, 0x2000 and 0x1000 mode bits, 0x8000 strong drain, 0x10 class 9 gauge running, 0x20 class 3"
+evidence = "game_task 9A687C0 sets 0x100 and 1; 9AA8FC8; 9A6D0D8 0x8000; 9A68FC8 0x10; 9A68218 0x20; 9A703F0 0x2000; 9A8BC90 0x1000; 9A6E190 turns them into status bits"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1120
+name = "button_action"
+type = "u32"
+confidence = "confirmed"
+note = "decoded this frame: 1 mask 0x2000, 2 mask 0x1000, 3 both, 4 mask 0x8000"
+evidence = "game_task 9A68DB0; 9AA5270 acts on 1 and 2"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1124
+name = "button_action_hold"
+type = "u32"
+confidence = "confirmed"
+note = "2 once mask 0x1000 is decoded; held until release"
+evidence = "game_task 9A68DB0; 9BA2060 counts while it is 2"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1128
+name = "button_wait_ticks"
+type = "u32"
+confidence = "confirmed"
+decimal = true
+note = "frames since the press being decoded; decides under 2"
+evidence = "game_task 9A68DB0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x112C
+name = "button_decode_phase"
+type = "u32"
+confidence = "confirmed"
+note = "0 idle, 1 waiting, 2 wait for release of mask 0x1000"
+evidence = "game_task 9A68DB0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1130
+name = "button_pressed_mask"
+type = "u32"
+confidence = "confirmed"
+note = "+0x484 & 0xB000 at the press being decoded"
+evidence = "game_task 9A68DB0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1134
+name = "button_held_mask"
+type = "u32"
+confidence = "confirmed"
+note = "+0x480 & 0x1000 at the press, cleared on release"
+evidence = "game_task 9A68DB0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1138
+name = "listed_item_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "counted down in state group 5 while a listed pouch item is held; at 0 or outside group 5, unless in a listed state, the item is removed (HUD message, -10 in pouch); 3 bits in messages"
+evidence = "game_task 9A68FC8; 9A99FD8 sets 4; 9A655F0 sets 5; 9A97238 draws +0x113A while nonzero"
+
+[[field]]
+struct = "Hunter"
+offset = 0x113A
+name = "listed_item_prop_id"
+type = "u16"
+confidence = "inferred"
+note = "prop drawn for the listed pouch item (id_filter_36a_371_45c_473 of it)"
+evidence = "game_task 9A99FD8; 9A97238 passes it to 9A98B10; game_sub 9C45200; 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x113C
+name = "down_recover_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "countdown in states 2,0x16 and 2,0x18, faster with input; 150, halved by skill 1, doubled by skill 3"
+evidence = "game_task 9A8FBF0; 9A70A30 sends it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x113E
+name = "faint_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "faints, capped at 99"
+evidence = "game_task 9A91B10 increments it at quest_apply_faint_penalty; 9A71AB0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1140
+name = "weapon7_gauge"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "0..100; class 7: down by 1 every 10 frames while weapon_mode_ticks is 0"
+evidence = "game_task 9BAE2F8 adds and clamps; 9A68FC8; game_sub 9C5F7E0 tests 100"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1142
+name = "health_max_base"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "health_max without the timed effect; health_max returns to it when effect 3 expires"
+evidence = "game_task 9A68FC8; 9AACEA0; 9A655F0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1144
+name = "buildup_mash_status"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "adds per hit; while positive, hits go to state 2,0x1B and movement states leave for group 2"
+evidence = "game_task 9A6B130 adds +0x1100; 9AA8958; 9AA5270; 9A6E6A8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1146
+name = "mash_status_left"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "900 on entry; each input of +0x484 mask 0xF00000 takes 10; item 0x17 ends it; at 0 leaves"
+evidence = "game_task 9A90088, 9A90A00; 9A6E6A8; EBOOT 88269C0; 9A70A30"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1148
+name = "mash_status_input_wait"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "1-frame wait between counted inputs"
+evidence = "game_task 9A90A00"
+
+[[field]]
+struct = "Hunter"
+offset = 0x114B
+name = "ground_effect_active"
+type = "u8"
+confidence = "confirmed"
+note = "ground effect applied this frame; cleared at the start of drains"
+evidence = "game_task 9A6D418; 9A6FB20"
+
+[[field]]
+struct = "Hunter"
+offset = 0x114C
+name = "timed_effect_0_paired_byte"
+type = "u8"
+confidence = "inferred"
+note = "first of 21 bytes, one per timed effect: entry i's is cleared with its timer. Not the level at +0x5F7"
+evidence = "game_task 9A68FC8 clears +0x114C+i when entry i expires, as do 9A682CC and 9A74AB8 elsewhere; 9BB1398 sets entry 0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2E6
+name = "ticks_2e6"
+type = "u8"
+confidence = "guess"
+note = "a countdown; 20 when set; while nonzero 9A63364's check answers 0. What it stands for isn't settled"
+evidence = "game_task 9A68FC8 counts it down; 9A65F1C sets 20, 9A65850 and 9A65B40 clear it; 9A6336C returns 0 while it is nonzero"
+
+[[field]]
+struct = "Hunter"
+offset = 0x11B0
+name = "button_200_hold_ticks"
+type = "u32"
+confidence = "confirmed"
+decimal = true
+note = "frames +0x480 mask 0x200 held with +0x410 mask 8, capped at 10; press zeroes it"
+evidence = "game_task 9A703F0; 9A68BB0 acts at above 9"
+
+[[field]]
+struct = "Hunter"
+offset = 0x11B4
+name = "map_detect_skill_roll_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "9000 down to the roll for map_detect_skill_ticks"
+evidence = "game_task 9A68FC8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x11B6
+name = "drain_sound_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "20-frame interval of the strong drain sound"
+evidence = "game_task 9A6D418; 9A6D0D8"

@@ -1,0 +1,375 @@
+[[function]]
+module = "EBOOT"
+address = "088CA2E0"
+name = "stage_activate_reset"
+purpose = "Stage vtable +0x10: clears +0x1D0 (0x20 bytes) and +0x1F0 (0x140 bytes), resets flags and matrix, zeroes +0x330, +0x3D4 and counters +0x1C0/+0x1C2, clears mask 0x2 of +4, updates field +0x444 and sets the member-function state at +0x3D8 to the first-update state."
+confidence = "inferred"
+evidence = "Called by stage_mgr_activate_from_table through vtable +0x10; 088CA908 runs the member function stored at +0x3D8."
+
+[[function]]
+module = "EBOOT"
+address = "088CA39C"
+name = "stage_sound_emitters_start"
+purpose = "Stage vtable +0x1C: walks the 0x20-stride table from vtable +0xB0 (count from +0xAC); for each entry either calls 08885494 when 0884FA5C allows it, or, unless 088CDEDC blocks the id, starts it with stage_latched_start_update_stop when entry +0 is zero and sound_play_3d otherwise."
+confidence = "inferred"
+evidence = "Called once from the first-update state 088CAF54; its callees are sound functions taking the entry's +4 position and +0xC value."
+
+[[function]]
+module = "EBOOT"
+address = "088CA558"
+name = "stage_sound_emitters_update"
+purpose = "Stage vtable +0x20, per frame: if the stage data lists a record with +2 == 0x17 and +0x16 == 0, drives sound 0x11 on channel group 6 at the position from vtable +0x44 (stopping it for global state +0x2E 5 to 8), then updates each emitter of the vtable +0xB0 table, replaying entries with nonzero period +0 when the counter at global +0x1C divides by it and applying 3D mix."
+confidence = "inferred"
+evidence = "Runs every frame from 088CB004 and stage overlays; calls sound_play_3d, sound_apply_3d_mix and stage_latched_start_update_stop on the same table as 088CA39C."
+
+[[function]]
+module = "EBOOT"
+address = "088CA908"
+name = "stage_run_state_method"
+purpose = "Stage vtable +0x14: if the member-function pointer at +0x3D8 is set, calls it on the stage."
+confidence = "inferred"
+evidence = "member_fn_is_set then member_fn_call; traces show 088CAF54 and 088CB004 called from here, and stage_current_call_vfunc_14 calls it."
+
+[[function]]
+module = "EBOOT"
+address = "088CA944"
+name = "stage_sound_emitters_stop"
+purpose = "Stage vtable +0x18: calls 08885494 for channel group 6 slot 0 and then for every entry of the vtable +0xB0 table, using entry +4 and slot index + 1."
+confidence = "inferred"
+evidence = "Called through stage_mgr_deactivate_current; ran at the frames an area is left; same table and slot numbering as the emitter start and update."
+
+[[function]]
+module = "EBOOT"
+address = "088CAA00"
+name = "stage_draw"
+purpose = "Stage vtable +0xC: when global +0x6AF0E is nonzero and the vtable +0x48 data exists, sets the matrix at +0x10 to identity and draws the +0x50 and +0x1D0 part models that data enables, then emits GE texture offset 0 and alpha test commands and refreshes and uploads light set 1."
+confidence = "inferred"
+evidence = "Called from render_pass; calls stage_draw_parts_model_50, stage_draw_parts_model_1d0, lights_refresh_diffuse_targets and gpu_upload_light_set_lighting_off."
+
+[[function]]
+module = "EBOOT"
+address = "088CAB34"
+name = "stage_get_volume_table"
+purpose = "Stage vtable +0x2C: returns word +0x30 of the data from vtable +0x28, or 0 when there is no data."
+confidence = "inferred"
+evidence = "Called in traces by stage_find_volume_containing_point, which walks 0x34-byte records."
+
+[[function]]
+module = "EBOOT"
+address = "088CAB64"
+name = "stage_get_volume_count"
+purpose = "Stage vtable +0x30: returns signed byte +0x3D of the data from vtable +0x28, or 0 when there is no data."
+confidence = "inferred"
+evidence = "Called in traces by stage_find_volume_containing_point next to the table getter 088CAB34."
+
+[[function]]
+module = "EBOOT"
+address = "088CAB98"
+name = "stage_emit_fog_commands"
+purpose = "Opens render list section 1 and writes GE fog colour from +0x450, fog end from +0x44C scaled by *DAT_08a62d60, and fog slope 1/(end - start) with start from +0x448, then closes the section."
+confidence = "confirmed"
+evidence = "GE commands 0xCF, 0xCD and 0xCE are the fog colour and fog distance registers; values computed in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088CAEC8"
+name = "stage_load_render_params"
+purpose = "Reads a mode short into +0x330 from a pack section, then per mode loads fog and the vec3 grid (1), or those plus the gradient parameters (2); any other mode sets +0x330 to 0."
+confidence = "inferred"
+evidence = "stage_mgr_load_from_pack calls it on section 3; chains 088CC128, 088CC190 and 088CC24C with an advancing read pointer."
+
+[[function]]
+module = "EBOOT"
+address = "088CAF54"
+name = "stage_state_first_update"
+purpose = "Stage vtable +0x4C, the first state: sets X and Z of the gradient quad vertices (X 0 and 0x1E0), sets mask 0x2 of +4, starts the sound emitters through vtable +0x1C, updates field +0x444 and switches the member-function state at +0x3D8 to the per-frame state."
+confidence = "inferred"
+evidence = "Traced from 088CA908, at stage start; writes the member function that leads to 088CB004 and calls vtable +0x1C."
+
+[[function]]
+module = "EBOOT"
+address = "088CB004"
+name = "stage_state_update"
+purpose = "Stage vtable +0x50, the per-frame state: steps the screen flash phase +0x3A0 with timer +0x3A2 (1 to 2 after timer, 2 lasting 2 frames, 3 lasting 90), every 128 frames calls stage_object_create_kind_21 with 4 or 5 at each record of the quest file table with +0x14 == 4 and +0x12 nonzero, updates field +0x444, runs the sound update through vtable +0x20 and advances +0x1C0 and +0x1C2."
+confidence = "inferred"
+evidence = "Runs every frame via 088CA908 and overlays; calls quest_file_lookup_table_entry and stage_object_create_kind_21; 088CBD20 draws from the same phase and timer."
+
+[[function]]
+module = "EBOOT"
+address = "088CB32C"
+name = "stage_has_listed_object_of_group_36"
+purpose = "Returns 1 when 09AB3C88 finds an object in the 20-entry list at DAT_09c122b0 +0x1220 whose +0x1E8 id belongs to id group 0x36, with no alive or +0x298 filter."
+confidence = "inferred"
+evidence = "09AB3C88 read: it loops the group's byte list over the object list; arguments 0x36, 0, 0."
+
+[[function]]
+module = "EBOOT"
+address = "088CB364"
+name = "stage_update_field_444_phase"
+purpose = "Sets field +0x444: 0 when vtable +0xA4 returns 0; otherwise, while quest_get_end_result is 0, sets 2 if a filtered object of id group 0x36 exists, else 0 during the first 900 units of the quest time limit, else 1 or 0 alternating with bit 0 of time left / 7200."
+confidence = "inferred"
+evidence = "Uses quest_get_time_left_or_limit selector 1 and 0 and 09AB3C88 with filters on; called from activate, first-update and per-frame states. Nothing here reads +0x444."
+
+[[function]]
+module = "EBOOT"
+address = "088CB474"
+name = "stage_draw_view_angle_gradient_quad"
+purpose = "Vtable +0x9C: computes the angle between the direction at DAT_089cbd04 +0xCA0/+0xCA8 and the vector at +0x3A4/+0x3AC, picks a 90-degree sector, lerps the eight colours at +0x3B4..+0x3D0 for the four quad vertices at +0x3E4 by the sector fraction, sets the Y values from +0x3B0 and +0x3B2 (scaled 272/448) and emits a 4-vertex through-mode triangle strip."
+confidence = "inferred"
+evidence = "Inline VFPU atan2s, four quadrant branches calling 088CBBAC, GE vertex type 0x1280011C and prim 0x4040004. That it is a sky is not shown, so the name stays with the mechanics."
+
+[[function]]
+module = "EBOOT"
+address = "088CBBAC"
+name = "color_lerp_swap_bytes_0_2"
+purpose = "Lerps two 4-byte colours bytewise by t in f12 and stores the result with bytes 0 and 2 exchanged."
+confidence = "confirmed"
+evidence = "Each output byte is a[i] + t*(b[i]-a[i]); the output order is 2, 1, 0, 3 in the CONCAT."
+
+[[function]]
+module = "EBOOT"
+address = "088CBD20"
+name = "stage_draw_screen_flash"
+purpose = "For phase +0x3A0 nonzero draws full-screen rectangles: phase 1 inverts the screen with a white rectangle using fixed-factor subtract blend; phase 2 first draws a black rectangle with alpha from timer +0x3A2, then inverts; phase 3 draws white with alpha fading from 255 to 0 as the timer falls; then restores normal alpha blend."
+confidence = "inferred"
+evidence = "GE blend 0xDF0001AA with fix colours 0xE0FFFFFF and 0xE1FFFFFF, restore 0xDF000032, rectangles prim 0x4060002; 088CB004 runs the phase timers. What starts a flash is not in this view."
+
+[[function]]
+module = "EBOOT"
+address = "088CC0E4"
+name = "stage_reset_screen_flash"
+purpose = "Clears flash phase +0x3A0 and timer +0x3A2 and sets the two rectangles at +0x414 and +0x42C to corners 0,0 and 480,272 (some of the second rectangle's corner fields are left alone)."
+confidence = "inferred"
+evidence = "Writes the same rectangle vertices 088CBD20 draws; called by game_task and many stage overlays in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088CC128"
+name = "stage_load_fog_params"
+purpose = "Copies 4-byte values from a data pointer into fog colour +0x450, start +0x448 and end +0x44C and returns the pointer advanced by 0xC."
+confidence = "inferred"
+evidence = "Called from stage_load_render_params; fills the fields stage_emit_fog_commands uses for fog."
+
+[[function]]
+module = "EBOOT"
+address = "088CC190"
+name = "stage_load_vec3_grid_334"
+purpose = "Copies nine 12-byte values from a data pointer into three rows at +0x334, +0x358 and +0x37C, three values each, and returns the pointer advanced by 0x6C."
+confidence = "inferred"
+evidence = "Nine memory copies in the stated order, called from stage_load_render_params; what the values mean is not visible here."
+
+[[function]]
+module = "EBOOT"
+address = "088CC24C"
+name = "stage_load_gradient_params"
+purpose = "Copies the 12-byte vector +0x3A4 and the 4 bytes at +0x3B0 from a data pointer, then eight 4-byte colours into +0x3B4..+0x3D0 with bytes 0 and 2 exchanged."
+confidence = "inferred"
+evidence = "Those fields are the inputs of stage_draw_view_angle_gradient_quad; called from stage_load_render_params in mode 2."
+
+[[function]]
+module = "EBOOT"
+address = "088CC478"
+name = "stage_get_sphere_table_28"
+purpose = "Returns word +0x28 of the data from stage vtable +0x28, or 0 when there is no data."
+confidence = "inferred"
+evidence = "object_select_map_record_by_distance indexes the result at stride 0x18 as position, near radius and far radius."
+
+[[function]]
+module = "EBOOT"
+address = "088CC4A8"
+name = "stage_get_record_table_2c"
+purpose = "Returns word +0x2C of the data from stage vtable +0x28, or 0 when there is no data."
+confidence = "inferred"
+evidence = "object_select_map_record_by_distance uses the result as a 0x20-stride table and stores an entry at object +0x1DC."
+
+[[function]]
+module = "EBOOT"
+address = "088CC4F8"
+name = "stage_vfunc_40_return_zero"
+purpose = "Default stage vtable +0x40: ignores its argument and returns 0."
+confidence = "confirmed"
+evidence = "The body is return 0; listed at +0x40 of the stage vtables."
+
+[[function]]
+module = "EBOOT"
+address = "088CC828"
+name = "camera_scene_setup_slots"
+purpose = "Clears global +0x422 and the scene controller's state, +0x88 and four slots, then arms slots: if 088CCDFC arms nothing, runs 088CD044 and arms records chosen by the global short +0x6AF12 (one case arms all four slots)."
+confidence = "inferred"
+evidence = "Ran once in each quest recording near frame 1500; the armed records are later played by 088CD3FC through camera_request_mode."
+
+[[function]]
+module = "EBOOT"
+address = "088CCDA4"
+name = "camera_scene_arm_slot_unless_flagged"
+purpose = "If the record's id short is not set in gamedata_bitflag_508_test, sets the slot's byte +0 to 1 and stores the record at slot +0x1C."
+confidence = "inferred"
+evidence = "Code as written; 088CD804 sets the same bit with gamedata_bitflag_508_set when a scene finishes."
+
+[[function]]
+module = "EBOOT"
+address = "088CCDFC"
+name = "camera_scene_arm_for_listed_id"
+purpose = "Sets skip-permit byte +0x9A and scans the byte ids from quest_copy_id_list_to_bytes; on the first of nine listed ids clears a bitflag (0x158 to 0x163) and arms slot 0 with that id's record, returning the id; byte +0x9A ends 0 when none matches, returning 0."
+confidence = "inferred"
+evidence = "Compare chain with gamedata_bitflag_508_clear and 088CCDA4; 088CDA74 only allows a skip when +0x9A is nonzero."
+
+[[function]]
+module = "EBOOT"
+address = "088CD044"
+name = "camera_scene_arm_slot3_by_global_6af10"
+purpose = "When mask 0x1 of DAT_08a632c0 +0xF7A57C and masks 0x100 and 0x4 of global +0x6AF14 are clear and byte +0x480 is 0 and byte +0x45 of the DAT_08a62d9c +0x4C block is 0, remaps global byte +0x6AF10 through table 09CE4908 and arms slot 3 with the record for values 2 to 6, 0xB, 0xE/0xF or 0x1E."
+confidence = "inferred"
+evidence = "Compare chain ending in 088CCDA4 on slot +0x64; quest_file_lookup_table_entry uses the same byte +0x6AF10, but its meaning is not read here."
+
+[[function]]
+module = "EBOOT"
+address = "088CD230"
+name = "camera_scene_tick"
+purpose = "Per frame: while state is 1 runs the active slot's step and on finish clears global +0x422, +0x88 and the state; with state 0 starts a slot if +0x88 was set, otherwise calls quest_notice_open_pending."
+confidence = "inferred"
+evidence = "Runs every frame from game_task in quests; calls 088CD3FC only while a scene runs."
+
+[[function]]
+module = "EBOOT"
+address = "088CD2D4"
+name = "camera_scene_slot_matches_global_6af0e"
+purpose = "For an armed slot returns -1 if 0884FA5C refuses or the record's flag is set (also disarming the slot), otherwise 1 when global +0x6AF0E, remapped through tables 09CE5108 and 09CE5320, equals record +2, else 0."
+confidence = "inferred"
+evidence = "Callers treat a result of at least 1 as the slot to play; it ran in the same recordings as 088CD3FC. What +0x6AF0E means is not read here, so the name stays with the field."
+
+[[function]]
+module = "EBOOT"
+address = "088CD3FC"
+name = "camera_scene_run_step"
+purpose = "Step machine for one slot, returning 1 when done: step 0 sets global +0x422 and +0x88, requests the camera scene and optional track and fades to black; step 1 starts a 16-frame fade back; step 2 waits on 088CDA74 and fires events; step 3 clears the camera and ends; on skip step 10 fades out sound over 16 frames, step 11 waits on DAT_09a4f210, step 12 fades back, restores sound and a track, and ends."
+confidence = "inferred"
+evidence = "Ran in misc 2420-2930 and quest-q5 1590-2190, the scene's frames; calls camera_request_mode via 088CD964, screen_fade_start_black, sound_fade_out_channels, sound_fade_in_channels."
+
+[[function]]
+module = "EBOOT"
+address = "088CD804"
+name = "camera_scene_finish"
+purpose = "Clears sound state byte +0x18, +0x88 and global +0x422, sets the record's id in gamedata_bitflag_508_set, and when global +0x480 is 0 acts on record byte +6 (values 1, 2/3/8/9/10, 0xB) with game_task 09A64F90 or 09A64F48, calls 088DCDEC and returns 0; returns 1 when +0x480 is nonzero."
+confidence = "inferred"
+evidence = "Called from 088CD3FC at the end frame of each recording's scene run (for example misc 2930, quest-q5 2190)."
+
+[[function]]
+module = "EBOOT"
+address = "088CD964"
+name = "camera_scene_request_camera_for_record"
+purpose = "Requests camera mode record +4: with record +5 of 0 there is no target; otherwise the target is the first listed active object (mask 0x1 of +4) in DAT_09c122b0 +0x1220 whose +0x1E8 maps to record +5 through id_group_table_first_id, and without such an object nothing is requested."
+confidence = "inferred"
+evidence = "Calls camera_clear_scripted_state then camera_request_mode with the object as value; ran once per scene start."
+
+[[function]]
+module = "EBOOT"
+address = "088CDA74"
+name = "camera_scene_poll_end_or_skip"
+purpose = "Returns 1 when camera_get_9bf_or_pending_mode is below 1 or a skip is accepted, setting skip byte +0x99 on skip: requires byte +0x9A; without mask 0x1 of DAT_08a632c0 +0xF7A57C it tests mask 0x1 of DAT_08a62d8c, with it the local index's bit in +0x98 is set and posted and every occupied player slot must have its bit."
+confidence = "inferred"
+evidence = "Called from step 2 of 088CD3FC; loop over DAT_089cc558 +0x30 at stride 0x8C and 088AB514 kind 0xD."
+
+[[function]]
+module = "EBOOT"
+address = "088CDBF4"
+name = "camera_scene_start_first_matching_slot"
+purpose = "Scans the four slots for the first armed one where 088CD2D4 returns at least 1; on a match sets +0x88 to 1, stores the slot index at +1 and requests camera mode 0x6A; otherwise clears +0x88."
+confidence = "inferred"
+evidence = "Loop over four 0x20-stride slots at +4 with camera_request_mode; called from game_task 09A5F868 and 09A60AD8."
+
+[[function]]
+module = "EBOOT"
+address = "088CDC8C"
+name = "camera_scene_get_track_id"
+purpose = "Returns the active slot's record short +8, or 0xFFFF when it is 0."
+confidence = "inferred"
+evidence = "Record +8 is the id 088CD3FC passes to sound_track_play_scaled_volume; slot index from +1."
+
+[[function]]
+module = "EBOOT"
+address = "088CDCB0"
+name = "camera_scene_get_record_byte_6"
+purpose = "Returns byte +6 of the active slot's record."
+confidence = "inferred"
+evidence = "Code as written; the same byte selects the case in camera_scene_finish."
+
+[[function]]
+module = "EBOOT"
+address = "088CDCF4"
+name = "camera_scene_active_record_has_mask_1"
+purpose = "Returns 1 when state byte +0 is nonzero and mask 0x1 of the active slot's record byte +0xA is set."
+confidence = "inferred"
+evidence = "Code as written; the same flag is tested in 088CDD24."
+
+[[function]]
+module = "EBOOT"
+address = "088CDD24"
+name = "camera_scene_any_matching_slot_has_mask_1"
+purpose = "Returns 1 when an armed slot has mask 0x1 in record byte +0xA and 088CD2D4 returns at least 1 for it."
+confidence = "inferred"
+evidence = "Loop over four slots as in 088CDBF4 with the added mask test."
+
+[[function]]
+module = "EBOOT"
+address = "088CDEDC"
+name = "camera_scene_blocks_sound_id"
+purpose = "Returns 0 when no scene is pending (+0x88 clear); otherwise 1 for sound ids at or above 0x78, and for lower ids 1 only when param_3 is 0 and global +0x6AF0E is 0x6E, 1 or 0x75."
+confidence = "inferred"
+evidence = "Called with DAT_09a4f1ac and an emitter's id by 088CA39C and 088CA558, which skip the sound on a nonzero result."
+
+[[function]]
+module = "EBOOT"
+address = "088CDF5C"
+name = "camera_scene_fire_events_at_counter"
+purpose = "Reads camera short +0x964 through camera_get_field_964_if_global_422 and, while it is non-negative, runs 088CDFF8 on every 12-byte entry of the list at record +0x28 whose first word equals it; the list ends at -1 or a larger value."
+confidence = "inferred"
+evidence = "Called each wait step from 088CD3FC; 088CDFF8 read: kinds 1 and 2 call screen_fade_start_black."
+
+[[function]]
+module = "EBOOT"
+address = "088CE05C"
+name = "hunter_construct"
+purpose = "Constructor: runs object_ctor, installs vtable 089BAECC, constructs an array of five 0x140-byte motion players at +0x8D0 and another sub-object vtable at +0xF80, then clears the hunter's fields and several blocks."
+confidence = "inferred"
+evidence = "Vtable 089BAECC holds hunter_init at +0x10; array built with 088CE1AC and motion_player_destruct."
+
+[[function]]
+module = "EBOOT"
+address = "088CE1AC"
+name = "motion_player_construct"
+purpose = "Installs vtable 089BAC48 and clears the fields at +0x110..+0x11C and +0x120..+0x13E, returning the object."
+confidence = "inferred"
+evidence = "Passed as the array constructor beside motion_player_destruct, which resets the same vtable."
+
+[[function]]
+module = "EBOOT"
+address = "088CE208"
+name = "hunter_destruct"
+purpose = "Destructor at vtable 089BAECC +8: resets the vtables, destructs the five motion players at +0x8D0, runs the base destructor 088644E8 and calls 0886454C when the short flag argument is above 0."
+confidence = "inferred"
+evidence = "Listed at vtable +8; array destructor with motion_player_destruct, mirror of hunter_construct."
+
+[[function]]
+module = "EBOOT"
+address = "088CE298"
+name = "hunter_init"
+purpose = "Vtable +0x10: runs object_reset_defaults, sets health and max health to 100, copies the player record at DAT_089cc558 +0x30 + index*0x8C from slot +0x1E6 into the hunter's fields, derives id and related bytes through 0885xxxx lookups, and runs its setup callees."
+confidence = "inferred"
+evidence = "Writes +0x2E4 and +0x41E to 100, +0x684 to 0xFFFF; called by game_task and lobby_task in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088CE5D4"
+name = "hunter_reset_state_restart_motions"
+purpose = "Vtable +0x40: clears +0x1D4, +0x1D8, masks 0x180 of +0x614 and several other fields, sets scale +0x220..+0x228 to 1.0, restarts the two motion slots with motion_player_change_blended from +0x324/+0x326 and +0x32C/+0x32E, and calls 088D2894."
+confidence = "inferred"
+evidence = "Traced from game_task and lobby_task in both quests and the guild; +0x80 is the motion player passed; same vtable family as hunter_init plus 089BB0D8."
+
+[[function]]
+module = "EBOOT"
+address = "088CE6DC"
+name = "hunter_prewarm_lights_16_steps"
+purpose = "Vtable +0x44: repeats 16 times 088D2E04 and light_smooth_diffuse_color for lights 0 to 2, so colours that step a fifth of the way per call converge at once."
+confidence = "inferred"
+evidence = "Ran once at the start of each quest recording; loops 16 and 3 around light_smooth_diffuse_color. What 088D2E04's callee does was not read."

@@ -1,0 +1,191 @@
+[[function]]
+module = "game_task"
+address = "09B79478"
+name = "class_089bd548_method24_tick_by_subtype"
+purpose = "Per-frame method for this class, switching on subtype +0xD: counts +0xC2 up to a per-subtype limit from table DAT_09c00f08 and then changes member state +0x78; moves the object, follows an owner bone for some subtypes, tests position +0x40 against ground height from 9C3FC70, and on contact calls 09B7F590 and clears +0x1D and +0x14."
+confidence = "inferred"
+evidence = "Read the head and sampled parts of a 3000-line switch: limit check, 9B67CB8 and 9B7EB50 calls, height test; most subtype cases not read; vtable 089BD548 +0x24, fight1 only."
+
+[[function]]
+module = "game_task"
+address = "09B7E648"
+name = "class_089bd548_method28_release_slots_and_change_state"
+purpose = "Clears +0x14, frees the pool slots held at +0x84 and +0x114 with 09B66DF8, calls 8884CD4 on DAT_08a62eac for subtypes 0, 6, 0xB and 0xC, and sets member state +0x78 from DAT_09c01988."
+confidence = "inferred"
+evidence = "Short body read directly; vtable 089BD548 +0x28."
+
+[[function]]
+module = "game_task"
+address = "09B7F590"
+name = "class_089bd548_spawn_at_pos_by_subtype"
+purpose = "Given a mode (0, 1 or 2) and a position, calls per-subtype spawn helpers at that position (9ACB4E0, 9B64240, 9B64060, 9B73770 at angle offsets from +0x94, and game_sub helpers), most of them only when +0x18 equals global DAT_089cc558+0x6AF0E; the tick calls it on ground contact and also repeatedly in some subtypes."
+confidence = "guess"
+evidence = "Switch on +0xD with helper calls taking the position; the helpers themselves were not read, so spawning is a reading of their arguments; called only from 09B79478 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B80BF8"
+name = "color_keyframes_sample"
+purpose = "Samples a -1 terminated table of (key, packed RGBA) int pairs at a key: an exact match copies the color, a key between two entries lerps each 8-bit channel, and no bracketing entry leaves the output unwritten."
+confidence = "confirmed"
+evidence = "Whole body read: table walk and per-channel lerp; in 09B73908 the result is passed as the color argument of 09B80F20."
+
+[[function]]
+module = "game_task"
+address = "09B80F20"
+name = "model_draw_group_tinted"
+purpose = "Sets the world matrix, then ambient, diffuse, alpha and blend mode for a model group from a packed RGBA color (low byte first, alpha in the top byte), and draws that group."
+confidence = "confirmed"
+evidence = "Whole body read: named calls gpu_set_world_matrix_scaled, model_group_set_ambient/diffuse/alpha/blend_mode, model_draw_group."
+
+[[function]]
+module = "game_task"
+address = "09B85068"
+name = "class_089bd624_setup_from_owner_and_link"
+purpose = "Sets kind +0xC to 0xB and subtype +0xD, stores the owner at +0x10, copies owner index, motion id (to +0xC2) and rotation words (+0x90..+0x9C from owner +0x1F0..+0x1FC), clears owner +0x33D, and pushes the object on the list at DAT_09c190d0+0x502C, updating +0x5030 and count +0x5034."
+confidence = "confirmed"
+evidence = "Whole body read; its caller 09B64580 allocates 0xE0 bytes, sets vtable 089BD624 and calls it."
+
+[[function]]
+module = "game_task"
+address = "09B85100"
+name = "class_089bd624_method20_load_record_adjust_1c"
+purpose = "Sets +0xC0 mask 0x20, clears +0x3C, loads the 0x18-byte record for its subtype from table PTR_DAT_09c03868, sets +0x34 from DAT_09c035f8 indexed by +0x26, copies owner +0x29A to +0x18, shifts byte +0x1C by the owner's +0x334 and +0x32C values (minimum 0), stores 09B66E30's result at +0xD8, and changes member state +0x78."
+confidence = "inferred"
+evidence = "Body read, vtable 089BD624 +0x20; helpers 9B675C0 and 9B67438 show the record copy; the meaning of the record is not settled."
+
+[[function]]
+module = "game_task"
+address = "09B852C0"
+name = "class_089bd624_method24_end_on_owner_motion_change"
+purpose = "Keeps the object while the owner's motion id +0x324 matches stored +0xC2 (for subtype 0x15, while it is 0x406 or 0x407) and +0x14 is set; otherwise, or when owner +4 mask 0x1 is clear, clears +0x14 and changes member state +0x78; sets +0x1D to 99 for subtypes 4 and 0xA, and for 0x15 during those motions."
+confidence = "inferred"
+evidence = "Whole body read; vtable 089BD624 +0x24; the states it switches to were not read, so ending is inferred."
+
+[[function]]
+module = "game_task"
+address = "09B85540"
+name = "class_089bd624_method2c_forward_to_method24"
+purpose = "Tail-calls the object's own vtable slot +0x24."
+confidence = "confirmed"
+evidence = "One indirect jump through *param_1 + 0x24; listed at vtable 089BD624 +0x2C."
+
+[[function]]
+module = "game_task"
+address = "09B869D0"
+name = "class_089bd6b4_setup_from_owner_and_link"
+purpose = "Sets kind +0xC to 0xD and subtype +0xD, stores the owner at +0x10, copies owner index, motion id and rotation words, clears owner +0x33D and +0x3F8, and pushes the object on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Same shape as 09B85068; class taken from its run frames matching 09B86A68's in all three recordings, not from reading the vtable store."
+
+[[function]]
+module = "game_task"
+address = "09B86A68"
+name = "class_089bd6b4_method20_load_record_adjust_1c"
+purpose = "Sets +0xC0 mask 0x20, loads the record for its subtype from table PTR_DAT_09c03d20, sets +0x34 from DAT_09c03b58 by +0x26, copies owner +0x29A to +0x18, shifts byte +0x1C by owner +0x334/+0x32C (for subtype 3, +0x336/+0x32E; minimum 0), stores 09B66E30's result at +0xD8, and changes member state +0x78."
+confidence = "inferred"
+evidence = "Body read, vtable 089BD6B4 +0x20; same pattern as 09B85100."
+
+[[function]]
+module = "game_task"
+address = "09B86CC0"
+name = "class_089bd6b4_method24_end_on_owner_motion_change"
+purpose = "Returns while the owner's motion id +0x324 equals stored +0xC2 and +0x14 is set; otherwise clears +0x14 and changes member state +0x78."
+confidence = "inferred"
+evidence = "Whole body read; vtable 089BD6B4 +0x24; the state it switches to was not read."
+
+[[function]]
+module = "game_task"
+address = "09B88A30"
+name = "class_089bd73c_setup_from_owner_and_link"
+purpose = "Sets kind +0xC to 0xF and subtype +0xD, stores the owner at +0x10, copies owner index, motion id and rotation words +0x90..+0x98, clears owner +0x33D and +0x3F8, and pushes the object on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Same shape as 09B85068; class taken from its run frames matching 09B88AC8's in fight1, not from reading the vtable store."
+
+[[function]]
+module = "game_task"
+address = "09B88AC8"
+name = "class_089bd73c_method20_load_record_adjust_1c"
+purpose = "Sets +0xC0 mask 0x20, loads the record for its subtype from table PTR_DAT_09c04158, sets +0x34 from DAT_09c03ff8 by +0x26, copies owner +0x29A to +0x18, shifts byte +0x1C by owner +0x334/+0x32C (for subtype 3, +0x336/+0x32E; minimum 0), stores 09B66E30's result at +0xD8, calls its own vtable +0x24, and changes member state +0x78."
+confidence = "inferred"
+evidence = "Body read, vtable 089BD73C +0x20; same pattern as 09B85100 plus the direct +0x24 call."
+
+[[function]]
+module = "game_task"
+address = "09B8F9E8"
+name = "class_089bd8d4_setup_from_owner_and_link"
+purpose = "Sets kind +0xC to 0x1B and subtype +0xD, stores the owner at +0x10, copies owner index, motion id and rotation words, sets +0x66 to the owner's +0x1F4 angle (turned by 0x8000 for subtypes 9, 0x12, 0x14 and 0x1E), clears owner +0x33D, and pushes the object on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Same shape as 09B85068; class taken from its run frames matching 09B8FAC0's in fight2, not from reading the vtable store."
+
+[[function]]
+module = "game_task"
+address = "09B8FAC0"
+name = "class_089bd8d4_method20_load_record_adjust_1c"
+purpose = "Sets +0xC0 mask 0x20, loads the record for its subtype from table PTR_DAT_09c08748, halves +0x1E when the owner's vtable +0x54 returns 1, sets +0x34 from PTR_DAT_09c081f0 by +0x26, copies owner +0x29A to +0x18, shifts byte +0x1C by owner +0x334/+0x32C (for subtype 3, +0x336/+0x32E; minimum 0), stores 09B66E30's result at +0xD8, calls its own vtable +0x24, and changes member state +0x78."
+confidence = "inferred"
+evidence = "Whole body read; vtable 089BD8D4 +0x20."
+
+[[function]]
+module = "game_task"
+address = "09B8FD50"
+name = "class_089bd8d4_method24_select_by_owner_motion_frame"
+purpose = "Per subtype, sets +0x1D and chooses record byte +0x26 and table pointer +0x34 from motion_frame_reached checks on the owner's motions 0x411 and 0x413; changes member state +0x78 when the owner's motion id +0x324 leaves stored +0xC2 or a subtype's expected motion (0x419, 0x442), or for subtype 0x2A when owner float +0x2CC is not below +0x204."
+confidence = "inferred"
+evidence = "Whole body read; vtable 089BD8D4 +0x24, also called directly from 09B8FAC0; fight2 only."
+
+[[function]]
+module = "game_task"
+address = "09B927C8"
+name = "class_089bd95c_destructor"
+purpose = "Resets the vtable to 089BD95C, frees the pool slot at +0x84 and the per-element slots (09B97DC8 for subtypes 0xF and 0x10, 09B97D48 otherwise), runs base 09B67210, and calls 09B67260 when the flag argument is positive."
+confidence = "inferred"
+evidence = "Body read, vtable slot +0x8, slot helpers read; base and 09B67260 not read, and that one frees memory is assumed from the deleting-destructor shape."
+
+[[function]]
+module = "game_task"
+address = "09B92880"
+name = "class_089bd95c_setup_from_owner_with_angles"
+purpose = "Calls 09B92C20 for subtypes 0xF and 0x10 or 09B92C90 otherwise, adds 0x18 to +0x8B for subtype 0xC when global DAT_089cc558+0x422 is 1, copies owner +0x1E8, +0x322 and +0x29A to +0xC4, +0xD0 and +0x18, stores the argument at +0x90 and the argument plus owner +0x1F4 at +0x94."
+confidence = "inferred"
+evidence = "Whole body read; caller 09B659B8 passes values like 0x3555 and 0xF8E5; 09B659B8 stores vtable 089BD95C before calling it."
+
+[[function]]
+module = "game_task"
+address = "09B92A20"
+name = "class_089bd95c_method10_dispatch_if_18_matches_6af0e"
+purpose = "When +0x18 equals global DAT_089cc558+0x6AF0E, calls 09B97FA8 for subtypes 0xF and 0x10 or 09B98978 otherwise, passing the argument on."
+confidence = "inferred"
+evidence = "Whole body read; vtable 089BD95C +0x10; the two targets were not read."
+
+[[function]]
+module = "game_task"
+address = "09B92A88"
+name = "class_089bd95c_method14_queue_slots_for_render"
+purpose = "For each element up to the subtype's count in DAT_09c0a9a8, inserts its pool slot (+0x30 of a 0xA0 element for subtypes 0xF and 0x10, else +0x44 of a 0x60 element, layer 7, or layer 5 when element byte +0x5A is 0) in the depth-sorted render queue unless slot flags have mask 0x4, and sets mask 0x4 when the byte argument is 0."
+confidence = "confirmed"
+evidence = "Whole body read: render_queue_insert_depth_sorted calls on DAT_089cc11c; vtable 089BD95C +0x14, called from the list walker 09B62EA0."
+
+[[function]]
+module = "game_task"
+address = "09B92C20"
+name = "class_089bd95c_setup_kind_21_and_link"
+purpose = "Sets kind +0xC to 0x21, subtype +0xD and +0x8B, stores the owner at +0x10, copies owner +0x1E9, +0x1E6 and +0x1F4, and pushes the object on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Whole body read; reached from 09B92880."
+
+[[function]]
+module = "game_task"
+address = "09B92C90"
+name = "class_089bd95c_setup_kind_21_set_e6_ffff"
+purpose = "Calls 09B92C20 and then sets halfword +0xE6 to 0xFFFF."
+confidence = "inferred"
+evidence = "Whole body read; 09B92880 uses it for subtypes other than 0xF and 0x10."
+
+[[function]]
+module = "game_task"
+address = "09B92CC0"
+name = "class_089bd95c_load_record_for_subtype"
+purpose = "Loads the record from table PTR_DAT_09c09218 at index DAT_09c0aae8[subtype] plus +0x8B (plus 0 for subtypes 0xC and 0xE) through 09B675C0."
+confidence = "inferred"
+evidence = "Whole body read; 09B675C0 and 09B67438 copy a 0x18-byte record; called from 09B93CC8 in traces."

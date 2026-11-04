@@ -1,0 +1,375 @@
+[[function]]
+module = "game_task"
+address = "09ABA218"
+name = "monster_script_op_01_if_field_6d8_low_bits_any"
+purpose = "Handler for opcode 1, an if/else/end block: sub-code 0 skips to the else or end when none of masks 0x1 to 0x8 is set in byte +0x6D8, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take opcode 1; counts set bits of the low 4 in +0x6D8 and skips on zero."
+
+[[function]]
+module = "game_task"
+address = "09ABA340"
+name = "monster_script_op_02_if_slot_mask_503_nonzero"
+purpose = "Handler for opcode 2, an if/else/end block: sub-code 0 sets +0x511 to 0xFF and skips to the else or end when byte +0x503 is 0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take opcode 2; 9ABA4B0 and 9ABA440 read +0x503 as a mask over slots 0 to 3."
+
+[[function]]
+module = "game_task"
+address = "09ABA440"
+name = "monster_script_op_12_target_highest_slot_in_mask_503"
+purpose = "Handler for opcode 0x12, no arguments: puts the highest slot set in the low 4 bits of +0x503 into +0x504 and +0x511, sets target kind +0x506 to 1 and +0x508 to 0, sets +0x512 to 2 when +0x6DB is nonzero, and clears masks 0x1 and 0x10 of +0x4C1."
+confidence = "inferred"
+evidence = "Dispatcher case 0x12; the loop overwrites +0x504 for each set bit, so the last one wins."
+
+[[function]]
+module = "game_task"
+address = "09ABA4B0"
+name = "monster_script_op_53_choose_hunter_slot_by_field_554_tiers"
+purpose = "Handler for opcode 0x53, no arguments: of hunter slots in mask +0x503 that are active (mask 0x1 of +4) with the same +0x29A, stores in +0x511 a slot with +0x554[slot] at least 50000, else at least 30000, taking the largest float +0x658[slot] when several qualify; failing both it takes the largest +0x554, or indexes the candidates by +0x322 modulo their count when all are 0; 0xFF when there is no candidate."
+confidence = "inferred"
+evidence = "Dispatcher case 0x53; hunter_manager_get_slot loop and the 49999 and 29999 comparisons."
+
+[[function]]
+module = "game_task"
+address = "09ABA858"
+name = "monster_script_op_13_target_chosen_slot_511"
+purpose = "Handler for opcode 0x13, no arguments: sets target kind +0x506 to 1, +0x508 to 0, and +0x504 to the low 4 bits of +0x511, or to 0xFF when +0x511 is 0xFF."
+confidence = "inferred"
+evidence = "Dispatcher case 0x13; three field writes from +0x511."
+
+[[function]]
+module = "game_task"
+address = "09ABA888"
+name = "monster_script_op_40_set_mode_4b9_zero_or_one"
+purpose = "Handler for opcode 0x40: calls 9AC93B0 to set byte +0x4B9 to 0 when the argument is 0, or to 1 with the short from the per-+0x1E8 record at DAT_09bb8bf8 stored in +0x4BE; on a change that clears +0x4C1 down to masks 0xC0, and setting 0 also clears +0x503, the per-slot +0x554 and +0x688 values and mask 0x1 of +0x111C on hunters listed in +0x4BA."
+confidence = "inferred"
+evidence = "Dispatcher case 0x40; read of 9AC93B0."
+
+[[function]]
+module = "game_task"
+address = "09ABA8F8"
+name = "monster_script_op_83_switch_on_distance_to_chosen_slot"
+purpose = "Handler for opcode 0x83, a multi-case block: sub-code 0 takes a distance (from +0x658[slot] for slot +0x511, or computed to the object in DAT_09c122b0 +0x1220 when +0x50A is 0x0D), stores it in +0x2C4, and enters the first case whose threshold in +0x648[i] is at least that and not negative, or skips all cases when +0x511 is 0xFF or that object is absent; sub-codes 1 to 5, reached at the end of a case, skip to the (0x83,0xFF) end."
+confidence = "inferred"
+evidence = "Skip helpers take 0x83; vsub_t, vdot_t and vsqrt_s between +0x200 places give a distance in the kind 0x0D path."
+
+[[function]]
+module = "game_task"
+address = "09ABAAF8"
+name = "monster_script_op_81_enter_table_04_entry"
+purpose = "Handler for opcode 0x81: stores its byte argument in +0x51C, saves the following position in +0x4E8 when nest level +0x520 is 0, sets +0x520 to 1, and continues at that entry of the table at script header +4."
+confidence = "inferred"
+evidence = "Dispatcher case 0x81; returns the table entry as the next script position."
+
+[[function]]
+module = "game_task"
+address = "09ABAB38"
+name = "monster_script_op_82_enter_table_3c_entry"
+purpose = "Handler for opcode 0x82: with a table byte and an index byte, stores the index in +0x51E, saves the following position in +0x4F4 when nest level +0x520 is 1, sets +0x520 to 2, and continues at that entry of the table selected at script header +0x3C."
+confidence = "inferred"
+evidence = "Dispatcher case 0x82; returns the table entry as the next script position."
+
+[[function]]
+module = "game_task"
+address = "09ABAB90"
+name = "monster_script_main_entry_clear_nest_level"
+purpose = "Clears nest level +0x520 and returns the main table entry numbered by +0x500 from the script header at +0x4C8, or 0 when there is no script."
+confidence = "inferred"
+evidence = "Called from the interpreter, 9ABABC0 and 9AC8B78; indexes the table at header +0, and opcode 4 sets +0x500 to 0 before calling it."
+
+[[function]]
+module = "game_task"
+address = "09ABABC0"
+name = "monster_script_init_choose_header_by_game_field_6af10"
+purpose = "Resets the script state of an object: chooses script header +0x4C8 from its per-+0x1E8 record at DAT_09bb8c14 and on by the byte at DAT_089cc558 +0x6AF10, sets position +0x4CC to the main entry, resets the sequence and target fields, and also zeroes DAT_09c122b0 +0x84."
+confidence = "inferred"
+evidence = "Ran at one frame per recording, from 9AC6B60 in traces; writes +0x4C8 in every switch case."
+
+[[function]]
+module = "game_task"
+address = "09ABAFF0"
+name = "monster_script_restart_from_main_entry"
+purpose = "Sets mask 0x10 of +0x638 and calls 9AC8B78, which clears that mask and resets the script to main entry 0 (+0x500, +0x4CC, +0x4C1 and the sequence fields); first sets +0x6DE to 2 through 9AC9BC8 when +0x6DB is nonzero and +0x6DE is 0."
+confidence = "inferred"
+evidence = "Read of 9AC8B78 and 9AC9BC8; many callers in traces, including opcode 0x10 when it has no point."
+
+[[function]]
+module = "game_task"
+address = "09ABB040"
+name = "monster_script_op_2c_switch_on_field_1e8_group"
+purpose = "Handler for opcode 0x2C, a multi-case block: sub-code 0 walks a count of case bytes and enters the first whose group (9ACC450, through id_group_table_first_id) equals that of +0x1E8; sub-codes 1 and 2 skip to the (0x2C,3) end, sub-code 3 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x2C; 9ACC450 compares the two ids' first group ids."
+
+[[function]]
+module = "game_task"
+address = "09ABB188"
+name = "monster_script_op_27_switch_on_field_4ae_sorted"
+purpose = "Handler for opcode 0x27, a multi-case block: sub-code 0 walks a count of case bytes and enters the one equal to short +0x4AE; a case above +0x4AE ends the search by stepping past the (0x27,2) or (0x27,3) instruction, as does reaching one of those; sub-codes 1 and 2 skip to the (0x27,3) end, sub-code 3 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x27; the early stop on a larger case value implies ascending cases."
+
+[[function]]
+module = "game_task"
+address = "09ABB428"
+name = "monster_script_op_43_if_global_08a62d9c_mask_20000000"
+purpose = "Handler for opcode 0x43, an if/else/end block: sub-code 0 skips to the else or end unless mask 0x20000000 is set in the word at DAT_08a62d9c +0x28 (9AD8438), sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x43; read of 9AD8438."
+
+[[function]]
+module = "game_task"
+address = "09ABB670"
+name = "monster_script_op_34_if_bytes_298_299_equal"
+purpose = "Handler for opcode 0x34, an if/else/end block: sub-code 0 skips to the else or end unless byte +0x298 and state byte +0x299 equal its two arguments, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x34; compares both bytes."
+
+[[function]]
+module = "game_task"
+address = "09ABB788"
+name = "monster_script_op_2e_set_field_644_record"
+purpose = "Handler for opcode 0x2E: sets +0x644 through 9AC7478 to the address of the 0x20-byte record numbered by its byte argument, inside the per-+0x1E8 block at 0x09BB8B10."
+confidence = "inferred"
+evidence = "Dispatcher case 0x2E; read of 9AC7478."
+
+[[function]]
+module = "game_task"
+address = "09ABB7B8"
+name = "monster_script_op_3b_if_field_5c4_nonzero"
+purpose = "Handler for opcode 0x3B, an if/else/end block: sub-code 0 skips to the else or end when int +0x5C4 is 0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x3B; tests +0x5C4."
+
+[[function]]
+module = "game_task"
+address = "09ABB8B8"
+name = "monster_script_op_54_if_chosen_hunter_active_same_field_29a"
+purpose = "Handler for opcode 0x54, an if/else/end block: sub-code 0 skips to the else or end unless +0x511 names a hunter slot holding an active hunter (mask 0x1 of +4) with the same +0x29A as this object, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x54; hunter_manager_get_slot with +0x511."
+
+[[function]]
+module = "game_task"
+address = "09ABBA08"
+name = "monster_script_op_71_if_field_4bc_at_least"
+purpose = "Handler for opcode 0x71, an if/else/end block: sub-code 0 skips to the else or end when signed byte +0x4BC is below its byte argument, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x71; the comparison with the argument."
+
+[[function]]
+module = "game_task"
+address = "09ABBB10"
+name = "monster_script_op_28_if_any_hunter_active_same_field_29a"
+purpose = "Handler for opcode 0x28, an if/else/end block: sub-code 0 skips to the else or end unless one of the 4 hunter slots holds an active hunter (mask 0x1 of +4) with the same +0x29A as this object, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x28; hunter_manager_get_slot loop over 4 slots."
+
+[[function]]
+module = "game_task"
+address = "09ABBC90"
+name = "monster_script_op_5e_if_field_292_equals"
+purpose = "Handler for opcode 0x5E, an if/else/end block: sub-code 0 skips to the else or end unless byte +0x292 equals its byte argument, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x5E; the comparison with the argument."
+
+[[function]]
+module = "game_task"
+address = "09ABBD90"
+name = "monster_script_op_3f_target_link_point_toward_id_and_enter_table_30"
+purpose = "Handler for opcode 0x3F: when the remapped 16-bit id argument differs from +0x29A, finds the link record for the current +0x29A in the per-+0x1E8 data (the matching id, or the nearest first point for id 0xFFFF), chooses a point on it (first one passing test 9C3E3D0 when +0x29A equals the short at DAT_089cc558 +0x6AF0E, otherwise the nearest), sets target kind +0x506 to 9 with both indices, saves the position in +0x4FC, and continues at the entry of the table at header +0x30 named by the point; otherwise it just continues after its arguments."
+confidence = "inferred"
+evidence = "Dispatcher case 0x3F; read of the record walk, stride 0x18 per link and 0x14 per point, and of 9AC33C8."
+
+[[function]]
+module = "game_task"
+address = "09ABC600"
+name = "monster_script_op_15_switch_on_field_29a_remapped"
+purpose = "Handler for opcode 0x15, a multi-case block: sub-code 0 walks a count of 16-bit case ids and enters the first equal to +0x29A after both are remapped through DAT_09ce5108 and DAT_09ce5320 (0xFFFF matches any); sub-codes 1 and 2 skip to the (0x15,3) end, sub-code 3 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x15; the same remap on both sides."
+
+[[function]]
+module = "game_task"
+address = "09ABC9B8"
+name = "monster_script_op_10_target_point_index_534"
+purpose = "Handler for opcode 0x10, no arguments: when index +0x534 is 0xFF or at the count +0x536 it picks a new one by mode +0x531 (0: +0x322 modulo the count, and with no points restarts the script through 9ABAFF0; 1: first byte of table +8 entry +0x532; 2: index 0), then sets target kind +0x506 to 2, +0x508 to 1 and +0x504 to the index."
+confidence = "inferred"
+evidence = "Dispatcher case 0x10; opcode 0x0F sets +0x531, +0x532 and +0x536 and resets +0x534 to 0xFF."
+
+[[function]]
+module = "game_task"
+address = "09ABCC10"
+name = "monster_script_op_19_target_kind_3_from_field_540"
+purpose = "Handler for opcode 0x19, no arguments: sets target kind +0x506 to 3 and copies short +0x540 to +0x504 and +0x508."
+confidence = "inferred"
+evidence = "Dispatcher case 0x19; opcode 0x18 writes +0x540 and also ran only in misc."
+
+[[function]]
+module = "game_task"
+address = "09ABCC30"
+name = "monster_script_op_31_target_kind_8"
+purpose = "Handler for opcode 0x31, no arguments: sets target kind +0x506 to 8."
+confidence = "inferred"
+evidence = "Dispatcher case 0x31; a single field write."
+
+[[function]]
+module = "game_task"
+address = "09ABCC40"
+name = "monster_script_op_42_if_target_angle_off_field_1f4_at_least"
+purpose = "Handler for opcode 0x42, an if/else/end block: sub-code 0 resolves the target position into +0x5D0, computes the 16-bit angle (9AC8BF0) from +0x200 to it less int +0x1F4, and skips to the else or end when that absolute difference is under the argument in degrees; otherwise it runs the body, except that an else directly after the arguments also skips its branch. Sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x42; wrap at 0x8000 and degrees * 65536 / 360."
+
+[[function]]
+module = "game_task"
+address = "09ABD008"
+name = "monster_script_op_08_if_field_280_zero"
+purpose = "Handler for opcode 8, an if/else/end block: sub-code 0 skips to the else or end when byte +0x280 is nonzero, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take opcode 8; tests +0x280."
+
+[[function]]
+module = "game_task"
+address = "09ABD630"
+name = "monster_script_op_0f_begin_block_over_point_table"
+purpose = "Handler for opcode 0x0F: stores mode +0x531, count +0x535, +0x532, table index +0x52F and +0x530 from five byte arguments, resets +0x533 and +0x534, saves the position after them, sets mask 0x1 of +0x4C1, looks up the per-+0x29A table for modes 0 to 2 to get point count +0x536 and continues at table +8 entry +0x52F; when no table exists it clears the mask and continues after the arguments, and any other mode continues at the stored +0x4D8."
+confidence = "inferred"
+evidence = "Dispatcher case 0x0F; opcode 0xFF repeats a block under +0x533 and +0x535, and opcode 0x10 reads +0x531, +0x534 and +0x536."
+
+[[function]]
+module = "game_task"
+address = "09ABD778"
+name = "monster_script_op_16_enter_table_24_entry"
+purpose = "Handler for opcode 0x16: stores its byte argument in +0x537, saves the following position in +0x4EC, and continues at that entry of the table at header +0x24."
+confidence = "inferred"
+evidence = "Dispatcher case 0x16; calls 9ABD790 for the next position."
+
+[[function]]
+module = "game_task"
+address = "09ABD790"
+name = "monster_script_table_24_entry"
+purpose = "Returns the numbered entry of the table at offset +0x24 of script header +0x4C8, or 0 when that table is null."
+confidence = "inferred"
+evidence = "A table lookup used by opcode 0x16."
+
+[[function]]
+module = "game_task"
+address = "09ABD7C0"
+name = "monster_script_op_17_set_id_sequence"
+purpose = "Handler for opcode 0x17: unless a sequence is already set (+0x53A not 0xFF), stores list number +0x538, length +0x53A, entry number +0x539 and flag +0x53C from four byte arguments and resets index +0x53B to 0; a length of 0 leaves it unset."
+confidence = "inferred"
+evidence = "Dispatcher case 0x17; opcode 0x18 walks exactly these fields."
+
+[[function]]
+module = "game_task"
+address = "09ABD818"
+name = "monster_script_op_18_enter_next_sequence_id_differing_from_field_29a"
+purpose = "Handler for opcode 0x18, no arguments: while a sequence is set, sets mask 0x200 of +0x638 and +0x53E to 0xFFFF, then takes the id at +0x53B in list table +0x14 entry +0x538 (values from 50000 up select through table +0x1C and 9ABDAA8) into +0x540; the first differing from +0x29A saves the position in +0x4F0 and continues at table +0x18 entry +0x539; at the list end it wraps when +0x53C is nonzero, otherwise it unsets the sequence and continues."
+confidence = "inferred"
+evidence = "Dispatcher case 0x18; the loop on +0x53B with 9ABDA78 and 9ABDBB8."
+
+[[function]]
+module = "game_task"
+address = "09ABDA78"
+name = "monster_script_table_14_entry"
+purpose = "Returns the numbered entry of the table at offset +0x14 of script header +0x4C8, or 0 when that table is null."
+confidence = "inferred"
+evidence = "A table lookup called from opcode 0x18 in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABDB28"
+name = "monster_script_table_08_entry"
+purpose = "Returns the numbered entry of the table at offset +8 of script header +0x4C8, or 0 when that table is null."
+confidence = "inferred"
+evidence = "A table lookup called from opcodes 0x0F and 0xFF in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABDB58"
+name = "monster_script_table_0c_entry"
+purpose = "Returns the numbered entry of the table at offset +0xC of script header +0x4C8, or 0 when that table is null."
+confidence = "inferred"
+evidence = "A table lookup called from monster_script_take_pending_entry in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABDB88"
+name = "monster_script_table_10_entry"
+purpose = "Returns the numbered entry of the table at offset +0x10 of script header +0x4C8, or 0 when that table is null."
+confidence = "inferred"
+evidence = "A table lookup called from monster_script_take_pending_entry in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABDBB8"
+name = "monster_script_table_18_entry"
+purpose = "Returns the numbered entry of the table at offset +0x18 of script header +0x4C8, with no null check."
+confidence = "inferred"
+evidence = "A table lookup called from opcode 0x18 in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABE500"
+name = "table_lookup_bb8c0c_by_field_5f3_and_field_29a"
+purpose = "Looks in the per-+0x1E8 table at DAT_09bb8c0c, indexed by the byte at DAT_089cc558 +0x6AF10, for the pair keyed by byte +0x5F3 (or the list's terminator), then walks its 8-byte records and returns the word at +4 of the first with id 0xFFFF or an id matching +0x29A after remapping; 0 when the object has no table or after 0x10B records."
+confidence = "inferred"
+evidence = "Read of the two loops; ran only in misc from 9AD00D0 in traces."
+
+[[function]]
+module = "game_task"
+address = "09ABEA38"
+name = "monster_script_op_14_if_hunter_target_angle_off_field_1f4_at_least"
+purpose = "Handler for opcode 0x14, an if/else/end block: sub-code 0 skips to the else or end unless the target is kind 1 with +0x508 0 and an existing hunter slot +0x504 whose offset position (9ABA0C8, table_09cdf040_offset_position) lies at a 16-bit angle from +0x260, less int +0x1F4, of at least the argument in degrees; an else directly after the arguments also skips its branch. Sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x14; hunter_manager_get_slot, wrap at 0x8000 and degrees * 65536 / 360."
+
+[[function]]
+module = "game_task"
+address = "09ABED10"
+name = "monster_script_op_1b_if_field_544_equals"
+purpose = "Handler for opcode 0x1B, an if/else/end block: sub-code 0 skips to the else or end unless byte +0x544 equals its byte argument, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x1B; the comparison with the argument."
+
+[[function]]
+module = "game_task"
+address = "09ABF3B0"
+name = "monster_script_op_21_if_field_498_at_most_30pct_of_field_4a0"
+purpose = "Handler for opcode 0x21, an if/else/end block: sub-code 0 skips to the else or end when int +0x498 exceeds 0.3 times int +0x4A0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x21; the 0.3 comparison."
+
+[[function]]
+module = "game_task"
+address = "09ABF8D0"
+name = "monster_script_op_29_if_field_54e_not_positive"
+purpose = "Handler for opcode 0x29, an if/else/end block: sub-code 0 skips to the else or end when short +0x54E is above 0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x29; tests +0x54E."
+
+[[function]]
+module = "game_task"
+address = "09ABF9D0"
+name = "monster_script_op_2a_if_field_550_not_positive"
+purpose = "Handler for opcode 0x2A, an if/else/end block: sub-code 0 skips to the else or end when short +0x550 is above 0, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x2A; tests +0x550."
+
+[[function]]
+module = "game_task"
+address = "09ABFCF0"
+name = "monster_script_op_70_switch_on_field_1e8_sorted"
+purpose = "Handler for opcode 0x70, a multi-case block: sub-code 0 walks a count of case bytes and enters the one equal to byte +0x1E8; a case above +0x1E8 ends the search by stepping past the (0x70,2) or (0x70,3) instruction, as does reaching one of those; sub-codes 1 and 2 skip to the (0x70,3) end, sub-code 3 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x70; the early stop on a larger case value implies ascending cases."
+
+[[function]]
+module = "game_task"
+address = "09AC02D0"
+name = "monster_script_op_35_if_field_638_mask_20"
+purpose = "Handler for opcode 0x35, an if/else/end block: sub-code 0 skips to the else or end when mask 0x20 of +0x638 is clear, sub-code 1 skips past the end, sub-code 2 does nothing."
+confidence = "inferred"
+evidence = "Skip helpers take 0x35; tests mask 0x20."

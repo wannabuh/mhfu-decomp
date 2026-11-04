@@ -1,0 +1,199 @@
+[[function]]
+module = "game_task"
+address = "09B675C0"
+name = "record_task_bind_table_and_load_record"
+purpose = "Stores a record table pointer at +0xC8, clears +0x2A and the +0x28 mask field, then loads record param_3 from that table through 09B67438."
+confidence = "inferred"
+evidence = "Body; 09B67438 copies a 0x18-byte record from the table at +0xC8; called by the setup methods of several classes."
+
+[[function]]
+module = "game_task"
+address = "09B67728"
+name = "record_task_test_flags_c0"
+purpose = "Returns the ushort at +0xC0 ANDed with a mask."
+confidence = "inferred"
+evidence = "One-line body, partner of the setter 09B67738; the prefix is inferred from the classes that use it."
+
+[[function]]
+module = "game_task"
+address = "09B67738"
+name = "record_task_set_flags_c0"
+purpose = "ORs a mask into the ushort at +0xC0."
+confidence = "inferred"
+evidence = "One-line body; setup methods pass masks such as 0x20, 0x60, 0x200, 0x820."
+
+[[function]]
+module = "game_task"
+address = "09B67770"
+name = "record_task_state_fn_is_unset"
+purpose = "Returns 1 when the member function pointer at +0x78 is not set."
+confidence = "inferred"
+evidence = "Tests member_fn_is_set(+0x78); the list walker 09B62D90 unlinks the node when this returns 1."
+
+[[function]]
+module = "game_task"
+address = "09B67798"
+name = "record_task_tick_timers_and_chain_record"
+purpose = "Unless +0x64 is set, counts down the +0x1C wait in phase 1 then the +0x1D timer in phase 2 at +0x14; when +0x1D is spent, clears the phase or loads the next record named by +0x2F, using the hunter slot from +0x15, and also decrements +0x31 (unless 0xFF) and +0x32."
+confidence = "inferred"
+evidence = "Body; +0x2F, +0x1C and +0x1D come from the record copied by 09B67438, which also sets +0x14 to 1; runs every frame from 09B62F00 in all fight recordings."
+
+[[function]]
+module = "game_task"
+address = "09B678B8"
+name = "record_task_select_state_fn_and_set_fields_88_8b"
+purpose = "When the first byte is not 0xFF, stores it at +0x88 and for values 0 to 9 sets the +0x78 state function from table 09BFB800; the other three bytes go to +0x89, +0x8A, +0x8B unless 0xFF."
+confidence = "inferred"
+evidence = "Switch copying 12-byte member function pointers into +0x78; each argument skipped when -1; called from game_sub 09C43000 and 09C43558."
+
+[[function]]
+module = "game_task"
+address = "09B67CB8"
+name = "record_task_integrate_b0_into_a0_into_40"
+purpose = "Adds the vector at +0xB0 to the vector at +0xA0, then adds the result to the vector at +0x40, keeping each fourth component."
+confidence = "inferred"
+evidence = "vadd_t pair in the body; +0x40 is filled from an owner place or a bone position by the init functions; only caller in traces is 09B79478, fight1 only."
+
+[[function]]
+module = "game_task"
+address = "09B68258"
+name = "hunter_attack_task_construct"
+purpose = "Runs the base constructor 09B67178 and sets the vtable to 089BD3B0."
+confidence = "inferred"
+evidence = "Body; spawner 09B62F48 calls it on a 0xE0 block from the heap at DAT_09c190d0+0x5000, then runs the hunter init 09B682F0."
+
+[[function]]
+module = "game_task"
+address = "09B682F0"
+name = "hunter_attack_task_init_and_link_to_list"
+purpose = "Sets type byte +0xC to 0 and record id +0xD, copies the hunter's slot, motion id, rotation words and place, sets +0x89 when active skill 0xBD and hunter +0x111C mask 0x800 hold, clears hunter +0x33D and +0x3F8, and pushes the task on the list at DAT_09c190d0+0x502C, updating +0x5030 and the +0x5034 count."
+confidence = "inferred"
+evidence = "Body; hunter_has_active_skill on param_2; caller 09B62F48; the attack meaning comes from the setup method's use of weapon values."
+
+[[function]]
+module = "game_task"
+address = "09B68418"
+name = "hunter_attack_task_setup_from_weapon_values"
+purpose = "First state of class 089BD3B0: loads the record for +0xD, sets +0x34 from table 09BFBFA8, applies per-record cases (bone or forward place offsets, +0x1E times 5 when the hunter byte list holds an id), fills mask bits of +0x28 and +0x2A from weapon value selectors 0 to 7, scales +0x1E by 1.25 or 0.75 from selector 8 against hunter +0x322 % 100 (or by 1.25 when +0x89 is set), applies weapon type 6 scaling, and adjusts the +0x1C wait."
+confidence = "inferred"
+evidence = "Body; hunter_weapon_value_by_selector calls; vtable 089BD3B0 +0x20; ran in every fight recording, not in shops."
+
+[[function]]
+module = "game_task"
+address = "09B68E30"
+name = "hunter_attack_task_update_end_by_record_rule"
+purpose = "Per-frame state of class 089BD3B0: grows +0x1D while hunter +0x33C or +0x558 is set, re-rolls +0x28 mask bits for record 0x11, and when the hunter's motion id leaves the stored +0xC2 (with per-record exceptions and a +0xC4 countdown for records 0x56 and 0x0B) clears +0x14 and moves to the state function at 09BFCA60."
+confidence = "inferred"
+evidence = "Compares hunter +0x324 to +0xC2 in most branches; motion ids 0x57F and 0x57E are exempted for two records; vtable +0x24."
+
+[[function]]
+module = "game_task"
+address = "09B690D0"
+name = "hunter_attack_task_add_two_to_1d_then_update"
+purpose = "Adds 2 to +0x1D, sets the state function from 09BFCA70, then calls the vtable +0x24 method."
+confidence = "inferred"
+evidence = "Short body; vtable 089BD3B0 +0x2C; what +0x1D means to the hit code is not read here."
+
+[[function]]
+module = "game_task"
+address = "09B69B70"
+name = "class_089bd438_init_and_link_to_list"
+purpose = "Sets type byte +0xC to 2 and record id +0xD, copies the owner's slot, motion id and rotation words, clears owner +0x33D and +0x3F8, and pushes the task on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Body; called from 09B63240 on a block built by 09B69AD8, whose vtable is taken as 089BD438 by neighbourhood; ran in fight2 only."
+
+[[function]]
+module = "game_task"
+address = "09B69C08"
+name = "class_089bd438_setup_from_table"
+purpose = "First state of class 089BD438: finds the owner in the slot array at DAT_09c122b0+0x1220, sets +0xC0 mask 0x820, loads record +0xD + 1, sets +0x34 from table 09BFDAC0, adjusts the +0x1C wait, calls the vtable +0x24 method and moves to the state function at 09BFDD48."
+confidence = "inferred"
+evidence = "Body; vtable 089BD438 +0x20; ran only fight2 frames 5120-5170."
+
+[[function]]
+module = "game_task"
+address = "09B69DD8"
+name = "class_089bd438_update_end_on_owner_change"
+purpose = "Per-frame state of class 089BD438: keeps running while +0x14 is set and the owner is in the stored motion with owner +0x1D4 below 2 (record 0x17 instead checks owner motion 0x413 or 0x415 and owner +0x298 outside 4 to 5), and otherwise clears +0x14 and picks one of three next state functions by record group; some records set +0x1D to 99."
+confidence = "inferred"
+evidence = "Body with three member function copies from 09BFDD58, 09BFDD68, 09BFDD78; vtable +0x24."
+
+[[function]]
+module = "game_task"
+address = "09B72F88"
+name = "class_089bd504_init_at_position_and_link_to_list"
+purpose = "Sets type byte +0xC to 7 and record id +0xD, copies a given vector to +0x40, copies the owner's slot, motion id and rotation words, stores owner +0x220 at +0xD4 for records 5 and 6, clears owner +0x33D and +0x3F8, and pushes the task on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Body; called from 09B63D58 on a block built by 09B72EF0, whose vtable is taken as 089BD504 by neighbourhood; ran once in fight2."
+
+[[function]]
+module = "game_task"
+address = "09B73058"
+name = "class_089bd504_setup_from_table"
+purpose = "First state of class 089BD504: finds the owner in the slot array at DAT_09c122b0+0x1220, sets +0xC0 mask 0x200, 0x400 or 0x20 by record id, loads record +0xD, sets +0x34 from table 09BFF568, adjusts the +0x1C wait, calls the vtable +0x24 method and moves to the state function at 09BFF7D0."
+confidence = "inferred"
+evidence = "Body; vtable 089BD504 +0x20; ran at fight2 frame 3940 only."
+
+[[function]]
+module = "game_task"
+address = "09B73260"
+name = "class_089bd504_next_state_when_14_clear"
+purpose = "When +0x14 is 0, sets the +0x78 state function from 09BFF7E0."
+confidence = "confirmed"
+evidence = "Whole body read; vtable 089BD504 +0x24."
+
+[[function]]
+module = "game_task"
+address = "09B73398"
+name = "class_089bd548_destructor"
+purpose = "Resets the vtable to 089BD548, releases the items at +0x84 and +0x114 through 09B66DF8, runs base destructor 09B67210, and calls 09B67260 when the delete argument is positive."
+confidence = "inferred"
+evidence = "Vtable slot +0x8, called from the list walker 09B62D90; the base calls are read by shape, not opened."
+
+[[function]]
+module = "game_task"
+address = "09B73428"
+name = "class_089bd548_init_at_owner_bone"
+purpose = "Puts owner bone param_3's position in +0x40, stores the bone id at +0xC2 and owner +0x1E8 at +0xC4, sets +0x90 and +0x94 (the latter offset by owner +0x1F4), clears +0x89 and +0x8A, then runs 09B77CE8."
+confidence = "inferred"
+evidence = "object_get_bone_position call; caller 09B63E30 allocates 0x250 and sets vtable 089BD548; monster modules also call 09B63E30."
+
+[[function]]
+module = "game_task"
+address = "09B73908"
+name = "class_089bd548_draw_by_kind"
+purpose = "Vtable draw method: returns unless +0x18 equals the game value at +0x6AF0E, then writes display list words through DAT_089cc120 and draws the +0x130 parts through 09B80F20, switching on kind +0xD and the pass value at param_2+0x10."
+confidence = "inferred"
+evidence = "Bundle shows part of the body, the rest is 2148 lines in the read file; 18 calls to 09B80F20; slot +0x10 called from 09B67130; ran in fight1 only."
+
+[[function]]
+module = "game_task"
+address = "09B77C08"
+name = "class_089bd548_queue_render_items"
+purpose = "Inserts the items at +0x84 and +0x114 into render queue 7 when their +4 mask 0x4 is clear, sets that mask when param_2 is 0, then calls 09B672B0."
+confidence = "confirmed"
+evidence = "render_queue_insert_depth_sorted calls in the body; vtable 089BD548 +0x14."
+
+[[function]]
+module = "game_task"
+address = "09B77CE8"
+name = "class_089bd548_init_and_link_to_list"
+purpose = "Sets type byte +0xC to 8, kind +0xD and +0x8B, copies the owner's slot and +0x1E9 and +0x1F4 values, and pushes the task on the list at DAT_09c190d0+0x502C."
+confidence = "inferred"
+evidence = "Body with the same list push as 09B682F0; tail call from 09B73428."
+
+[[function]]
+module = "game_task"
+address = "09B77D58"
+name = "class_089bd548_load_record_for_kind"
+purpose = "Computes a record index from table 09C01068 at kind +0xD, adding +0x8B except for a set of kinds, and loads it from table 09C006C8 through 09B675C0."
+confidence = "inferred"
+evidence = "Body; called by 09B77E18."
+
+[[function]]
+module = "game_task"
+address = "09B77E18"
+name = "class_089bd548_setup_by_kind"
+purpose = "First state of class 089BD548: sets +0xC0 mask 0x200, sets +0xA0 and +0xB0 from per-kind tables rotated by +0x90 and +0x94, offsets +0x40 from an owner bone unless +0x89 is 1, resets the parts at +0x130, then per kind acquires render items through 09B66D68, plays 3D sounds through 09ACB4E0 and queries ground through game_sub functions, loads the record and sets the next state."
+confidence = "inferred"
+evidence = "Bundle body plus the call list of the read file; vtable 089BD548 +0x20; ran in fight1 only; kind 8 can end early when hunter slot lookup fails."

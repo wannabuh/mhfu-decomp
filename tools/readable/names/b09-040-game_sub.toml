@@ -1,0 +1,127 @@
+[[function]]
+module = "game_sub"
+address = "09C8AE98"
+name = "class_089bdfb0_draw_element_by_type"
+purpose = "Vtable +0x10: for the element record at +0x60 selected by the render node's byte +0x20, switches on type +0x24 to build a matrix from the record's scale, angle +0x8A and the node's position +0x10, multiplies it by the matrix at DAT_089cbd04 + 0xC80 in the cases read, and draws a model group of the manager DAT_09d19860 with alpha from record field +0x84, after writing GE word 0xE7000001."
+confidence = "inferred"
+evidence = "Slot +0x10 called through spawn_manager_slot_call_owner_method_10 with the slot; model_draw_group_tinted with groups 0x4A/0x23; the last 623 lines were read only for their callees."
+
+[[function]]
+module = "game_sub"
+address = "09C8CA18"
+name = "class_089bdfb0_queue_visible_element_nodes"
+purpose = "Vtable +0x14: for each of 10 element records at +0x60 (stride 0x40), inserts the render node at record +0x34 into render queue layer 7 at the node's position +0x10, if the node is set and its flags +4 lack mask 0x4."
+confidence = "inferred"
+evidence = "Loop of 10 over render_queue_insert_depth_sorted; called in traces from node_mgr_09d19860_call_slot_14_flagged."
+
+[[function]]
+module = "game_sub"
+address = "09C8CA90"
+name = "class_089bdfb0_state_init_elements_by_type"
+purpose = "Vtable +0x1C, run in traces as a state function: clears counter +0x38, for an owner at +0xC takes heading +0x3A from owner +0x1F4 and applies per-type setup (bone-derived heading, 3D sounds for type 0x1D, calls to 09B630D0 or 09B63438 chosen by owner +0x1E8), allocates a render node per element from count table DAT_09cf2260[type] and randomises each record, runs slot +0x20 at once for types 0x16 and 0x19, then sets state function +0x4C from DAT_09cf24d8."
+confidence = "inferred"
+evidence = "Called in traces from class_089bb194_tick_call_member_fn_4c_if_set; entity_manager_alloc_element_run per record; heavy math_rng_next use; the record setup is only partly read."
+
+[[function]]
+module = "game_sub"
+address = "09C8E498"
+name = "class_089bdfb0_state_update_elements_until_frame_limit"
+purpose = "Vtable +0x20: sets mask 0x10 in flags +0x48 and steps counter +0x38; past the limit DAT_09cf22a8[type] it clears that mask and sets state function +0x4C from DAT_09cf24e8; otherwise updates each element record, with type 0x19 following owner bone 0x24 (or ending through DAT_09cf24f8 when flags +0x48 has mask 0x2 or owner +0x1D4 is 3) and type 0x10 setting every record's byte +0x20 to 0xFF on that same condition."
+confidence = "inferred"
+evidence = "Counter against table limit and member_fn_is_set; per-record loop over table DAT_09cf1f90 and object_get_bone_matrix; the last 545 lines were read only in part."
+
+[[function]]
+module = "game_sub"
+address = "09C8FC58"
+name = "class_089bdfb0_release_element_nodes"
+purpose = "Vtable +0x24: for each of the DAT_09cf2260[type] element records frees the render node at record +0x34 through entity_manager_free_element_run and clears the pointer, then runs fx_base_release_render_nodes."
+confidence = "inferred"
+evidence = "Body read in full; runs through the same frames as the update slot in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C8FCF0"
+name = "class_089bdfb0_lookup_code_09cf2490_snap_y_to_grid_214"
+purpose = "Returns DAT_09cf2490[param_3] and raises the point param_2's y to the height + 5 when that code is nonzero and collision_grid_214_height_at_xz hits at most 30 below the point; on a miss or lower height it sets y to object param_1's +0x2CC (or leaves it when param_1 is 0), then returns the code with y + 5 only if the byte DAT_09cd3378[game +0x6AF0E] is 0x0A or 0x0E, else 0."
+confidence = "inferred"
+evidence = "Body read in full; the result selects the branch in 09C8A530 through 09C8FE00 and 09C91420."
+
+[[function]]
+module = "game_sub"
+address = "09C8FE00"
+name = "class_089bdfb0_compute_spawn_position_and_code"
+purpose = "Writes to param_1 a position for fx type param_3 and part byte param_4 (mask 0x80 stripped and used as a flag) from object param_2's bones or +0x200, chosen by the type and, when +0x1E9 is 1, by class byte +0x1E8; then returns the code from class_089bdfb0_lookup_code_09cf2490_snap_y_to_grid_214, and if the code and a per-type value are both nonzero calls 09B63180, which allocates an 0xE0-byte object with the object, position and value."
+confidence = "inferred"
+evidence = "57 object_get_bone_position calls; called in traces from 09C8A530 before class_089bdfb0_create_type_14 values are set; ending read; 344 middle lines read only for their callees."
+
+[[function]]
+module = "game_sub"
+address = "09C91420"
+name = "class_089bdfb0_spawn_fx_for_code_and_play_sound"
+purpose = "For nonzero code param_2 spawns fx through 09C671A8 at point param_1 with fx type and scale by code (3: type 2, scale x 10; 2: types 4 and 1; otherwise types 4 and 5, all raising y by 5 between or before), plays 3D sound 0x76 if the last scale is above 4.0 else 0x70, and returns 1; code 0 returns 0 and does nothing."
+confidence = "inferred"
+evidence = "Body read in full; 09C671A8 creates an object with type +0x24 and scale +0x3C; in 09C8A530 a nonzero result skips creating the type 14 object."
+
+[[function]]
+module = "game_sub"
+address = "09C94910"
+name = "class_089be028_spawn_group"
+purpose = "Calls class_089be028_spawn_one count +0x18 times with table param_2, position record param_1 and radius +0x10 of that record."
+confidence = "inferred"
+evidence = "Loop body; called in traces once per run from hunt_state_run, per 0x20-byte record of a list."
+
+[[function]]
+module = "game_sub"
+address = "09C94978"
+name = "class_089be028_draw_model_group_by_kind"
+purpose = "Vtable +0x10: builds a world matrix from scale +0x80, angles +0xB0, +0xB4 + +0xA8 and +0xB8 and position +0x10, sets diffuse, ambient and alpha from colour table DAT_09cd34f0 indexed through kind +0xC0's record in DAT_09cd353c, and draws that record's model group of model +0x2C."
+confidence = "inferred"
+evidence = "gpu_set_world_matrix_scaled then model_group_set_* and model_draw_group; in traces through spawn_manager_slot_call_owner_method_10."
+
+[[function]]
+module = "game_sub"
+address = "09C94BF0"
+name = "class_089be028_queue_render_node"
+purpose = "Vtable +0x14: inserts the render node at +0x44 into render queue layer 5 at the node's position +0x10."
+confidence = "inferred"
+evidence = "One render_queue_insert_depth_sorted call; called in traces from node_mgr_09d19860_call_slot_14_flagged."
+
+[[function]]
+module = "game_sub"
+address = "09C94C10"
+name = "class_089be028_spawn_one"
+purpose = "Creates an object through 09C2F2F8, runs fx_base_init, copies point param_2 to both +0x10 and centre +0x70, stores table param_1 at +0x64 and radius at +0x90, and links it at the head of the manager list +0x19030, raising count +0x19034."
+confidence = "inferred"
+evidence = "Body read in full; +0x70, +0x90 and +0x64 are used by the class's update and kind roll (09C97038)."
+
+[[function]]
+module = "game_sub"
+address = "09C94CF0"
+name = "class_089be028_state_alloc_render_node"
+purpose = "Vtable +0x1C, run in traces as a state function: clears state byte +0x29 and allocates one render node into +0x44; on failure sets state function +0x4C from DAT_09cf2650, otherwise records the owner, sets mask 0x10 in flags +0x48, sets state function +0x4C from DAT_09cf2660 and runs slot +0x20 once."
+confidence = "inferred"
+evidence = "entity_manager_alloc_element_run and member_fn_is_set; runs once in traces at the same frame as the spawn."
+
+[[function]]
+module = "game_sub"
+address = "09C94E10"
+name = "class_089be028_state_update_dispatch_clamp_to_radius"
+purpose = "Vtable +0x20: calls the handler for state byte +0x29 (0 to 4), then for states below 3 pulls the position back onto the circle of radius +0x90 around centre +0x70 when its x,z distance exceeds it (y taken from the centre), and copies position +0x10 to render node +0x44."
+confidence = "inferred"
+evidence = "Five-way call chain; vsub/vdot/vsqrt on x,z against +0x90; runs every frame through the hunt in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C95068"
+name = "class_089be028_find_or_claim_type_0x16_node_in_range_ahead"
+purpose = "Walks manager list +0x19030 for a node with top byte of +0x20 0x16, +0x24 not 1, +0x29 2, +0x2B 0, owner +0x1E6 equal to game byte +0x28, and 09C94FA0(owner +0x694, kind +0xC0) nonzero, within radius +0x90 of centre +0x70 and within heading 0x3000 of +0xB4; with param_2 0 stores the heading in +0xA0 and returns it, otherwise stores the x,z distance in +0x94 and, under 30.0, sets the node's +0x2B to 1 and returns it; returns 0 if none."
+confidence = "inferred"
+evidence = "Body read in full; 09C94FA0 accepts owner values 0x88 to 0x8F against kinds, and the caller enters state 2 when the owner's +0x690 is nonzero. This reads like fish taking bait, which nothing here confirms, so the name keeps to mechanics."
+
+[[function]]
+module = "game_sub"
+address = "09C95488"
+name = "class_089be028_state0_roll_kind_place_and_scale_in"
+purpose = "State 0: on sub-state +0x2A 0 rolls kind +0xC0 through 09C97038 (kind 0 sets state function +0x4C from DAT_09cf2670), otherwise places the object at a random point within half of radius +0x90 of centre +0x70 with a random heading, scale 0.1 and a 10-frame timer +0x38; on sub-state 1 grows scale by a tenth of the kind's table scale each frame, and when the timer ends sets the table scale, state 1, and a timer of 10 to 41."
+confidence = "inferred"
+evidence = "Body read in full; called from the dispatch in traces only in the first frames after the spawn."

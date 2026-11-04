@@ -1,0 +1,279 @@
+[[function]]
+module = "lobby_task"
+address = "09AE3E30"
+name = "box_menu_draw_item_pair_and_result_screen"
+purpose = "Draws option 2 of the box menu by state field_39: the item box grid, up to two item windows (fields 88/8a and 8c/8e), and in states 3 to 6 a third window showing a result item from the record at field_90, or masked text when field_98 is set, plus a two-row choice list in state 3."
+confidence = "inferred"
+evidence = "Dispatched for field_36 == 2 by 09AE38F8; passes the item box list at game +0x3428 to the grid and filters cells with 09ADF5F8/09ADF680. Reads like a combine screen, but nothing here says so."
+
+[[function]]
+module = "lobby_task"
+address = "09AE4900"
+name = "box_menu_draw_item_name_and_box_count"
+purpose = "Unless the item id is 0xFFFF, prints the item's name at x,y in a colour from the two last arguments and, for a nonzero id, either a fixed string when item table byte 0899d2bb is -1 or another fixed string plus the box total."
+confidence = "inferred"
+evidence = "pack_entry_section_1(item) then item_box_total_count; called for each item window of 09AE3E30."
+
+[[function]]
+module = "lobby_task"
+address = "09AE4AD0"
+name = "box_menu_draw_item_count_capped_999"
+purpose = "Prints a count clamped to 999 at x,y, switching to colour 2 (or 13 when the given colour was nonzero) when item_box_room_capped for the item is below 1."
+confidence = "inferred"
+evidence = "Clamp at 0x3E6 and the item_box_room_capped test before text_printf_at_colored."
+
+[[function]]
+module = "lobby_task"
+address = "09AE4B80"
+name = "box_menu_draw_option3_list_and_subscreen"
+purpose = "For option 3 of the box menu: in state field_39 0 draws its option list, greying entries 4 and 5 by 09AEE420; in state 1 dispatches to one of six subscreens from table 09b0aed0, redrawing the list dimmed behind subscreens 4 and 5 when field_66 is 0 or 1."
+confidence = "inferred"
+evidence = "Dispatched for field_36 == 3 by 09AE38F8; switch on the table row from 09AEE3D0 indexed by field_37, list length from 09AEE378."
+
+[[function]]
+module = "lobby_task"
+address = "09AE4E98"
+name = "box_menu_draw_equipment_box_screen"
+purpose = "Draws subscreen 0 of option 3: a text or sort prompt by field_3a and field_5f, an equipment compare or other panel by field_5d and field_61, the equipment grid at cursor field_42, and label bar layout 2."
+confidence = "inferred"
+evidence = "Calls 09AEC7A0 with mask 0x10, the branch that reads the 12-byte slots at game +0x548, and menu_draw_equipment_compare_pair."
+
+[[function]]
+module = "lobby_task"
+address = "09AE66F0"
+name = "box_menu_draw_main_list"
+purpose = "Draws the list selected by field_36, dimmed to 0x80808080 when the second argument is nonzero, using string table 09b05168 when field_34 is nonzero and first drawing label bar layout 0 when field_34 is zero."
+confidence = "inferred"
+evidence = "menu_list_build_layout and menu_list_draw with field_36, the value 09AE38F8 switches its screens on."
+
+[[function]]
+module = "lobby_task"
+address = "09AE6798"
+name = "box_menu_draw_sprite_label_bar"
+purpose = "Draws a gradient bar from layout table 09b0b0c0 and, for layouts 0, 1 and 2, sprites 0x38, 0x39 and 0x3B beside fixed strings at set offsets."
+confidence = "inferred"
+evidence = "hud_draw_gradient_bar followed by hud_draw_sprite and text_printf_at pairs per layout; called with 0, 1 and 2 by its three callers."
+
+[[function]]
+module = "lobby_task"
+address = "09AE6BC0"
+name = "box_sort_prompt_draw_choice_text"
+purpose = "Prints the string for choice field_47 from table 089ac6a8 at one of four positions selected by masks 0x1, 0x2 and 0x4 on field_30."
+confidence = "inferred"
+evidence = "Runs only when field_5f is set, which 09AEC5B0 sets when opening the sort prompt; traces at shops 1570-1580 match the sort functions."
+
+[[function]]
+module = "lobby_task"
+address = "09AE6CA8"
+name = "box_menu_draw_list_43c8_item_info_or_sprite_label"
+purpose = "When the second argument is 1 draws the info window (kind 1) for the item in slot third-argument of the list at game +0x43C8, otherwise draws the fixed sprite and label of 09AE7860."
+confidence = "inferred"
+evidence = "Direct branch to 09AE6D08 with id +0x18, or 09AE7860."
+
+[[function]]
+module = "lobby_task"
+address = "09AE6D08"
+name = "box_menu_draw_info_window_by_kind_and_id"
+purpose = "For kind below 8 and id not 0xFFFF: kind 1 with id above 0x18 draws an item panel for id-0x18 with icon, text and item table byte 0899d2ba + 1; otherwise a titled window whose string comes from the per-kind id table at 0893b054, using the lobby string lookup for kinds 4 and 5."
+confidence = "inferred"
+evidence = "The kind 1 branch uses menu_draw_item_text_or_attribute_list and menu_draw_item_icon_weapon_check; the rest uses menu_draw_window_with_title."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7028"
+name = "box_sort_prompt_move_choice"
+purpose = "Sets choice field_47 from 0 to 1 on mask 0x20 (layout 0) or 0x40 (layout 1), and from nonzero to 0 on mask 0x80 (layout 0) or 0x10 (layout 1), playing sound 0x17 when it moves."
+confidence = "inferred"
+evidence = "Called in traces only from 09AEC5B0 while the prompt is open; writes only field_47."
+
+[[function]]
+module = "lobby_task"
+address = "09AE72D8"
+name = "box_apply_sort_remap_equipped_indices"
+purpose = "Builds the sorted copy and writes it back over the box: mode 0 copies item slots to game +0x3428; other modes first remap the equipment box indices held at game +0x44C0-0x44CA and in 20 groups of 6 at game+0x4A0+0x4334 through 09AE88A0, then copy 12-byte slots to game +0x548."
+confidence = "inferred"
+evidence = "Uses 09AE75B0's result as the source; 09AE88A0 takes a slot pointer built from the same 12-byte stride as the equipment box."
+
+[[function]]
+module = "lobby_task"
+address = "09AE75B0"
+name = "box_build_sorted_copy"
+purpose = "Writes a sorted copy of the box to obj+0xA2: mode 0 merges item stacks with 09AE7760 and shell-sorts them, returning the live box unchanged if any stack did not fit; other modes compact the equipment slots and sort with 09AE8958."
+confidence = "inferred"
+evidence = "item_slots_shell_sort in mode 0; the copy is what the grid reads under mask 0x100 (DAT_09b22e70 +0xA888 +0xA2 == +0xA92A)."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7760"
+name = "item_slots_add_merging_stacks_cap_99"
+purpose = "Adds item and count to a 4-byte slot array, topping up existing stacks to 99 unless item table byte 0899d2bb is -1, then putting the rest in the first empty slot; returns the count left over, 0 when placed."
+confidence = "inferred"
+evidence = "Cap of 99 versus 0xFF from the table byte, loops over slots of id and count."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7860"
+name = "box_menu_draw_sprite_35_with_label"
+purpose = "Draws sprite 0x35 and the string DAT_089acb1e at one of two positions selected by mask 0x1 on field_30."
+confidence = "inferred"
+evidence = "Single hud_draw_sprite and text_printf_at_colored from position tables."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7BA8"
+name = "box_grid_cursor_move_with_page_wrap"
+purpose = "Moves a box cursor of page*100 + row*10 + column: masks 0x80/0x20 step column, 0x10/0x40 step row, and masks 0x100/0x200 step page (in mode 1 only together with mask 0x1000, from the pressed value or global DAT_08a62d88), all wrapping, playing sound 0x11 after a page change and 0x17 otherwise."
+confidence = "inferred"
+evidence = "Decimal split by 100 and 10, box_page_count as the page limit, callers pass pointers to cursors."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8008"
+name = "item_slot_limit_not_ff_and_count_not_1"
+purpose = "Returns 1 if the slot's item has item table byte 0899d2bb other than -1 and its count is not 1, using the item box slot at cursor field_40 when the pointer is null."
+confidence = "inferred"
+evidence = "Single table byte test and count compare."
+
+[[function]]
+module = "lobby_task"
+address = "09AE93D8"
+name = "box_menu_draw_text_09b05194_at_fixed_position"
+purpose = "Prints the lobby string with id from DAT_09b05194 at x 8, y 0x2A."
+confidence = "inferred"
+evidence = "One text_printf_with_escapes_at call."
+
+[[function]]
+module = "lobby_task"
+address = "09AE9418"
+name = "box_menu_cursor_step_on_buttons_100_200"
+purpose = "Translates mask 0x100 to direction 0x80 and mask 0x200 to direction 0x20 for menu_cursor_move_horizontal_wrap, moving nothing while mask 0x1000 is set in DAT_08a62d88 or, in mode 1, masks 0x1000 and 0x300 both in DAT_08a62d8c."
+confidence = "inferred"
+evidence = "Direct mapping of masks; globals are ignored when field_60 is 0."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC5B0"
+name = "box_sort_prompt_handle_input"
+purpose = "Opens the sort prompt on mask 0x1, building the sorted copy; while open moves the choice, and on mask 0x4000 applies the sort when field_47 is 0 and wraps the mode's cursor to its first page, or closes on mask 0x2000; returns buttons, or 0 if consumed."
+confidence = "inferred"
+evidence = "Calls 09AE75B0 on open and 09AE72D8 on the confirm branch, sets field_5f, called by box screens 09ADD9B8/09ADEC30/09ADFC30 in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC7A0"
+name = "box_menu_draw_page_grid"
+purpose = "Draws a 100-cell box page in a layout window from the item list or, with mask 0x10, the equipment list (mask 0x100 uses the sorted copy instead), with per-mask dimming and equipped marks, cursor highlight, selected name, page indicator, and optional info panel and game +0x696F0 value."
+confidence = "inferred"
+evidence = "Cell loops of 100, cursor %100 and /100, equip_is_box_index_equipped, menu_draw_equipment_icon and menu_draw_item_icon_weapon_check."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE0A8"
+name = "box_grid_draw_pulsing_cell_highlight"
+purpose = "Draws sprite 0x49 stretched to the given rectangle with a colour pulsing by the sine of a 5-bit global counter at +0xF7A554."
+confidence = "inferred"
+evidence = "vsin_s of the counter feeds the RGB offsets; called in traces only from 09AEC7A0 for the cursor cell."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE1D0"
+name = "box_grid_draw_page_indicator"
+purpose = "When the box has more than one page, draws a window with sprites 0x36 and 0x37, end caps and the text of page + 1 and page count at the given layout, colour and alpha."
+confidence = "inferred"
+evidence = "box_page_count gate, value page+1 and box_page_count passed to text_printf_at."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE378"
+name = "box_menu_option_count_by_flags_6ac3d"
+purpose = "Returns the option count: 4, or 5 with mask 0x1 on game +0x6AC3D, plus 1 more with mask 0x4."
+confidence = "inferred"
+evidence = "Used as the list length by 09AE4B80."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE3D0"
+name = "box_menu_option_row_by_flags_6ac3d"
+purpose = "Returns the row in option table 09b0aed0: 1 for mask 0x1 on game +0x6AC3D, plus 2 for mask 0x4."
+confidence = "inferred"
+evidence = "09AE4B80 multiplies it by 6 to index the table."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF5B8"
+name = "npc_record_menu_reset_state"
+purpose = "Clears bytes +1, +2 and +3 and the halfword +0xE of the object."
+confidence = "inferred"
+evidence = "Same offsets are the state, substate, mode and flags of 09AEF5D0's object; runs once around frame 970 from 09A9B068."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF5D0"
+name = "npc_record_menu_tick"
+purpose = "Runs a five-step sequence for the hunter's talk target at +0x2F4: open dialogue and set the mode, wait for 09A9F1C0 to return 0, run the menu, then on its finish call 09AEF7A0, wait again, and close."
+confidence = "inferred"
+evidence = "State byte +1 switch; calls npc_talk_open_dialogue with hunter field_2f4; seen only in shops 2320-2440."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF710"
+name = "npc_record_menu_close_and_end_camera_focus"
+purpose = "Clears two state fields of the global DAT_09b22e70, sets its +0x1A to 0x14, ends the camera focus and resets the menu state to 0."
+confidence = "inferred"
+evidence = "camera_end_focus_target; runs on state 4 of 09AEF5D0."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF770"
+name = "npc_record_menu_set_mode_from_npc_field_480"
+purpose = "Sets mode +3 to 1 when the NPC's byte +0x480 is 7 and to 0 when it is 5, leaving it for other values."
+confidence = "inferred"
+evidence = "Two compares on the object passed by 09AEF5D0."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF7A0"
+name = "npc_record_menu_after_close_call_9a9f940"
+purpose = "Calls 09A9F940 on DAT_09b22e70 with 2 for an NPC whose byte +0x480 is 7; for 5 with 0x19 if gamedata bit flag 7 is clear, else 3 or 1 by f_overlay_9C19180(6)."
+confidence = "inferred"
+evidence = "Branches only choose 09A9F940's argument; runs just after the menu finishes in 09AEF5D0. The callee's meaning was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF868"
+name = "npc_record_menu_store_tier_bucket_field_0a"
+purpose = "Stores gamedata_condition_tier_bucket in byte +0xA of the menu object."
+confidence = "inferred"
+evidence = "One call and store; 09AEFEA8 compares byte +0xA afterwards."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF898"
+name = "npc_record_menu_update_and_commit_choice"
+purpose = "Per-frame substate machine of the menu: top choice, delays, record list and confirm pages, which on confirm may overwrite game records via 09AF05C0, 088571F8 and 088571E8 and rebuild the rows; returns 3 on a cancel from the top choice, otherwise 2."
+confidence = "inferred"
+evidence = "Switch on byte +2; the commit calls follow 09AF04B8 returning 0; bit flags 0x5D and field_5 steer it; mem_memcmp against the 0x70-byte game records."
+
+[[function]]
+module = "lobby_task"
+address = "09AEFDB8"
+name = "npc_record_menu_top_choice_input"
+purpose = "Reads buttons: mask 0x4000 confirms choice +5 (returns 0 and sets delay +0xC to 6, or stays with a sound if choice 1 fails 09AF1768), mask 0x2000 returns 3, otherwise steps the choice with menu_cursor_step_wrapped and returns 2."
+confidence = "inferred"
+evidence = "Button tests and return codes used by substate 1 of 09AEF898."
+
+[[function]]
+module = "lobby_task"
+address = "09AEFE88"
+name = "npc_record_menu_countdown_field_0c"
+purpose = "Decrements halfword +0xC and returns 1 when it reaches 0."
+confidence = "inferred"
+evidence = "Three lines; substates 2 and 3 of 09AEF898 wait on it after setting +0xC to 6."
+
+[[function]]
+module = "lobby_task"
+address = "09AEFEA8"
+name = "npc_record_menu_build_rows_and_prompt"
+purpose = "Fills the five 0x78-byte rows for choice +5 with 09AF14E8 or 09AF1050, sets row field +0x18 to 1 on rows that fail the conditions (record count, gamedata bit flags 7 and 0x25, tier byte +0xA, or the game +0x696F0 test), picks prompt string +0x10, and sets +7 to 5."
+confidence = "inferred"
+evidence = "Row loops of 5 at stride 0x78 and lobby strings stored to +0x10; rows and their consumers are in 09AEF898."

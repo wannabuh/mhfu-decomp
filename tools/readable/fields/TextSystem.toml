@@ -1,0 +1,525 @@
+[[field]]
+struct = "TextSystem"
+offset = 0x0
+name = "font_lib"
+type = "u32"
+confidence = "confirmed"
+note = "library handle from sceFontNewLib"
+evidence = "EBOOT 8892E7C stores the return of sceFontNewLib here"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x4
+name = "font_index"
+type = "u32"
+confidence = "confirmed"
+note = "font chosen by sceFontFindOptimumFont; passed to sceFontOpen"
+evidence = "EBOOT 8892E7C"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x8
+name = "font_handle"
+type = "u32"
+confidence = "confirmed"
+note = "open font from sceFontOpen; the sceFontInfo it fills sits at +0xC to +0x113"
+evidence = "EBOOT 8892E7C"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x5C
+name = "font_max_glyph_width"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "sceFontInfo max glyph bitmap width, read from the info struct at +0xC"
+evidence = "EBOOT 88907D8 rounds it up even into +0x114; offset 0x50 in sceFontInfo from the SDK layout, which also ends exactly at +0x114"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x5E
+name = "font_max_glyph_height"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "sceFontInfo max glyph bitmap height"
+evidence = "EBOOT 88907D8 rounds it up even into +0x115"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x114
+name = "glyph_box_width"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "even-rounded glyph width, pixels"
+evidence = "EBOOT 88907D8; 8893444 centres half-width glyphs in it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x115
+name = "glyph_box_height"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "even-rounded glyph height, pixels"
+evidence = "EBOOT 88907D8"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x116
+name = "cell_pad_x"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "horizontal gap between cells: 0"
+evidence = "EBOOT 88907D8 adds it to the glyph width for the cell width"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x117
+name = "cell_pad_y"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "vertical gap between cells: 2"
+evidence = "EBOOT 88907D8 adds it to the glyph height for the cell height"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x118
+name = "cell_width"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "cache cell width on a font page, pixels"
+evidence = "EBOOT 88907D8 computes it; 8893894 multiplies by the cell column for U"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x119
+name = "cell_height"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "cache cell height on a font page, pixels"
+evidence = "EBOOT 88907D8 computes it; 8893894 multiplies by the cell row for V"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x11A
+name = "cells_across"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "cells across a 256 pixel page"
+evidence = "EBOOT 88907D8 is 0x100 / cell_width; 8893894 takes the slot modulo it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x11B
+name = "cells_down"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "cells down a 256 pixel page"
+evidence = "EBOOT 88907D8 is 0x100 / cell_height; 8893894"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x11C
+name = "cells_per_page"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "cells on one font page"
+evidence = "EBOOT 88907D8 across times down; 8893894 divides the slot by it to pick VRAM slot 3 + page"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x11E
+name = "cell_total"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "cells in the cache: three pages' worth"
+evidence = "EBOOT 88907D8 times 3; 8893198 and 88932A8 cap slot use at it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x120
+name = "cursor_x"
+type = "s16"
+confidence = "confirmed"
+note = "x given to the next queued string"
+evidence = "EBOOT 8890DFC sets it; 88911A0 copies it to the entry's +0"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x122
+name = "cursor_y"
+type = "s16"
+confidence = "confirmed"
+note = "y given to the next queued string"
+evidence = "EBOOT 8890DFC sets it; 88911A0 copies it to the entry's +2"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x124
+name = "text_z"
+type = "s16"
+confidence = "inferred"
+note = "z for drawn text, cleared each frame"
+evidence = "EBOOT 8890BBC clears it; 889377C copies it to +0x12A for the vertices' z"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x126
+name = "draw_x"
+type = "s16"
+confidence = "confirmed"
+note = "pen x while drawing an entry"
+evidence = "EBOOT 889377C resets at newline and advances per char; 8893894 uses it as vertex x"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x128
+name = "draw_y"
+type = "s16"
+confidence = "confirmed"
+note = "pen y while drawing an entry"
+evidence = "EBOOT 889377C adds the entry's line height at newline; 8893894 vertex y"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x12A
+name = "draw_z"
+type = "u16"
+confidence = "confirmed"
+note = "vertex z in the emitted sprites"
+evidence = "EBOOT 8893894 and 8892A88 write it to both vertices"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x12C
+name = "char_advance"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "size setting: full-width advance of next strings; half for half-width glyphs"
+evidence = "EBOOT 8890DE8 sets it, default 0x14 in 8890BBC; 88952A4 returns it or half"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x12D
+name = "char_height"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "size setting: drawn glyph height of next strings"
+evidence = "EBOOT 8890DE8; 8893894 uses entry +5 for the sprite's height"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x12E
+name = "color_index"
+type = "s8"
+confidence = "confirmed"
+note = "colour index for next strings: negative is pulsing_color, else color_table"
+evidence = "EBOOT 8890E38 sets it; 88911A0 copies it to entry +6; 8893894 resolves it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x12F
+name = "current_list"
+type = "s8"
+confidence = "confirmed"
+note = "which of the six entry lists queues go to"
+evidence = "EBOOT 8890E08 clamps to 0..5; 88911A0 indexes the counts and lists with it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x130
+name = "keep_half_width_uncentred"
+type = "u8"
+confidence = "inferred"
+note = "zero centres half-width glyphs in the box; only ever set 0 at init"
+evidence = "EBOOT 8893444 centres when it is 0; 88908FC writes 0; 88952A4 both branches equal"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x131
+name = "next_custom_color"
+type = "s8"
+confidence = "confirmed"
+note = "next free colour table index, from 0x20 each frame, for one-off colours"
+evidence = "EBOOT 8890BBC sets 0x20; 8890D90 stores a colour there, selects it, increments"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x134
+name = "entry_count_list_0"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "queued entries in list 0 (capped at 0x80)"
+evidence = "EBOOT 88911A0 indexes field by list; 8891A28 draws that many; 8890BBC clears"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x135
+name = "entry_count_list_1"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 88911A0, 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x136
+name = "entry_count_list_2"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 88911A0, 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x137
+name = "entry_count_list_3"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 88911A0, 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x138
+name = "entry_count_list_4"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 88911A0, 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x139
+name = "entry_count_list_5"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 88911A0, 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13A
+name = "icon_count_list_0"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "queued inline icons of list 0"
+evidence = "EBOOT 8891A28 passes it as the count to text_draw_inline_icons; 8890BBC clears"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13B
+name = "icon_count_list_1"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13C
+name = "icon_count_list_2"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13D
+name = "icon_count_list_3"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13E
+name = "icon_count_list_4"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x13F
+name = "icon_count_list_5"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as list 0"
+evidence = "EBOOT 8891A28, 8890BBC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x140
+name = "entries_list_0"
+type = "ptr"
+confidence = "confirmed"
+note = "12-byte text entries of list 0, stored inside this object at +0x228"
+evidence = "EBOOT 88908FC points it; 88911A0 appends; 8891A28 walks"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x144
+name = "entries_list_1"
+type = "ptr"
+confidence = "confirmed"
+note = "as list 0, at +0x828"
+evidence = "EBOOT 88908FC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x148
+name = "entries_list_2"
+type = "ptr"
+confidence = "confirmed"
+note = "as list 0, at +0xE28"
+evidence = "EBOOT 88908FC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x14C
+name = "entries_list_3"
+type = "ptr"
+confidence = "confirmed"
+note = "as list 0, at +0x1428"
+evidence = "EBOOT 88908FC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x150
+name = "entries_list_4"
+type = "ptr"
+confidence = "confirmed"
+note = "as list 0, at +0x1A28"
+evidence = "EBOOT 88908FC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x154
+name = "entries_list_5"
+type = "ptr"
+confidence = "confirmed"
+note = "as list 0, at +0x2028"
+evidence = "EBOOT 88908FC"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x158
+name = "next_cell"
+type = "u16"
+confidence = "confirmed"
+note = "cache cell being or next to be assigned"
+evidence = "EBOOT 8893198 assigns from font_cache_pick_slot and increments; 88932A8 returns it while cells are free"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x15A
+name = "used_cell_count"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "cache cells assigned so far, capped at cell_total"
+evidence = "EBOOT 8893198 counts; 88932A8 starts eviction once it reaches the cap"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x15D
+name = "drawing_list"
+type = "s8"
+confidence = "confirmed"
+note = "list being drawn; 0..5 picks the GE queue 9..0xE"
+evidence = "EBOOT 8891A28 sets it; 8894988 maps it; 88930A8 uses its entries"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x15E
+name = "frame_counter"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "adds one per text frame; low 5 bits drive pulsing_color's sine"
+evidence = "EBOOT 8890BBC increments; 88949EC reads it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x15F
+name = "line_height"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "line step of next strings; size setter resets it to char_height"
+evidence = "EBOOT 8890E40 and 8890DE8 set it; 88911A0 stores it at entry +7; 889377C adds it at newline"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x160
+name = "string_pool_used"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "bytes used in the string pool at +0x22CF8, capped 0x2FFE, cleared per frame"
+evidence = "EBOOT 88911A0 advances and caps it; 8890BBC clears"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x162
+name = "pinned_cell_count"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "cells held by precached glyphs: eviction searches from here upward"
+evidence = "EBOOT 8891E0C counts successful precache requests; 88932A8 starts the free search at it"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x164
+name = "pulsing_color"
+type = "u32"
+confidence = "confirmed"
+note = "colour for negative colour index, redone each frame from a sine"
+evidence = "EBOOT 88949EC via 8890C94 index -1; 8893894 reads it for index below 0"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x168
+name = "color_table"
+type = "u32"
+confidence = "confirmed"
+note = "first of 0x30 colours, swizzled to GE byte order; 0x20 up are for one-offs"
+evidence = "EBOOT 8890C94 stores, 8890CE0 fills from 08931C5C, 8893894 reads"
+
+[[field]]
+struct = "TextSystem"
+offset = 0x2628
+name = "char_to_cell"
+type = "u16"
+confidence = "confirmed"
+note = "first of 0xFFF0 shorts: cache cell of a code point, 0xFFFF for none"
+evidence = "EBOOT 8890B38 fills 0xFFFF; 8893198 assigns; 8893894 looks up by character"

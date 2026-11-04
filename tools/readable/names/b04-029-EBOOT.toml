@@ -1,0 +1,255 @@
+[[function]]
+module = "EBOOT"
+address = "088D3B94"
+name = "model_node_tree_update_matrices_from_bones"
+purpose = "Walks a node tree (+0x14C child, +0x148 sibling) and sets each node's matrix at +0x50 to its +0x10 matrix times a matrix chosen through remap table param_4 and node index +0x116, from the bone array param_3 (stride 0x250, matrix at +0x90); remap table 0 uses the node's own +0x90 and stops at indices above 10."
+confidence = "inferred"
+evidence = "Recursive on +0x14C and +0x148; vmmul_q into +0x50; remap through DAT_089b79c0; called by 088CEE68 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D3DBC"
+name = "model_node_tree_update_matrices_from_bones_with_parent"
+purpose = "Same walk as model_node_tree_update_matrices_from_bones, but a remap value of 0x40 or more uses the node's +0x150 matrix times the parent matrix param_5, and children receive this node's chosen matrix as their parent."
+confidence = "inferred"
+evidence = "Recursion passes local matrix to the +0x14C child and param_5 to the +0x148 sibling; vmmul_q into +0x50."
+
+[[function]]
+module = "EBOOT"
+address = "088D3F68"
+name = "hunter_draw_attached_parts_and_model"
+purpose = "Positions the attached objects at +0x1090 and +0x1094 from bone matrices and offset tables chosen by byte +0x1E8, then draws each mesh of the model at +0xF60, writing GE commands to the display list at DAT_089cc120."
+confidence = "inferred"
+evidence = "Switches on +0x1E8; reads bone matrices at +0x190 base +0x1560 and +0x17B0; loop over mesh count +0x1C writes 0x4A, 0x4B, 0xE0 and 0x21 words; reached as vtable +0x78 from 088DD26C; ran only up to about frame 1440 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D5B54"
+name = "hunter_update_field_612_by_weapon_type"
+purpose = "Saves byte +0x612 to +0x7F0 and clears it, then sets it to 4 when byte +0x1E8 is 1 and f_EBOOT_88D286C returns 1."
+confidence = "inferred"
+evidence = "Direct field writes; the result is passed on to 88CF2C8 and 88D08D4 by its caller 088D3F68."
+
+[[function]]
+module = "EBOOT"
+address = "088D5BD4"
+name = "hunter_set_motion_id_for_part"
+purpose = "Stores motion id param_2, param_3 halved and param_4 in the per-part arrays +0x324, +0x334 and +0x32C at index param_5, and clears mask 0x80 (part 0) or mask 0x100 (other parts) in flags +0x614."
+confidence = "inferred"
+evidence = "Writes the +0x324 array that 088D5F30 also writes with a motion id; called from game_task 09A68330 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D5C2C"
+name = "hunter_set_motion_id_for_part_forward"
+purpose = "Forwards all its arguments to hunter_set_motion_id_for_part."
+confidence = "inferred"
+evidence = "Body is the single forwarding call to f_EBOOT_88D5BD4; the hunter prefix comes from that target."
+
+[[function]]
+module = "EBOOT"
+address = "088D5C34"
+name = "hunter_set_motion_id_both_parts"
+purpose = "Stores motion id param_2 in +0x324 and id + 100 in +0x326, param_3 halved in +0x334 and +0x336, param_4 in +0x32C and +0x32E, and clears mask 0x180 in flags +0x614."
+confidence = "inferred"
+evidence = "Same fields as hunter_set_motion_id_for_part for two parts; id + 100 matches the per-part id step in 088D5F30; many game_task callers in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D5F30"
+name = "motion_start_by_id"
+purpose = "Vtable +0x24: with param_4 = -1, looks up motion data for id + 100 * part through vtable +0x20 and starts it on every part up to count +0x1A2 of the motion state at +0x80; otherwise starts data param_3 on part param_4; records id in +0x324 either way."
+confidence = "inferred"
+evidence = "Loop steps the id by 100 and calls f_EBOOT_8863D58 on self +0x80 with the +0x20 lookup result; shared by several vtables."
+
+[[function]]
+module = "EBOOT"
+address = "088D6108"
+name = "motion_lookup_data_by_id"
+purpose = "Vtable +0x20: for id under 1000 with a bank at DAT_09a4f204 +0x40, returns the entry at id / 100 group and id % 100 index (0 when out of range or -1); otherwise calls f_EBOOT_8865254."
+confidence = "inferred"
+evidence = "Group table of count and offset pairs at bank + group * 8; 088D5F30 passes its result to f_EBOOT_8863D58."
+
+[[function]]
+module = "EBOOT"
+address = "088D61CC"
+name = "hunter_copy_input_block_and_apply_masks"
+purpose = "Copies the input block at DAT_08a62d88 to +0x480..+0x488, second copy +0x48C..+0x494 and +0x49C/+0x49E; narrows or zeroes the +0x480 set by masks in flags +0x614 and f_EBOOT_8830F74, zeroes the second copy in that case, counts frames in +0x61C while +0x480 has mask 0x100, and resets it when +0x484 has mask 0x100."
+confidence = "inferred"
+evidence = "Field-by-field copy from one global block; the masks and edge counter read like PSP button state; called from 088DB424 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D6388"
+name = "table_lookup_short_when_id_zero"
+purpose = "Returns param_3 when it is nonzero, otherwise for kind param_2 0, 3 or 4 reads a short from that kind's pointer table at index param_1, entry param_4 + param_5 * 4; other kinds return param_3."
+confidence = "confirmed"
+evidence = "The whole body is this switch over tables 089B6784, 089B680C and 089B6894."
+
+[[function]]
+module = "EBOOT"
+address = "088D6488"
+name = "hunter_tick_countdown_fields"
+purpose = "Vtable +0x3C: decrements bytes +0x62C, +0x46A, +0x5F0 and short +0x630, each only when nonzero."
+confidence = "inferred"
+evidence = "Four decrement-if-nonzero fields; called from 08865934 and game_task in most frames of the traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D6594"
+name = "hunter_add_health"
+purpose = "Vtable +0x68: for the local player only, adds signed param_2 to health +0x2E4 clamped to 0..max +0x41E and raises +0x41C to at least health; a loss is ignored in game modes where f_EBOOT_884FA5C(game, 0) is 1, any change is ignored with state group +0x298 = 3, and with entry 200 or 0xD3 in the +0x676 list a lethal change at health 0x40 or more leaves 1 health, sets +0x41C to 1, calls f_game_sub_9CB1D58 with 0x11 and returns 1."
+confidence = "inferred"
+evidence = "Clamps the known health and max health fields; ran in fight recordings; the lethal branch tests f_EBOOT_88D6A1C with 200 and 0xD3."
+
+[[function]]
+module = "EBOOT"
+address = "088D66F4"
+name = "hunter_copy_equipment_from_game"
+purpose = "Copies character and equipment fields from the game global (+0x4B3.. and the 12-byte records at +0x4C0..+0x507) to the hunter (+0x4E0.. and +0x4E8..+0x52F), derives byte +0x1E8 from a table by the first record's id and fills +0x5F3..+0x5F5."
+confidence = "inferred"
+evidence = "Field-by-field copy with six 12-byte records; +0x1E8 selects the per-weapon-type cases elsewhere in this file; ran once in misc and shops."
+
+[[function]]
+module = "EBOOT"
+address = "088D6924"
+name = "pouch_copy_stored_43c8_to_active_and_hunter_mirror"
+purpose = "Copies 24 item id and count pairs from the stored list at game +0x43C8 to the active list at game +0x6AEA6 (via f_EBOOT_8856884), and for the local player also to the hunter's mirror at +0x568."
+confidence = "inferred"
+evidence = "Loop of 0x18 slots over iVar5 + 0x3F28 with base game +0x4A0; the active list's slots hold item ids per 088D72A4."
+
+[[function]]
+module = "EBOOT"
+address = "088D69F0"
+name = "hunter_classify_fields_446_458"
+purpose = "Returns 1 when short +0x446 is positive, else 2 when short +0x458 is positive, else 0."
+confidence = "inferred"
+evidence = "Whole body is these two tests; the hunter prefix comes from its game_task 09A665F0 caller, which also calls the hunter updates here."
+
+[[function]]
+module = "EBOOT"
+address = "088D6A1C"
+name = "hunter_has_active_skill"
+purpose = "Returns 1 when param_2 is among the six bytes at +0x676 (read here as active skill ids), else 0."
+confidence = "inferred"
+evidence = "List scan; 200 and 0xD3 let a lethal health change leave 1 health in hunter_add_health, and 0xAA adds 1 to +0x67D in 088D8000."
+
+[[function]]
+module = "EBOOT"
+address = "088D6A54"
+name = "player_byte_list_contains"
+purpose = "Returns 1 when param_2 is among five bytes at game +0x69942 for the local player, or at game + player * 0x8C + 0xA9 for another player index +0x1E6, else 0."
+confidence = "inferred"
+evidence = "Both lists are chosen by comparing +0x1E6 with game +0x28; many callers in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D6AC8"
+name = "hunter_lookup_list_676_by_key_in_list_634"
+purpose = "Finds param_2 in the six bytes at +0x634 and returns the byte at the same index of +0x676, or 0 when absent."
+confidence = "inferred"
+evidence = "Parallel index scan over the two lists."
+
+[[function]]
+module = "EBOOT"
+address = "088D6B00"
+name = "hunter_turn_yaw_toward_field_320"
+purpose = "Unless byte +0x2A4 is set, moves yaw +0x1F4 toward angle +0x320 by a step set by state (0x71C, 0x5B0, 0xFA4 or 0 for states such as (0,0x3F)), and moves short +0x41A toward 0 when within the step, otherwise changes it by 0x80 during motion 3, clamped to +-0xA00."
+confidence = "inferred"
+evidence = "Wrapping angle compare of +0x320 with +0x1F4 using the step; 088D852C reads +0x1F4 as a 65536-unit angle; runs in game and lobby tasks."
+
+[[function]]
+module = "EBOOT"
+address = "088D6D10"
+name = "hunter_track_nearest_object_into_field_68c"
+purpose = "During motion 0x26, finds the nearest object within 1500 among 20 (lobby list when game +0x6AF14 has mask 0x1, otherwise DAT_09c122b0 +0x1220 entries with mask 0x4 at +0x638), sets +0x68B when found and steps angle +0x68C by 0x800 toward it clamped to about +-0x2AAB; with none found steps +0x68C to 0 by 0x400."
+confidence = "inferred"
+evidence = "Distance loop on +0x200, atan-style VFPU code minus yaw +0x1F4, clamp near 0xD556 and 0x2AAB; runs in game and lobby tasks."
+
+[[function]]
+module = "EBOOT"
+address = "088D71B8"
+name = "hunter_apply_timed_displacement"
+purpose = "While short +0x670 is positive, decrements it and adds vector +0x660 to place +0x200."
+confidence = "inferred"
+evidence = "vadd_t of +0x200 and +0x660 under the counter; same three callers as the hunter turn updates."
+
+[[function]]
+module = "EBOOT"
+address = "088D71F0"
+name = "hunter_input_angle_plus_view_yaw"
+purpose = "Returns short +0x49C (copied from the input block) plus the angle f_EBOOT_88147C8 computes for DAT_089cbd04, wrapped to 16 bits."
+confidence = "inferred"
+evidence = "f_EBOOT_88147C8 is an atan of +0xB50 minus +0xB40 and +0xB58 minus +0xB48 on that object; +0x49C is set in 088D61CC."
+
+[[function]]
+module = "EBOOT"
+address = "088D722C"
+name = "pouch_has_empty_slot"
+purpose = "For the local player, returns 1 when one of the 24 active pouch slots has item id 0, else 0; returns 1 for other players without checking."
+confidence = "inferred"
+evidence = "Loop over f_EBOOT_8856884 slots; ran in fight1 only, from 088476F4."
+
+[[function]]
+module = "EBOOT"
+address = "088D72A4"
+name = "pouch_change_item_count"
+purpose = "For the local player, changes the count of item param_2 in the active pouch by signed param_3: fills the first empty slot capped at the item table's limit, or adds to the existing slot, clears a slot that drops to 0 or below, returns a status code (5 when no slot takes it), and refreshes the hunter's selected-slot fields; item ids 0x80 and 0x4ED or above do nothing."
+confidence = "inferred"
+evidence = "Item table DAT_0899d2b8 stride 0x18, limit at +3; slots via f_EBOOT_8856884; f_EBOOT_885ACA0 called unless param_4 is set; ran in fight1."
+
+[[function]]
+module = "EBOOT"
+address = "088D7AD8"
+name = "pouch_find_slot_by_weapon_mask"
+purpose = "Finds, from slot param_2 and direction mode param_3, the next pouch slot whose item has table flag mask 0x4 (byte +0x1E8 = 10, 25 slots) or mask 0x2 (otherwise, 24 slots) and whose kind bit is allowed by f_EBOOT_88D7D6C, returning the slot or 0xFF; needs the local player, +0x5F3 = 1 and +0x4E9 = 6."
+confidence = "inferred"
+evidence = "Wrapping slot walk with modes 0 to 3; f_EBOOT_88D7D6C returns a mask from per-weapon table DAT_08960cd4; 088D72A4 stores the result in +0x686."
+
+[[function]]
+module = "EBOOT"
+address = "088D8000"
+name = "hunter_refresh_selected_slot_686_fields"
+purpose = "For the local player with +0x4E9 = 6 and slot +0x686 set, fills +0x55C from the item's kind, +0x646 from the slot count (0xFF for items with limit 0xFF), +0x67D from a table by weapon id +0x4EA and kind (+1 with skill id 0xAA), clears +0x67C, and sets or clears stored slot +0x5F6 by skill id 0xD9 when +0x1E8 is 10."
+confidence = "inferred"
+evidence = "Direct field writes from f_EBOOT_885C580 and table 0x8978818; called from 088D72A4 and game_task 09A655F0 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D81F0"
+name = "hunter_clear_stored_slot_5f6"
+purpose = "Sets byte +0x5F6 to 0xFF."
+confidence = "inferred"
+evidence = "Single write; its neighbour 088D81E4 stores slot +0x686 in +0x5F6."
+
+[[function]]
+module = "EBOOT"
+address = "088D81FC"
+name = "pouch_cycle_slot_with_flag_mask_1"
+purpose = "For the local player, walks the 24 pouch slots from param_2 forward (param_3 = 0) or backward with wrap and returns the first holding an item with table flag mask 0x1, or 0 when none or for another player; param_2 of 24 or more returns unchanged."
+confidence = "inferred"
+evidence = "Loop tests DAT_0899d2b9 mask 0x1; 088D72A4 stores its result in +0x648; ran in kit-items and fight1."
+
+[[function]]
+module = "EBOOT"
+address = "088D852C"
+name = "object_compare_probed_height_ahead"
+purpose = "Probes f_game_sub_9C3F740 at a point arg_f12 ahead along yaw +0x1F4 and compares the returned value with place Y +0x204 plus arg_f13 (below when param_2 is 0, above otherwise), returning 1 when the probe succeeds and the test holds."
+confidence = "inferred"
+evidence = "Yaw matrix from +0x1F4 applied to (0,0,arg_f12) and added to +0x200; game_task callers in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D8740"
+name = "object_add_player_offset_rotated_by_yaw"
+purpose = "Adds to vector param_2 the X,Z offset from DAT_089b65f0 for player index +0x1E6, rotated by yaw param_3."
+confidence = "inferred"
+evidence = "Rotation from param_3 by 2 pi / 65536 applied to a table entry indexed by +0x1E6, then added to param_2."
+
+[[function]]
+module = "EBOOT"
+address = "088D893C"
+name = "pouch_copy_stored_43c8_to_active"
+purpose = "Copies 0x60 bytes from the stored list at game +0x43C8 to the active pouch at game +0x6AEA6."
+confidence = "inferred"
+evidence = "f_EBOOT_880C084 copy with destination f_EBOOT_8856884(game, 0); lobby_task callers in traces."

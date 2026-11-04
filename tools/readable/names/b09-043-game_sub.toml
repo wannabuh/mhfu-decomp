@@ -1,0 +1,199 @@
+[[function]]
+module = "game_sub"
+address = "09CBB1F8"
+name = "class_089be310_reset_and_tick"
+purpose = "Zeroes short +0x38 and float +0x3C, calls the object's own +0x18 tick, then copies the pointer-to-member at DAT_09cf8618 into +0x1C if it is set."
+confidence = "inferred"
+evidence = "Vtable 089BE310 slot +0x14, run once at the start of the object's frames by 09CBAC70 in traces; calls slot +0x18 (09CBB278)."
+
+[[function]]
+module = "game_sub"
+address = "09CBB278"
+name = "class_089be310_tick_ramp_field_3c_and_place_towards_stage_point"
+purpose = "Ramps float +0x3C by 0.07 a tick, up to table (+0x34) +0x10 when the camera-to-stage-point capsule hits no table sphere and the hunter in the slot at game +0x28 is inside the table's XZ rectangle, otherwise down to 0; sets +0x40 to the point 150 units from the camera position towards stage +0x3A4; advances short +0x38 modulo table +0x16 when that is nonzero."
+confidence = "inferred"
+evidence = "Vtable 089BE310 slot +0x18; calls 09CBB488 and hunter_manager_get_slot, compares hunter +0x200 and +0x208 with table floats 0..3; vscl_t by 0x43160000 (150.0) on the normalised vector from DAT_089cbd04 +0xCB0."
+
+[[function]]
+module = "game_sub"
+address = "09CBB488"
+name = "class_089be310_capsule_camera_to_point_hits_any_sphere"
+purpose = "Returns 1 if a capsule of radius 5 from the camera position (DAT_089cbd04 +0xCB0) to point param_2 overlaps any sphere in the table at +0x34 (count short +0x18, entries of 0x20 bytes at pointer +0x1C with radius at entry +0x10), otherwise 0."
+confidence = "inferred"
+evidence = "Builds a capsule with radius 0x40a00000 (5.0) for math_capsule_prepare_derived (09C345D8), loops math_capsule_sphere_push_vector (09C35E88) and returns 1 at its first hit; called by 09CBB278 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CBD2A8"
+name = "class_089be3b0_draw_camera_aligned_model_with_own_projection"
+purpose = "Draws model group (+0x2C, +0x30, first table byte) with the camera rotation at DAT_089cbd04 +0xC80, translation +0x40, texture offset U from (+0x38 & 0x3FF) / 1024, alpha +0x50 * 255 and white ambient, with depth write off and a temporary 0.8726647 rad perspective projection, then restores the projection from DAT_089cbd04 +0xC00 and the GE state."
+confidence = "inferred"
+evidence = "Vtable 089BE3B0 slot +0xC; pushes GE 0xE7, 0xDE, 0xDB, 0x4A and 0x3E/0x3F around model_draw_group, with math_mat4_perspective and gpu_set_world_matrix_scaled."
+
+[[function]]
+module = "game_sub"
+address = "09CBDA48"
+name = "class_089be3b0_queue_draw_unless_stage_field_3a0_is_0x01_or_0x02"
+purpose = "Inserts the object into render queue DAT_089cc11c (argument 8, position +0x40, last argument 0) when short stage +0x3A0 is neither 1 nor 2 and the pointer-to-member at +0x1C equals DAT_09cf8718."
+confidence = "inferred"
+evidence = "Vtable 089BE3B0 slot +0x10, called by 088C3364 in traces; render_queue_insert_depth_sorted behind member_fn_not_equal returning 0."
+
+[[function]]
+module = "game_sub"
+address = "09CBDB08"
+name = "class_089be3b0_reset"
+purpose = "Zeroes short +0x38, sets alpha +0x50 to 0.4 and copies the pointer-to-member at DAT_09cf8728 into +0x1C if it is set."
+confidence = "inferred"
+evidence = "Vtable 089BE3B0 slot +0x14, run once at the first frame of the object's range by 09CBAC70; 09CBD2A8 uses +0x50 as alpha and +0x38 as texture offset."
+
+[[function]]
+module = "game_sub"
+address = "09CBDB88"
+name = "class_089be3b0_tick_alpha_by_view_angle_to_stage_point"
+purpose = "Advances +0x38 modulo 0x400; when the hunter in the slot at game +0x28 is within XZ distance 4000 of table +0x10, lowers alpha +0x50 by 0.015 to a floor of 0.125, otherwise moves it by 0.015 towards 0.75 - 0.5 * |angle| / 180 degrees, the angle being between the camera +0xCA0 vector and the direction from the camera to stage +0x3A4; sets +0x40 to the camera position - 40 * the +0xCA0 vector."
+confidence = "inferred"
+evidence = "Vtable 089BE3B0 slot +0x18; math_point_in_y_cylinder (09C367C0) with 4000.0 on hunter +0x200, math_acos of the dot product converted to a 16-bit angle, +0x50 read as alpha by 09CBD2A8."
+
+[[function]]
+module = "game_sub"
+address = "09CBDEF8"
+name = "class_089be3d0_setup"
+purpose = "Sets +4 to 3, clears +8 and +0xC, copies the pointer-to-member at DAT_09cf8768 into +0x1C if set, and stores the arguments: flags +0x28, position pointer +0x44, queue argument +0x34, group +0x3C, periods +0x36, +0x38 and +0x3A, scale pointer +0x48, and the alpha table +0x40 only when flags have mask 1."
+confidence = "inferred"
+evidence = "Called by factory 088C3C54, which allocates the object with vtable 089BE3D0; the fields are read by that class's 09CBE008 and 09CBE770."
+
+[[function]]
+module = "game_sub"
+address = "09CBE008"
+name = "class_089be3d0_draw_model_group_by_flags"
+purpose = "Draws model group +0x3C with scale from pointer +0x48 (identity if null) and translation from pointer +0x44; flags +0x28 add: mask 0x40 depth write off, mask 2 a rotation of 2*pi * +0x4E / +0x3A, mask 0x20 a multiply by the matrix at DAT_089cbd04 +0xCC0, mask 4 texture offsets +0x50/+0x36 and +0x52/+0x38, mask 8 one minus those, mask 0x10 (without 8) offsets stepped in quarters, mask 0x81 alpha from byte +0x4C."
+confidence = "inferred"
+evidence = "Vtable 089BE3D0 slot +0xC; flag tests around GE 0x4A/0x4B and 0xE7 pushes, gpu_set_world_matrix_scaled, model_group_set_alpha/diffuse/ambient, model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CBE658"
+name = "class_089be3d0_queue_draw"
+purpose = "Inserts the object into render queue DAT_089cc11c (queue argument byte +0x34, position pointer +0x44, last argument 1) when the pointer-to-member at +0x1C equals DAT_09cf8748."
+confidence = "inferred"
+evidence = "Vtable 089BE3D0 slot +0x10, called by 088C3364 in traces; render_queue_insert_depth_sorted behind member_fn_not_equal returning 0."
+
+[[function]]
+module = "game_sub"
+address = "09CBE6D8"
+name = "class_089be3d0_reset_and_tick"
+purpose = "Zeroes counters +0x50, +0x52 and +0x4E and, with flags +0x28 mask 0x80, alpha byte +0x4C; calls the object's own +0x18 tick, then copies the pointer-to-member at DAT_09cf8758 into +0x1C if it is set."
+confidence = "inferred"
+evidence = "Vtable 089BE3D0 slot +0x14, run once by 09CBAC70 in the fight1 frame where the setup 09CBDEF8 ran; calls slot +0x18 (09CBE770)."
+
+[[function]]
+module = "game_sub"
+address = "09CBE770"
+name = "class_089be3d0_tick_counters_and_alpha"
+purpose = "Advances counters +0x50 and +0x52 (modulo +0x36 and +0x38 with flags mask 0xC, plain increments with mask 0x10 alone) and +0x4E modulo +0x3A; with mask 1 moves alpha byte +0x4C by 8 towards the byte in table +0x40 at index stage_get_field_444; with mask 0x80 raises it by 8 up to 0xC0."
+confidence = "inferred"
+evidence = "Vtable 089BE3D0 slot +0x18; the counters and +0x4C are the texture offset, rotation and alpha inputs of 09CBE008."
+
+[[function]]
+module = "game_sub"
+address = "09CBF170"
+name = "class_089be410_draw_model_with_angle_and_tilt"
+purpose = "Draws model group (+0x2C, +0x30, first table byte) at +0x40 with uniform scale table +8, rotated by the 16-bit angle +0x3A, then by pi/2 and a -0.1745 rad tilt when byte +0x38 is 0, or by 3*pi/2 and a +0.1745 rad tilt when it is not."
+confidence = "inferred"
+evidence = "Vtable 089BE410 slot +0xC; float constants 0x3fc90fdb, 0x4096cbe4 and 0xbe32b8c3/0x3e32b8c3 chosen on +0x38, then gpu_set_world_matrix_scaled and model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CBF4C8"
+name = "class_089be410_queue_draw_at_table_point"
+purpose = "Inserts the object into render queue DAT_089cc11c (argument 5, position table +0x10 rather than its own +0x40, last argument 1) when the pointer-to-member at +0x1C equals DAT_09cf88a8."
+confidence = "inferred"
+evidence = "Vtable 089BE410 slot +0x10, called by 088C3364 in traces; render_queue_insert_depth_sorted behind member_fn_not_equal returning 0."
+
+[[function]]
+module = "game_sub"
+address = "09CBF550"
+name = "class_089be410_reset_random_orbit"
+purpose = "Using six draws of math_rng_next, sets centre +0x50..+0x58 to table +0x10..+0x18 plus a random amount below table +0x20..+0x28, offset +0x60..+0x68 to (0, 0, radius) with radius table +4 plus a random amount below short table +2, step +0x3C to the 16-bit angle of 33 units of arc, a random angle +0x3A, and on an even draw a negated step with byte +0x38 = 1 (else 0); then copies the pointer-to-member at DAT_09cf88b8 into +0x1C if set."
+confidence = "inferred"
+evidence = "Vtable 089BE410 slot +0x14, run once by 09CBAC70 at misc frame 7900; expression (33.0 / (r * 6.2831855)) * 65536.0, values consumed by 09CBF808."
+
+[[function]]
+module = "game_sub"
+address = "09CBF808"
+name = "class_089be410_tick_orbit_position"
+purpose = "Adds step +0x3C to angle +0x3A and sets position +0x40 to centre +0x50 plus offset +0x60..+0x68 rotated by that angle in the XZ plane."
+confidence = "inferred"
+evidence = "Vtable 089BE410 slot +0x18; vsin_s/vcos_s of the 16-bit angle combine +0x60 and +0x68, +0x64 passes through, then vadd_t with +0x50."
+
+[[function]]
+module = "game_sub"
+address = "09CC0418"
+name = "class_089be470_destructor_dispatch_sound_if_field_6a_zero"
+purpose = "Sets the object's vtable to 089BE470, calls unknown_sound_dispatch_889eac4_or_889ee80(+0x54, +0x60, +0x64, 0) when short +0x6A is 0, then sets base vtables 089BE2F0 and 089BDC48; frees nothing itself."
+confidence = "inferred"
+evidence = "Vtable 089BE470 slot +0x8, called by 088C349C in traces; vtable writes walk down to the base classes."
+
+[[function]]
+module = "game_sub"
+address = "09CC04A0"
+name = "class_089be470_setup"
+purpose = "Sets +4 to 3, clears +8 and +0xC, copies the pointer-to-member at DAT_09cf8948 into +0x1C if set, and stores the arguments: flags +0x28, sound arguments +0x54, +0x58, +0x5C, +0x60 and +0x64, position +0x40..+0x4C, period +0x68, path pointer +0x50 and lifetime +0x6A."
+confidence = "inferred"
+evidence = "Called by factory 088C4200, which allocates the object with vtable 089BE470; 09CC05C0 and 09CC0748 pass these fields to sound_play_3d."
+
+[[function]]
+module = "game_sub"
+address = "09CC05C0"
+name = "class_089be470_reset_start_sound"
+purpose = "When game +0x6AF14 lacks mask 1 and unknown_mode_byte_2e_allows_index(game, 0) returns 1, calls unknown_sound_dispatch_889eac4_or_889ee80 and starts nothing; otherwise sets countdown +0x6C from +0x68 (random offset (rng & 0x1F) - 0x10 with flags mask 1) and +0x6E from +0x6A and starts the sound, with stage_latched_start_update_stop when +0x58 is 0x10, otherwise sound_play_3d. Then copies the pointer-to-member at DAT_09cf8938 into +0x1C if set."
+confidence = "inferred"
+evidence = "Vtable 089BE470 slot +0x14, called by 09CBAC70 in traces; sound_play_3d takes +0x54, +0x58, +0x60, +0x64 and position +0x40."
+
+[[function]]
+module = "game_sub"
+address = "09CC0748"
+name = "class_089be470_tick_sound_countdowns_and_position"
+purpose = "Under the same game checks as its reset may call the sound dispatch; counts lifetime +0x6E down when +0x6A is nonzero, clearing +4 mask 1 and returning at 0; counts +0x6C down, applying sound_apply_3d_mix each tick for mode 0x48; at expiry, with flags mask 2 first moves position +0x40 onto the three-point path at +0x50 near the camera, then restarts or remixes the sound by mode +0x58 (0x10, 0x48 or other) and reloads +0x6C."
+confidence = "inferred"
+evidence = "Vtable 089BE470 slot +0x18; math_closest_point_on_segment on both path segments against DAT_089cbd04 +0xCB0, math_capsule_plane_crossing (09C369D0), then stage_latched_start_update_stop, sound_play_3d or sound_apply_3d_mix."
+
+[[function]]
+module = "game_sub"
+address = "09CC1970"
+name = "class_089be490_reset_select_layer_table"
+purpose = "Points +0x94 at entry short table (+0x34) +2 of the 0x1C-byte table DAT_09cf8c80; for each of the entry's layers clears +0x64, +0x7C and +0x88 per-layer values and, with layer flag mask 0x100, loads +0x70 from the entry's +0x14 table at layer * 3 + stage_get_field_444; clears +0x50..+0x62 and copies the pointer-to-member at DAT_09cf8de0 into +0x1C if set."
+confidence = "inferred"
+evidence = "Vtable 089BE490 slot +0x14, called by 09CBAC70 in traces; loop stepping the per-layer fields by 4 over the count at entry +0."
+
+[[function]]
+module = "game_sub"
+address = "09CC1A98"
+name = "class_089be490_tick_layer_values_and_follow_camera"
+purpose = "Tracks camera heading, pitch and height changes in +0x50..+0x62 when a layer has flag mask 0x200; per layer advances +0x7C (mask 0x400) or +0x88 (mask 0x800), wrapped to 0..1, by eased rate +0x70 (mask 0x100) or by camera change plus a table rate (mask 0x200), and moves +0x64 by 0.025 towards a table value while the hunter in the slot at game +0x28 is inside the XZ rectangle at table (+0x34) +4, or down to 0 outside; sets +0x40 to the camera position, offset by -40 * the camera +0xCA0 vector for id 8 and also by a camera-matrix (0, -12, 0) for id 9."
+confidence = "inferred"
+evidence = "Vtable 089BE490 slot +0x18; 09CC2148 and 09CC2120 on DAT_089cbd04 +0xCA0, math_floor wraps, 0.001 and 0.025 steps, hunter +0x200 and +0x208 compared with table floats, vtfm3_t with matrix +0xC80."
+
+[[function]]
+module = "game_sub"
+address = "09CC2120"
+name = "math_sqrtf"
+purpose = "Returns the square root of arg_f12."
+confidence = "confirmed"
+evidence = "The body is a single vsqrt_s of the argument."
+
+[[function]]
+module = "game_sub"
+address = "09CC2148"
+name = "math_atan2f"
+purpose = "Returns the angle in radians of arg_f12 over arg_f13, an atan2(y, x) with special cases for zero and infinite inputs, built on VFPU vasin_s."
+confidence = "inferred"
+evidence = "Sign and zero branches on both arguments with vcst_s pi constants and vasin_s; 09CC1A98 calls it with camera vector components (x, z) and (y, horizontal length) and converts the result by 65536 / 2*pi."
+
+[[function]]
+module = "game_sub"
+address = "09CC4290"
+name = "class_089be550_setup"
+purpose = "Sets +4 to 3, clears +8 and +0xC, copies the pointer-to-member at DAT_09cf8f10 into +0x1C if set, and stores the arguments: +0x28, vec4 +0x40..+0x4C from pointer param_3, +0x50, +0x54, byte +0x58 and short +0x5A."
+confidence = "inferred"
+evidence = "Called by factory 088C493C, which allocates the object with vtable 089BE550 and passes these arguments through; same shape as the setups 09CBDEF8 and 09CC04A0."

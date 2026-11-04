@@ -1,0 +1,239 @@
+[[function]]
+module = "game_task"
+address = "09A5F380"
+name = "game_task_init_subsystems"
+purpose = "First method of the task at vtable 089B9350: resets asset slots, camera, object lists, file pools, stage manager and hunter manager, constructs the quest object, then sets the task's state function to 09A5F868 with step +0x34 at 0."
+confidence = "inferred"
+evidence = "Vtable slot +0x0; ran once per recording just before the load steps; the calls and the member-function copy to +0x4..+0xC are in the code."
+
+[[function]]
+module = "game_task"
+address = "09A5F868"
+name = "game_task_state_initial_load"
+purpose = "Task state function stepping through +0x34 (0..0x11): shows the loading screen, loads quest data, asset slots, hunter and area assets, sound tracks and the area overlay, then hides the loading screen, starts a screen fade and switches the state function to 09A60298."
+confidence = "inferred"
+evidence = "Switch on +0x34 calling loading_screen_show, quest_data_load_step, overlay_start_load, loading_screen_hide; ran for about 80 frames after the init method."
+
+[[function]]
+module = "game_task"
+address = "09A60AD8"
+name = "game_task_state_change_area"
+purpose = "Task state function that fades sound out, unloads the current area, writes the target id from +0x1C to game global +0x6AF0E and stage +0x288, loads that area's overlay and assets, selects sound, and returns to state function 09A60298; when the target equals the current id it sets mask 0x8 on +0x54 and shows no loading screen."
+confidence = "inferred"
+evidence = "Calls stage_mgr_deactivate_current, overlay_start_load with id + 0x15A6, the load step 09A62D10 and the area-enter step 09A62F70; ran in short bursts mid-quest."
+
+[[function]]
+module = "game_task"
+address = "09A60E80"
+name = "sound_after_area_change_load_tracks"
+purpose = "Clears sound state masks 0x10/0x20, stops or keeps the current track depending on sound state ids, then requests track file loads for slots 0x12, 0x13 and 0x14 according to the bits of sound state field +0x24."
+confidence = "inferred"
+evidence = "Called in traces from both area reload states 09A60AD8 and 09A61280; switch on sound_state_get_field_24 chooses sound_request_track_files_load slots."
+
+[[function]]
+module = "game_task"
+address = "09A61280"
+name = "game_task_state_reload_area_and_reposition_hunter"
+purpose = "Task state function that unloads the area, picks a new area id (mask 0x4 on +0x54 set: game_lookup_id_from_6af0e_or_table; clear: first entry of the map's table at 09CE480C), moves the hunter in the slot at game global +0x28 there through vtable method +0x54 (code 4 or 5), reloads the area and clears +0x54."
+confidence = "inferred"
+evidence = "Same load sequence as 09A60AD8 but with table-chosen area and hunter method call; the only listed run is fight1 frames 5680-5710, near the end of the recording where the hunter faints, which is suggestive but does not settle the trigger."
+
+[[function]]
+module = "game_task"
+address = "09A628F8"
+name = "game_task_frame_draw_calls"
+purpose = "Per-frame group of calls: queues hunters for rendering when camera scene field +0x88 is 0, then calls 09AB1418, 09C2D518, the stage objects' vtable +0x10, 09B62EA0 with game_byte_6af1a_is_set, and stage_current_pass_to_884cb24."
+confidence = "guess"
+evidence = "Runs throughout play from 09A62740 and contains hunter_list_add_to_render_queue; the other callees are not identified as drawing."
+
+[[function]]
+module = "game_task"
+address = "09A62978"
+name = "game_task_load_step_hunters_and_quest_assets"
+purpose = "Resumable step machine on +0x44 that loads asset slot 7 file 0x51, hunter files, creates hunters and counts them into quest +0x70C, loads the tagged-heap pack and quest map file, an optional quest overlay, reserves asset slots and requests sounds; returns 1 when finished, 0 while waiting."
+confidence = "inferred"
+evidence = "Fallthrough switch on +0x44 calling hunter_manager_create_hunters_from_records, hud_load_quest_map_file_step, overlay_start_load; called in traces from step 5 of 09A5F868."
+
+[[function]]
+module = "game_task"
+address = "09A62D10"
+name = "game_task_load_step_area_stage_and_assets"
+purpose = "Resumable step machine on +0x44 that loads the area file (area id + 0x16B0) into asset slot 0, loads the stage from it, requests the area's assets and sounds, and runs the area sound bank step; mask 0x8 on +0x54 skips the waits and requests; returns 1 when finished."
+confidence = "inferred"
+evidence = "Calls asset_slot_start_load, stage_mgr_load_from_pack, quest_area_request_assets, 09A638B0; called in traces from all three load states."
+
+[[function]]
+module = "game_task"
+address = "09A62F70"
+name = "game_task_area_enter_spawn_and_reset_scene"
+purpose = "After an area is loaded: spawns the quest's area entries, resets the camera, reloads lights for the area id argument, emits stage fog commands, calls the current stage's vtable +0x24 and clears non-kept pickup points."
+confidence = "inferred"
+evidence = "Direct calls to quest_area_spawn_entries, camera_reset_for_scene, light_block_reset_and_load, stage_emit_fog_commands, pickup_points_clear_nonkept."
+
+[[function]]
+module = "game_task"
+address = "09A62FF0"
+name = "game_task_area_exit_unload_objects_and_stage"
+purpose = "Before leaving an area: calls 09B66C80, unloads the quest area's objects, destroys the stage objects, and unloads the stage unless mask 0x8 is set on +0x54."
+confidence = "inferred"
+evidence = "Direct calls to quest_area_unload_objects, stage_objects_destroy_all, stage_mgr_unload; called in traces from 09A60AD8 and 09A61280."
+
+[[function]]
+module = "game_task"
+address = "09A63050"
+name = "game_task_load_heap_tag4_pack_step"
+purpose = "Two-step loader: picks a file id from the table at 09BB7400 indexed by global DAT_08a632c0 +0xF7A574, replaces the tagged-heap block with id 4 unless that file id is already loaded (+0x3C), starts the read, and returns 1 once the file loader is idle."
+confidence = "inferred"
+evidence = "mem_tagged_heap_find_by_id / free / alloc with id 4, then file loader vtable +0x18 and +0x34; state byte +0x3E."
+
+[[function]]
+module = "game_task"
+address = "09A631D0"
+name = "heap_tag4_pack_get_section_ptr"
+purpose = "Returns the address of a section of the pack in tagged-heap block 4: base plus the offset stored at header word index + 2."
+confidence = "inferred"
+evidence = "One-line arithmetic on mem_tagged_heap_find_by_id(4); the block is the one loaded by 09A63050."
+
+[[function]]
+module = "game_task"
+address = "09A63218"
+name = "heap_tag4_pack_section_entry_ptr"
+purpose = "Given a section index and an entry id, returns the section address plus the entry's 4-byte offset, or 0 when the id is 0xFFFF or the offset is -1."
+confidence = "inferred"
+evidence = "Calls 09A631D0, copies the offset with mem_memcpy, checks both sentinels."
+
+[[function]]
+module = "game_task"
+address = "09A63298"
+name = "heap_tag4_pack_section1_entry_ptr"
+purpose = "Wrapper for 09A63218 with section index 1."
+confidence = "inferred"
+evidence = "Single tail call with constant 1."
+
+[[function]]
+module = "game_task"
+address = "09A632A8"
+name = "game_task_hunter_in_stage_volume_check"
+purpose = "For the hunter in the slot at game global +0x28, when allowed by its health, state and fields +0x2A4/+0x2E6, finds the stage volume containing its place, stores it at task +0x4C and returns whether one was found; otherwise returns 0 and clears +0x2A4 if it was 1 on the disallowed paths."
+confidence = "inferred"
+evidence = "Reads hunter +0x2E4, +0x298, +0x2A4, +0x2E6, calls stage_find_volume_containing_point with hunter +0x200; runs throughout play from 09A66198."
+
+[[function]]
+module = "game_task"
+address = "09A633B0"
+name = "objects_with_flag_410_mask_80_call_9c417e0"
+purpose = "Loops over the 4 hunter slots and the 20 object slots at DAT_09C122B0 +0x1220 and calls 09C417E0(object, 1) on each whose field +0x410 has mask 0x80."
+confidence = "inferred"
+evidence = "Two loops in the code with the same flag test and call; the callee's meaning is not visible here."
+
+[[function]]
+module = "game_task"
+address = "09A63480"
+name = "gpu_draw_fullscreen_black_quad_alpha_ramp"
+purpose = "When +0x6C is 1, raises alpha +0x68 by 0x20 per call up to 0xFF and emits GE commands drawing a black 480x272 rectangle with that alpha; otherwise resets +0x68 to 0."
+confidence = "confirmed"
+evidence = "GE list in the code: vertex type 0x1280011C in through mode, rectangle primitive with 2 vertices, corner 0x011001E0 (480,272), vertex colour alpha << 24 only."
+
+[[function]]
+module = "game_task"
+address = "09A637A8"
+name = "sound_load_step_fixed_banks_slots_1_and_3"
+purpose = "Step machine on +0x40 that queues ids 0x153A/0x1539/0x153B on sound slot 1 and, when game global +0x41A is 1, ids 0x1549/0x1548/0x154A on slot 3; returns 1 once the sound loader is idle."
+confidence = "inferred"
+evidence = "sound_slot_queue_ids_request with constants and sound_loader_is_busy; step 7 of 09A5F868 in traces."
+
+[[function]]
+module = "game_task"
+address = "09A638B0"
+name = "sound_load_step_area_bank_slot_6"
+purpose = "Queues sound slot 6 with two ids from the per-area table at 089A9590 plus 0x154D, records the first id at sound +0x562468, and returns 1 when the sound loader is idle."
+confidence = "inferred"
+evidence = "Table indexed by game global +0x6AF0E times 4; sound_slot_queue_ids_request and sound_loader_is_busy."
+
+[[function]]
+module = "game_task"
+address = "09A63980"
+name = "sound_load_step_track_table"
+purpose = "Requests one track file per call from the (slot, id) table at 09BB74D0 until the 0xFFFF end, substituting ids 0x18F5 and 0x18F3 when global DAT_08a632c0 +0xF7A574 is nonzero; returns 1 at the end, or at once when game global +0x480 is set."
+confidence = "inferred"
+evidence = "Table walk with +0x40 as index and sound_request_track_file_load."
+
+[[function]]
+module = "game_task"
+address = "09A63A88"
+name = "sound_select_area_or_camera_scene_track"
+purpose = "Selects the next track: through 09A648C0 with sound state byte +0x18 = 0 when camera scene field +0x88 is 0 or the scene has no track id, otherwise through 09A649E0 with the scene's track id and byte +0x18 = 1."
+confidence = "inferred"
+evidence = "camera_scene_get_track_id with 0xFFFF test and sound_state_set_byte_18 on each branch."
+
+[[function]]
+module = "game_task"
+address = "09A63B28"
+name = "sound_camera_scene_gate_check"
+purpose = "Returns 1 when camera scene field +0x88 is not 1; otherwise returns 0 if sound state byte +0x18 is 1 or the scene record's byte 6 is nonzero, and 1 if not."
+confidence = "inferred"
+evidence = "Three reads in the code; what the caller 09A60298 does with the result is not visible here."
+
+[[function]]
+module = "game_task"
+address = "09A63B98"
+name = "sound_music_state_tick"
+purpose = "Per-frame state machine on sound state field +0x4: does nothing while camera scene field +0x88 is 1, jumps to end-of-quest tracks on quest_get_end_result, otherwise follows 09A64D20 and the area to fade out, load and play tracks such as 0x18FE, 0x18FB, 0x18FD and 0x18FC, and handles the volume-restore masks 0x200 and 0x400 on +0x14."
+confidence = "inferred"
+evidence = "Large switch of sound_track_fade_out, sound_request_track_files_load and sound_track_play_* calls; runs throughout play."
+
+[[function]]
+module = "game_task"
+address = "09A647F8"
+name = "sound_lookup_area_once_track"
+purpose = "Finds the current area in the table at 09BB7520 (area, track, volume), writes the volume to +0x10 and returns the track; returns 0xFFFF if absent, or sets mask 0x80 on +0x14 and returns 0xFFFF when quest data byte +0x45 is nonzero while game global +0x480 is 0."
+confidence = "inferred"
+evidence = "Table walk in the code; its caller 09A648C0 uses it only while mask 0x1 on +0x14 is clear and then sets that mask."
+
+[[function]]
+module = "game_task"
+address = "09A648C0"
+name = "sound_music_select_track_for_quest_state"
+purpose = "Sets the track id +0xC and volume +0x10 from quest_get_end_result and quest flags: result 1 gives 0x18FB, other nonzero results 0x18FD, quest mask 0x800 gives 0x19D4, mask 0x400 uses 09A649F0, otherwise the area tracks; also sets state +0x4 and copies +0x19 to +0x1A."
+confidence = "inferred"
+evidence = "Branches in the code on quest_get_end_result and DAT_08a62d9c +0x28; called in traces from 09A61280 and 09A63A88."
+
+[[function]]
+module = "game_task"
+address = "09A649F0"
+name = "sound_select_track_by_map_and_object_id"
+purpose = "Returns a track id from the map byte at game global +0x6AF10: map 1 chooses among 0x19C9..0x19E3 by whether an object with id 0x37 exists and by a remapped area id; other maps use the first object in the DAT_09C122B0 list whose +0x1E8 id is in the table at 09CE4F50, with a per-map fallback table."
+confidence = "inferred"
+evidence = "Object slot loop reading +0x1E8 and table lookups; the result is used as a track id by 09A63B98 and for asset slot 0x2A in 09A5F868."
+
+[[function]]
+module = "game_task"
+address = "09A64D20"
+name = "sound_music_area_objects_level_0_1_2"
+purpose = "Scans the DAT_09C122B0 objects and hunters in the current area and returns 2 for an object passing its table mask 0x1 and field tests, 1 for a hunter with +0x566 set, and 0 otherwise, including when the hunter's area equals game_lookup_id_from_6af0e_or_table, game global +0x422 is set, quest mask 0x600 is set, or object id 0xF or 0x2D exists."
+confidence = "inferred"
+evidence = "Return values read in the code; 09A63B98 starts track 0x18FE on nonzero and later uses the value 2 to load another track."
+
+[[function]]
+module = "game_task"
+address = "09A64F48"
+name = "sound_music_set_state_by_mode"
+purpose = "Sets the music state +0x4 by a mode argument: 0 gives state 0, 1 gives state 9 with field +0x0 set to 0x96, 2 gives state 0x14."
+confidence = "inferred"
+evidence = "Three branches in the code; states match the switch in 09A63B98; ran in fight1 at frame 5380 in traces."
+
+[[function]]
+module = "game_task"
+address = "09A64FA0"
+name = "sound_music_request_state_c_track_18fc"
+purpose = "Sets the music state +0x4 to 0xC, which in 09A63B98 fades the current track out and then plays track 0x18FC."
+confidence = "inferred"
+evidence = "Single store; 09A63B98 cases 0xC and 0xD; ran in fight1 at frame 5380 in traces."
+
+[[function]]
+module = "game_task"
+address = "09A65058"
+name = "sound_select_area_default_track"
+purpose = "Saves track id +0xC to +0x20, sets +0xC and volume +0x10 from the per-area table at 09CE4948, then overrides them from the table at 09CE4D78 when an entry matches the current area and a nonzero +0x19."
+confidence = "inferred"
+evidence = "Table reads in the code; +0x19 is copied from stage_get_field_444 by the callers of the track selection."

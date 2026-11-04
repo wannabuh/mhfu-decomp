@@ -12,7 +12,7 @@ the repository: the game's and the player's).
     tools/suite.py --list
 
 It exits 1 if anything failed or changed, and writes `tests/data/runs/<date>/report.md` (and `report.json`). A full
-run of the 21 scenarios takes about 40 minutes at -j 4.
+run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer the game is played on: `--renderer soft` has baselines of its own and takes about 33. RAM differs between them, as shadows draw models just out of view (`rt_cull_margin`), which draws from the game's random numbers: compare only within one renderer and shadow setting.
 
 ## Checks
 
@@ -30,12 +30,12 @@ run of the 21 scenarios takes about 40 minutes at -j 4.
 - **state** - a save state saved and loaded at 60 (`MHFU_STATE_TEST=A,B`, default the end's last 400 to 100 frames):
   every frame after the load as before (savestate.c; the test prints the first words that differ).
 
-The suite runs on the software renderer, whose game RAM is not the same as Vulkan's: with shadows on, `rt_cull_margin`
+Game RAM is not the same on the two renderers (so each has its baselines): with shadows on, `rt_cull_margin`
 (1200; patches.py `CULL`, `render_shadow_frame`) widens the game's own view test, so models just out of view are drawn
 and animated, and those with effects draw from the game's random numbers (EBOOT 088900C4, stream 1) - the stream
 gameplay uses too. Off, or on soft, it is 0. So compare runs within one renderer and shadow setting; `MHFU_CULL_MARGIN=0`
 on Vulkan matches soft (`quest.rec`, sampled to frame 2140). Test save states on Vulkan, which is what is played: with
-`MHFU_HEADLESS=1`, leaving out `MHFU_RENDERER=soft`, it runs without a window, the same every time.
+`MHFU_HEADLESS=1` it runs without a window, the same every time.
 
 Save states across builds (by hand, not in the suite yet): a second binary from a worktree with something unrelated
 changed (`-O1`, `-pie`, a `SAVED` variable added and another's `SAVED` taken off). One run with the first,

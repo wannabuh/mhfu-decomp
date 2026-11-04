@@ -151,7 +151,8 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
     labels every call's return point (`R_<addr>`), gives each function with calls a check at its top (`rt_resume_pc`),
     and lists the return points in `RecompModule.returns`.
   - **Frames with C state.** A gate running code as at 30 (`run_as_30`, `run_native`), a callback (`run_callbacks`) and
-    a hand-written function hold state in C locals, so a thread blocked beneath one cannot be kept. `rt_no_resume`
+    a hand-written function (`readable/`: generated code brackets the call) hold state in C locals, so a thread blocked
+    beneath one cannot be kept. `rt_no_resume`
     counts them, and a save waits for a state point with none (logged; after 300 frames the window says so). A new
     runtime frame that calls game code and does anything after it must count itself too.
   - **The file** (`states/stateN.bin`, about 11 MB): a header (`MHFUPST1`, the format, a hash of the ISO's size and

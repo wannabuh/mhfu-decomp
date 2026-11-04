@@ -1,0 +1,599 @@
+[[function]]
+module = "EBOOT"
+address = "08850238"
+name = "stat_scale_value_by_table_percent"
+purpose = "Returns value a2 times the float at DAT_0899c880[a1 low byte], divided by 100."
+confidence = "inferred"
+evidence = "Code is the formula; only caller 08853E20 passes the id picked by the max/min group scan."
+
+[[function]]
+module = "EBOOT"
+address = "0885028C"
+name = "stat_group_max_884ffb8"
+purpose = "Walks the 0xFF-terminated byte id list at DAT_0899c060[a2], returns the largest f_884FFB8 value and optionally writes that id to a3."
+confidence = "inferred"
+evidence = "Loop keeps the maximum and stores its id through param_3."
+
+[[function]]
+module = "EBOOT"
+address = "08850338"
+name = "stat_group_min_nonzero_884ffcc"
+purpose = "Walks the 0xFF-terminated byte id list at DAT_0899c060[a2], returns the smallest nonzero f_884FFCC value and optionally writes that id to a3."
+confidence = "inferred"
+evidence = "Loop skips zero, keeps the minimum and stores its id through param_3."
+
+[[function]]
+module = "EBOOT"
+address = "088503F8"
+name = "stat_group_sum_884ff24"
+purpose = "Sums f_884FF24 over the 0xFF-terminated byte id list at DAT_0899c060[a2], capped at 9999."
+confidence = "inferred"
+evidence = "Sum loop with an explicit 9999 cap."
+
+[[function]]
+module = "EBOOT"
+address = "08850520"
+name = "stat_group_total_capped"
+purpose = "Adds the results of f_88503F8 and f_885048C for the same group and caps the total at 9999."
+confidence = "inferred"
+evidence = "Two calls, 16-bit add, 9999 cap; f_885048C itself not in this bundle."
+
+[[function]]
+module = "EBOOT"
+address = "088506A4"
+name = "equip_box_find_free_slot"
+purpose = "Returns the index of the first 12-byte entry whose byte at +0x548 is zero, or 0xFFFF if none within the capacity from f_8850EC4."
+confidence = "inferred"
+evidence = "Stride 0xC scan bounded by the page capacity; ran only in the shops recording, from lobby tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08850868"
+name = "equip_set_equipped_box_index"
+purpose = "Stores a box index in the equipped field chosen by the entry's category byte (0-4 to +0x44C2..+0x44CA, 5 and 6 to +0x44C0), returning 1 on success and 0 for an empty entry, an unknown category, or 0xFFFF on categories 5 and 6."
+confidence = "inferred"
+evidence = "Switch on entry byte +0xA9; f_8850910 reads the same index fields with the same categories."
+
+[[function]]
+module = "EBOOT"
+address = "08850910"
+name = "equip_refresh_equipped_copies"
+purpose = "Copies the 12-byte box entries named by the equipped indices at +0x44C0..+0x44CA into +0x4C0..+0x4FC, zeroing the five copies at +0x4CC and up whose index fails the category check."
+confidence = "inferred"
+evidence = "Six validated copies in stride 0xC, with f_8850D04 run after the first one."
+
+[[function]]
+module = "EBOOT"
+address = "08850C34"
+name = "equip_box_entry_has_category"
+purpose = "Returns 1 if the box index is not 0xFFFF, the entry is occupied, and its category byte equals a3 or a4."
+confidence = "inferred"
+evidence = "Reads entry bytes +0xA8 and +0xA9; f_8850910 calls it with the categories it copies."
+
+[[function]]
+module = "EBOOT"
+address = "08850C9C"
+name = "equip_is_box_index_equipped"
+purpose = "Returns 1 if the index equals any of the six equipped index fields at +0x44C0..+0x44CA."
+confidence = "inferred"
+evidence = "Six direct comparisons against the fields f_8850868 writes."
+
+[[function]]
+module = "EBOOT"
+address = "08850D04"
+name = "equip_clear_incompatible_pieces"
+purpose = "Builds a mask from +0x4B3 (zero gives mask 0x1, else 0x2) and +0x4C1 (6 gives mask 0x8, else 0x4), and sets the equipped index to 0xFFFF for each of the five pieces whose table flag byte lacks the whole mask."
+confidence = "inferred"
+evidence = "Five tables of stride 0x28 tested against the mask; clears +0x44C2..+0x44CA. Meaning of +0x4B3 not read."
+
+[[function]]
+module = "EBOOT"
+address = "08850E58"
+name = "box_page_count"
+purpose = "Returns 8 plus one for each of ids 0x33D and 0x33E for which f_885C5CC returns 1."
+confidence = "inferred"
+evidence = "Loop over the two ids; f_8850EC4 multiplies the result by 100 and f_8850EFC treats it as a page count."
+
+[[function]]
+module = "EBOOT"
+address = "08850EC4"
+name = "box_slot_capacity"
+purpose = "Returns the page count from f_8850E58 times 100."
+confidence = "inferred"
+evidence = "Multiply by 100; callers use it as the bound for the equipment and item slot scans."
+
+[[function]]
+module = "EBOOT"
+address = "08850EFC"
+name = "box_wrap_index_to_pages"
+purpose = "Normalises a slot index: negatives add 100 until non-negative, positives clamp the page to the last page and keep the index within the page."
+confidence = "inferred"
+evidence = "Uses /100 and %100 with the page count from f_8850E58; called only from a lobby task."
+
+[[function]]
+module = "EBOOT"
+address = "08850FB8"
+name = "game_tick_play_time"
+purpose = "Increments the counter at +0x1C and, each time it reaches a multiple of 30, increments the seconds-like total at +0x4468, capped at 35999999."
+confidence = "inferred"
+evidence = "Modulo 0x1E on a per-frame path at 30 fps; the cap is the only sign of the total's unit."
+
+[[function]]
+module = "EBOOT"
+address = "0885100C"
+name = "game_reset_counters_and_flags"
+purpose = "Zeroes +0x1C, +0x28, +0xC and +0xD, sets +0x6AF12 to 1, clears mask 0x1 of +0x6AF14, and calls f_8812A08 and f_884B284 on their globals."
+confidence = "inferred"
+evidence = "Field writes as shown; ran once at about frame 890 from a lobby task."
+
+[[function]]
+module = "EBOOT"
+address = "08851078"
+name = "game_load_short_pairs_to_390"
+purpose = "Zeroes the 0x80 bytes at +0x390 and copies up to 0x20 (short, short) pairs, ended by a zero first short, from f_8869880(DAT_08a62d9c), then zeroes +0x410 and +0x414."
+confidence = "inferred"
+evidence = "Clear loop and copy loop; meaning of the pairs not read. Ran once as the quest loaded."
+
+[[function]]
+module = "EBOOT"
+address = "08851144"
+name = "game_flags_6af14_test_mask_10"
+purpose = "Returns whether mask 0x10 of +0x6AF14 is set."
+confidence = "inferred"
+evidence = "One-line flag test; what sets the flag not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885115C"
+name = "pack_load_indexed_to_089cc560"
+purpose = "Tail-calls method +0x34 of DAT_089cc554 with the id from short table DAT_0899cb60 indexed by the global at +0xF7A574, destination DAT_089cc560, and fixed arguments."
+confidence = "guess"
+evidence = "Reads as a file load into the buffer f_885148C reads, but the callee is virtual and not read; ran once at frame 60."
+
+[[function]]
+module = "EBOOT"
+address = "0885148C"
+name = "pack_section_ptr"
+purpose = "Returns DAT_089cc560 plus the byte offset stored at dword index a1+2 of that buffer."
+confidence = "inferred"
+evidence = "Offset table at the buffer's start; used by f_88514AC."
+
+[[function]]
+module = "EBOOT"
+address = "088514AC"
+name = "pack_entry_ptr"
+purpose = "Returns the pointer for entry a2 in section a1 using an offset table read unaligned, or 0 if a2 is 0xFFFF or the offset is -1."
+confidence = "inferred"
+evidence = "4-byte copy via f_880C084 from section base plus index*4, then base plus offset."
+
+[[function]]
+module = "EBOOT"
+address = "0885151C"
+name = "pack_entry_section_0"
+purpose = "Returns entry a1 of section 0 through f_88514AC."
+confidence = "inferred"
+evidence = "One-call wrapper with section 0."
+
+[[function]]
+module = "EBOOT"
+address = "08851528"
+name = "pack_entry_section_1"
+purpose = "Returns entry a1 of section 1 through f_88514AC."
+confidence = "inferred"
+evidence = "One-call wrapper with section 1."
+
+[[function]]
+module = "EBOOT"
+address = "08851534"
+name = "pack_entry_section_2"
+purpose = "Returns entry a1 of section 2 through f_88514AC."
+confidence = "inferred"
+evidence = "One-call wrapper with section 2."
+
+[[function]]
+module = "EBOOT"
+address = "08851540"
+name = "pack_entry_section_3"
+purpose = "Returns entry a1 of section 3 through f_88514AC."
+confidence = "inferred"
+evidence = "One-call wrapper with section 3."
+
+[[function]]
+module = "EBOOT"
+address = "08851680"
+name = "pack_entry_section_12"
+purpose = "Returns entry a1 of section 0x12 through f_88514AC."
+confidence = "inferred"
+evidence = "One-call wrapper with section 0x12."
+
+[[function]]
+module = "EBOOT"
+address = "0885187C"
+name = "player_record_part_id"
+purpose = "For the 0x8C-byte record a2 and part a3 (0-5), returns a value from the part's stride-0x28 table, picking one of two columns by record byte +0x40, or a record byte for part 1, or for part 2 when the table value is 0; -1 for other parts."
+confidence = "inferred"
+evidence = "Switch over tables indexed by record fields +0x6E..+0x9E; meaning of the returned id not read."
+
+[[function]]
+module = "EBOOT"
+address = "08851A68"
+name = "local_equip_part_id"
+purpose = "Same part lookup as f_885187C but from the local equipped copies at +0x4CE..+0x4FE, with +0x4B3 picking the column."
+confidence = "inferred"
+evidence = "Identical switch and tables; those fields are the ones f_8852A60 copies into record 0."
+
+[[function]]
+module = "EBOOT"
+address = "08851C3C"
+name = "player_record_part_has_id"
+purpose = "Maps category a3 to a slot and returns whether the table entry for record a2's piece in that slot has a nonzero id in the column chosen by record byte +0x40; 0 for unmapped categories."
+confidence = "inferred"
+evidence = "f_8856D14 then f_8851D3C with the record's id field."
+
+[[function]]
+module = "EBOOT"
+address = "08851CC8"
+name = "local_equip_part_has_id"
+purpose = "Same check as f_8851C3C using the local fields +0x4B3 and +0x4CE."
+confidence = "inferred"
+evidence = "Same call shape on the local copies."
+
+[[function]]
+module = "EBOOT"
+address = "08851D3C"
+name = "equip_table_entry_has_id"
+purpose = "Returns 1 if the f_885CB68 entry for the mapped slot and id a3 has a nonzero short in the column chosen by a2 (+0 if a2 is 0, else +2); 0 for unmapped categories."
+confidence = "inferred"
+evidence = "Reads the short at +0 or +2 of the returned entry."
+
+[[function]]
+module = "EBOOT"
+address = "08851DBC"
+name = "player_record_part_entry_byte_13"
+purpose = "Returns byte +0x13 of the table entry for record a2's piece of category a3 if f_8851C3C passes, else 0."
+confidence = "inferred"
+evidence = "Calls f_8851C3C, then f_885CB68, and reads +0x13; meaning of that byte not read."
+
+[[function]]
+module = "EBOOT"
+address = "08851F20"
+name = "player_record_weapon_base_id"
+purpose = "Returns a short from one of two tables indexed by record field +0x62: DAT_0895A0EC stride 0x18 when record byte +0x61 is 5, else DAT_08960CBC stride 0x1C."
+confidence = "inferred"
+evidence = "Table choice on the category byte f_8852A60 fills from +0x4C1; meaning of the short not read."
+
+[[function]]
+module = "EBOOT"
+address = "08851F94"
+name = "equip_entry_weapon_table_short"
+purpose = "Same lookup as f_8851F20 from a box entry pointer: category at +1, id at +2."
+confidence = "inferred"
+evidence = "Same tables and category test on a 12-byte entry layout."
+
+[[function]]
+module = "EBOOT"
+address = "08851FEC"
+name = "player_record_part1_mapped_byte"
+purpose = "Returns the byte from table PTR_DAT_089B66FC[record +0x40] at the index given by f_885187C part 1."
+confidence = "inferred"
+evidence = "Two-level table lookup; meaning of the value not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885205C"
+name = "local_part1_mapped_byte"
+purpose = "Same mapping as f_8851FEC using f_8851A68 and the local field +0x4B3."
+confidence = "inferred"
+evidence = "Same table with local fields."
+
+[[function]]
+module = "EBOOT"
+address = "088520A8"
+name = "player_record_get_byte_42"
+purpose = "Returns byte +0x42 of record a2."
+confidence = "inferred"
+evidence = "One-line read; f_8852A60 fills it from +0x4B5."
+
+[[function]]
+module = "EBOOT"
+address = "088520C8"
+name = "serial_counter_2c_reset"
+purpose = "Sets the short at +0x2C to 0."
+confidence = "inferred"
+evidence = "One write; f_88520D0 uses this counter."
+
+[[function]]
+module = "EBOOT"
+address = "088520D0"
+name = "serial_counter_2c_next"
+purpose = "Increments the short at +0x2C, skipping 0 and 0xFFFF so the result starts again at 1, and returns it."
+confidence = "inferred"
+evidence = "Increment with wrap checks; what the value identifies not read."
+
+[[function]]
+module = "EBOOT"
+address = "08852114"
+name = "math_keyframe_lerp_vec3"
+purpose = "Finds a time a3 (f12) in a -1.0-terminated keyframe list of (time, x, y, z) floats and writes the linearly interpolated vector to a2, holding the last key once past the end."
+confidence = "confirmed"
+evidence = "The code is fully a 4-float stride lerp with terminator."
+
+[[function]]
+module = "EBOOT"
+address = "08852200"
+name = "math_keyframe_lerp_vec2_z1"
+purpose = "Keyframe lerp over (time, x, y) floats that writes x and y to a2 and 1.0 to a2[2]; at the terminator it instead writes a2[0] and a2[2] from the last key and leaves a2[1] alone."
+confidence = "confirmed"
+evidence = "The code is fully a 3-float stride lerp; the terminator case is as written."
+
+[[function]]
+module = "EBOOT"
+address = "088522CC"
+name = "math_keyframe_lerp_packed_bytes"
+purpose = "Keyframe lerp over (int time, packed 32-bit value) pairs, interpolating each of the four bytes separately, with -1 ending the list and the last value held after it."
+confidence = "confirmed"
+evidence = "Byte-wise lerp through shifts and masks of a1[1] and a1[3]; whether the bytes are a colour was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08852618"
+name = "math_keyframe_lerp_float"
+purpose = "Keyframe lerp over (time, value) floats, with -1.0 ending the list and the last value held after it."
+confidence = "confirmed"
+evidence = "The code is fully a 2-float stride lerp."
+
+[[function]]
+module = "EBOOT"
+address = "088526B4"
+name = "math_random_float_0_to_1_023"
+purpose = "Returns the low 10 bits of f_88900C4(DAT_08a632c0, 1) times 0.001."
+confidence = "inferred"
+evidence = "Mask 0x3FF and scale; f_88900C4 is treated as the random source because results are masked and discarded elsewhere."
+
+[[function]]
+module = "EBOOT"
+address = "088526F8"
+name = "math_random_float_signed_1_024"
+purpose = "Returns the low 10 bits of f_88900C4(DAT_08a632c0, 1) minus 0x200, times 0.002."
+confidence = "inferred"
+evidence = "Centred mask and scale, sibling of f_88526B4."
+
+[[function]]
+module = "EBOOT"
+address = "08852954"
+name = "table_0899cb70_lookup_by_mask_or_random"
+purpose = "Picks an index 0-3 from DAT_08A62D88 (masks 0x10, 0x40, 0x80, else 3; random when no mask of 0xF0 is set) after three discarded f_88900C4 calls, and returns the short from DAT_0899CB70 at that index, a1*0x44 and a2*4."
+confidence = "inferred"
+evidence = "Code gives the index choice; meaning of the table not read."
+
+[[function]]
+module = "EBOOT"
+address = "08852A50"
+name = "player_records_clear"
+purpose = "Zeroes the 0x348 bytes at +0x30, the six 0x8C-byte records."
+confidence = "inferred"
+evidence = "memset-shaped call of size 6*0x8C; f_8856DA0 walks six records from +0x30."
+
+[[function]]
+module = "EBOOT"
+address = "08852A60"
+name = "player_record_fill_local"
+purpose = "Marks record 0 at +0x30 active and copies the local fields into it: +0x4B3..+0x4B7, +0x4BC, the equipped entries +0x4C0..+0x4FC, and fields from +0x44BC, +0x677F2, +0x69942 and +0x679A0."
+confidence = "inferred"
+evidence = "Field-by-field copy loop; these record fields are the ones the player_record readers use."
+
+[[function]]
+module = "EBOOT"
+address = "08852C20"
+name = "settings_reset_to_defaults"
+purpose = "Copies 14 default bytes from DAT_0899BF40 to +0x6ADD8; if a2 is 1 applies byte 0 to the global at +0xF7A574 and calls f_88902A8, else restores the old byte 0; then passes bytes 1, 2 and 3 to f_8880760, f_8880874 and f_8880864."
+confidence = "inferred"
+evidence = "Default table copy at frame 0, followed by apply calls; what each byte controls not read."
+
+[[function]]
+module = "EBOOT"
+address = "08852DF8"
+name = "item_list_43c8_has_empty_slot"
+purpose = "Returns 1 if any of the 0x18 4-byte slots at +0x43C8 has a zero first short."
+confidence = "inferred"
+evidence = "Simple scan; the list follows the item box at +0x3428 in the same struct. Ran in shops only."
+
+[[function]]
+module = "EBOOT"
+address = "08852F1C"
+name = "game_bitset_44ac_test"
+purpose = "Tests bit a2 (below 0x3E) in the byte array at +0x44AC, with the bit mask 1 << (a2 & 7)."
+confidence = "inferred"
+evidence = "Bit array read; f_8853E20 uses it to set mask 0x1 of a summary entry."
+
+[[function]]
+module = "EBOOT"
+address = "08853004"
+name = "layout_x_minus_measure_div4"
+purpose = "Returns a2 minus (a3 * f_8890F70(DAT_08A632C8, a1)) / 4 as a short."
+confidence = "inferred"
+evidence = "Rounded-toward-zero division; what f_8890F70 measures not read, though callers are lobby screens."
+
+[[function]]
+module = "EBOOT"
+address = "08853064"
+name = "layout_x_minus_measure_div2"
+purpose = "Returns a2 minus (a3 * f_8890F70(DAT_08A632C8, a1)) / 2 as a short."
+confidence = "inferred"
+evidence = "Sibling of f_8853004 with divisor 2; ran in the shops recording."
+
+[[function]]
+module = "EBOOT"
+address = "08853ABC"
+name = "item_box_add"
+purpose = "Adds a3 of item a2 to the 4-byte (id, count) slots at +0x3428, first into slot a4, then into matching stacks up to 99 when the item table byte is not 0xFF, then into the first empty slot; calls f_885ACA0 and returns 0, or returns the amount left if no slot is free."
+confidence = "inferred"
+evidence = "Capacity from f_8850EC4, stack-limit table DAT_0899D2BB; ran in the shops recording from a lobby task."
+
+[[function]]
+module = "EBOOT"
+address = "08853E20"
+name = "game_build_record_summary"
+purpose = "Copies the equipped category and six ids to +0x6776A..; for 0x1F entries of 8 bytes at +0x678A8 stores the group total, scaled largest and smallest values with tier bits (masks 0x6, 0x18) from DAT_08930D00 and a bitset flag (mask 0x1); stores +0x44BC in +0x677EF and a tier 0-6 from f_88552E0 in +0x677F0."
+confidence = "inferred"
+evidence = "Code shows the writes; layout may be a guild card summary but nothing read says so."
+
+[[function]]
+module = "EBOOT"
+address = "088552E0"
+name = "count_listed_ids_passing_884fe80"
+purpose = "Counts entries in the 0xB zero-terminated short lists at PTR_DAT_089B1F84, skipping ids 0xFA1-0xFA7, for which f_884FE80 returns 1."
+confidence = "inferred"
+evidence = "Nested list scan; meaning of f_884FE80 not read."
+
+[[function]]
+module = "EBOOT"
+address = "08855410"
+name = "game_data_08a62d9c_test_mask_10"
+purpose = "Returns whether mask 0x10 of the word at DAT_08A62D9C+0x28 is set."
+confidence = "inferred"
+evidence = "One-line flag test; what the flag means not read."
+
+[[function]]
+module = "EBOOT"
+address = "088564F8"
+name = "game_lookup_id_from_6af0e_or_table"
+purpose = "Returns 0x54 if the short at +0x6AF0E is 0x7C, 0x7F if it is 0xC5, otherwise the first short of the DAT_09CE480C table entry indexed by the value at DAT_09A4F1A0+0x284."
+confidence = "inferred"
+evidence = "Two special cases and a table read; meaning of the ids not read."
+
+[[function]]
+module = "EBOOT"
+address = "08856550"
+name = "game_clear_byte_6af1a"
+purpose = "Sets the byte at +0x6AF1A to 0."
+confidence = "inferred"
+evidence = "One write; ran once while the quest loaded. What sets it not read."
+
+[[function]]
+module = "EBOOT"
+address = "088567B4"
+name = "game_byte_6af1a_is_set"
+purpose = "Returns whether the byte at +0x6AF1A is nonzero."
+confidence = "inferred"
+evidence = "One-line read; callers are many and its meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08856884"
+name = "item_pouch_slot_ptr"
+purpose = "Returns the address of 4-byte slot a2 at +0x6AEA6, using slot 0 when a2 is above 0x18."
+confidence = "inferred"
+evidence = "Bounds-checked address; callers scan 0x18 (id, count) slots and compare with the item stack table, and it runs during quests."
+
+[[function]]
+module = "EBOOT"
+address = "088568AC"
+name = "item_pouch_live_count_of_item"
+purpose = "Returns the count of the first pouch slot holding item a2, or 0 if none of the 0x18 slots does."
+confidence = "inferred"
+evidence = "Scan via f_8856884, reading the short at slot +2."
+
+[[function]]
+module = "EBOOT"
+address = "08856920"
+name = "item_pouch_live_room_for_item"
+purpose = "Returns the item table limit minus the held count for item a2, 0xFF if a matching slot's item has limit 0xFF, or the raw limit if the item is not held."
+confidence = "inferred"
+evidence = "Scan via f_8856884 and DAT_0899D2BB; ran in fight1."
+
+[[function]]
+module = "EBOOT"
+address = "088569F8"
+name = "item_pouch_room_for_item_or_full"
+purpose = "Like f_8856920, but when the item is not held returns -1 if no slot is empty, counting empties in the DAT_089CC558 pouch rather than in a1."
+confidence = "inferred"
+evidence = "Scan counts zero-id slots through DAT_089CC558; ran in fight1 at 2110-2200."
+
+[[function]]
+module = "EBOOT"
+address = "08856C34"
+name = "game_set_flag_22_if_6adf8_mask_1000"
+purpose = "If mask 0x1000 of +0x6ADF8 is set and f_884FB38 reports flag 0x22 clear, calls f_884FAC4 for 0x22 and zeroes +0x44BD."
+confidence = "inferred"
+evidence = "Test-then-set pattern; what the flags mean not read. Ran once at about frame 880."
+
+[[function]]
+module = "EBOOT"
+address = "08856D14"
+name = "equip_category_to_slot_index"
+purpose = "Maps category 0, 2, 3, 4, 5 to slot 0, 1, 2, 3, 4, and anything else to 5."
+confidence = "inferred"
+evidence = "Direct chain of compares; callers treat values below 5 as valid."
+
+[[function]]
+module = "EBOOT"
+address = "08856D60"
+name = "game_bytes_69942_contain"
+purpose = "Returns 1 if a2 equals any of the five bytes at +0x69942."
+confidence = "inferred"
+evidence = "Short scan; f_8852A60 copies these bytes into record 0."
+
+[[function]]
+module = "EBOOT"
+address = "08856DA0"
+name = "game_or_records_contain_byte_id"
+purpose = "If mask 0x1 of the global at +0xF7A57C is clear, checks the local bytes via f_8856D60; else returns 1 if any active record of the six has a2 in its five bytes at +0xA9."
+confidence = "inferred"
+evidence = "Branch on the global flag; record scan stride 0x8C, active byte at +0x30."
+
+[[function]]
+module = "EBOOT"
+address = "08856E34"
+name = "game_flags_6af14_clear_masks_1_20_8"
+purpose = "Returns 1 if masks 0x1, 0x20 and 0x8 of DAT_089CC558+0x6AF14 are all clear, else 0."
+confidence = "inferred"
+evidence = "Three mask tests; meaning of the flags not read."
+
+[[function]]
+module = "EBOOT"
+address = "088572E8"
+name = "settings_snapshot_to_6af1c"
+purpose = "Copies the 14 bytes at +0x6ADD8 and five words at +0x6ADE8..+0x6ADF8 to +0x6AF1C..+0x6AF3C."
+confidence = "inferred"
+evidence = "Field-by-field copy of the block f_8852C20 fills; ran at boot only."
+
+[[function]]
+module = "EBOOT"
+address = "088577E0"
+name = "game_set_flags_31_30_32_when_eligible"
+purpose = "If f_8857A34 passes, flag 0x25 is set, +0x4B8 is at least 2 and flag 0x31 is clear, calls f_884FAC4 for 0x31, 0x30 and 0x32 and f_884FAFC for 7 and 0x5D."
+confidence = "inferred"
+evidence = "Condition chain and calls; what the flags mean not read."
+
+[[function]]
+module = "EBOOT"
+address = "08857A34"
+name = "game_field_6adf8_any_mask_7"
+purpose = "Returns 1 if any of masks 0x1, 0x2, 0x4 of +0x6ADF8 is set."
+confidence = "inferred"
+evidence = "Three mask tests; meaning of the masks not read."
+
+[[function]]
+module = "EBOOT"
+address = "08857A80"
+name = "game_field_4b8_at_least"
+purpose = "Returns 1 if the short at +0x4B8 is at least a2 for a2 from 1 to 0xE, and 1 for any other a2."
+confidence = "inferred"
+evidence = "Switch of comparisons with a default of 1; meaning of +0x4B8 not read."
+
+[[function]]
+module = "EBOOT"
+address = "08857C2C"
+name = "unknown_wrapper_88c7764_on_09a4f1a0"
+purpose = "Returns f_88C7764(DAT_09A4F1A0)."
+confidence = "guess"
+evidence = "One-call wrapper; the callee was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08857C38"
+name = "game_find_69bec_entry_with_mask_2"
+purpose = "Returns the first of 3 0x70-byte entries at +0x69BEC whose first byte has mask 0x2 set, or 0."
+confidence = "inferred"
+evidence = "Scan with stride 0x70; meaning of the entries not read."

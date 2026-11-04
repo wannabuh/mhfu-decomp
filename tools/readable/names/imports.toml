@@ -1,0 +1,2177 @@
+# The game's imports by their stub addresses, from the EBOOT's import table and runtime/src/nids.inc. Generated once.
+
+[[function]]
+module = "EBOOT"
+address = "0890DF58"
+name = "sceKernelRegisterSubIntrHandler"
+purpose = "InterruptManager import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF60"
+name = "sceKernelReleaseSubIntrHandler"
+purpose = "InterruptManager import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF68"
+name = "sceKernelEnableSubIntr"
+purpose = "InterruptManager import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF70"
+name = "sceIoWrite"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF78"
+name = "sceIoDevctl"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF80"
+name = "sceIoRead"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF88"
+name = "sceIoRename"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF90"
+name = "sceIoClose"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DF98"
+name = "sceIoGetstat"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFA0"
+name = "sceIoDopen"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFA8"
+name = "sceIoDclose"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFB0"
+name = "sceIoOpen"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFB8"
+name = "sceIoLseek"
+purpose = "IoFileMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFC0"
+name = "sceKernelCpuSuspendIntr"
+purpose = "Kernel_Library import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFC8"
+name = "sceKernelCpuResumeIntr"
+purpose = "Kernel_Library import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFD0"
+name = "sceKernelExitGame"
+purpose = "LoadExecForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFD8"
+name = "sceKernelRegisterExitCallback"
+purpose = "LoadExecForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFE0"
+name = "sceKernelUnloadModule"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFE8"
+name = "sceKernelGetModuleIdByAddress"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFF0"
+name = "sceKernelGetModuleId"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890DFF8"
+name = "sceKernelStartModule"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E000"
+name = "sceKernelStopUnloadSelfModuleWithStatus"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E008"
+name = "sceKernelLoadModuleByID"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E010"
+name = "sceKernelStopModule"
+purpose = "ModuleMgrForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E018"
+name = "sceKernelStdin"
+purpose = "StdioForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E020"
+name = "sceKernelStdout"
+purpose = "StdioForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E028"
+name = "sceKernelStderr"
+purpose = "StdioForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E030"
+name = "sceKernelPrintf"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E038"
+name = "sceKernelAllocPartitionMemory"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E040"
+name = "sceKernelSetCompiledSdkVersion500_505"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E048"
+name = "sceKernelGetBlockHeadAddr"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E050"
+name = "sceKernelFreePartitionMemory"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E058"
+name = "sceKernelSetCompilerVersion"
+purpose = "SysMemUserForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E060"
+name = "sceKernelStartVTimer"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E068"
+name = "sceKernelDelayThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E070"
+name = "sceKernelWakeupThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E078"
+name = "sceKernelCreateSema"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E080"
+name = "sceKernelSysClock2USecWide"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E088"
+name = "sceKernelSetEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E090"
+name = "sceKernelCreateCallback"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E098"
+name = "sceKernelChangeCurrentThreadAttr"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0A0"
+name = "sceKernelDeleteEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0A8"
+name = "sceKernelStartThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0B0"
+name = "sceKernelCreateVTimer"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0B8"
+name = "sceKernelResumeDispatchThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0C0"
+name = "sceKernelDeleteSema"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0C8"
+name = "sceKernelGetThreadId"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0D0"
+name = "sceKernelPollEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0D8"
+name = "sceKernelGetSystemTimeLow"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0E0"
+name = "sceKernelTerminateDeleteThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0E8"
+name = "sceKernelSuspendDispatchThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0F0"
+name = "sceKernelGetThreadExitStatus"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E0F8"
+name = "sceKernelSignalSema"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E100"
+name = "sceKernelWaitEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E108"
+name = "sceKernelCreateThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E110"
+name = "sceKernelWaitSema"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E118"
+name = "sceKernelSetVTimerHandlerWide"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E120"
+name = "sceKernelCreateEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E128"
+name = "sceKernelPollSema"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E130"
+name = "sceKernelTerminateThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E138"
+name = "sceKernelDelayThreadCB"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E140"
+name = "sceKernelChangeThreadPriority"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E148"
+name = "sceKernelExitDeleteThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E150"
+name = "sceKernelClearEventFlag"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E158"
+name = "sceKernelSleepThreadCB"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E160"
+name = "sceKernelGetSystemTimeWide"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E168"
+name = "sceKernelGetThreadCurrentPriority"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E170"
+name = "sceKernelSleepThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E178"
+name = "sceKernelDeleteThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E180"
+name = "sceKernelExitThread"
+purpose = "ThreadManForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E188"
+name = "sceKernelLibcGettimeofday"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E190"
+name = "sceKernelDcacheWritebackAll"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E198"
+name = "sceKernelLibcClock"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1A0"
+name = "sceKernelIcacheInvalidateAll"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1A8"
+name = "sceKernelDcacheWritebackInvalidateAll"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1B0"
+name = "sceKernelDcacheInvalidateRange"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1B8"
+name = "sceKernelLibcTime"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1C0"
+name = "sceKernelDcacheWritebackRange"
+purpose = "UtilsForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1C8"
+name = "sceKernelPowerTick"
+purpose = "sceSuspendForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1D0"
+name = "sceKernelVolatileMemLock"
+purpose = "sceSuspendForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1D8"
+name = "sceKernelVolatileMemUnlock"
+purpose = "sceSuspendForUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1E0"
+name = "sceGeListSync"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1E8"
+name = "sceGeUnsetCallback"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1F0"
+name = "sceGeEdramGetSize"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E1F8"
+name = "sceGeSetCallback"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E200"
+name = "sceGeListEnQueue"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E208"
+name = "sceGeDrawSync"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E210"
+name = "sceGeEdramSetAddrTranslation"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E218"
+name = "sceGeListUpdateStallAddr"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E220"
+name = "sceGeEdramGetAddr"
+purpose = "sceGe_user import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E228"
+name = "sceDisplaySetMode"
+purpose = "sceDisplay import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E230"
+name = "sceDisplaySetFrameBuf"
+purpose = "sceDisplay import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E238"
+name = "sceCtrlSetSamplingMode"
+purpose = "sceCtrl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E240"
+name = "sceCtrlReadBufferPositive"
+purpose = "sceCtrl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E248"
+name = "sceCtrlSetSamplingCycle"
+purpose = "sceCtrl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E250"
+name = "sceFontFindOptimumFont"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E258"
+name = "sceFontGetFontInfo"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E260"
+name = "sceFontGetNumFontList"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E268"
+name = "sceFontClose"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E270"
+name = "sceFontDoneLib"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E278"
+name = "sceFontNewLib"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E280"
+name = "sceFontGetCharGlyphImage"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E288"
+name = "sceFontOpen"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E290"
+name = "sceFontGetCharInfo"
+purpose = "sceLibFont import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E298"
+name = "__sceSasRevParam"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2A0"
+name = "__sceSasRevType"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2A8"
+name = "__sceSasInit"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2B0"
+name = "__sceSasSetVolume"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2B8"
+name = "__sceSasGetEndFlag"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2C0"
+name = "__sceSasSetKeyOn"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2C8"
+name = "__sceSasSetVoice"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2D0"
+name = "__sceSasSetKeyOff"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2D8"
+name = "__sceSasCore"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2E0"
+name = "__sceSasSetPitch"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2E8"
+name = "__sceSasSetSimpleADSR"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2F0"
+name = "__sceSasRevEVOL"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E2F8"
+name = "__sceSasGetOutputmode"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E300"
+name = "__sceSasRevVON"
+purpose = "sceSasCore import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E308"
+name = "sceAudioOutputPannedBlocking"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E310"
+name = "sceAudioChReserve"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E318"
+name = "sceAudioChRelease"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E320"
+name = "sceAudioChangeChannelConfig"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E328"
+name = "sceAudioGetChannelRestLength"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E330"
+name = "sceAudioChangeChannelVolume"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E338"
+name = "sceAudioSetChannelDataLen"
+purpose = "sceAudio import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E340"
+name = "sceUmdGetErrorStat"
+purpose = "sceUmdUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E348"
+name = "sceUmdGetDriveStat"
+purpose = "sceUmdUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E350"
+name = "sceUmdActivate"
+purpose = "sceUmdUser import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E358"
+name = "sceMpegAvcDecode"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E360"
+name = "sceMpegRingbufferDestruct"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E368"
+name = "sceMpegInitAu"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E370"
+name = "sceMpegQueryStreamOffset"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E378"
+name = "sceMpegRingbufferConstruct"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E380"
+name = "sceMpegRegistStream"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E388"
+name = "sceMpegUnRegistStream"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E390"
+name = "sceMpegDelete"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E398"
+name = "sceMpegQueryStreamSize"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3A0"
+name = "sceMpegInit"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3A8"
+name = "sceMpegFlushAllStream"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3B0"
+name = "sceMpegAvcDecodeStop"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3B8"
+name = "sceMpegAtracDecode"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3C0"
+name = "sceMpegFinish"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3C8"
+name = "sceMpegMallocAvcEsBuf"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3D0"
+name = "sceMpegRingbufferPut"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3D8"
+name = "sceMpegRingbufferAvailableSize"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3E0"
+name = "sceMpegQueryMemSize"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3E8"
+name = "sceMpegFreeAvcEsBuf"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3F0"
+name = "sceMpegRingbufferQueryMemSize"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E3F8"
+name = "sceMpegCreate"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E400"
+name = "sceMpegGetAtracAu"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E408"
+name = "sceMpegQueryAtracEsSize"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E410"
+name = "sceMpegGetAvcAu"
+purpose = "sceMpeg import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E418"
+name = "sceRtcGetCurrentClockLocalTime"
+purpose = "sceRtc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E420"
+name = "sceAtracGetStreamDataInfo"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E428"
+name = "sceAtracReleaseAtracID"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E430"
+name = "sceAtracDecodeData"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E438"
+name = "sceAtracSetDataAndGetID"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E440"
+name = "sceAtracSetLoopNum"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E448"
+name = "sceAtracGetRemainFrame"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E450"
+name = "sceAtracGetSoundSample"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E458"
+name = "sceAtracGetBitrate"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E460"
+name = "sceAtracGetNextDecodePosition"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E468"
+name = "sceAtracGetLoopStatus"
+purpose = "sceAtrac3plus import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E470"
+name = "sceUtilityLoadModule"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E478"
+name = "sceUtilityMsgDialogInitStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E480"
+name = "sceUtilityOskShutdownStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E488"
+name = "sceUtilityOskUpdate"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E490"
+name = "sceUtilityNetconfInitStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E498"
+name = "sceUtilitySavedataInitStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4A0"
+name = "sceUtilityNetconfGetStatus"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4A8"
+name = "sceUtilityMsgDialogShutdownStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4B0"
+name = "sceUtilitySavedataGetStatus"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4B8"
+name = "sceUtilityNetconfUpdate"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4C0"
+name = "sceUtilityMsgDialogUpdate"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4C8"
+name = "sceUtilitySavedataShutdownStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4D0"
+name = "sceUtilityMsgDialogGetStatus"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4D8"
+name = "sceUtilityGetSystemParamInt"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4E0"
+name = "sceUtilitySavedataUpdate"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4E8"
+name = "sceUtilityUnloadModule"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4F0"
+name = "sceUtilityOskGetStatus"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E4F8"
+name = "sceUtilityOskInitStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E500"
+name = "sceUtilityNetconfShutdownStart"
+purpose = "sceUtility import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E508"
+name = "sceNetAdhocPtpClose"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E510"
+name = "sceNetAdhocPtpSend"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E518"
+name = "sceNetAdhocPdpCreate"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E520"
+name = "sceNetAdhocPdpDelete"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E528"
+name = "sceNetAdhocPtpOpen"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E530"
+name = "sceNetAdhocPtpRecv"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E538"
+name = "sceNetAdhocPtpFlush"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E540"
+name = "sceNetAdhocPtpAccept"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E548"
+name = "sceNetAdhocTerm"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E550"
+name = "sceNetAdhocPdpSend"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E558"
+name = "sceNetAdhocGetPtpStat"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E560"
+name = "sceNetAdhocPdpRecv"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E568"
+name = "sceNetAdhocPtpListen"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E570"
+name = "sceNetAdhocInit"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E578"
+name = "sceNetAdhocPtpConnect"
+purpose = "sceNetAdhoc import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E580"
+name = "sceNetGetLocalEtherAddr"
+purpose = "sceNet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E588"
+name = "sceNetTerm"
+purpose = "sceNet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E590"
+name = "sceNetInit"
+purpose = "sceNet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E598"
+name = "sceNetFreeThreadinfo"
+purpose = "sceNet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5A0"
+name = "sceWlanGetEtherAddr"
+purpose = "sceWlanDrv import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5A8"
+name = "sceWlanGetSwitchState"
+purpose = "sceWlanDrv import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5B0"
+name = "sceNetAdhocctlScan"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5B8"
+name = "sceNetAdhocctlAddHandler"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5C0"
+name = "sceNetAdhocctlDisconnect"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5C8"
+name = "sceNetAdhocctlDelHandler"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5D0"
+name = "sceNetAdhocctlGetScanInfo"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5D8"
+name = "sceNetAdhocctlTerm"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5E0"
+name = "sceNetAdhocctlGetPeerList"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5E8"
+name = "sceNetAdhocctlInit"
+purpose = "sceNetAdhocctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5F0"
+name = "sceNetApctlDisconnect"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E5F8"
+name = "sceNetApctlGetInfo"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E600"
+name = "sceNetApctlDelHandler"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E608"
+name = "sceNetApctlAddHandler"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E610"
+name = "sceNetApctlTerm"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E618"
+name = "sceNetApctlInit"
+purpose = "sceNetApctl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E620"
+name = "sceNetInetInit"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E628"
+name = "sceNetInetBind"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E630"
+name = "sceNetInetSetsockopt"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E638"
+name = "sceNetInetConnect"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E640"
+name = "sceNetInetSend"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E648"
+name = "sceNetInetCloseWithRST"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E650"
+name = "sceNetInetSocket"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E658"
+name = "sceNetInetGetPspError"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E660"
+name = "sceNetInetClose"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E668"
+name = "sceNetInetTerm"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E670"
+name = "sceNetInetGetTcpcbstat"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E678"
+name = "sceNetInetInetAddr"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E680"
+name = "sceNetInetRecv"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E688"
+name = "sceNetInetListen"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E690"
+name = "sceNetInetAccept"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E698"
+name = "sceNetInetGetpeername"
+purpose = "sceNetInet import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6A0"
+name = "scePowerRegisterCallback"
+purpose = "scePower import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6A8"
+name = "sceOpenPSIDGetOpenPSID"
+purpose = "sceOpenPSID import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6B0"
+name = "sceImposeSetLanguageMode"
+purpose = "sceImpose import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6B8"
+name = "sceDmacMemcpy"
+purpose = "sceDmac import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6C0"
+name = "sceNetAdhocDiscoverUpdate"
+purpose = "sceNetAdhocDiscover import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6C8"
+name = "sceNetAdhocDiscoverInitStart"
+purpose = "sceNetAdhocDiscover import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6D0"
+name = "sceNetAdhocDiscoverGetStatus"
+purpose = "sceNetAdhocDiscover import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6D8"
+name = "sceNetAdhocDiscoverTerm"
+purpose = "sceNetAdhocDiscover import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6E0"
+name = "sceNetAdhocDiscoverRequestSuspend"
+purpose = "sceNetAdhocDiscover import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6E8"
+name = "sceHttpGetContentLength"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6F0"
+name = "sceHttpDisableCookie"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E6F8"
+name = "sceHttpSetRecvTimeOut"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E700"
+name = "sceHttpGetNetworkPspError"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E708"
+name = "sceHttpAddExtraHeader"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E710"
+name = "sceHttpGetStatusCode"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E718"
+name = "sceHttpDeleteConnection"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E720"
+name = "sceHttpsLoadDefaultCert"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E728"
+name = "sceHttpSetConnectTimeOut"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E730"
+name = "sceHttpSetSendTimeOut"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E738"
+name = "sceHttpCreateTemplate"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E740"
+name = "sceHttpSetRedirectCallback"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E748"
+name = "sceHttpDeleteRequest"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E750"
+name = "sceHttpsGetSslError"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E758"
+name = "sceHttpInit"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E760"
+name = "sceHttpDisableAuth"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E768"
+name = "sceHttpCreateRequestWithURL"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E770"
+name = "sceHttpSendRequest"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E778"
+name = "sceHttpAbortRequest"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E780"
+name = "sceHttpDisableCache"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E788"
+name = "sceHttpCreateConnectionWithURL"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E790"
+name = "sceHttpEnd"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E798"
+name = "sceHttpGetAllHeader"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7A0"
+name = "sceHttpsInit"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7A8"
+name = "sceHttpReadData"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7B0"
+name = "sceHttpSetMallocFunction"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7B8"
+name = "sceHttpsEnd"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7C0"
+name = "sceHttpDeleteTemplate"
+purpose = "sceHttp import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7C8"
+name = "sceSslEnd"
+purpose = "sceSsl import"
+confidence = "confirmed"
+evidence = "import table"
+
+[[function]]
+module = "EBOOT"
+address = "0890E7D0"
+name = "sceSslInit"
+purpose = "sceSsl import"
+confidence = "confirmed"
+evidence = "import table"

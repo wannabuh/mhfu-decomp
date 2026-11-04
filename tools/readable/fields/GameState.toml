@@ -1,0 +1,1870 @@
+[[field]]
+struct = "GameState"
+offset = 0x4
+name = "post_quest_wait_first"
+type = "s16"
+confidence = "inferred"
+note = "frames counted to 0xBF in the wait after a quest ends, then the second count starts"
+evidence = "game_task 9A617A8: state 1 counts it to 0xBF, then zeroes +0x6 and shows the notice; hunt_state_run enters that state when quest_state allows index 2"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6
+name = "post_quest_wait_second"
+type = "s16"
+confidence = "inferred"
+note = "frames counted to 0x95 after the first wait"
+evidence = "game_task 9A617A8: state 2 counts it past 0x95, then moves on"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0xC
+name = "script_end_buffer_state"
+type = "u8"
+confidence = "inferred"
+note = "0x81 asks the hunt state to allocate the 0x44000 buffer, 0x80 means it has, 0 none"
+evidence = "EBOOT 886E9F4 quest_script_step sets 0x81 at the script's end and clears 0x80 at step 0x2D; game_task 9A60298 hunt_state_run allocates, hands it to the UI (+0x538) and sets 0x80"
+
+[[field]]
+struct = "GameState"
+offset = 0xD
+name = "draw_end_buffer"
+type = "u8"
+confidence = "inferred"
+note = "nonzero while the UI draws its full-screen pass from that buffer on the result screens"
+evidence = "EBOOT 8825148 draws only if set, using UI +0x538; EBOOT 8874C58 sets it at a fade in and clears it at a fade out"
+
+[[field]]
+struct = "GameState"
+offset = 0x10
+name = "menu_overlay_open"
+type = "u8"
+confidence = "inferred"
+note = "1 while a menu overlay is open over the hud"
+evidence = "EBOOT 8848D30 quest_menu_open sets 1, 88490C8 quest_menu_close and 8834548 clear; 8830F74 ui_is_overlay_active reads it"
+
+[[field]]
+struct = "GameState"
+offset = 0x1C
+name = "tick_30ths"
+type = "u16"
+confidence = "confirmed"
+note = "the game's count of 30ths: +1 a tick, wraps; hunt and animation timers test it"
+evidence = "EBOOT 8850FB8 game_tick_play_time; recomp/patches.py: the stamina functions test the hunt's count of 30ths here; zeroed by 885100C"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x28
+name = "local_hunter_slot"
+type = "u8"
+confidence = "confirmed"
+note = "hunter slot of the local player"
+evidence = "hunter_manager_get_slot(mgr, this) everywhere; hunters compare their +0x1E6 with it; game_task 9A5F380 sets it from the net session's own index"
+
+[[field]]
+struct = "GameState"
+offset = 0x2A
+name = "suspend_flags"
+type = "u8"
+confidence = "inferred"
+note = "bit 0x01 asked to suspend, 0x10 suspended (the low nibble blocks the button that resumes)"
+evidence = "EBOOT 883F270 hud_update: bit 1 and offline and no quest end sets 0x10 and calls 88567C8; while high nibble set the buttons 0x6008 resume via 885683C once the low nibble is 0; 88DE560 sets bit 1 from a callback"
+
+[[field]]
+struct = "GameState"
+offset = 0x2C
+name = "next_serial"
+type = "u16"
+confidence = "confirmed"
+note = "counter handing out ids, skipping 0 and 0xFFFF"
+evidence = "EBOOT 88520C8 resets, 88520D0 increments and returns it"
+
+[[field]]
+struct = "GameState"
+offset = 0x2E
+name = "quest_state"
+type = "u8"
+confidence = "inferred"
+note = "0 none, 2 running, 3 and 4 end result 1, 5 6 7 end result -1 (7 restores money and points, refunds the fee)"
+evidence = "EBOOT 8869904 sets 2; 886A30C quest_get_end_result: 3,4 give 1, 5..7 give -1; 884FA5C gates by it; 8874C58: 7 restores zenny and points"
+
+[[field]]
+struct = "GameState"
+offset = 0x30
+name = "player_record_active"
+type = "u8"
+confidence = "confirmed"
+note = "first of 6 records of 0x8C bytes, one per hunter slot: nonzero when in use; below, the record fields are of record 0"
+evidence = "game_task 9A5F380 indexes (&this)[slot*0x8C], copies 0x7C session bytes to +0x10 of each and clears the rest; 884F8D4 clears +0x30,+0xBC,..,+0x2EC"
+
+[[field]]
+struct = "GameState"
+offset = 0x40
+name = "record_body_kind"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunter_body_kind"
+evidence = "EBOOT 8852A60 player_record_fill_local"
+
+[[field]]
+struct = "GameState"
+offset = 0x41
+name = "record_look_a"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunter_look_a"
+evidence = "EBOOT 8852A60"
+
+[[field]]
+struct = "GameState"
+offset = 0x42
+name = "record_look_b"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunter_look_b"
+evidence = "EBOOT 8852A60"
+
+[[field]]
+struct = "GameState"
+offset = 0x43
+name = "record_look_c"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunter_look_c"
+evidence = "EBOOT 8852A60"
+
+[[field]]
+struct = "GameState"
+offset = 0x44
+name = "record_look_d"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunter_look_d"
+evidence = "EBOOT 8852A60"
+
+[[field]]
+struct = "GameState"
+offset = 0x5C
+name = "record_look_color"
+type = "u32"
+confidence = "confirmed"
+note = "record 0: copy of hunter_look_color"
+evidence = "EBOOT 8852A60"
+
+[[field]]
+struct = "GameState"
+offset = 0x61
+name = "record_weapon_category"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of equipped_weapon_category"
+evidence = "EBOOT 8852A60, lobby_task 9AA1538"
+
+[[field]]
+struct = "GameState"
+offset = 0x62
+name = "record_weapon_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_weapon_id"
+evidence = "EBOOT 8852A60, lobby_task 9AA1538"
+
+[[field]]
+struct = "GameState"
+offset = 0x6E
+name = "record_part0_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_part0_id"
+evidence = "lobby_task 9AA1538 copies the six 12-byte equipped entries to +0x60..+0xA7"
+
+[[field]]
+struct = "GameState"
+offset = 0x7A
+name = "record_part1_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_part1_id"
+evidence = "lobby_task 9AA1538 copies the six 12-byte equipped entries to +0x60..+0xA7"
+
+[[field]]
+struct = "GameState"
+offset = 0x86
+name = "record_part2_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_part2_id"
+evidence = "lobby_task 9AA1538 copies the six 12-byte equipped entries to +0x60..+0xA7"
+
+[[field]]
+struct = "GameState"
+offset = 0x92
+name = "record_part3_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_part3_id"
+evidence = "lobby_task 9AA1538 copies the six 12-byte equipped entries to +0x60..+0xA7"
+
+[[field]]
+struct = "GameState"
+offset = 0x9E
+name = "record_part4_id"
+type = "u16"
+confidence = "confirmed"
+note = "record 0: copy of equipped_part4_id"
+evidence = "lobby_task 9AA1538 copies the six 12-byte equipped entries to +0x60..+0xA7"
+
+[[field]]
+struct = "GameState"
+offset = 0xA9
+name = "record_hunt_bonus_id_0"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunt_bonus_id_0"
+evidence = "EBOOT 8852A60; game_sub 9C1AF30 clears both together"
+
+[[field]]
+struct = "GameState"
+offset = 0xAA
+name = "record_hunt_bonus_id_1"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunt_bonus_id_1"
+evidence = "EBOOT 8852A60; game_sub 9C1AF30 clears both together"
+
+[[field]]
+struct = "GameState"
+offset = 0xAB
+name = "record_hunt_bonus_id_2"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunt_bonus_id_2"
+evidence = "EBOOT 8852A60; game_sub 9C1AF30 clears both together"
+
+[[field]]
+struct = "GameState"
+offset = 0xAC
+name = "record_hunt_bonus_id_3"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunt_bonus_id_3"
+evidence = "EBOOT 8852A60; game_sub 9C1AF30 clears both together"
+
+[[field]]
+struct = "GameState"
+offset = 0xAD
+name = "record_hunt_bonus_id_4"
+type = "u8"
+confidence = "confirmed"
+note = "record 0: copy of hunt_bonus_id_4"
+evidence = "EBOOT 8852A60; game_sub 9C1AF30 clears both together"
+
+[[field]]
+struct = "GameState"
+offset = 0x380
+name = "hud_message_last_seq"
+type = "u8"
+confidence = "confirmed"
+note = "7-bit sequence number given to the last hud message pushed"
+evidence = "EBOOT 8830728 hud_message_queue_push, 88307BC, 8830850: +1 and 0x7F, stored in the ring entry and returned"
+
+[[field]]
+struct = "GameState"
+offset = 0x381
+name = "hud_message_window_seq"
+type = "u8"
+confidence = "inferred"
+note = "sequence number of the message in the window, 0xFF when closed; item prompts wait on it"
+evidence = "EBOOT 885A934 and 885A95C set it on opening, 885A23C sets 0xFF; 8828938 and 883E928 compare it"
+
+[[field]]
+struct = "GameState"
+offset = 0x38C
+name = "local_placed_limit_two_count"
+type = "u8"
+confidence = "inferred"
+note = "objects of the local hunter's kind counted while they last; a second is the limit"
+evidence = "game_task 9B84FB8 +1 when owner is the local slot, 9B84FF8 -1; 9A6F198 and 9A6F410 allow placing while below 2; zeroed in 9B62B80"
+
+[[field]]
+struct = "GameState"
+offset = 0x38D
+name = "local_spawned_limit_two_count"
+type = "u8"
+confidence = "inferred"
+note = "like the above for two game_sub classes; no decrement seen; below 2 is allowed"
+evidence = "game_sub 9C6B560 and 9C6BDC8 +1 for the local slot's; EBOOT 8852A44 returns it below 2"
+
+[[field]]
+struct = "GameState"
+offset = 0x38E
+name = "local_placed_limit_one_count"
+type = "u8"
+confidence = "inferred"
+note = "objects of the local hunter's other kinds counted while they last; one is the limit"
+evidence = "game_task 9B85010 and 9B868E0 +1, 9B85050 and 9B86920 -1; 9A6F268 refuses when nonzero; zeroed in 9B62B80"
+
+[[field]]
+struct = "GameState"
+offset = 0x38F
+name = "monster_gauge_steps"
+type = "s8"
+confidence = "inferred"
+note = "monster's +0x791 step mirrored here; the status menu prints (10 - this) * 10"
+evidence = "em07 9D1FEB8, 9D217E8.., em55 9D20C08 copy it; EBOOT 8849D7C prints it; game_task 9A5F380 zeroes it"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x390
+name = "supply_items"
+type = "u16"
+confidence = "inferred"
+note = "first of 32 pairs (u16 item, s16 count) loaded from the quest's section 8"
+evidence = "EBOOT 8851078 fills them; 88AB980 gives the pair named by a net request to the pouch; 8847CB0 draws the list"
+
+[[field]]
+struct = "GameState"
+offset = 0x410
+name = "supply_taken_mask_low"
+type = "u32"
+confidence = "confirmed"
+note = "bits 0..31: supply pairs already taken"
+evidence = "EBOOT 88AB980 case 1 tests and sets bit n in (&this)[n>>5]; 8851078 zeroes; 8847CB0 reads"
+
+[[field]]
+struct = "GameState"
+offset = 0x414
+name = "supply_taken_mask_high"
+type = "u32"
+confidence = "confirmed"
+note = "bits 32..63 of the same mask"
+evidence = "EBOOT 88AB980 reads and writes it next to +0x410; 8851078 zeroes"
+
+[[field]]
+struct = "GameState"
+offset = 0x418
+name = "timed_event_pending"
+type = "u8"
+confidence = "inferred"
+note = "1 while the quest's 18000 count (quest +0x678) runs before its event 0x12"
+evidence = "EBOOT 88702F0 and 8872AAC set it with +0x678 = 18000; 8872B7C clears at 0 and posts; game_sub 9CBCC30 and 9CBCCD8 react"
+
+[[field]]
+struct = "GameState"
+offset = 0x419
+name = "monster_to_stage_flags"
+type = "u8"
+confidence = "guess"
+note = "bits monsters set and stage objects test; bit 2 from em02"
+evidence = "em02 9D239E8 and 9D24128 set 2; game_sub 9CC50B8 and 9CC5320 test 2, 9CBC350 9CBC5B0 9CC0078 test 1; game_task 9A5F380 zeroes"
+
+[[field]]
+struct = "GameState"
+offset = 0x41A
+name = "quest_has_flag_800000"
+type = "u8"
+confidence = "confirmed"
+note = "copy of the quest's flag 0x800000 for the sound load"
+evidence = "EBOOT 8869904 quest_init_from_file; game_task 9A637A8 reads it"
+
+[[field]]
+struct = "GameState"
+offset = 0x420
+name = "host_slot"
+type = "u8"
+confidence = "inferred"
+note = "slot that answers item requests: first active of 4 if its record goes"
+evidence = "EBOOT 88AC04C walks the active records to choose it; 88AB980 serves requests only when this equals local_hunter_slot; 8847B74 and game_task copy it to hunters +0x5EE"
+
+[[field]]
+struct = "GameState"
+offset = 0x422
+name = "camera_scene_playing"
+type = "u8"
+confidence = "inferred"
+note = "1 while a scripted camera scene runs: quest timers stop"
+evidence = "EBOOT 88CD3FC camera_scene_run_step sets, 88CD804 camera_scene_finish clears; 886DFAC quest_timers_tick and 88709D4 run only at 0; gallery_task 9A5F600 sets for its replays"
+
+[[field]]
+struct = "GameState"
+offset = 0x47C
+name = "quest_fee_paid"
+type = "u32"
+confidence = "confirmed"
+note = "money paid for the current quest, refunded if it is left"
+evidence = "lobby_task 9A88BD0 quest_menu_pay_fee stores it; EBOOT 88553DC adds it back and zeroes; zeroed at each start"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x480
+name = "gallery_mode"
+type = "u8"
+confidence = "inferred"
+note = "nonzero in the gallery's replays: quest start area from gallery_start_stage, camera scene steps skipped"
+evidence = "gallery_task 9A5F380 sets 1, 9A5F600 clears; EBOOT 886A0B4 takes +0x484; 88CD3FC and 88CD804 skip their steps"
+
+[[field]]
+struct = "GameState"
+offset = 0x482
+name = "gallery_cursor"
+type = "u16"
+confidence = "confirmed"
+note = "gallery menu's two cursor bytes kept across a replay"
+evidence = "gallery_task 9A5F600 stores cursor (+0x20)*0x100 + (+0x21), 9A5F380 restores"
+
+[[field]]
+struct = "GameState"
+offset = 0x484
+name = "gallery_start_stage"
+type = "u16"
+confidence = "inferred"
+note = "stage a replay starts in"
+evidence = "gallery_task 9A5F600 sets from its table; EBOOT 886A0B4 quest_choose_start_area reads"
+
+[[field]]
+struct = "GameState"
+offset = 0x488
+name = "gallery_scene_time_left"
+type = "s32"
+confidence = "confirmed"
+note = "counted down per hunt frame while a gallery scene runs, ended below 0x11"
+evidence = "game_task 9A60298 hunt_state_run: while >0 -1; the scene ends if below 0x11 or at a button; gallery_task 9A5F600 sets"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x48C
+name = "gallery_saved_flags_c"
+type = "u32"
+confidence = "inferred"
+note = "all_slot_flags_c when the gallery opened, to detect a change (view shows float casts of the bits)"
+evidence = "gallery_task 9A5F380 stores, 9A5F600 compares with +0x6ADF0"
+
+[[field]]
+struct = "GameState"
+offset = 0x490
+name = "gallery_saved_flags_d"
+type = "u32"
+confidence = "inferred"
+note = "all_slot_flags_d when the gallery opened (view shows float casts of the bits)"
+evidence = "gallery_task 9A5F380 stores, 9A5F600 compares with +0x6ADF4"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B3
+name = "hunter_body_kind"
+type = "u8"
+confidence = "inferred"
+note = "0 or 1: selects one of two hunter models and mask 1 or 2 for what parts fit"
+evidence = "edit_task 9A613F8 picks (param_1+0x60)[this]; EBOOT 885DD9C maps 0 to mask 1, else 2 against equipment tables; 885205C indexes a table by it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B4
+name = "hunter_look_a"
+type = "u8"
+confidence = "inferred"
+note = "appearance choice, with body kind in a table lookup"
+evidence = "edit_task 9A613F8 table_0899cb70_lookup(body, this); EBOOT 88D66F4 copies to hunter +0x4E1"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B5
+name = "hunter_look_b"
+type = "u8"
+confidence = "inferred"
+note = "appearance choice passed to the edit model"
+evidence = "edit_task 9A61700 passes it with look_d and color; EBOOT 88D66F4 copies to hunter +0x530"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B6
+name = "hunter_look_c"
+type = "u8"
+confidence = "inferred"
+note = "appearance choice copied to the hunter"
+evidence = "EBOOT 88D66F4 copies to hunter +0x531; 8852A60 to the record"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B7
+name = "hunter_look_d"
+type = "u8"
+confidence = "inferred"
+note = "appearance choice the lobby menu can change"
+evidence = "lobby_task 9A60518 stores its choice minus 1 here and on hunter +0x532"
+
+[[field]]
+struct = "GameState"
+offset = 0x4B8
+name = "progress_tier"
+type = "u16"
+confidence = "confirmed"
+note = "highest condition tier met, 0 to 0xE"
+evidence = "game_sub 9C19440 gamedata_condition_tier_recompute_and_store; game_task 9A61C78 compares before and after a quest; 8857C18 sets 0xE"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x4BC
+name = "hunter_look_color"
+type = "u32"
+confidence = "inferred"
+note = "packed colour the lobby menu edits, from a table of 16 or by channels"
+evidence = "lobby_task 9A60AF8 loads DAT_09B02D08[n], 9A60518 stores it here and on hunter +0x4E4; edit_task 9A62EF0 sets its default"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C1
+name = "equipped_weapon_category"
+type = "u8"
+confidence = "inferred"
+note = "category of the equipped weapon, 5 or 6"
+evidence = "EBOOT 8850910 refreshes the 12-byte entry from the box when the category is 5 or 6; 885DD9C and 88DA1B0 test 6"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C2
+name = "equipped_weapon_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped weapon"
+evidence = "EBOOT 88DA1B0 indexes the 0x1C-byte weapon table at 08960CBC by it; 8853E20 copies"
+
+[[field]]
+struct = "GameState"
+offset = 0x4CE
+name = "equipped_part0_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped piece of category 0"
+evidence = "EBOOT 8850910 copies it from the box entry for that category (equip_box_entry_has_category); 8853E20 copies to the summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x4DA
+name = "equipped_part1_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped piece of category 1"
+evidence = "EBOOT 8850910 copies it from the box entry for that category (equip_box_entry_has_category); 8853E20 copies to the summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E6
+name = "equipped_part2_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped piece of category 2"
+evidence = "EBOOT 8850910 copies it from the box entry for that category (equip_box_entry_has_category); 8853E20 copies to the summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F2
+name = "equipped_part3_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped piece of category 3"
+evidence = "EBOOT 8850910 copies it from the box entry for that category (equip_box_entry_has_category); 8853E20 copies to the summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x4FE
+name = "equipped_part4_id"
+type = "u16"
+confidence = "inferred"
+note = "id of the equipped piece of category 4"
+evidence = "EBOOT 8850910 copies it from the box entry for that category (equip_box_entry_has_category); 8853E20 copies to the summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x4468
+name = "play_time_seconds"
+type = "u32"
+confidence = "confirmed"
+note = "+1 every 30 ticks, capped at 35999999"
+evidence = "EBOOT 8850FB8 game_tick_play_time; 887EBFC divides by 0xE10 for hours"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x44BC
+name = "quest_tier"
+type = "u8"
+confidence = "inferred"
+note = "tier from the quest flags; shown +1, gates the quest menu's rows"
+evidence = "EBOOT 887CCAC stores quest_progress_tier_from_flags; 887CDFC prints +1; lobby_task 9A87780 maps it to the highest row; arcade_task 9A61920 refuses quests over it"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x44BD
+name = "shop_price_state"
+type = "u8"
+confidence = "inferred"
+note = "0 or 1 from a save flag, later values; 3 or 4 give half price at the shop of kind 4"
+evidence = "lobby_task 9A7FDD8 shop_half_price_applies; 8856BC8 8856C34 8856C94 set it"
+
+[[field]]
+struct = "GameState"
+offset = 0x44BE
+name = "rng_stream_2_seed"
+type = "u16"
+confidence = "confirmed"
+note = "saved seed of the random stream 2"
+evidence = "EBOOT 88900A0 restores the stream from it, 8890114 stores a new value"
+
+[[field]]
+struct = "GameState"
+offset = 0x44C0
+name = "equipped_box_index_weapon"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped weapon in the box"
+evidence = "EBOOT 8850910 and 8850C9C equip_is_box_index_equipped"
+
+[[field]]
+struct = "GameState"
+offset = 0x44C2
+name = "equipped_box_index_part0"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped piece of category 0 in the box, 0xFFFF none"
+evidence = "EBOOT 8850910 and 8850C9C; lobby_task 9A6EC98 sets 0xFFFF"
+
+[[field]]
+struct = "GameState"
+offset = 0x44C4
+name = "equipped_box_index_part1"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped piece of category 1 in the box, 0xFFFF none"
+evidence = "EBOOT 8850910 and 8850C9C; lobby_task 9A6EC98 sets 0xFFFF"
+
+[[field]]
+struct = "GameState"
+offset = 0x44C6
+name = "equipped_box_index_part2"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped piece of category 2 in the box, 0xFFFF none"
+evidence = "EBOOT 8850910 and 8850C9C; lobby_task 9A6EC98 sets 0xFFFF"
+
+[[field]]
+struct = "GameState"
+offset = 0x44C8
+name = "equipped_box_index_part3"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped piece of category 3 in the box, 0xFFFF none"
+evidence = "EBOOT 8850910 and 8850C9C; lobby_task 9A6EC98 sets 0xFFFF"
+
+[[field]]
+struct = "GameState"
+offset = 0x44CA
+name = "equipped_box_index_part4"
+type = "u16"
+confidence = "confirmed"
+note = "index of the equipped piece of category 4 in the box, 0xFFFF none"
+evidence = "EBOOT 8850910 and 8850C9C; lobby_task 9A6EC98 sets 0xFFFF"
+
+[[field]]
+struct = "GameState"
+offset = 0x479C
+name = "condition_bits_a"
+type = "u32"
+confidence = "inferred"
+note = "bits rebuilt from progress tests"
+evidence = "EBOOT 88FD294 sets bits one test at a time, from 8854BEC and many counters"
+
+[[field]]
+struct = "GameState"
+offset = 0x47B8
+name = "condition_bits_b"
+type = "u32"
+confidence = "inferred"
+note = "more of the same bits"
+evidence = "EBOOT 88FD294: e.g. 0x2000 when play_time_seconds passes 359999; 0x10000 from equip_menu_flags bit 1"
+
+[[field]]
+struct = "GameState"
+offset = 0x6776A
+name = "summary_weapon_category"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_weapon_category"
+evidence = "EBOOT 8853E20 game_build_record_summary"
+
+[[field]]
+struct = "GameState"
+offset = 0x6776C
+name = "summary_weapon_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_weapon_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x6776E
+name = "summary_part0_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_part0_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x67770
+name = "summary_part1_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_part1_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x67772
+name = "summary_part2_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_part2_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x67774
+name = "summary_part3_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_part3_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x67776
+name = "summary_part4_id"
+type = "u16"
+confidence = "confirmed"
+note = "summary copy of equipped_part4_id"
+evidence = "EBOOT 8853E20"
+
+[[field]]
+struct = "GameState"
+offset = 0x67778
+name = "tally_0"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6777A
+name = "tally_1"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6777C
+name = "tally_2"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6777E
+name = "tally_3"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x67780
+name = "tally_4"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x67782
+name = "tally_5"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x67784
+name = "tally_6"
+type = "u16"
+confidence = "inferred"
+note = "one of seven counts always summed: every 100 of the sum goes to the log"
+evidence = "EBOOT 887EBFC adds the seven and logs at each 100; 88FD294 and game_sub 9C27F38 sum them too"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x67788
+name = "reward_progress_total"
+type = "u32"
+confidence = "inferred"
+note = "total of which each 100 counts towards an item given at a talk"
+evidence = "lobby_task 9A960D8 stores total/100 in reward_progress_claimed at the gift; 9A9F8E8 tests a gift is due"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x677EF
+name = "summary_quest_tier"
+type = "u8"
+confidence = "confirmed"
+note = "summary copy of quest_tier"
+evidence = "EBOOT 8853E20"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x677F0
+name = "summary_listed_tier"
+type = "u8"
+confidence = "confirmed"
+note = "0 to 6 from the count of listed ids that pass"
+evidence = "EBOOT 8853E20: thresholds 0x46, 0x7A, 0xA7, 0xC0, 0x10F, 0x164 of count_listed_ids_passing_884fe80"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x677F8
+name = "special_quest_bits_low"
+type = "u32"
+confidence = "inferred"
+note = "bits gathered from quests of flag 0x10, ORed at their end"
+evidence = "EBOOT 8874C58 ORs quest +0x5B8 when (quest +0x28)&0x10; 887BB48 tests all ones"
+
+[[field]]
+struct = "GameState"
+offset = 0x677FC
+name = "special_quest_bits_high"
+type = "u32"
+confidence = "inferred"
+note = "the rest of those bits"
+evidence = "EBOOT 8874C58 ORs quest +0x5BC; 887BB48 tests equal to 7"
+
+[[field]]
+struct = "GameState"
+offset = 0x679A0
+name = "device_time_stamp"
+type = "u8"
+confidence = "confirmed"
+note = "8 bytes: last three of the wlan address, then the clock and a value mixed in; copied to the record"
+evidence = "EBOOT 8853C88 fills it from sceWlanGetEtherAddr and sceRtcGetCurrentClockLocalTime; 8852A60 copies 8 bytes to +0xB1"
+
+[[field]]
+struct = "GameState"
+offset = 0x696D0
+name = "reward_progress_claimed"
+type = "u16"
+confidence = "inferred"
+note = "reward_progress_total / 100 when the last gift was taken"
+evidence = "lobby_task 9A960D8 stores, 9A9F8E8 compares"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696D2
+name = "reward_cycle"
+type = "s8"
+confidence = "inferred"
+note = "which of the talk gift's items comes next"
+evidence = "lobby_task 9A960D8 selects item 0x399 or 0x39A from it and stores the next"
+
+[[field]]
+struct = "GameState"
+offset = 0x696E8
+name = "points"
+type = "u32"
+confidence = "confirmed"
+note = "points spent in the lobby's points menu, 0 to 9999999"
+evidence = "EBOOT 884FC0C clamps; lobby_task 9A65678 pays with it, 9A94D88 too; 9A65550 tests; 8874C58 restores at a left quest"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696EC
+name = "progress_points"
+type = "u32"
+confidence = "inferred"
+note = "up to 9999999; thresholds in condition tests"
+evidence = "EBOOT 885058C adds and clamps; game_sub 9C19680 tests 15000, 20000; 887A34C prints"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696F0
+name = "zenny"
+type = "u32"
+confidence = "confirmed"
+note = "the player's money"
+evidence = "EBOOT 883E400 menu_draw_zenny_window; lobby_task 9A88BD0; 8869904 saves for quest, 8874C58 restores at state 7"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696F4
+name = "lobby_npc_scene_state"
+type = "u32"
+confidence = "inferred"
+note = "1 to 7: which scene or menu the NPC group is in"
+evidence = "lobby_task 9A6D8E0 picks a scene by it in stage 0xD; 9A73760, 9A73DF0, 9A748F0 set 4, 5, 1; 9A6DED0 sets 6, 7; 9ACBA10 reads"
+
+[[field]]
+struct = "GameState"
+offset = 0x696F8
+name = "npc_pair_tally"
+type = "s8"
+confidence = "inferred"
+note = "+1 per run with two of the 5 NPC records in state 3, up to 0x7D, spent 10 at a time for items"
+evidence = "game_sub 9C1E548; lobby_task 9A960D8"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696F9
+name = "npc_trio_tally"
+type = "s8"
+confidence = "inferred"
+note = "the same with three in state 3"
+evidence = "game_sub 9C1E548; lobby_task 9A960D8 case 0x4F takes 10"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696FA
+name = "npc_four_tally"
+type = "s8"
+confidence = "inferred"
+note = "the same with four in state 3"
+evidence = "game_sub 9C1E548; lobby_task 9A960D8, 9A9DFC8 tests 10"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x696FB
+name = "npc_five_tally"
+type = "s8"
+confidence = "inferred"
+note = "the same with five in state 3"
+evidence = "lobby_task 9A960D8 case 0x51 takes 10; 9A9DFC8 tests; game_sub 9C1E548 pattern"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6992C
+name = "npc_job_state"
+type = "u8"
+confidence = "inferred"
+note = "0 none, 1 given, 2 done: a single job given to one of the 5 NPC records"
+evidence = "lobby_task 9A6A790 sets 1 with an item count and payment; EBOOT 88571E8 and lobby_task 9A69188 clear; 88571F8 and 9A687F8 test 2"
+
+[[field]]
+struct = "GameState"
+offset = 0x6992D
+name = "npc_job_item_kind"
+type = "u8"
+confidence = "inferred"
+note = "mapped kind of the item given"
+evidence = "lobby_task 9A6A790 from f_9A6C060(item)"
+
+[[field]]
+struct = "GameState"
+offset = 0x6992E
+name = "npc_job_item_count"
+type = "u8"
+confidence = "inferred"
+note = "count of the item given"
+evidence = "lobby_task 9A6A790; 9A6A8E8 passes it on"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6992F
+name = "npc_job_record"
+type = "u8"
+confidence = "inferred"
+note = "index of the NPC record, 0xFF none"
+evidence = "lobby_task 9A6A790 sets, 9A6A8E8 clears; 9A691E8, 9AEF898 and game_sub 9C1AFC0 compare records' 16 bytes at +0x6975C"
+
+[[field]]
+struct = "GameState"
+offset = 0x69930
+name = "npc_job_record_kind"
+type = "u8"
+confidence = "inferred"
+note = "byte +7 of that record when given"
+evidence = "lobby_task 9A6A790"
+
+[[field]]
+struct = "GameState"
+offset = 0x69936
+name = "hunt_bonus_taken"
+type = "u8"
+confidence = "inferred"
+note = "set when bonuses are taken, cleared with them"
+evidence = "game_sub 9C1B9A0 sets, 9C1B988 reads, 9C1AF30 clears; lobby_task 9A72EA0 calls the setter"
+
+[[field]]
+struct = "GameState"
+offset = 0x69938
+name = "hunt_bonus_max_stamina"
+type = "s16"
+confidence = "inferred"
+note = "added to a hunter's max stamina as it is placed"
+evidence = "game_task 9A655F0 hunter_max_stamina_add_clamped; EBOOT 88277DC +300; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993A
+name = "hunt_bonus_value_a"
+type = "s8"
+confidence = "inferred"
+note = "copied to the hunter's +0x38A as it is placed"
+evidence = "game_task 9A655F0, EBOOT 88277DC; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993B
+name = "hunt_bonus_value_b"
+type = "s8"
+confidence = "inferred"
+note = "copied to the hunter's +0x38B as it is placed"
+evidence = "game_task 9A655F0; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993C
+name = "hunt_bonus_max_health"
+type = "s8"
+confidence = "inferred"
+note = "added to the hunter's max health as it is placed"
+evidence = "game_task 9A655F0 health_max += this; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993D
+name = "hunt_bonus_stat_0"
+type = "s8"
+confidence = "inferred"
+note = "added to float 0 of the hunter's five at +0x39C..+0x3AC"
+evidence = "EBOOT 88D9F3C hunter_resist_values_add_game_bytes_6993d; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993E
+name = "hunt_bonus_stat_1"
+type = "s8"
+confidence = "inferred"
+note = "added to float 1 of the hunter's five at +0x39C..+0x3AC"
+evidence = "EBOOT 88D9F3C hunter_resist_values_add_game_bytes_6993d; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6993F
+name = "hunt_bonus_stat_2"
+type = "s8"
+confidence = "inferred"
+note = "added to float 2 of the hunter's five at +0x39C..+0x3AC"
+evidence = "EBOOT 88D9F3C hunter_resist_values_add_game_bytes_6993d; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x69940
+name = "hunt_bonus_stat_3"
+type = "s8"
+confidence = "inferred"
+note = "added to float 3 of the hunter's five at +0x39C..+0x3AC"
+evidence = "EBOOT 88D9F3C hunter_resist_values_add_game_bytes_6993d; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x69941
+name = "hunt_bonus_stat_4"
+type = "s8"
+confidence = "inferred"
+note = "added to float 4 of the hunter's five at +0x39C..+0x3AC"
+evidence = "EBOOT 88D9F3C hunter_resist_values_add_game_bytes_6993d; game_sub 9C1AF30 clears"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x69942
+name = "hunt_bonus_id_0"
+type = "u8"
+confidence = "inferred"
+note = "one of the five ids of bonuses in effect, tested as a list"
+evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the record; game_sub 9C1AF30 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x69943
+name = "hunt_bonus_id_1"
+type = "u8"
+confidence = "inferred"
+note = "one of the five ids of bonuses in effect, tested as a list"
+evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the record; game_sub 9C1AF30 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x69944
+name = "hunt_bonus_id_2"
+type = "u8"
+confidence = "inferred"
+note = "one of the five ids of bonuses in effect, tested as a list"
+evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the record; game_sub 9C1AF30 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x69945
+name = "hunt_bonus_id_3"
+type = "u8"
+confidence = "inferred"
+note = "one of the five ids of bonuses in effect, tested as a list"
+evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the record; game_sub 9C1AF30 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x69946
+name = "hunt_bonus_id_4"
+type = "u8"
+confidence = "inferred"
+note = "one of the five ids of bonuses in effect, tested as a list"
+evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the record; game_sub 9C1AF30 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x69BEC
+name = "npc_records_b"
+type = "u8"
+confidence = "inferred"
+note = "first byte of a list of 13 records of 0x70 bytes"
+evidence = "lobby_task 9A73DF0 and 9AF05C0 memset (&this)[n*0x70] and clear bit n of npc_records_b_mask; game_sub 9C27710 walks 13"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A19C
+name = "npc_variant"
+type = "u8"
+confidence = "inferred"
+note = "variant that picks NPC models and voices"
+evidence = "lobby_task 9ABA340 and 9ABE660 branch on 2; 9ABE7C8 sound = this*2 + random bit; game_task 9A74248 copies"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A19D
+name = "chosen_record_0"
+type = "u8"
+confidence = "inferred"
+note = "first of three record indices chosen in a menu"
+evidence = "game_sub 9C1FA18 and 9C20A40 store from +0x1E4; EBOOT 883BB10 rearranges them"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A19E
+name = "chosen_record_1"
+type = "u8"
+confidence = "inferred"
+note = "second of those"
+evidence = "game_sub 9C1FA18, 9C20A40"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A19F
+name = "chosen_record_2"
+type = "u8"
+confidence = "inferred"
+note = "third of those"
+evidence = "game_sub 9C1FA18, 9C20A40"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A1A0
+name = "npc_records_b_mask"
+type = "u16"
+confidence = "inferred"
+note = "one bit per record of npc_records_b"
+evidence = "lobby_task 9AF05C0 and EBOOT 883BB10 clear the bit with the record; game_sub 9C27710 tests"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A210
+name = "localised_name_a"
+type = "u8"
+confidence = "inferred"
+note = "start of a 0x13-byte name, redone in the set language at load when it matches the list starting Arthur"
+evidence = "EBOOT 88BC7F0 save_menu_load_game_tick compares and replaces; game_sub 9C20A40 copies"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A238
+name = "points_menu_level_a"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 2"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A239
+name = "points_menu_level_b"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 2"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23A
+name = "points_menu_level_c"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 4"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23B
+name = "points_menu_level_d"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 4"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23C
+name = "points_menu_level_e"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 3"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23D
+name = "points_menu_level_f"
+type = "u8"
+confidence = "confirmed"
+note = "level bought with points, up to 3"
+evidence = "lobby_task 9A65678 pays points and raises it by the row's id"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23E
+name = "points_menu_flags"
+type = "u8"
+confidence = "confirmed"
+note = "bits bought with points: 1, 2, 4, 8"
+evidence = "lobby_task 9A65678 cases 7, 0xD, 0x13, 0x1A; 9A9DD10, 9A9DD68, 9A9DDC0 test them"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A23F
+name = "item_source_uses_left"
+type = "u8"
+confidence = "inferred"
+note = "(points_menu_level_b+1)*3 at each refill, 3 more on a level; one less per item taken"
+evidence = "EBOOT 8855F98 refills; lobby_task 9A65678 adds; 9AB2D98 and 9AB2F70 subtract; game_sub 9C29788 tests nonzero"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A2E4
+name = "item_source_pending"
+type = "u16"
+confidence = "inferred"
+note = "item id 0x43 or 0, chosen at refill, given and zeroed when taken"
+evidence = "EBOOT 8855F98 by a random bit; lobby_task 9AB4F40"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A2E6
+name = "lobby_scene_seen_mask"
+type = "u16"
+confidence = "inferred"
+note = "bit per scene of 10 already played; 0x3FF all"
+evidence = "lobby_task 9A78068 sets, game_sub 9C2AC58 finds a next one, 9C2AAE8 stops at 0x3FF"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A360
+name = "paid_request_kind"
+type = "u8"
+confidence = "confirmed"
+note = "what the player chose in the paid request"
+evidence = "lobby_task 9A94D88 stores its +2"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A361
+name = "paid_request_cost_index"
+type = "u8"
+confidence = "confirmed"
+note = "index into the cost table DAT_09B04E38"
+evidence = "lobby_task 9A94D88; game_sub 9C2AD10 reads"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A362
+name = "paid_request_roll"
+type = "u8"
+confidence = "inferred"
+note = "row chosen at random at payment"
+evidence = "lobby_task 9A94D88; game_sub 9C2AD10 reads %6"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A37C
+name = "paid_request_spent_hundreds"
+type = "u32"
+confidence = "confirmed"
+note = "total points paid /100, capped"
+evidence = "lobby_task 9A94D88; 9A94ED8 and game_sub 9C19680 test it"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A5EA
+name = "quest_left_count"
+type = "u8"
+confidence = "inferred"
+note = "+1 per quest ended in quest_state 7, up to 255"
+evidence = "EBOOT 8874C58 in the state 7 branch; 887EBFC logs at each 10"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6A5EB
+name = "npc4_file_choice"
+type = "u8"
+confidence = "inferred"
+note = "added to 0x150F to pick the file loaded for NPC slot 4"
+evidence = "lobby_task 9ADB510 npc_asset_slot_start_load_for_index; 9A615C0 stores the menu's choice"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AC3B
+name = "pending_item_397_count"
+type = "u8"
+confidence = "confirmed"
+note = "count of item 0x397 waiting for the talk that gives it, up to 99"
+evidence = "EBOOT 88795F4 adds; lobby_task 9A960D8 case 0x32 gives and zeroes"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6AC3C
+name = "pending_item_398_count"
+type = "u8"
+confidence = "confirmed"
+note = "count of item 0x398 waiting, up to 99"
+evidence = "EBOOT 88795F4 adds; lobby_task 9A960D8 case 0x33 gives and zeroes"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6AC3D
+name = "equip_menu_flags"
+type = "u8"
+confidence = "inferred"
+note = "bits 1 and 4 show lobby menu lines, 2 changes the menu's layout"
+evidence = "lobby_task 9AA1A40 sets 1 for an equip of +0x13 == 2 with a message; 9AE1540, 9AEAAF8, 9AEB760 and 9AE5548 test"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AC3E
+name = "hunter_extra_records"
+type = "u8"
+confidence = "confirmed"
+note = "first of 5 records of 4 bytes copied to the hunter (+0x10D0 path): low and high nibbles, then 0xFF-initialised bytes"
+evidence = "edit_task 9A62EF0 initialises the 20 bytes; EBOOT 88D66F4 copies; lobby_task 9AE1E58 edits by (&this)[n*4]"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AD76
+name = "log_serial"
+type = "u16"
+confidence = "inferred"
+note = "next 10-bit serial mixed into a log stamp"
+evidence = "EBOOT 8858238 puts it into +0x6E, +0x6F and increments"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AD78
+name = "hunter_tally_total"
+type = "u32"
+confidence = "confirmed"
+note = "local hunter's per-quest +0x113E counts summed, capped at 999999999; logs each 100"
+evidence = "EBOOT 887EBFC adds, caps, logs event 0x17"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADA9
+name = "paid_request_top_cost_count"
+type = "u8"
+confidence = "inferred"
+note = "+1 when the request of cost index 4 runs, up to 100"
+evidence = "game_sub 9C2AD10; lobby_task 9A94678 and EBOOT 88FD294 test"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADD0
+name = "play_hundred_hours_logged"
+type = "u8"
+confidence = "confirmed"
+note = "count of each 100 hours of play already logged"
+evidence = "EBOOT 887EBFC: if (this+1)*100 <= hours then +1 and log event 0x14"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADD8
+name = "option_language"
+type = "s8"
+confidence = "confirmed"
+note = "language chosen"
+evidence = "EBOOT 8852C20 settings_reset_to_defaults, 88BC7F0 loads 14 bytes from the save file's start; 8852C20 applies it to the main object's language"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADD9
+name = "option_sound_mode"
+type = "s8"
+confidence = "confirmed"
+note = "sound_set_mode's value, 1 to 3 from the menu"
+evidence = "EBOOT 8852C20 settings_reset_to_defaults, 88BC7F0 loads 14 bytes from the save file's start; EBOOT 88495AC stores the menu's choice and calls sound_set_mode"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDA
+name = "option_music_volume"
+type = "s8"
+confidence = "inferred"
+note = "0 to 7, sevenths of the track volume"
+evidence = "EBOOT 8852C20 settings_reset_to_defaults, 88BC7F0 loads 14 bytes from the save file's start; lobby_task 9A71B10 math_scale_by_sevenths(0x7F, this) to sound_track_play"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDB
+name = "option_sound_scale"
+type = "s8"
+confidence = "inferred"
+note = "0 to 7 given to sound_set_scale_5623d0: the other volume to music's"
+evidence = "EBOOT 8852C20 settings_reset_to_defaults, 88BC7F0 loads 14 bytes from the save file's start; sound_set_scale_5623d0"
+decimal = true
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDC
+name = "option_save_list_no_preview"
+type = "s8"
+confidence = "inferred"
+note = "nonzero: the load menu draws a text window, not the hunter"
+evidence = "EBOOT 88BC7F0 param +0x964 = this != 0 chooses f_88C05FC or save_menu_update_slot_hunter_preview"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDE
+name = "option_data_install"
+type = "s8"
+confidence = "inferred"
+note = "nonzero when installed data is used"
+evidence = "install_task 9A5F380 sets 1; EBOOT 884DE3C rofs_loader_thread tests it; 884DBB8 and 884F670 zero on error; 8839B30 is its menu"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDF
+name = "option_pitch_mode_a"
+type = "s8"
+confidence = "inferred"
+note = "0 to 2: 1 and 2 negate a d-pad up/down step, 2 reverses hunter +0x320"
+evidence = "game_task 9AA4DD0, 9AAA158, 9AAA390; lobby_task 9AB4030; EBOOT 88495AC is its menu"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE0
+name = "option_camera_follow_mode"
+type = "s8"
+confidence = "inferred"
+note = "0 to 2: at 1 the camera does not turn with the hunter's facing"
+evidence = "EBOOT 8886E50 camera_hunt_controller branches on != 1 and != 0; game_task 9A665F0; EBOOT 88495AC"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE1
+name = "option_camera_dpad_mode"
+type = "s8"
+confidence = "inferred"
+note = "0 to 2: 0 uses more d-pad; 2 negates the yaw step"
+evidence = "EBOOT 8886E50: ==0 at d-pad handling, ==2 gives -0x47E; EBOOT 88495AC"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE2
+name = "option_pitch_mode_b"
+type = "s8"
+confidence = "inferred"
+note = "0 to 2, second of its kind: 1 and 2 negate a step in the hunter's +0x480 up, 2 reverses hunter +0x320"
+evidence = "game_task 9AA4DD0, 9AAA390, 9BB6D98; EBOOT 88495AC"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE4
+name = "option_camera_relative_evade"
+type = "s8"
+confidence = "inferred"
+note = "1: the hunter's evade tests the stick against the camera's heading"
+evidence = "game_task 9A8B100, 9A8B290, 9A8B790, 9A8B898; EBOOT 88495AC"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE5
+name = "option_item_selector_mode"
+type = "s8"
+confidence = "inferred"
+note = "1 opens the item selector whatever the hunter's +0x614 bit 0x8000, and changes what L and R test"
+evidence = "game_task 9A6AB48, 9A6EE48, 9A8BBE0; EBOOT 88495AC"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE8
+name = "all_slot_flags_a"
+type = "u32"
+confidence = "confirmed"
+note = "one of five words of bits shared by the 3 slots: ORed with the file's on save; the view shows float casts of its bits"
+evidence = "EBOOT 88BA870 and 88BD75C OR it with the file's words at +0x10..; 88BC7F0 loads 0x14 bytes; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADEC
+name = "all_slot_flags_b"
+type = "u32"
+confidence = "confirmed"
+note = "one of five words of bits shared by the 3 slots: ORed with the file's on save; the view shows float casts of its bits"
+evidence = "EBOOT 88BA870 and 88BD75C OR it with the file's words at +0x10..; 88BC7F0 loads 0x14 bytes; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADF0
+name = "all_slot_flags_c"
+type = "u32"
+confidence = "confirmed"
+note = "one of five words of bits shared by the 3 slots: ORed with the file's on save; the view shows float casts of its bits"
+evidence = "EBOOT 88BA870 and 88BD75C OR it with the file's words at +0x10..; 88BC7F0 loads 0x14 bytes; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADF4
+name = "all_slot_flags_d"
+type = "u32"
+confidence = "confirmed"
+note = "one of five words of bits shared by the 3 slots: ORed with the file's on save; the view shows float casts of its bits"
+evidence = "EBOOT 88BA870 and 88BD75C OR it with the file's words at +0x10..; 88BC7F0 loads 0x14 bytes; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADF8
+name = "all_slot_flags_e"
+type = "u32"
+confidence = "confirmed"
+note = "fifth word: bits tested all over (1,2,4; 8,0x10; 0x1000; 0x1000000 gives 3000 points)"
+evidence = "EBOOT 88BA870, 8857A34, 8856BC8; 88FD294; edit_task 9A61A48"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AEA4
+name = "arcade_quit_requested"
+type = "u8"
+confidence = "inferred"
+note = "1 when a quest is left in the arcade flow, cleared when it goes back"
+evidence = "game_task 9A61918 sets when mode_flags 4; arcade_task 9A5F7C0 reads and clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF0A
+name = "lobby_net_entry"
+type = "s8"
+confidence = "inferred"
+note = "entry of the net session's list chosen by the lobby"
+evidence = "lobby_task 9A70830 f_EBOOT_889990C(net, this) (net +0xDC + n*0x10); 9A632A8 moves it by count at net +0xEE0"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF0B
+name = "arcade_net_entry"
+type = "s8"
+confidence = "inferred"
+note = "the same for the arcade"
+evidence = "arcade_task 9A60810, 9A6CD38"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF0E
+name = "stage_id"
+type = "u16"
+confidence = "confirmed"
+note = "stage being played; objects compare their area with it"
+evidence = "lobby_task 9A6C768 and EBOOT 886A0B4 set; overlay_start_load(this+0x15A6); objects' +0x18 and hunters' +0x29A compare it"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF10
+name = "map_id"
+type = "u8"
+confidence = "inferred"
+note = "map from the quest's header, or 0 in the lobby; index of the per-map tables"
+evidence = "EBOOT 8869904 quest +0x1C; lobby_task 9A6C768 sets 0; used for DAT_09CE4908 and DAT_09CE480C"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF12
+name = "quest_id"
+type = "u16"
+confidence = "confirmed"
+note = "id of the quest; 0 none"
+evidence = "game_task 9A5F868 quest_data_load_step(this); lobby_task 9A8E288 and 9A88628 set; EBOOT 88CC828 compares ids like 0x2BC1"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF14
+name = "mode_flags"
+type = "u32"
+confidence = "inferred"
+note = "mode bits: 1 set entering the lobby, 0x200 set entering the hunt; the other bits have setters listed in evidence but no settled meaning"
+evidence = "lobby_task 9A6C768 sets 1; game_task 9A5F380 clears 1, sets 0x200; arcade_task 9A5F380 sets 8, 9A6B5B0 sets 4, 9A60810 sets 0x80, 9A67ED0 sets 0x100; cont_task 9A5F380 sets 0x20; game_sub 9CC4EF8 sets 2; 885100C clears 1"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF18
+name = "lobby_return_point"
+type = "s8"
+confidence = "inferred"
+note = "index of the table at DAT_09B041A8 of where the lobby starts; -1 default"
+evidence = "lobby_task 9A7B910 sets; 9A6C768 reads and clears the records if netted; edit_task and cont_task set -1"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF19
+name = "lobby_return_was_online"
+type = "u8"
+confidence = "confirmed"
+note = "the net flag when the return point was set"
+evidence = "lobby_task 9A7B910; 9A7B990 clears; 9A6C768 reads"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1A
+name = "suspend_state"
+type = "u8"
+confidence = "confirmed"
+note = "0 running, 1 suspended, 4 resuming"
+evidence = "EBOOT 88567C8 sets 1 and a flag on the sound tracks; 885683C sets 4; 8856560 zeroes from 4; 8856550; 88567B4"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1B
+name = "hunt_tick_held"
+type = "u8"
+confidence = "confirmed"
+note = "while set hunt_state_run does not run hunt_tick"
+evidence = "EBOOT 88CD3FC sets and clears around a scene; game_task 9A60298"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1C
+name = "snapshot_language"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADD8, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1D
+name = "snapshot_sound_mode"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADD9, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1E
+name = "snapshot_music_volume"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADDA, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF1F
+name = "snapshot_sound_scale"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADDB, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF20
+name = "snapshot_save_list_no_preview"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADDC, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF22
+name = "snapshot_data_install"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADDE, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF23
+name = "snapshot_pitch_mode_a"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADDF, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF24
+name = "snapshot_camera_follow_mode"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADE0, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF25
+name = "snapshot_camera_dpad_mode"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADE1, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF26
+name = "snapshot_pitch_mode_b"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADE2, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF28
+name = "snapshot_camera_relative_evade"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADE4, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF29
+name = "snapshot_item_selector_mode"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of the option at +0x6ADE5, compared to see if it changed"
+evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF2C
+name = "snapshot_all_slot_flags_a"
+type = "u32"
+confidence = "confirmed"
+note = "snapshot of all_slot_flags_a; bits copied"
+evidence = "EBOOT 88572E8; 88574A4 compares bytewise"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF30
+name = "snapshot_all_slot_flags_b"
+type = "u32"
+confidence = "confirmed"
+note = "snapshot of all_slot_flags_b; bits copied"
+evidence = "EBOOT 88572E8; 88574A4 compares bytewise"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF34
+name = "snapshot_all_slot_flags_c"
+type = "u32"
+confidence = "confirmed"
+note = "snapshot of all_slot_flags_c; bits copied"
+evidence = "EBOOT 88572E8; 88574A4 compares bytewise"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF38
+name = "snapshot_all_slot_flags_d"
+type = "u32"
+confidence = "confirmed"
+note = "snapshot of all_slot_flags_d; bits copied"
+evidence = "EBOOT 88572E8; 88574A4 compares bytewise"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF3C
+name = "snapshot_all_slot_flags_e"
+type = "u32"
+confidence = "confirmed"
+note = "snapshot of all_slot_flags_e; bits copied"
+evidence = "EBOOT 88572E8; 88574A4 compares bytewise"

@@ -1,0 +1,271 @@
+[[function]]
+module = "game_task"
+address = "09ACD0F8"
+name = "entity_add_hunter_points_688_from_type_tables"
+purpose = "Adds table values for an index and a mode byte to the per-hunter-slot int at +0x688, when it is below a cap chosen by byte +0x6DA, the check of 09AC9740 with mask 0x10 is clear and byte +0x4B9 is 0; hunter skill 0xF blocks it unless the 09AD2DF0 level is 4."
+confidence = "inferred"
+evidence = "Writes +0x688+slot*4 from tables at DAT_09bc8358 indexed by type byte +0x1E8; the mode byte selects which table and the minimum level; the meaning of the points was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACD3B0"
+name = "entity_find_paired_type_entity_5c4"
+purpose = "Clears +0x5C4, then for types 0x13, 0x23, 0x05, 0x1E, 0x0D and 0x10 finds the first entity with flag mask 0x1 of the paired type (0x50, 0x4D, 0x44, 0x1F, 0x1C, 0x1B) among the 20 pointers at DAT_09c122b0+0x1220 and stores it in +0x5C4."
+confidence = "inferred"
+evidence = "Fixed type-to-type mapping, then a scan comparing +0x1E8 and testing +4 mask 0x1; what the pairing means in the game was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACD560"
+name = "entity_root_motion_delta_scaled_220"
+purpose = "Calls motion_player_root_motion_delta on the motion player at +0x80 with an identity matrix whose diagonal holds the three floats at +0x220, +0x224 and +0x228."
+confidence = "inferred"
+evidence = "vmidt_q with the diagonal locals replaced by +0x220..+0x228, passed as the third argument; that those floats are a scale comes only from the diagonal position."
+
+[[function]]
+module = "game_task"
+address = "09ACD5B0"
+name = "entity_select_map_record_if_type_09_or_17"
+purpose = "Calls object_select_map_record_by_distance when type byte +0x1E8 is 0x09 or 0x17."
+confidence = "inferred"
+evidence = "The whole body is that test and call; the entity_ prefix comes from the type-table class."
+
+[[function]]
+module = "game_task"
+address = "09ACF600"
+name = "entity_set_byte_6db"
+purpose = "Sets byte +0x6DB to 1, a value 09AD3228 requires to be nonzero before it does anything."
+confidence = "inferred"
+evidence = "One store; the reader in this bundle is 09AD3228; traces show several game_task callers running it on a single frame such as 3450 in camp."
+
+[[function]]
+module = "game_task"
+address = "09ACFA80"
+name = "entity_pitch_angle16_to_point_5d0"
+purpose = "Computes the angle in the vertical plane from the entity at +0x200 to the point at +0x5D0, using the XZ distance plus an offset and the height difference with a height offset, and writes it to *param_2 as a negated 16-bit angle."
+confidence = "inferred"
+evidence = "vsqrt of the XZ difference, height difference from +0x204 and +0x5D4, an inlined arctangent, then 65536/2pi scaling and 0x10000 minus the result; the inlined VFPU arctangent is garbled in the view."
+
+[[function]]
+module = "game_task"
+address = "09ACFD00"
+name = "map_area_edge_point_toward_area_2e0"
+purpose = "Writes to param_2 the position of the map point for area +0x2E0, relative to the rectangle of current area +0x29A; if that lies inside the rectangle, pushes it out to the rectangle edge along a line through the current area's point, and takes Y from the area height table."
+confidence = "inferred"
+evidence = "map_point_get_xy for +0x29A and +0x2E0, rectangle origin and size from DAT_09cdf040 (0x20 per area), edge clamping, Y from DAT_09bcc6a8; em20 09D20478 called it in traces, in misc."
+
+[[function]]
+module = "game_task"
+address = "09ACFF38"
+name = "entity_move_to_area_2e0_at_rect_edge"
+purpose = "Changes area: saves +0x29A in +0x53E, sets +0x29A from +0x2E0, then writes position +0x200 and +0x210 to a point on the new area's rectangle chosen by the octant of the bearing between the two areas' map points, with Y from the area height table, and sets float +0x248 to 50.0."
+confidence = "inferred"
+evidence = "Field copies at the start, a switch on the bearing from 09AC8BF0 >> 0xD, stores to +0x200/+0x204/+0x208 and +0x210/+0x214/+0x218; calling these areas comes from the rectangle table and the compare with hunter +0x29A elsewhere in this bundle."
+
+[[function]]
+module = "game_task"
+address = "09AD00D0"
+name = "entity_route_area_2e0_via_neighbor_list"
+purpose = "If area +0x2E0 is not in the list from 09ABE500 for this entity, replaces +0x2E0 with the list's only entry or else the entry whose rectangle-center bearing is closest to the bearing toward +0x2E0, skipping area +0x53E; seeds +0x540 from +0x2E0 when it is -1."
+confidence = "inferred"
+evidence = "Up to 8 ushort ids ended by 0xFFFF, rectangle centers from DAT_09cdf040, smallest wrapped difference of 09AC8BF0 bearings, write to +0x2E0; that the list holds neighbours of the current area is inferred from this use, since 09ABE500 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD0648"
+name = "entity_reload_area_values_and_reduce_494_498"
+purpose = "Sets bytes +0x534 and +0x535 to 0xFF, reloads +0x54E and +0x550 from the area tables, then by type byte +0x1E8 calls vtable slots +0x4C and +0x50 (only +0x4C for types 0x56 and 0x30, neither for types not listed)."
+confidence = "inferred"
+evidence = "Calls 09AD0B38 and 09AD0C88, then a type chain with the two virtual calls, whose bundle implementations 09AD08B8 and 09AD0920 reduce +0x494 and +0x498; it sits at vtable slot +0x48 of several classes, and overrides were not read."
+
+[[function]]
+module = "game_task"
+address = "09AD08B8"
+name = "entity_reduce_494_by_type_table"
+purpose = "Subtracts a value at DAT_09bc7fa4, selected through the type's table byte, from int +0x494, setting it to 0 if it would not stay positive."
+confidence = "inferred"
+evidence = "Compare and subtract on +0x494 with a stride-0x18 table index from DAT_09bb8bfd[type*0x1D0]; vtable slot +0x4C, called from 09AD0648 in traces; the meaning of +0x494 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD0920"
+name = "entity_reduce_498_by_type_table"
+purpose = "Subtracts a value at DAT_09bc8034, selected through the type's table byte, from int +0x498, setting it to 0 if it would not stay positive."
+confidence = "inferred"
+evidence = "Compare and subtract on +0x498 with a stride-0x18 table index from DAT_09bb8bfe[type*0x1D0]; vtable slot +0x50, called from 09AD0648 in traces; the meaning of +0x498 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD0B38"
+name = "entity_load_54e_from_area_table"
+purpose = "Walks the type's (area id, value) ushort pairs from PTR_DAT_09bb8c6c, remapping each id through DAT_09ce5320 when its DAT_09ce5108 entry disagrees with a global test, and sets +0x54E to the value for area +0x29A or to the default after the 0xFFFF terminator."
+confidence = "inferred"
+evidence = "Pair loop comparing with +0x29A and storing puVar3[1] or the terminator's value in +0x54E; what +0x54E is used for was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD0C48"
+name = "entity_add_table_offset_x1800_to_550"
+purpose = "Adds to short +0x550 the signed table byte DAT_09bcf248[+0x322 & 0x1F] times 1800."
+confidence = "inferred"
+evidence = "The multiply is written as (b*0xF0 - b*0xF)*8, which is 1800*b; what +0x322 holds was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD0C88"
+name = "entity_load_550_from_area_table_with_offset"
+purpose = "Walks the type's (area id, value) ushort pairs from PTR_DAT_09bb8c70 and sets +0x550 for area +0x29A or from the terminator's default, then adds the 09AD0C48 offset, except when an id above 1000 (id minus 1000 is compared) was seen on the way to a matching entry."
+confidence = "inferred"
+evidence = "Same pair walk as 09AD0B38; the flag set by a value over 1000 skips the offset on the match path, and the terminator path always calls 09AD0C48."
+
+[[function]]
+module = "game_task"
+address = "09AD0DF8"
+name = "entity_raise_pending_545_from_flags_546_54a"
+purpose = "When +0x53D is below 0x80, the 09AC9740 check with mask 0x80 is clear and, with +0x4B9 equal to 1, the area is not in the type's list at DAT_09bb8c58, calls 09AD1070 with a table byte and priority for the first set flag: +0x546 at 0x80, +0x547 at 0x70 (and clears it), +0x548 at 0x60, +0x549 at 0x50, +0x54A at 0x40 only when +0x4B9 is 0."
+confidence = "inferred"
+evidence = "Priority chain with stored bytes from DAT_09bccb88..8C[type byte*8]; each level requires +0x53D below it; 09AD3558 and 09AD3470 set +0x548 and +0x549 when +0x494 and +0x498 reach 0."
+
+[[function]]
+module = "game_task"
+address = "09AD1070"
+name = "entity_set_pending_545_if_priority_ge_53d"
+purpose = "If the given priority is at least byte +0x53D, stores it there, sets +0x544 to 1, stores the given byte in +0x545 and sets mask 0x10 in +0x638."
+confidence = "inferred"
+evidence = "Four stores behind one compare; called with priorities 0x40..0x80 by 09AD0DF8; what consumes +0x544 and +0x545 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD10A8"
+name = "entity_set_mode_1_for_first_hunter_in_mask_6d8"
+purpose = "When byte +0x4B8 is 1 and any existing hunter slot has its bit in mask +0x6D8, sets +0x50A to 1, +0x50C to 0 and +0x50E to the lowest such slot."
+confidence = "inferred"
+evidence = "Two hunter_manager_get_slot loops testing 1<<slot against +0x6D8; 09AD11A0 case 1 turns +0x50E into the hunter pointer at +0x2F4."
+
+[[function]]
+module = "game_task"
+address = "09AD11A0"
+name = "entity_apply_target_mode_50a"
+purpose = "Copies +0x50A/+0x50C/+0x50E to +0x506/+0x508/+0x504 and switches on mode +0x50A: most modes write a point to param_2 (type table points, an offset ahead of angle +0x1F4, list points, +0x5E0, a hunter-based offset), while others set the target at +0x542 and +0x2F4 from a hunter or entity slot, set +0x540 and +0x2E0, or set +0x77A."
+confidence = "inferred"
+evidence = "Switch over 1,2,3,5,6,7,8,9,0xB,0xC,0xD with those stores; 09B5CFE0 called it in traces, only in quest-q2; calling the point and the +0x2F4 pointer a target comes from these uses, not from their readers."
+
+[[function]]
+module = "game_task"
+address = "09AD1CB8"
+name = "map_area_table_find_entry"
+purpose = "Searches a table of 8-byte entries keyed by a ushort area id for the given id, comparing both after the DAT_09ce5108/DAT_09ce5320 remap, and returns the matching entry, the 0xFFFF terminator entry, or 0 after 0x10B entries."
+confidence = "inferred"
+evidence = "Loop stepping 8 bytes with terminator and limit checks; callers such as 09AD11A0 pass the table and +0x29A."
+
+[[function]]
+module = "game_task"
+address = "09AD1E08"
+name = "map_area_table_get_ptr_for_entity_area"
+purpose = "Searches a table of 8-byte entries keyed by a ushort area id for entity area +0x29A, comparing both after the remap, and returns the pointer at +4 of the match or of the 0xFFFF terminator, or 0 after 0x10B entries."
+confidence = "inferred"
+evidence = "Same walk as 09AD1CB8 but returns *(entry+4); 09AD11A0 reads position triples through the result."
+
+[[function]]
+module = "game_task"
+address = "09AD21E8"
+name = "entity_find_nearest_list_88_point_passing_check"
+purpose = "If +0x494 is at most a type table limit, +0x280 is 0 and an active hunter shares area +0x29A, picks the nearest point in the 32-entry list at DAT_09c122b0+0x88 that has the same area and is within its radius, tests it with 09C3E3D0, and on a 0 result stores its bytes +0x14,+0x15,+0x16 in +0x54C,+0x54D,+0x574 and returns 1; otherwise sets those to 0xFF and returns 0."
+confidence = "inferred"
+evidence = "Hunter scan, distance against the entry's +0x10, f_game_sub_9C3E3D0 with mask +0x27C (plus 0x4000 when DAT_089cc558+0x6AF14 has mask 0x2); what the list points are and what 09C3E3D0 tests were not read."
+
+[[function]]
+module = "game_task"
+address = "09AD25A0"
+name = "entity_in_radius_of_list_108_point_flag_2"
+purpose = "Returns 1 if, with +0x280 being 0 or 1 and +0x53D below 0x80, the entity's XZ distance to a same-area entry having mask 0x2 at byte +0x16 in the 32-entry list at DAT_09c122b0+0x108 is within that entry's +0x10 radius; otherwise 0."
+confidence = "inferred"
+evidence = "Loop of 32 pointers with vsqrt of the XZ difference; called from 09AC5C30 in traces, only in misc; what the list holds was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2698"
+name = "entity_tick_status_decay_and_mask_4_health_drain"
+purpose = "For each state bit of byte +0x522 that is clear, decays its short at the type table's interval (+0x388 for mask 0x4, +0x458 for mask 0x8, +0x440 for mask 0x10, +0x44C for mask 0x1, +0x446 for mask 0x2); while mask 0x4 is set, counts down +0x454, calls vtable +0xF0 and drains health +0x2E4 at an interval, and when the count ends clears the bit and raises count +0x525 and +0x450."
+confidence = "inferred"
+evidence = "Repeated timer and subtract blocks with DAT_09bb8bxx[type*0x1D0] rates; health is held at 1 if +0x4C0 is above 0 or +0x638 has mask 0x2; +0x525 is limited to 6 or 4 by 09AD8438. Reading the values as status buildup is inferred from this shape; which status each bit is was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2A60"
+name = "entity_add_points_554_on_change_482"
+purpose = "For each existing hunter slot whose short at +0x482+slot*2 differs from its copy at +0x48A+slot*2, updates the copy and adds the kind 1 entry from 09AD2C18 through 09AD2AF8."
+confidence = "inferred"
+evidence = "Loop of 4 slots with that compare, copy and the two calls; what writes +0x482 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2AF8"
+name = "entity_add_hunter_points_554_capped"
+purpose = "For a present hunter (flag mask 0x1, byte +0x298 not 3), adds points to the int at +0x554+slot*4 if the sum stays below the given limit; if the value is then above 8999 and the hunter is in the same area +0x29A, sets the slot's bit in +0x503 and reloads the short at +0x514+slot*2 from the type table."
+confidence = "inferred"
+evidence = "Read directly from the body; the arguments are the pair from 09AD2C18; the game meaning of the points was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2C18"
+name = "entity_get_points_554_entry_for_hunter"
+purpose = "Returns a pointer to the 8-byte (points, limit) entry for an event kind in the type's table at DAT_09bb8c60, with kinds 3..6 shifted by 7 or 0xB and kind 1 replaced by 9 or 0x12 according to hunter skills 0x10 and 0xF, hunter byte +0x1E8 being 0x0C with entity type 0x4F, or hunter_check_4e9_6_1e8_5_4ec_mask_10."
+confidence = "inferred"
+evidence = "Returns table + kind*8, and callers 09AD2A60 and 09AD2EC0 pass element 0 and 1 to 09AD2AF8; the skills' and kinds' game meanings were not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2DF0"
+name = "hunter_slot_flags_288_level"
+purpose = "Returns a level for a hunter slot: for +0x280 of 0, 2 or 3 it gives 4 on flags 0x2000200, 3 on flags 0x1000B, otherwise 2; for +0x280 of 1 it gives 1 on flags 0x201020B, otherwise 0; for anything else 0."
+confidence = "inferred"
+evidence = "Tests through object_test_flags_288 on the object from hunter_manager_get_slot; 09ACD0F8 uses the level to index and gate its points; what the flags mean was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD2EC0"
+name = "entity_tick_hunter_points_554_decay_and_gain"
+purpose = "Reduces the per-hunter ints at +0x554 by type rates depending on tracked slot +0x511, area and mask +0x6D8, and adds kind 2 points when hunter short +0x1138 is nonzero (unless a mapped byte at DAT_089cc558+0x6AF10 is 0x0C and the type is 0x36, 0x3C, 0x40 or 0x41), and kind 8 points with flag 0x10000 in the same area, also setting the slot's bit in +0x503 when those points are nonzero."
+confidence = "inferred"
+evidence = "Rates from PTR_DAT_09bce3c0 via the type's table byte; 09AD2C18 and 09AD2AF8 calls; called by 09AC5C30 and 09AC69B0 in traces; a slot with its +0x6D8 mask bit is reduced by the per-slot pass only when its value is 30000 or more and it is not slot +0x542."
+
+[[function]]
+module = "game_task"
+address = "09AD3208"
+name = "entity_set_bit_572"
+purpose = "Sets bit number param_2 in short +0x572."
+confidence = "inferred"
+evidence = "One OR of 1<<param_2; traces show it on single setup frames such as 1820 in fight2; the entity_ prefix comes from its callers' class."
+
+[[function]]
+module = "game_task"
+address = "09AD3228"
+name = "entity_countdown_576_then_set_4bb_mask_80"
+purpose = "When +0x6DB is nonzero and area +0x29A equals the short at DAT_089cc558+0x6AF0E, counts byte +0x576 down, and once it is below 1 sets mask 0x10 in +0x638 and mask 0x80 in +0x4BB, provided +0x280 is not 2 or 4, +0x298 is outside 5..7, +0x292 is 0 or has mask 0x8000, the 09AC9740 check with mask 0x80 is clear, and +0x52D and +0x523 are 0."
+confidence = "inferred"
+evidence = "Read directly from the body; em20 09D1A418 and others called it in traces, across fight2 and misc; what consumes +0x4BB mask 0x80 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD3470"
+name = "entity_reduce_498_latch_549_at_zero"
+purpose = "Subtracts a type table rate from int +0x498, chosen by whether +0x4B9 is 0; if the table byte at DAT_09bccb8a for this type is nonzero, clamps at 0 and on first reaching 0 sets +0x549 and latch +0x52B."
+confidence = "inferred"
+evidence = "Read directly from the body; 09AD0DF8 turns +0x549 into a pending priority 0x50 entry; without the table byte the value is not clamped."
+
+[[function]]
+module = "game_task"
+address = "09AD3558"
+name = "entity_reduce_494_latch_548_at_zero"
+purpose = "Subtracts a type table rate from int +0x494, chosen by whether +0x4B9 is 0, clamps at 0, and if the table byte at DAT_09bccb89 for this type is nonzero, on first reaching 0 sets +0x548 and latch +0x52C."
+confidence = "inferred"
+evidence = "Read directly from the body; 09AD0DF8 turns +0x548 into a pending priority 0x60 entry."
+
+[[function]]
+module = "game_task"
+address = "09AD3638"
+name = "entity_reduce_494_clamped"
+purpose = "Subtracts a type table rate from int +0x494, chosen by whether +0x4B9 is 0, and clamps at 0, without the latch that 09AD3558 has."
+confidence = "inferred"
+evidence = "Same body as the first half of 09AD3558; 09B1E100 called it in traces, only in quest-q9."

@@ -1,0 +1,311 @@
+[[function]]
+module = "game_task"
+address = "09A6A868"
+name = "hunter_pouch_selector_input"
+purpose = "For the local player, opens or closes a pouch selector (+0x614 mask 1) from +0x48C mask 0x100 and steps slot +0x648 with +0x490 masks 0x2000 and 0x8000, playing sounds 0x11, 0x14 and 0x12."
+confidence = "inferred"
+evidence = "Calls pouch_cycle_slot_with_flag_mask_1 in both directions and stores the result in +0x648; clears the open flag in state 2,0x13 and +0x298 3 or 4."
+
+[[function]]
+module = "game_task"
+address = "09A6AB48"
+name = "hunter_pouch_selector_can_open"
+purpose = "Returns whether the pouch selector may open, from game +0x6ADE5, +0x614 masks 0x8000 and 0x40000, and per +0x1E8 lists of group 1 states for values 0 and 10."
+confidence = "inferred"
+evidence = "Only caller in traces is 09A6A868, which sets +0x614 mask 1 when this returns 1 and +0x61C exceeds 9."
+
+[[function]]
+module = "game_task"
+address = "09A6ADC8"
+name = "hunter_pouch_weapon_slot_selector_input"
+purpose = "While +0x614 mask 1 is set, steps slot +0x686 with +0x490 masks 0x4000 and 0x1000 and refreshes its fields; saves the current +0x646, +0x67D, +0x67C, +0x5F6 into saved copies +0x642, +0x645, +0x644, +0x10FF on entry and restores them when +0x55C is unchanged from saved +0x689."
+confidence = "inferred"
+evidence = "Calls pouch_find_slot_by_weapon_mask and hunter_refresh_selected_slot_686_fields; gated on +0x5F3 == 1 and +0x640 == 0."
+
+[[function]]
+module = "game_task"
+address = "09A6B130"
+name = "hunter_process_received_hit"
+purpose = "Applies a received hit to the hunter. When the guard check passes, health changes only in state 2,10 or with +0x3CE mask 0xC0 (half for weapon class 1, else a quarter); any other guarded hit costs no health here."
+confidence = "inferred"
+evidence = "Health and +0x41C updates, knock states set through vtable +0x6C by hit type +0x3CA and direction, calls 09A6CF38 when health is below 1."
+
+[[function]]
+module = "game_task"
+address = "09A6C958"
+name = "hunter_clear_bytes_558_33c"
+purpose = "Zeroes bytes +0x558 and +0x33C."
+confidence = "inferred"
+evidence = "Two byte stores; called at the top of hunter_process_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09A6C968"
+name = "hunter_can_guard_received_hit"
+purpose = "Hunter vtable +0x7C: returns 1 when the hit can be guarded: +0x3B8 not negative, +0x3CA not 0xE or 0xF, stamina at least 0x4B, weapon class allowed, +0x410 mask 8, +0x280 at most 1, and a facing check against +0x360 passes."
+confidence = "inferred"
+evidence = "Passing it in hunter_process_received_hit costs a half or a quarter of +0x3B8 through vtable +0x68 and skips the knock states; skills 0x2C and 0x2D change the checks."
+
+[[function]]
+module = "game_task"
+address = "09A6CF38"
+name = "hunter_start_faint"
+purpose = "When +0x298 is not 3: zeroes health and +0x41C, then either clears status fields and calls 09A67878(3) when +0x29C is 0, or sets state 2,7 through vtable +0x6C."
+confidence = "confirmed"
+evidence = "Ran only in fight1 at frame 5380, where the hunter faints; hunter_process_received_hit calls it when health is below 1."
+
+[[function]]
+module = "game_task"
+address = "09A6D028"
+name = "hunter_clear_status_fields"
+purpose = "Zeroes many hunter timers and counters, among them fields hunter_build_status_word reads (+0x624, +0x626, +0x628, +0x10FA, +0x110E, +0x1112, +0x38A, +0x38B), and clears +0x672 unless +0x1E8 is 9."
+confidence = "inferred"
+evidence = "Run of zero stores plus 09A704A8, 09BB0F08 and 09A682B8; called from hunter_start_faint in traces."
+
+[[function]]
+module = "game_task"
+address = "09A6D1F0"
+name = "hunter_clear_field_1146"
+purpose = "If short +0x1146 is positive calls game_sub 09C9A6F0(0, self), then zeroes it."
+confidence = "inferred"
+evidence = "Whole body; called before reaction states in hunter_process_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09A6D228"
+name = "hunter_state_is_2_16_or_2_18"
+purpose = "Returns whether the hunter is in state 2,0x16 or 2,0x18."
+confidence = "inferred"
+evidence = "Two object_state_is calls; hunter_process_received_hit then sets state 2,0x18."
+
+[[function]]
+module = "game_task"
+address = "09A6D280"
+name = "hunter_fields_468_620_or_410_mask_10_set"
+purpose = "Returns 1 if short +0x468 or +0x620 is nonzero or +0x410 has mask 0x10."
+confidence = "inferred"
+evidence = "Whole body; chooses state 2,0x13 or 2,0x1B in hunter_process_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09A6D2B8"
+name = "hunter_skill_and_state_exempt_light_reaction"
+purpose = "Returns 1 when skills 0xAF or 0xB0 or list entry 0x29 go with state 0,0x4A or 0,0x60; list entries 0x27 or 0x28 go with hunter_state_in_27_to_2b_or_77_78; or list entries 0x1B or 0x1C go with 09A9A0D0 not 0xFFFF."
+confidence = "inferred"
+evidence = "When it returns 1, hunter_process_received_hit skips the knock states of the short-range branches (+0x3CC 10 or less)."
+
+[[function]]
+module = "game_task"
+address = "09A6D418"
+name = "hunter_tick_periodic_health_drains"
+purpose = "Runs the health drains: timer +0x388 counted down each 30 frames with a tick at +0x454 costing 1 or 2 (2 with +0x111C mask 0x8000), a drain from held items, a drain by area byte +0x3C with skills 0x7A to 0x7D, and ground attribute +0x1E1 effects (attribute 1 raises +0x388 to 10, attribute 2 drains by frame count; both set +0x114B unless skills negate)."
+confidence = "inferred"
+evidence = "Calls 09A6DE70, which takes the amount from health through vtable +0x68 and can call hunter_start_faint; skips listed states and +0x298 3."
+
+[[function]]
+module = "game_task"
+address = "09A6DFC0"
+name = "hunter_count_pouch_item_ids_371_372"
+purpose = "For the local player returns how many of two checks hold: item 0x372 in the pouch or pending in the UI, and item 0x371 in the pouch; 0 otherwise."
+confidence = "inferred"
+evidence = "item_pouch_live_count_of_item calls; the result is the drain amount in hunter_tick_periodic_health_drains, and hud_health_bar_should_pulse also calls it."
+
+[[function]]
+module = "game_task"
+address = "09A6E060"
+name = "hunter_near_table_object_kind_40_41"
+purpose = "Returns 1 if an object in the 20-entry table at DAT_09C122B0 +0x1220, in the hunter's +0x29A, with +0x635 set and byte +0x1E8 of 0x40 or 0x41, has bone 2 within 750 times its +0x220 of the hunter."
+confidence = "inferred"
+evidence = "Loop and distance test; a true result treats ground attribute 0 as 2 in hunter_tick_periodic_health_drains unless skills 0xB2 or 0xD4."
+
+[[function]]
+module = "game_task"
+address = "09A6E190"
+name = "hunter_build_status_word"
+purpose = "For the local player, rebuilds short +0x424 as a bit word from +0x388, states 2,0x13 to 2,0x18, and timers and flags such as +0x624, +0x626, +0x628, +0x10FA, +0x110E, +0x1112 and +0x111C."
+confidence = "inferred"
+evidence = "One mask per field; hunter_tick_periodic_health_drains reads masks 1 and 0x4000 of it on hunters other than the local player."
+
+[[function]]
+module = "game_task"
+address = "09A6E3F0"
+name = "hunter_rebuild_flags_6cc_from_short_array_6a0"
+purpose = "For the local player, rebuilds +0x6CC with one mask per positive entry of the short array at +0x6A0, for indices 0-4 and 7-0x14."
+confidence = "inferred"
+evidence = "Calls hunter_short_array_6a0_entry_is_positive per index and stores the word at +0x6CC, which hunter_flags_6cc_test_mask reads."
+
+[[function]]
+module = "game_task"
+address = "09A6E6A8"
+name = "hunter_fields_1144_1146_or_listed_states"
+purpose = "Returns 1 if short +0x1144 or +0x1146 is nonzero, or the state is 2,0x1B, 2,0x1E to 2,0x24, or 0,0x7E."
+confidence = "inferred"
+evidence = "Whole body; sets mask 0x40 in hunter_build_status_word."
+
+[[function]]
+module = "game_task"
+address = "09A6E738"
+name = "hunter_find_area_zone_at_position"
+purpose = "Clears +0x554, then scans the current area's 0x18-byte zone records and stores the first containing the hunter (within 50 vertically and the record's radius horizontally; 30 extra for id 0x17 with flag 0x80000) in +0x554."
+confidence = "inferred"
+evidence = "Loop over area record +0x10 with count +0x3E, from the object at DAT_09A4F1A0 vtable +0x28."
+
+[[function]]
+module = "game_task"
+address = "09A6E8C8"
+name = "hunter_update_ground_attribute_fields"
+purpose = "Calls object_select_map_record_by_distance, then updates +0x1E0 and +0x1E1 from the attribute table."
+confidence = "inferred"
+evidence = "Three calls: that function, 09A6E900 and 09A6E978."
+
+[[function]]
+module = "game_task"
+address = "09A6E900"
+name = "hunter_set_1e0_from_ground_attribute_mask_8"
+purpose = "Sets byte +0x1E0 to 1 or 0 from mask 8 of the first byte of the area attribute entry indexed by +0x290."
+confidence = "inferred"
+evidence = "Reads area +0xC plus +0x290 times 4; the entry index is written by the ground query in 09A70260."
+
+[[function]]
+module = "game_task"
+address = "09A6E978"
+name = "hunter_set_1e1_from_ground_attribute"
+purpose = "Sets byte +0x1E1 to the low two bits of the second byte of the area attribute entry indexed by +0x290."
+confidence = "inferred"
+evidence = "Whole body; hunter_tick_periodic_health_drains branches on +0x1E1."
+
+[[function]]
+module = "game_task"
+address = "09A6E9E0"
+name = "hunter_update_flag_410_100_near_object_2c8"
+purpose = "Sets +0x410 mask 0x100 when +0x29C is 0, the hunter is within 100 above +0x2CC, and a table object with +4 mask 2 and byte +0x2C8 above 2 is within 300 or 500 horizontally and under 300 below; clears it otherwise."
+confidence = "inferred"
+evidence = "Loop over the 20-entry table at DAT_09C122B0 +0x1220."
+
+[[function]]
+module = "game_task"
+address = "09A6EE48"
+name = "hunter_camera_yaw_request_from_input_488"
+purpose = "Returns 1 when +0x61C is below 10 and +0x488 has mask 0x100, unless game +0x6ADE5 is not 1 with +0x614 mask 0x8000 outside states 0,0x36, 0,0x7A or 0,0x48."
+confidence = "inferred"
+evidence = "Sole caller in traces is camera_should_set_yaw_from_followed; same gates as the +0x48C check in hunter_pouch_selector_can_open."
+
+[[function]]
+module = "game_task"
+address = "09A6EF30"
+name = "hunter_field_10fa_positive"
+purpose = "Returns whether short +0x10FA is positive."
+confidence = "inferred"
+evidence = "One compare; called from hunter_can_use_item."
+
+[[function]]
+module = "game_task"
+address = "09A6F268"
+name = "hunter_item_check_stage_id_and_height"
+purpose = "Returns 0 if param 2 is 1 and game +0x38E is set; maps id game +0x6AF0E through tables at 09CE5108 and 09CE5320; for mapped id 0x5E returns whether +0x204 is at most 100; else 1."
+confidence = "inferred"
+evidence = "Whole body; reached from hunter_can_use_item through 09A6F378."
+
+[[function]]
+module = "game_task"
+address = "09A6F378"
+name = "hunter_item_check_id_6af0e_differs"
+purpose = "Returns 0 when game +0x6AF0E equals game_lookup_id_from_6af0e_or_table; otherwise returns hunter_item_check_stage_id_and_height."
+confidence = "inferred"
+evidence = "Whole body; called from hunter_can_use_item."
+
+[[function]]
+module = "game_task"
+address = "09A6F490"
+name = "quest_find_circle_entry_at_position"
+purpose = "Walks 0x18-byte records from quest_file_lookup_table_entry for +0x29A; for the first whose vertical window (-200 to +100) and radius contain the hunter, writes the short at +0x14 to param 2 and its x,y,z to param 3 and returns the short at +0x10; else 0xFFFF."
+confidence = "inferred"
+evidence = "Loop ends at x of -1.0; caller is game_task 09AA6E70."
+
+[[function]]
+module = "game_task"
+address = "09A6F5C0"
+name = "object_set_byte_280_and_flags_288_mask_1_2_8"
+purpose = "Sets +0x280 to the low byte of param 2 (only 2 or 1, else 0), clears flag 8 when param 2 has mask 0x8000 else sets it, and sets or clears flags 1 and 2 from params 3 and 4."
+confidence = "inferred"
+evidence = "Whole body; many game_task state functions call it."
+
+[[function]]
+module = "game_task"
+address = "09A6F7B0"
+name = "hunter_camera_query_by_weapon_class_state"
+purpose = "Returns a signed value for camera +0x131: -1 without +0x410 mask 8 or when no case applies; for +0x1E8 of 1 or 5 with +0x614 mask 0x8000, 1 in six listed states else 0; for +0x1E8 of 10 with +0x480 mask 0x200, 1 in listed group 1 states, else -1 if hunter_state_is_11_1b_or_3a, else 0."
+confidence = "inferred"
+evidence = "Whole body; caller is camera_update_field_131_from_object_query."
+
+[[function]]
+module = "game_task"
+address = "09A6FB00"
+name = "short_a1_is_0x17"
+purpose = "Returns whether the low 16 bits of the second argument register equal 0x17."
+confidence = "confirmed"
+evidence = "One compare on arg_a1; a0 is unread."
+
+[[function]]
+module = "game_task"
+address = "09A6FB20"
+name = "hunter_field_114b_set"
+purpose = "Returns whether byte +0x114B is nonzero."
+confidence = "inferred"
+evidence = "One read; hunter_tick_periodic_health_drains sets it for ground attribute 1 or 2 effects and hud_health_bar_should_pulse calls this."
+
+[[function]]
+module = "game_task"
+address = "09A6FB30"
+name = "hunter_clear_received_hit_fields"
+purpose = "Vtable +0x2C: calls object_clear_fields_285_2f0_38c_3ce, then zeroes shorts +0x1100, +0x10FC, +0x110C, +0x1110 and +0x1118."
+confidence = "inferred"
+evidence = "hunter_process_received_hit reads +0x285 and those shorts; two vtables share it."
+
+[[function]]
+module = "game_task"
+address = "09A6FB68"
+name = "hunter_tick_counters_426_427_phase_43e"
+purpose = "Steps phase byte +0x43E (0, 1, 2) with countdowns +0x426 and +0x427; flag 0x800 sets it to 1, a clear flag 1 resets it, and it does nothing further when +0x33C is set."
+confidence = "inferred"
+evidence = "Whole body; clears flag 0x40000 in those cases, reloads by +0x439."
+
+[[function]]
+module = "game_task"
+address = "09A6FC80"
+name = "hunter_trigger_area_hint_events"
+purpose = "For the local player, triggers a hint event by +0x29A (ids 0x5C-0x5F, 0x62, 0x63 and their +9 pairs), with 0x62/0x6B also needing short +0x328 of DAT_08A62D9C."
+confidence = "inferred"
+evidence = "Switch into quest_hint_trigger_event; caller is 09A655F0."
+
+[[function]]
+module = "game_task"
+address = "09A70260"
+name = "hunter_place_with_offset_and_snap_to_ground"
+purpose = "Copies +0x204 to +0x2CC, adds an offset rotated by yaw +0x1F4, and if the ground query succeeds with the ground under 300 below, sets both +0x204 and +0x2CC to its height."
+confidence = "inferred"
+evidence = "Calls object_add_player_offset_rotated_by_yaw and game_sub 09C3E698 writing +0x290 and +0x2A0."
+
+[[function]]
+module = "game_task"
+address = "09A70310"
+name = "hunter_field_1112_positive"
+purpose = "Returns whether short +0x1112 is positive."
+confidence = "inferred"
+evidence = "One compare; called from hunter_can_use_item."
+
+[[function]]
+module = "game_task"
+address = "09A703F0"
+name = "hunter_tick_counter_11b0_clear_111c_mask_2000"
+purpose = "Zeroes +0x11B0 and clears +0x111C mask 0x2000 on +0x484 mask 0x200; while +0x480 mask 0x200 holds, counts +0x11B0 to 10 and then clears that mask, resetting the count if +0x410 mask 8 is clear or 09A8B988 returns nonzero."
+confidence = "inferred"
+evidence = "Whole body; caller is hunter_state_function."
+
+[[function]]
+module = "game_task"
+address = "09A704A8"
+name = "hunter_clear_timer_388_and_111c_mask_8000"
+purpose = "Zeroes timer +0x388 and clears +0x111C mask 0x8000."
+confidence = "inferred"
+evidence = "Whole body; hunter_tick_periodic_health_drains calls it when +0x388 is below 1."

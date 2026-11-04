@@ -1,0 +1,255 @@
+[[function]]
+module = "game_task"
+address = "09A70598"
+name = "hunter_update_field_612_by_byte_1e8"
+purpose = "Copies byte +0x612 to +0x7F0, then recomputes +0x612 (0 when the second argument is 2, else 2 or 1 from byte +0x298) with per-value overrides switched on byte +0x1E8 from object states, motion ids, motion frames and flag fields."
+confidence = "inferred"
+evidence = "Code writes only +0x612 and +0x7F0; the cases read object_state_is, +0x324, +0x410 mask 0x10, +0x111C mask 0x10. What +0x612 means is not shown here."
+
+[[function]]
+module = "game_task"
+address = "09A70A30"
+name = "hunter_pack_state_message_by_type"
+purpose = "When global mask 0x1 is set and self's +0x1E6 equals the player index in DAT_089cc558+0x28, packs place, motion, health, stamina and other fields into a stack buffer laid out per message type (second argument, cases 1 to 0xF) and hands it to f_EBOOT_88AB4DC with index+1, type and payload size."
+confidence = "inferred"
+evidence = "Bit-packing switch with a size per case; f_EBOOT_88AB4DC writes size+4, type and index+1 as a header and passes the buffer to f_EBOOT_88A72F0. Vtable slot +0x54 on two classes. What receives the buffer was not read."
+
+[[function]]
+module = "game_task"
+address = "09A8AEB8"
+name = "hunter_action_state_dispatch_by_byte_1e8"
+purpose = "Runs 09A8AFB0 when state +0x299 is 0x63, otherwise calls one handler per value of byte +0x1E8 (1 and 5 share a handler; values 0 to 10)."
+confidence = "inferred"
+evidence = "Switch on +0x1E8 to eleven-way handlers; callees use stamina and motion fields; ran during quests from caller 09A67568."
+
+[[function]]
+module = "game_task"
+address = "09A8B058"
+name = "hunter_is_local_and_mode_1_off_and_614_mask_1_clear"
+purpose = "Returns 1 when self is the local player index or global mask 0x1 is clear, unknown_mode_byte_2e_allows_index(1) is not 1, and +0x614 mask 0x1 is clear; otherwise 0."
+confidence = "inferred"
+evidence = "Direct reading of the conditions; 'local' from comparing +0x1E6 to DAT_089cc558+0x28, which elsewhere gates camera and HUD calls."
+
+[[function]]
+module = "game_task"
+address = "09A8B100"
+name = "hunter_try_evade_directional_stamina_gated"
+purpose = "If +0x484 mask 0x4000 is set and stamina is at least 0x4B, calls vtable +0x6C with (0, 0x1C, 0x31 or 0x32, 4), picked by the angle at +0x49C (camera-relative when DAT_089cc558+0x6ADE4 is 1) when +0x480 mask 0xF00000 is set, calls 09A8BC90 and returns 1; otherwise returns 0."
+confidence = "guess"
+evidence = "Mechanics read directly; 'evade' is a reading from the stamina threshold, three directional outcomes and the same mask and threshold buffered during rising motions. States 0x1C, 0x31, 0x32 were not read."
+
+[[function]]
+module = "game_task"
+address = "09A8B3F0"
+name = "hunter_clear_slots_1a8_1b0_1b8"
+purpose = "Zeroes four slots of each array: bytes +0x1A8..+0x1AB, shorts +0x1B0..+0x1B6 and shorts +0x1B8..+0x1BE."
+confidence = "inferred"
+evidence = "Twelve plain zero stores; hunter prefix only from callers 09A67630 and 09A678F8."
+
+[[function]]
+module = "game_task"
+address = "09A8B578"
+name = "hunter_set_angle_320_from_49c_plus_camera_heading"
+purpose = "Unless unknown_camera_checks_dc4_a8d_1de returns 1, sets short +0x320 to short +0x49C plus the camera heading angle."
+confidence = "inferred"
+evidence = "Direct code; +0x320 is used as a movement angle in 09A8EFD0 and copied from +0x1F4 in 09A8E0E0."
+
+[[function]]
+module = "game_task"
+address = "09A8B650"
+name = "hunter_handle_field_33d_once_by_byte_397"
+purpose = "When byte +0x33D is set and latch +0x1D7 is clear, sets the latch and acts on byte +0x397: 2 or 3 restart the current motion at the float +0x90 minus 2 and set +0x46A to 2; 1 clears +0x33C and +0x396, calls vtable +0x6C with (1, argument, 0) and returns 1. All other paths return 0."
+confidence = "inferred"
+evidence = "Direct code, many callers among the 09BA* handlers. What sets +0x33D and +0x397 is not shown."
+
+[[function]]
+module = "game_task"
+address = "09A8B718"
+name = "hunter_set_field_35e_with_skill_a1_a2_bonus"
+purpose = "Sets short +0x35E to the argument, plus 6 if skill 0xA2 is active or plus 4 if skill 0xA1 is active."
+confidence = "confirmed"
+evidence = "Two hunter_has_active_skill checks and one store; the code is the whole function."
+
+[[function]]
+module = "game_task"
+address = "09A8B790"
+name = "hunter_test_direction_mask_or_heading_sector"
+purpose = "When DAT_089cc558+0x6ADE4 is not 1, tests the argument mask on +0x480. When it is 1, requires 09AA5FB0 to be positive and tests whether +0x49C relative to +0x1F4 and the camera heading falls in sector 0x1000..0x7000 for mask 0x200000, else 0x9000..0xE000."
+confidence = "inferred"
+evidence = "Direct code; the same field and angle compute appear in 09A8B100 with mask 0xF00000."
+
+[[function]]
+module = "game_task"
+address = "09A8B988"
+name = "object_is_state_0_4_or_0_17_or_motion_58e_58f"
+purpose = "Returns 1 if object_state_is(self,0,4) or object_state_is(self,0,0x17) holds, or the motion id at +0x324 is 0x58E or 0x58F."
+confidence = "confirmed"
+evidence = "Three tests, the whole function."
+
+[[function]]
+module = "game_task"
+address = "09A8BC90"
+name = "hunter_clear_111c_mask_1000_set_1114_to_one"
+purpose = "Clears mask 0x1000 in +0x111C and sets float +0x1114 to 1.0."
+confidence = "inferred"
+evidence = "Two stores; hunter prefix from callers such as 09A8B100."
+
+[[function]]
+module = "game_task"
+address = "09A8CDC0"
+name = "hunter_reaction_state_dispatch_by_state_299"
+purpose = "Each frame of this state group: calls 09AA9228, clears +0x614 masks 0x2 and 0x200, +0x552 and +0x468, clears object flag 0x80000, zeroes +0x672 unless byte +0x1E8 is 9, resets +0x1138 with a 09C6B560 call if set, then dispatches on state +0x299 cases 0 to 0x27 to reaction handlers, defaulting to 09A678F8(0,4,0)."
+confidence = "inferred"
+evidence = "Switch on +0x299 from caller 09A67568; the handlers seen play knockback and getting-up motions and check health on landing. Ran in fights and camp."
+
+[[function]]
+module = "game_task"
+address = "09A8D170"
+name = "hunter_reaction_state_0_motion_ca_then_d8"
+purpose = "State 0 of the reaction group: plays motion 0xCA, then motion 0xD8 from frame 0x22; records latch +0x1D6 if the local hunter has +0x484 mask 0x4000 and stamina at least 0x4B after frame 66; when finished calls 09A90F80."
+confidence = "inferred"
+evidence = "Substate machine at +0x1D5; +0x35E held at 2. What motions 0xCA and 0xD8 look like was not checked."
+
+[[function]]
+module = "game_task"
+address = "09A8D830"
+name = "hunter_knockback_launch_motion_cd_land_rise_cf"
+purpose = "State 2 of the reaction group: launches with motion 0xCD and velocity along the local -Z of heading +0x1F4, steps in the air until it lands, plays sound 0x42 and motion 0xCE; then rises with 0xCF if health is above 0, otherwise calls 09A67878(3) for the local hunter or sets object flag 0x20000 and stops for others."
+confidence = "inferred"
+evidence = "Velocity setup, air_step, ground test against +0x2CC, health test at +0x2E4; ran only in fight1 (5050-5180)."
+
+[[function]]
+module = "game_task"
+address = "09A8DC90"
+name = "hunter_reaction_state_3_motion_3ed_584_58a_by_byte_1e8"
+purpose = "States 3, 0xC and 0x26 of the reaction group: picks a motion from byte +0x1E8 and the argument, sets object flag 0x8000 and +0x410 mask 0x8; after +0x3F4 passes 0x12 it calls 09A67878(2) if +0x480 mask 0x200 is clear for the local hunter, otherwise calls 09AA9010; byte +0x1E8 value 4 calls 09BA8F40 before that."
+confidence = "inferred"
+evidence = "Direct code; motions 0x3ED/0x3EE for values 3, 4, 9, 0x584 for 0 and 7, 0x58A for 1."
+
+[[function]]
+module = "game_task"
+address = "09A8E0E0"
+name = "hunter_knockback_launch_motion_d0_land_rise_d8"
+purpose = "State 5 of the reaction group: launches with motion 0xD0 and velocity along the local +Z of heading +0x1F4 (copying the heading to +0x320), steps in the air until it lands, plays sound 0x42 and motion 0xD1; then rises with 0xD8 if health is above 0, otherwise calls 09A67878(3) for the local hunter or sets object flag 0x20000 and stops for others."
+confidence = "inferred"
+evidence = "Same shape as 09A8D830 with opposite-signed velocity; ran only in fight1 (5190-5310)."
+
+[[function]]
+module = "game_task"
+address = "09A8E530"
+name = "hunter_reaction_state_6_motion_cc_then_cf"
+purpose = "State 6 of the reaction group: plays motion 0xCC, then motion 0xCF from frame 0x3A; records latch +0x1D6 if the local hunter has +0x484 mask 0x4000 and stamina at least 0x4B after frame 82; when finished calls 09A90F80."
+confidence = "inferred"
+evidence = "Same shape as 09A8D170 with other motions; ran in fight1 only."
+
+[[function]]
+module = "game_task"
+address = "09A8EEB0"
+name = "hunter_reaction_state_8_motion_58d_3ef_586_by_byte_1e8"
+purpose = "State 8 of the reaction group: plays motion 0x58D, 0x3EF or 0x586 by byte +0x1E8, sets object flag 0x8000, and on motion end calls 09A678F8(0,2,0)."
+confidence = "inferred"
+evidence = "Direct code; ran right after 09A8DC90 in camp and kit recordings."
+
+[[function]]
+module = "game_task"
+address = "09A8EFD0"
+name = "hunter_reaction_state_9_d_slide_along_angle_320"
+purpose = "States 9 and 0xD of the reaction group: plays motion 0xC9, or 0x4BB when +0x410 mask 0x8 is set, sets velocity of -4 (argument 0) or +4 along angle +0x320, adds it to place until frame 16, and on motion end calls 09A678F8(0,6,0)."
+confidence = "inferred"
+evidence = "Direct code; object_add_velocity_to_place until motion_frame_reached(16). The sign is the only argument difference."
+
+[[function]]
+module = "game_task"
+address = "09A8FBF0"
+name = "hunter_reaction_state_16_18_down_timer_113c_mash_to_recover"
+purpose = "States 0x16 and 0x18 of the reaction group: argument 0 sets timer +0x113C to 0x96 (halved with skill 1, doubled with skill 3) with motion 0xE0, argument 1 keeps the timer and starts motion 0xD2; the timer falls each frame and faster with +0x484 mask 0xF0F300, then motion 0xCF and 09A678F8(0,4,0) with 09A90D20; repeats a call to 09C60DA0 every 32 frames and resets +0x440 fields through 09A909D8."
+confidence = "inferred"
+evidence = "Direct code; extra decrement limited by counter +0x1D7, random switch to motion 0xDF. Ran only in misc 7180-7430. Which status this is was not established."
+
+[[function]]
+module = "game_task"
+address = "09A909D8"
+name = "hunter_clear_440_442_set_641_to_1e"
+purpose = "Zeroes shorts +0x440 and +0x442 and sets byte +0x641 to 0x1E."
+confidence = "inferred"
+evidence = "Three stores; hunter prefix from caller 09A8FBF0."
+
+[[function]]
+module = "game_task"
+address = "09A909F0"
+name = "hunter_clear_1144_1146_1148"
+purpose = "Zeroes shorts +0x1144 and +0x1146 and byte +0x1148."
+confidence = "inferred"
+evidence = "Three stores; hunter prefix from caller 09A8FBF0."
+
+[[function]]
+module = "game_task"
+address = "09A90D20"
+name = "hunter_set_field_35e_from_byte_list_22_23"
+purpose = "Sets short +0x35E from player_byte_list_contains ids 0x22 and 0x23: neither gives 6, 0x23 only gives 0xC, 0x22 only gives 0x12, both give 0x18."
+confidence = "inferred"
+evidence = "Direct code; hunter prefix from callers. What the list holds is taken from the callee's name."
+
+[[function]]
+module = "game_task"
+address = "09A90D98"
+name = "hunter_is_local_with_input_4000_and_stamina_4b"
+purpose = "Returns 1 if self is the local player index, +0x484 mask 0x4000 is set and stamina is at least 0x4B; otherwise 0."
+confidence = "confirmed"
+evidence = "Three tests, the whole function. +0x55A is the known stamina field."
+
+[[function]]
+module = "game_task"
+address = "09A90E98"
+name = "hunter_poll_latch_in_motion_frame_window"
+purpose = "While short +0x440 is below 0x32: sets the returned latch once motion frame reaches the float argument minus 30 and 09A90D98 holds, and calls 09A90DF0 once the latch is set and frame reaches the argument minus 20. Returns 0 if +0x440 is 0x32 or more."
+confidence = "inferred"
+evidence = "Direct code; callers 09A8D830 and 09A8E0E0 pass 92 and 76 and store the result in +0x1D6."
+
+[[function]]
+module = "game_task"
+address = "09A90F80"
+name = "hunter_after_rise_take_latched_state_1c_or_state_4"
+purpose = "After a rising motion: for the local hunter with latch +0x1D6 set and short +0x440 below 0x32, calls 09A8B578 when +0x49E is at least 0x28 and vtable +0x6C with (0,0x1C,4), except with +0x410 mask 0x8 and byte +0x1E8 3 or 9; otherwise calls 09A678F8(0,4,0) and sets +0x35E to 6."
+confidence = "inferred"
+evidence = "Direct code; callers 09A8D170 and 09A8E530 set the latch."
+
+[[function]]
+module = "game_task"
+address = "09A91068"
+name = "hunter_state_group4_dispatch"
+purpose = "Clears +0x614 masks 0x2 and 0x200 and +0x552, then dispatches on state +0x299 cases 0 to 6 to handlers; cases 0 and 1 are the ride on a spawned object and the drop after it, cases 2 to 6 did not run."
+confidence = "guess"
+evidence = "Caller 09A67568; ran only in fight1 5710-5900, after the faint at 5380-5680. The group word comes from cases 0 and 1 only."
+
+[[function]]
+module = "game_task"
+address = "09A91130"
+name = "hunter_ride_spawned_object_12_until_motion_3eb"
+purpose = "Spawns object id 0x12 at the hunter place and +0x1F4, stores it at +0x560 and plays motion 0xDD (calling 09A678F8(0,4,0) if that fails); each frame copies the object's bone 0x1D position to place and its +0x1F4 to +0x1F4 and +0x320, and calls 09A67878(4) when the object's motion id is 0x3EB."
+confidence = "inferred"
+evidence = "Direct code; keeps +0x2BA, +0x35E and +0x276 at 10. Ran only in fight1 5710-5800, right after the faint; the spawned object's identity was not read."
+
+[[function]]
+module = "game_task"
+address = "09A912F8"
+name = "hunter_drop_to_ground_motion_de_then_rise_d8"
+purpose = "Plays motion 0xDE with +0x280 set to 2, lowers height +0x204 by 4 a frame after frame 28 down to ground +0x2CC, then plays motion 0xD1 from frame 0x46 and motion 0xD8, and on end calls 09A678F8(0,6,0)."
+confidence = "inferred"
+evidence = "Direct code; ran only in fight1 5800-5900 after 09A91130."
+
+[[function]]
+module = "game_task"
+address = "09A91A70"
+name = "hunter_faint_state_dispatch"
+purpose = "Clears +0x614 masks 0x2 and 0x200 and +0x552, zeroes +0x672 unless byte +0x1E8 is 9, and calls 09A91B10 with state +0x299 for states 0, 1 and 2."
+confidence = "confirmed"
+evidence = "Only callee calls quest_apply_faint_penalty; ran only in fight1 5380-5680, where the hunter faints."
+
+[[function]]
+module = "game_task"
+address = "09A91B10"
+name = "hunter_faint_state_tick"
+purpose = "Sets motion 0xD2 or 0xD1 by argument, clears object flags 0x2 and 0x8000 and +0x410 mask 0x8; for the local hunter applies quest_apply_faint_penalty, counts +0x113E up to 99, requests camera mode 2 and queues HUD messages; at +0x3F4 of 300 queues message 0x19 or 7 by DAT_089cc558+0x6AF0E, and at 600 sets +0x2A4 to 3 or 2 and sets mask 0x6 at DAT_09a44d9c+0x54."
+confidence = "confirmed"
+evidence = "Calls quest_apply_faint_penalty and HUD message pushes; ran only in fight1 5380-5680, where the hunter faints."

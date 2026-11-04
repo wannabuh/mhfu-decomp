@@ -1,0 +1,977 @@
+[[field]]
+struct = "QuestState"
+offset = 0x0
+name = "phase"
+type = "s8"
+confidence = "confirmed"
+note = "0 running, 1 ending messages, 2 end sync, 3 done"
+evidence = "EBOOT 886B0E0 switches on it; 886E9F4 opcode 0x1E and 886B0E0 phase 1 increment"
+
+[[field]]
+struct = "QuestState"
+offset = 0x1
+name = "phase_step"
+type = "s8"
+confidence = "confirmed"
+note = "step within phase; zeroed when phase advances"
+evidence = "EBOOT 886B0E0 dispatches on it in phases 1 and 2"
+
+[[field]]
+struct = "QuestState"
+offset = 0x6
+name = "end_state"
+type = "s8"
+confidence = "inferred"
+note = "how the quest ended, mirrors world +0x2E: 3 and 4 success side, 5 to 7 failure side (quest_get_end_result); 7 and 8 stop quest_update"
+evidence = "EBOOT 886E9F4 sets 3, 5, 6 with world +0x2E; 886A054 sets 7; 886B0E0 sets 4 and tests 4, 6, 7, 8; 886A30C maps world +0x2E to 1 or -1"
+
+[[field]]
+struct = "QuestState"
+offset = 0x8
+name = "timeout_label"
+type = "s8"
+confidence = "confirmed"
+note = "script label to jump to when the time runs out"
+evidence = "EBOOT 886E9F4 opcodes 0x1B and 0x2F set it; expiry searches opcode 0x1A with this label"
+
+[[field]]
+struct = "QuestState"
+offset = 0x9
+name = "objective_flag_label"
+type = "s8"
+confidence = "confirmed"
+note = "script label taken when an objective with flag 0x100 is met"
+evidence = "EBOOT 886E9F4 opcode 0x23 sets it; loop top jumps when 886E6A8 is true"
+
+[[field]]
+struct = "QuestState"
+offset = 0xC
+name = "script_wait_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "opcode 9 sets it; opcode 10 counts it down and holds the script"
+evidence = "EBOOT 886E9F4"
+
+[[field]]
+struct = "QuestState"
+offset = 0x10
+name = "time_left_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "quest clock in ticks, 0x708 a minute; -1 once expired"
+evidence = "EBOOT 886DFAC decrements; 886E9F4 divides by 0x708 for the message and sets -1 at 0; 8869904 from quest_info +0x10"
+
+[[field]]
+struct = "QuestState"
+offset = 0x14
+name = "reward_money_left"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "money pool; faints subtract faint_penalty and 0 fails the quest"
+evidence = "EBOOT 886B064 subtracts and fails; 8876AA8 and 88765C0 pay it out, doubled when the hunter's byte list has 0x31; 8869904 from quest_info +8; 886B0E0 divides by hunters"
+
+[[field]]
+struct = "QuestState"
+offset = 0x18
+name = "faint_penalty"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "taken from the pool per faint and shown in the message"
+evidence = "EBOOT 886B064; 886D28C formats it; 9A91F80 after a hunter's faint; quest_info +0xC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x1C
+name = "script_index"
+type = "s16"
+confidence = "confirmed"
+note = "index of the next 8-byte script record; -1 ended"
+evidence = "EBOOT 886B0E0 passes it to 886E9F4 and stores the result; 886E92C, 886E978 jump by writing it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x1E
+name = "script_restart_index"
+type = "s16"
+confidence = "inferred"
+note = "index opcode 0xC returns to when the stage check fails; only set 0"
+evidence = "EBOOT 886E9F4 opcode 0xC; 8869904 writes 0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x20
+name = "spawn_group"
+type = "s8"
+confidence = "confirmed"
+note = "current group of spawn lists; only rises"
+evidence = "EBOOT 886E9F4 opcode 0x20, 886BCD0 and 88702F0 message 6; 886D2E4 and 886D450 select lists by it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x21
+name = "pickup_point_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "active pickup points in the order list"
+evidence = "EBOOT 886CA74 zeroes; 886CADC walks them; 886D0AC removal"
+
+[[field]]
+struct = "QuestState"
+offset = 0x24
+name = "objective_target_object"
+type = "ptr"
+confidence = "inferred"
+note = "object behind the latest objective event; camera prefers it"
+evidence = "EBOOT 88702F0 message 0x14 finds it by +0x4AC; 886E130 sends its id; 8813594 tries it before tracked_monster"
+
+[[field]]
+struct = "QuestState"
+offset = 0x28
+name = "quest_flags"
+type = "u32"
+confidence = "confirmed"
+note = "word 0 of quest_info; rules bits, 0x10 scored quest, 0x4000 no jitter"
+evidence = "EBOOT 8869904 copies it; 8855410 bit 0x10; 8872BFC bit 0x4000; 8829674 picks HUD mode from it; 8873488"
+
+[[field]]
+struct = "QuestState"
+offset = 0x4C
+name = "file_header"
+type = "ptr"
+confidence = "confirmed"
+note = "quest file in memory (08A5C560), read as the header"
+evidence = "EBOOT 8869904 sets it; 886A0B4 +0x45, 886BE50 +0x28, 886DB0C +0x38"
+
+[[field]]
+struct = "QuestState"
+offset = 0x50
+name = "file_base"
+type = "u32"
+confidence = "confirmed"
+note = "same address as an integer: added to file offsets to relocate them"
+evidence = "EBOOT 8869904; 8869570, 8869774, 886DB0C add it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x54
+name = "script"
+type = "ptr"
+confidence = "confirmed"
+note = "8-byte script records from the file"
+evidence = "EBOOT 8869904 relocates; 886E9F4, 886E92C, 886E978 index and search it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x60
+name = "table_by_map_id"
+type = "ptr"
+confidence = "inferred"
+note = "table of file offsets indexed through a lookup on the map id"
+evidence = "EBOOT 8869570 relocates entries found with 88C722C and world +0x6AF10"
+
+[[field]]
+struct = "QuestState"
+offset = 0x68
+name = "quest_info"
+type = "ptr"
+confidence = "confirmed"
+note = "quest info block of the file: flags +0, reward +8, penalty +0xC, time +0x10, map +0x1C, objectives +0x1E/+0x20"
+evidence = "EBOOT 8869904; 886A35C; 886E27C; 8869424"
+
+[[field]]
+struct = "QuestState"
+offset = 0x6C
+name = "held_item_0_id"
+type = "u16"
+confidence = "inferred"
+note = "five (id, count) pairs, 4 bytes apart: a fixed list keyed by item id"
+evidence = "EBOOT 886C008 fills and caps with item table 0899D2BB; 886BFBC reads the count"
+
+[[field]]
+struct = "QuestState"
+offset = 0x6E
+name = "held_item_0_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count for the id above; pair cleared when it reaches 0"
+evidence = "EBOOT 886C008, 886BFBC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x70
+name = "held_item_1_id"
+type = "u16"
+confidence = "inferred"
+note = "see held_item_0_id"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x72
+name = "held_item_1_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "see held_item_0_count"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x74
+name = "held_item_2_id"
+type = "u16"
+confidence = "inferred"
+note = "see held_item_0_id"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x76
+name = "held_item_2_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "see held_item_0_count"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x78
+name = "held_item_3_id"
+type = "u16"
+confidence = "inferred"
+note = "see held_item_0_id"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7A
+name = "held_item_3_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "see held_item_0_count"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7C
+name = "held_item_4_id"
+type = "u16"
+confidence = "inferred"
+note = "see held_item_0_id"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7E
+name = "held_item_4_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "see held_item_0_count"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x80
+name = "held_item_overwrite_index"
+type = "s8"
+confidence = "confirmed"
+note = "which pair to overwrite when the list is full, wraps at 5"
+evidence = "EBOOT 886C008"
+
+[[field]]
+struct = "QuestState"
+offset = 0x81
+name = "held_item_removed"
+type = "u8"
+confidence = "inferred"
+note = "set when 886C1E0 removes a count; never read in the view"
+evidence = "EBOOT 886C1E0; 9AF4F20 and 9AF4150 call it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x82
+name = "spawn_group_loaded"
+type = "s8"
+confidence = "inferred"
+note = "spawn group whose area assets were requested; used to free them"
+evidence = "EBOOT 8870E88 copies spawn_group; 887184C and 88718F4 look records up by it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x83
+name = "time_warning_step"
+type = "s8"
+confidence = "confirmed"
+note = "index of the next time warning; counts down to 0"
+evidence = "EBOOT 8869904 from the limit / 9000, at most 2; 886E9F4 compares 089A78E4 entries and decrements after the message"
+
+[[field]]
+struct = "QuestState"
+offset = 0x84
+name = "end_tier_player_0"
+type = "u8"
+confidence = "inferred"
+note = "pairs per player: tier at quest end, sent as message 0xC"
+evidence = "EBOOT 886B0E0 and 88702F0 write [player*2]"
+
+[[field]]
+struct = "QuestState"
+offset = 0x85
+name = "start_tier_player_0"
+type = "u8"
+confidence = "inferred"
+note = "pairs per player: quest_progress_tier_from_flags at start"
+evidence = "EBOOT 8869904 writes [player*2]"
+
+[[field]]
+struct = "QuestState"
+offset = 0x10C
+name = "end_sync_word"
+type = "u32"
+confidence = "inferred"
+note = "word shared by message 0xD during end sync; meaning not read"
+evidence = "EBOOT 886B0E0 phase 2 step 1 sends it; 88702F0 case 0xD ORs into it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x110
+name = "player_sync_mask"
+type = "u32"
+confidence = "confirmed"
+note = "per player bits: low 4 message 0xC, next 4 message 0xD, next 4 reached the clear opcodes or messages 2 and 0xB; empty slots count as set"
+evidence = "EBOOT 886B0E0; 886E9F4; 88702F0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x114
+name = "saved_monster_health"
+type = "s16"
+confidence = "confirmed"
+note = "tracked_monster's health at last save; opcode 0x28 runs its block after a drop of its argument"
+evidence = "EBOOT 886E9F4 opcodes 0x28, 0x26, -1; 8872980"
+
+[[field]]
+struct = "QuestState"
+offset = 0x116
+name = "monster_stat_table_column"
+type = "s8"
+confidence = "confirmed"
+note = "from file +0x49: picks the row list in per-type scale tables at 09BC7F80"
+evidence = "EBOOT 8869904; game_task 9AC9120, 9AC9280 index by it then Monster +0x4BC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x117
+name = "signal_label"
+type = "s8"
+confidence = "confirmed"
+note = "script label armed by opcode 0x2C, taken once signal_fired is set"
+evidence = "EBOOT 886E9F4"
+
+[[field]]
+struct = "QuestState"
+offset = 0x118
+name = "sync_wait_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "how long end sync waits for other players: 0x1518, then 0x708"
+evidence = "EBOOT 886B0E0 phase 2 sets and decrements it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x11C
+name = "signal_fired"
+type = "s8"
+confidence = "confirmed"
+note = "set by 8869564; lets signal_label's jump happen"
+evidence = "EBOOT 8869564; 886E9F4"
+
+[[field]]
+struct = "QuestState"
+offset = 0x11D
+name = "rng_seed_bytes"
+type = "u8"
+confidence = "inferred"
+note = "15 bytes to +0x12B: seed of quest_rng; first 4 re-rolled, per-player start-area rolls"
+evidence = "EBOOT 8869904 fills; 886B7C0 sums as shorts; 886A0B4 reads by player"
+
+[[field]]
+struct = "QuestState"
+offset = 0x12D
+name = "supply_box_lock"
+type = "s8"
+confidence = "inferred"
+note = "nonzero: supply box closed; from file +0x46; 1 rolls to open by the clock"
+evidence = "EBOOT 88476F4 refuses and 8847CB0 shows all taken; 886B918 and 88702F0 case 0xE clear it with a message; 886E9F4 opcode 0x37 tests it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x130
+name = "supply_box_roll_step"
+type = "s8"
+confidence = "confirmed"
+note = "position in the timed roll table"
+evidence = "EBOOT 886B918 increments it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x131
+name = "supply_box_roll_table"
+type = "s8"
+confidence = "confirmed"
+note = "which roll table: time limit / 9000"
+evidence = "EBOOT 8869904 sets; 886B918 indexes 089A812C"
+
+[[field]]
+struct = "QuestState"
+offset = 0x132
+name = "rng_state"
+type = "u16"
+confidence = "confirmed"
+note = "quest_rng state: sum of seed shorts, 0x1C3 if 0"
+evidence = "EBOOT 886B7C0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x134
+name = "largest_size_by_type"
+type = "u16"
+confidence = "guess"
+note = "first of 90 by monster type: largest Monster +0x274 seen"
+evidence = "EBOOT 886AD58 keeps the max; +0x274 as size is a reading; loop in 8869904 gives 0x5A entries"
+
+[[field]]
+struct = "QuestState"
+offset = 0x1E8
+name = "smallest_size_by_type"
+type = "u16"
+confidence = "guess"
+note = "first of 90 by monster type: smallest nonzero Monster +0x274"
+evidence = "EBOOT 886AD58 keeps the min"
+
+[[field]]
+struct = "QuestState"
+offset = 0x29C
+name = "removed_count_by_type"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "first of 90 by monster type: removed by quest_on_monster_removed, capped 9999"
+evidence = "EBOOT 886AB7C increments; 8872B2C and 88701D8 read; 8849D7C adds the other count"
+
+[[field]]
+struct = "QuestState"
+offset = 0x350
+name = "captured_count_by_type"
+type = "u16"
+confidence = "guess"
+decimal = true
+note = "first of 90 by monster type: other removal path, capped 9999"
+evidence = "EBOOT 886AD58 increments, called from monster states (9B5FD80); sum with removed in 8879198; capture is a reading"
+
+[[field]]
+struct = "QuestState"
+offset = 0x404
+name = "tally_at_start_by_type"
+type = "u16"
+confidence = "confirmed"
+note = "first of 90: records by type at quest start"
+evidence = "EBOOT 8869904 and 8873554"
+
+[[field]]
+struct = "QuestState"
+offset = 0x4B8
+name = "tally_latest_by_type"
+type = "u16"
+confidence = "confirmed"
+note = "first of 90: same tally when last refreshed, compared to the start"
+evidence = "EBOOT 886B0E0 phase 2; game_task 9B11B48 subtracts element from element"
+
+[[field]]
+struct = "QuestState"
+offset = 0x56C
+name = "tally_seen_mask"
+type = "u32"
+confidence = "inferred"
+note = "first of 16 words: bitset to count each record once"
+evidence = "EBOOT 8873554 clears them before the tally"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5AC
+name = "score_dirty_player"
+type = "s8"
+confidence = "confirmed"
+note = "player index + 1 whose points changed; quest_update sends it (messages 0xF, 0x10)"
+evidence = "EBOOT 886F79C sets; 886B0E0 sends and clears"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5B0
+name = "points_player_0"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "points, capped 300000; indexed by player but slots 2 and 3 would land on the mask at +0x5B8"
+evidence = "EBOOT 886F79C adds; 88795F4 sums /400; 8849D7C HUD mode 5 prints the sum"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5B4
+name = "points_player_1"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "as points_player_0"
+evidence = "EBOOT 886F79C; 887A838"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5B8
+name = "scored_items_mask_low"
+type = "u32"
+confidence = "confirmed"
+note = "bit per id in the 35-entry table 089A83A8; merged into world +0x677F8 for flag 0x10"
+evidence = "EBOOT 886F7FC ORs; 8874C58 merges; 88702F0 message 0x10"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5BC
+name = "scored_items_mask_high"
+type = "u32"
+confidence = "confirmed"
+note = "high word of the same mask"
+evidence = "EBOOT 886F7FC; 8874C58"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5C0
+name = "bank_first_slot"
+type = "s16"
+confidence = "inferred"
+note = "start index of sound bank loading; only set 0"
+evidence = "EBOOT 8882014, 8880E50, 887221C; 8869904 writes 0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x678
+name = "event_timer_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "10 minute countdown (18000) run with the clock; at 0 event_count rises"
+evidence = "EBOOT 8872AAC starts it; 886DFAC decrements; 8872B7C at 0; 88702F0 message 0x12 sets -1"
+
+[[field]]
+struct = "QuestState"
+offset = 0x67C
+name = "objectives_required"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "objective count from quest_info +0x1E or opcode 1"
+evidence = "EBOOT 886E27C, 886E9F4 opcode 1"
+
+[[field]]
+struct = "QuestState"
+offset = 0x67D
+name = "event_b_action_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count of one actor state's action (motion 0x455); at 4 logs event 0xB to the log at +0x684"
+evidence = "game_task 9A7A0C0 adds; 9A75B80 lowers a chance by it; EBOOT 887EBFC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x67E
+name = "event_e_action_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count from five actor states; at 5 logs event 0xE"
+evidence = "game_task 9A79B08 etc. add; EBOOT 887EBFC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x67F
+name = "event_f_action_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count from one actor state; at 10 logs event 0xF"
+evidence = "game_task 9A79558; EBOOT 887EBFC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x680
+name = "event_c_item_total"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "items added at quest end; at 0xD logs event 0xC"
+evidence = "EBOOT 8873A0C, 8873CC0 add; 887EBFC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x681
+name = "event_d_action_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count from one actor state; at 8 logs event 0xD"
+evidence = "game_task 9A813C0; EBOOT 887EBFC"
+
+[[field]]
+struct = "QuestState"
+offset = 0x682
+name = "best_listed_id"
+type = "u16"
+confidence = "confirmed"
+note = "id earliest in the 0899CE1C list seen so far; logged with event 7"
+evidence = "EBOOT 8858F1C raises it; 887EBFC logs it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x70C
+name = "hunter_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "hunters created for the quest; divides the reward"
+evidence = "game_task 9A62978 counts; EBOOT 886B0E0 divides reward_money_left"
+
+[[field]]
+struct = "QuestState"
+offset = 0x710
+name = "message_delay_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "waits between ending messages: 0x96, 600, 0x708"
+evidence = "EBOOT 886B0E0 phase 1"
+
+[[field]]
+struct = "QuestState"
+offset = 0x714
+name = "loaded_file_id"
+type = "u16"
+confidence = "confirmed"
+note = "id of quest data file already read; 0xFFFF none"
+evidence = "EBOOT 8870AEC; 8870D30"
+
+[[field]]
+struct = "QuestState"
+offset = 0x716
+name = "load_state"
+type = "u8"
+confidence = "confirmed"
+note = "0 idle, 1 reading"
+evidence = "EBOOT 8870AEC; 8870D30"
+
+[[field]]
+struct = "QuestState"
+offset = 0x718
+name = "spawn_lists_by_group"
+type = "ptr"
+confidence = "confirmed"
+note = "offset table indexed by spawn_group; per area record lists"
+evidence = "EBOOT 8869904; 886D450; 8873554"
+
+[[field]]
+struct = "QuestState"
+offset = 0x71C
+name = "spawn_section"
+type = "ptr"
+confidence = "confirmed"
+note = "file section; +8 and +0xC relocate to spawn record lists"
+evidence = "EBOOT 8869774; 886D4D8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x720
+name = "tracked_monster"
+type = "ptr"
+confidence = "inferred"
+note = "last spawned object whose record +0x35 is set; health and type read"
+evidence = "EBOOT 8871BC4 stores; 886E9F4 reads +0x2E4; 8849D7C +0x1E8; 8813594 camera"
+
+[[field]]
+struct = "QuestState"
+offset = 0x724
+name = "event_count"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "times event_timer_ticks reached 0; only rises"
+evidence = "EBOOT 8872B7C; 88702F0 case 0x12"
+
+[[field]]
+struct = "QuestState"
+offset = 0x74A
+name = "saved_state_monster_type"
+type = "u8"
+confidence = "inferred"
+note = "monster type written to world saved records; writer not found in view"
+evidence = "EBOOT 8872980"
+
+[[field]]
+struct = "QuestState"
+offset = 0x74C
+name = "trigger_0_kind"
+type = "u32"
+confidence = "confirmed"
+note = "8-byte trigger: 2 means reach held count; file header +0x28"
+evidence = "EBOOT 886BE50, 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x750
+name = "trigger_0_item_id"
+type = "u16"
+confidence = "confirmed"
+note = "item it counts"
+evidence = "EBOOT 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x752
+name = "trigger_0_count"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "count required"
+evidence = "EBOOT 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x754
+name = "trigger_1_kind"
+type = "u32"
+confidence = "confirmed"
+note = "as trigger_0_kind"
+evidence = "EBOOT 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x758
+name = "trigger_1_item_id"
+type = "u16"
+confidence = "confirmed"
+note = "as trigger_0_item_id"
+evidence = "EBOOT 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x75A
+name = "trigger_1_count"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as trigger_0_count"
+evidence = "EBOOT 886BCD0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x75C
+name = "id_slot_0"
+type = "u8"
+confidence = "inferred"
+note = "six slots: bit 7 set, low bits an id"
+evidence = "EBOOT 8872DF4; 8872E2C; 8872ED4; 8872EA0 copies all"
+
+[[field]]
+struct = "QuestState"
+offset = 0x75D
+name = "id_slot_1"
+type = "u8"
+confidence = "inferred"
+note = "see id_slot_0"
+evidence = "EBOOT 8872EA0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x75E
+name = "id_slot_2"
+type = "u8"
+confidence = "inferred"
+note = "see id_slot_0"
+evidence = "EBOOT 8872EA0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x75F
+name = "id_slot_3"
+type = "u8"
+confidence = "inferred"
+note = "see id_slot_0"
+evidence = "EBOOT 8872EA0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x760
+name = "id_slot_4"
+type = "u8"
+confidence = "inferred"
+note = "see id_slot_0"
+evidence = "EBOOT 8872EA0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x761
+name = "id_slot_5"
+type = "u8"
+confidence = "inferred"
+note = "see id_slot_0"
+evidence = "EBOOT 8872EA0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x767
+name = "before_end_messages"
+type = "u8"
+confidence = "inferred"
+note = "set at start, cleared at end of phase 1; gates work in 9AA6D70"
+evidence = "EBOOT 8869904, 886B0E0; game_task 9AA6D70"
+
+[[field]]
+struct = "QuestState"
+offset = 0x768
+name = "queue_0_entry_0"
+type = "ptr"
+confidence = "confirmed"
+note = "queue 0 of two 0x2C long: five spawn entry pointers"
+evidence = "EBOOT 886A4CC, 886A444, 886A87C, 8872FB8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x77C
+name = "queue_0_type_0"
+type = "s8"
+confidence = "confirmed"
+note = "five monster types; first shown in HUD"
+evidence = "EBOOT 886A4CC; 8849D7C; 8873488"
+
+[[field]]
+struct = "QuestState"
+offset = 0x781
+name = "queue_0_start_count_0"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "five entry +4 counts as appended; minus live count is the done count"
+evidence = "EBOOT 886A4CC; 8849D7C"
+
+[[field]]
+struct = "QuestState"
+offset = 0x786
+name = "queue_0_length"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "entries in queue 0"
+evidence = "EBOOT 886A4CC; 8872B40; 88711C0"
+
+[[field]]
+struct = "QuestState"
+offset = 0x787
+name = "queue_0_cursor"
+type = "s8"
+confidence = "confirmed"
+note = "current entry of queue 0"
+evidence = "EBOOT 886A87C, 886A7D8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x788
+name = "queue_0_seen_mask_0"
+type = "u8"
+confidence = "confirmed"
+note = "five per-entry masks of players who reported; message 0x15"
+evidence = "EBOOT 88702F0; 886A7D8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x794
+name = "queue_1_entry_0"
+type = "ptr"
+confidence = "confirmed"
+note = "as queue_0_entry_0"
+evidence = "EBOOT 8849D7C; 8872FB8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7A8
+name = "queue_1_type_0"
+type = "s8"
+confidence = "confirmed"
+note = "as queue_0_type_0"
+evidence = "EBOOT 88711C0; 88DE0B8; 8849D7C"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7AD
+name = "queue_1_start_count_0"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "as queue_0_start_count_0"
+evidence = "EBOOT 8849D7C"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7B2
+name = "queue_1_length"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "as queue_0_length"
+evidence = "EBOOT 88711C0; 8849D7C"
+
+[[field]]
+struct = "QuestState"
+offset = 0x7C0
+name = "default_monster_stat_row"
+type = "s8"
+confidence = "confirmed"
+note = "from file +0x4B, jittered: Monster +0x4BC when its record has none"
+evidence = "EBOOT 8869904, 8872FB8"
+
+[[field]]
+struct = "QuestState"
+offset = 0x828
+name = "tally_keys"
+type = "u32"
+confidence = "inferred"
+note = "first of 20: pointers or ids given to 88738D4"
+evidence = "EBOOT 88738D4, 8873838"
+
+[[field]]
+struct = "QuestState"
+offset = 0x878
+name = "tally_counts"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "first of 20 counts for tally_keys"
+evidence = "EBOOT 88738D4; 8873838"
+
+[[field]]
+struct = "QuestState"
+offset = 0x8A0
+name = "tally_total"
+type = "u32"
+confidence = "confirmed"
+decimal = true
+note = "sum of the counts, at most 300"
+evidence = "EBOOT 88738D4, 8873838; 8873A0C sizes a buffer by it"

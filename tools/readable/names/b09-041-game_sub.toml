@@ -1,0 +1,143 @@
+[[function]]
+module = "game_sub"
+address = "09C957F8"
+name = "class_089be028_state1_turn_then_glide_seeking_type_0x16_node"
+purpose = "Two-step state on +0x2A: step 0 counts down +0x38 while turning heading +0xB4 toward +0xA0, then sets speed +0x3C to 3.0, and unless 09C95068 finds a type 0x16 node picks a random +0xA0 from the offset to point +0x70/+0x78; step 1 moves position +0x10 along rotation +0xB0/+0xB4/+0xB8 at speed +0x3C (losing 0.1 a frame), stores 09C95068's result in +0x60, and if that node's owner has +0x690 nonzero sets +0x29 to 2, otherwise on speed 0 returns to step 0 with +0x38 = 10 + random 0..0x1F."
+confidence = "inferred"
+evidence = "Code read directly; 09C95068 scans the 09D19860 list for type 0x16 nodes owned by the local hunter; what the object is was not established, so mechanics only."
+
+[[function]]
+module = "game_sub"
+address = "09C97038"
+name = "class_089be028_pick_weighted_random_kind"
+purpose = "Rolls rng % 100 against the table pointed to by +0x64, pairs of (weight byte, signed value byte) ended by a 0xFF weight, and returns the value of the first pair whose running weight total exceeds the roll, or 0 if the table ends first."
+confidence = "confirmed"
+evidence = "Whole body read: cumulative loop over 2-byte entries, 0xFF terminator, % 100."
+
+[[function]]
+module = "game_sub"
+address = "09C9A110"
+name = "class_089be0a0_spawn_for_owner_if_29a_matches_game"
+purpose = "If param_1 is non-null and object_29a_matches_game_6af0e holds, creates a class 089BE0A0 node, runs fx_base_init, stores param_1 as owner +0xC and the owner's +0x1E6 low byte in +0x40, and links it at the head of list DAT_09d19860+0x19030, raising the count at +0x19034."
+confidence = "confirmed"
+evidence = "Allocator 09C2F6A0 installs vtable 089BE0A0; list link read in the body; lobby_task 09A6D8E0 passes the local hunter slot in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C9A1E0"
+name = "class_089be0a0_draw_spinning_group_0x86_at_slot"
+purpose = "Vtable +0x10: unless owner +0x2F4 is 0, or game +0x6AF14 has mask 0x1 and one of owner +0x298 mask 0x6, a set byte DAT_09B22E70+0x1F (which it clears, skipping this draw) or local hunter +0x280 == 1 applies, draws model group 0x86 at the slot's position scaled by 7.0 and rotated by counter +0x38, with diffuse (0xFF,0,0) during the draw and (0xFD,0xFD,0xFE) after it."
+confidence = "inferred"
+evidence = "Matrix built with scale 0x40E00000 and angle +0x38 << 8; model_group_set_diffuse around model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09C9A3C8"
+name = "class_089be0a0_init_alloc_render_node_set_state_fn"
+purpose = "Vtable +0x1C: allocates one type 0x1A element into +0x44; on failure sets member function +0x4C from DAT_09CF3560 if set, on success sets +0x41 to 1, makes this object the element's owner, clears +0x29, +0x2A, +0x38 and sets +0x4C from DAT_09CF3570 if set."
+confidence = "inferred"
+evidence = "entity_manager_alloc_element_run(DAT_09d19860,1,0x1A,0) and member_fn_is_set pairs; ran once at spawn in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C9A4C8"
+name = "class_089be0a0_tick_bob_node_above_owner_field_2f4_object"
+purpose = "Vtable +0x20: clears +0x48 mask 0x10, and when owner +0x2F4 is set, owner flags have mask 0x2 and object_29a_matches_game_6af0e holds, advances +0x38, returns early if the +0x2F4 object has +0x1E9 == 2 and +0x482 == 1, else places node +0x44 at that object's +0x200 with y raised by table 09CF3548 (index 0 unless +0x1E9 is 2, then 5 for +0x481 of 2 or 3, else +0x1E8) plus a 4-unit sine, and sets mask 0x10."
+confidence = "inferred"
+evidence = "Writes to node +0x10/+0x14/+0x18 from +0x200/+0x204/+0x208; sine period 0x40 ticks of +0x38; what +0x2F4 holds was not established."
+
+[[function]]
+module = "game_sub"
+address = "09CA6C20"
+name = "class_089be118_spawn_with_flag_mask_4"
+purpose = "Creates a class 089BE118 node, runs fx_base_init, sets +0x48 mask 0x4 (its init passes that to the allocator's pool choice) and links it at the head of list DAT_09d19860+0x19030, raising the count at +0x19034."
+confidence = "confirmed"
+evidence = "Allocator 09C2FA18 installs vtable 089BE118; 09CA7138 reads mask 0x4; game_task_state_initial_load calls it once when game +0x480 is 0 and record byte 0x1E is present or a 30 percent roll passes."
+
+[[function]]
+module = "game_sub"
+address = "09CA6CC8"
+name = "class_089be118_draw_group_0x96_cycling_materials_plus_overlay_0x5b"
+purpose = "Vtable +0x10: draws model group 0x96 at the slot's position, y angle +0x38 and scale +0x3C, setting byte +3 to 0xFF for the material chosen by +0x40 / 2 and 0 for the others, with fog flag and ambient/diffuse from table row DAT_09CE2250 by DAT_09A4F1A0+0x288; when +0x29 is nonzero and +0x2A is 0 also draws tinted id 0x5B with scale and colour keyframed by +0x29, at a point 400 units toward camera +0xCB0, multiplied by camera matrix +0xC80."
+confidence = "inferred"
+evidence = "model_draw_group for 0x96, model_draw_group_tinted for 0x5B, math_keyframe_lerp calls on +0x29."
+
+[[function]]
+module = "game_sub"
+address = "09CA7138"
+name = "class_089be118_init_alloc_render_node_set_global_field_a2c8"
+purpose = "Vtable +0x1C: clears +0x29, +0x2A, +0x2B, +0x38, +0x3A, +0x40 and allocates one element of the type in +0x20's top byte (pool by +0x48 mask 0x4) into +0x44; on failure sets +0x4C from DAT_09CF6098 if set; on success sets DAT_09A4F1A0+0xA2C8 to 1, runs vtable +0x20 once and sets +0x4C from DAT_09CF60A8 if set."
+confidence = "inferred"
+evidence = "entity_manager_alloc_element_run call, member_fn_is_set pairs, write to +0xA2C8 read by 09CA7280."
+
+[[function]]
+module = "game_sub"
+address = "09CA7280"
+name = "class_089be118_tick_sine_drift_around_table_point_store_global_a2d0"
+purpose = "Vtable +0x20: clears +0x48 mask 0x10 unless DAT_09A4F1A0+0xA2C8 is 1, table byte DAT_09CE2250 by +0x288 is 1 and game +0x422 is 0; otherwise sets mask 0x10, advances +0x38, +0x3A and the 0..5 counter +0x40, sets the position to the table point plus 1400-unit sines of +0x3A times 3, 4, 5 in both DAT_09A4F1A0+0xA2D0 and node +0x44, sets +0x3C to table scale times 0.7, and runs +0x29 from local hunter +0x10F6 nonzero up past 0xD, then +0x2A past 0xD, then clears both."
+confidence = "inferred"
+evidence = "Table rows 0x20 bytes at DAT_09CE2250; sine multipliers and 1400.0 in the body; meaning of +0x10F6 and row index not established."
+
+[[function]]
+module = "game_sub"
+address = "09CA8360"
+name = "class_089be168_spawn_for_owner_mode_0x05"
+purpose = "Creates a class 089BE168 node, runs fx_base_init, stores param_1 as owner +0xC, sets mode +0x24 to 5 and links it at the head of list DAT_09d19860+0x19030, raising the count at +0x19034."
+confidence = "confirmed"
+evidence = "Allocator 09C2FC78 installs vtable 089BE168; body read in full; ran only in quest-q9 from 09B1DCD0."
+
+[[function]]
+module = "game_sub"
+address = "09CA9270"
+name = "class_089be168_init_by_mode_alloc_nodes_from_owner_bone_0x0e"
+purpose = "Vtable +0x1C: with +0x48 mask 0x2 only sets +0x4C from DAT_09CF68B8 if set; otherwise copies owner bone 0xE's matrix to +0x60, by mode +0x24 (0 to 6) sets element count +0x2C3 (for mode 1 by +0x2B: 3, 9, 6, 0xB) and allocates and places elements in the 0x30-byte array at +0xB0, then sets +0x4C from DAT_09CF68C8 if set."
+confidence = "inferred"
+evidence = "object_get_bone_matrix(owner,0xE), switch on +0x24 with entity_manager_alloc_element_run in each case, ran once at spawn in quest-q9; the middle was skimmed only."
+
+[[function]]
+module = "game_sub"
+address = "09CAA8C8"
+name = "class_089be168_tick_by_mode_animate_nodes"
+purpose = "Vtable +0x20: per mode +0x24 moves and keyframes the elements of +0xB0, ending by clearing +0x48 mask 0x10 and setting the next +0x4C (mode 0 after 6 frames; mode 1 after 0x26, 0x2E, 0x30 or 0x32 frames by +0x2B, also playing sound 0x85, 0x86 or 0x87 for +0x2B 1, 2, 3; mode 4 after 0x32 frames or owner +0x298 not 1, calling 09C558E8); mode 5 calls 09CACC38 and mode 6 sets element flags mask 0x4."
+confidence = "inferred"
+evidence = "Switch on +0x24, math_keyframe_lerp calls, object_play_sound_if_29a_matches; ran only in quest-q9; modes 2, 3 and most of 5 were skimmed only."
+
+[[function]]
+module = "game_sub"
+address = "09CB1D58"
+name = "class_089be208_spawn_or_mode_0x0a_ground_point_calls_9c671a8_with_sound"
+purpose = "With mode 0xA, takes a point offset (25, 120) by heading +0x1F4 from +0x200 at height +0x2CC, and if the ground height there is at least that height minus 18 or table DAT_09CD3378 by game +0x6AF0E is 0xA or 0xE, calls 09C671A8 for ids 4 and 5 and plays sound 0x98 there instead of spawning; every other case calls 09CB1FD8(param_1, mode, 0, 0, arg_f12)."
+confidence = "inferred"
+evidence = "collision_grid_214_height_at_xz with the point, sound_play_3d 0x98, early return; in traces called from hunter_weapon0 states (fight2) with mode 8; 09C671A8 was not read."
+
+[[function]]
+module = "game_sub"
+address = "09CB1FD8"
+name = "class_089be208_spawn_for_owner_mode"
+purpose = "For non-null param_1, and object_29a_matches_game_6af0e unless mode is 7 (mode 7 sets +0x48 mask 0x4), creates a class 089BE208 node with fx_base_init, stores owner +0xC, mode +0x24, scale +0x3C, +0x2A, +0x360; mode 3 also takes angles +0x3A and +0x362 and position +0x10 (with a -110 offset) from owner bone 0x12; then links it at the head of list DAT_09d19860+0x19030, raising the count at +0x19034."
+confidence = "inferred"
+evidence = "class_089be208_create_type_29 call, object_get_bone_matrix(owner,0x12), list link read in the body."
+
+[[function]]
+module = "game_sub"
+address = "09CB24F0"
+name = "class_089be208_spawn_mode_0x06_when_game_field_1c_low_bits_zero"
+purpose = "When param_2's low byte is nonzero and game halfword +0x1C has no bit of mask 0xF set, calls 09CB1FD8(param_1, 6, param_2, param_3, 0.5)."
+confidence = "inferred"
+evidence = "Body is the one call; hunter_tick_periodic_health_drains calls it in traces with values it derives there, which were not traced further."
+
+[[function]]
+module = "game_sub"
+address = "09CB2618"
+name = "class_089be208_draw_element_by_mode"
+purpose = "Vtable +0x10: picks the 0x60-byte element by slot +0x20, chooses a draw id (table DAT_09CF80C0 by mode +0x24 and element byte +0x64, or byte +0x65 for mode 0xA kind 1), matrix type and a draw argument from a switch on mode and kind, builds a matrix from the element's scale +0x90, angles +0xA6..+0xAA and the slot's position, then draws it tinted, setting texture offset commands 0x4A/0x4B for some modes and clearing them at the end."
+confidence = "inferred"
+evidence = "Nested switch, math_matrix_from_scale_rotation_translation, model_draw_group_tinted; mode 0xA takes colour from game_6af0e_lookup_table_09cd34a8_word; the later part was skimmed only."
+
+[[function]]
+module = "game_sub"
+address = "09CB30C0"
+name = "class_089be208_queue_elements_depth_sorted"
+purpose = "Vtable +0x14: inserts each non-null element of the 0x60-stride array at +0x60 without flags mask 0x4 into render queue 7, up to the count in table DAT_09CF8020 by mode +0x24, unless mode is 0xC, +0x2A is 1, the owner is the local hunter and the camera check on the owner returns 1."
+confidence = "inferred"
+evidence = "render_queue_insert_depth_sorted loop; condition read from the combined if; called by node_mgr_09d19860_call_slot_14_flagged."

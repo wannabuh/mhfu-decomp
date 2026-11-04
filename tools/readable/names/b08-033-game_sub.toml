@@ -1,0 +1,207 @@
+[[function]]
+module = "game_sub"
+address = "09C43000"
+name = "hunter_register_hit_add_defense_scaled_damage"
+purpose = "For a hit record param_1 on a victim param_3 with +0x1E9 zero: writes attacker fields when +0xE is not -1, logs the record's short in a 16-entry ring at +0x33E, adds (d - d*def/(def+80)) * (100-resist)/100 to the short at +0x3B8 using defense +0x384 and a resist chosen by the record's +0x25 masks (or subtracts raw +0x1E for hit type 0xB), adds to +0x394 unless skill 0x5B/0x5A or +0x6CC mask 0x200 exempt the type, and stores hit position, type and sounds."
+confidence = "inferred"
+evidence = "game_sub 09C42750 calls it only inside its +0x1E9 == 0 branch in the code read; the formula and hunter_has_active_skill calls are direct; fight1 and fight2 run it; what reads +0x3B8 was not followed."
+
+[[function]]
+module = "game_sub"
+address = "09C43558"
+name = "entity_apply_hit_hitzone_damage_and_attacker_sharpness"
+purpose = "For hit record param_1 from attacker param_2 (may be 0) on victim param_3 and part record param_5: reads a per-type 10-byte-per-part table to scale damage by +0x10F0/+0x10F1 and element masks, grades the result into attacker +0x397 (thresholds 1.0, 0.45, 0.25 or 0.29), calls hunter_sharpness_add_with_skills on the attacker, plays hit sounds, and unless 09C44FD8 is true adds damage to the part's short at +0x3B8, part flags at +0x3B0 and +0x394, also calling 09C45008."
+confidence = "inferred"
+evidence = "Table DAT_09BB8BBC indexed by victim +0x1E8 and part +4; grade thresholds and sharpness call read directly; ran when hitting in camp, popohit and fight1; 'hitzone' is the reading of that table, its bytes are not otherwise labelled."
+
+[[function]]
+module = "game_sub"
+address = "09C44FD8"
+name = "object_1e9_set_and_6db_clear"
+purpose = "Returns 1 when byte +0x1E9 is nonzero and byte +0x6DB is zero, else 0."
+confidence = "inferred"
+evidence = "Direct read; both hit functions take a shorter path when it returns 1; neither field's meaning was read."
+
+[[function]]
+module = "game_sub"
+address = "09C45008"
+name = "object_apply_hit_mask_28_amounts"
+purpose = "From hit record param_2 mask word +0x28 and amount +0x2A: adds to shorts +0x38C (mask 1), +0x38E (mask 8), +0x392 (mask 4) and +0x390 (mask 2, or +0x1118 by +0x2D & 0x7F when +0x2D mask 0x80 and +0x1E9 zero); with +0x1E9 zero also adds to +0x1100 (mask 0x200) and +0x110C (mask 0x1000), and sets +0x10FC (mask 0x400) and +0x1110 (mask 0x800) to 0x708."
+confidence = "inferred"
+evidence = "Direct read; both callers pass the hit record; game meaning of each counter was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C45140"
+name = "entity_part_record_test_634_635"
+purpose = "Returns mask 1 when part record byte +0xA has mask 3 and signed byte +0x635 is above 0, OR mask 2 when it has mask 0xC and signed byte +0x634 is above 0."
+confidence = "inferred"
+evidence = "Direct read; 09C43558 uses mask 2 to cap the damage multiplier at 0.1 and to multiply a table value by 5; the caller's param_5 record is the part reading."
+
+[[function]]
+module = "game_sub"
+address = "09C45190"
+name = "byte_in_range_16_1e"
+purpose = "Returns 1 when the low byte of the argument is 0x16..0x19 or 0x1A..0x1E, by calling the two range tests."
+confidence = "confirmed"
+evidence = "Direct read of it and its two callees."
+
+[[function]]
+module = "game_sub"
+address = "09C451E0"
+name = "byte_in_range_16_19"
+purpose = "Returns whether the low byte of the argument is 0x16..0x19."
+confidence = "confirmed"
+evidence = "Unsigned range check, direct read."
+
+[[function]]
+module = "game_sub"
+address = "09C451F0"
+name = "byte_in_range_1a_1e"
+purpose = "Returns whether the low byte of the argument is 0x1A..0x1E."
+confidence = "confirmed"
+evidence = "Unsigned range check, direct read."
+
+[[function]]
+module = "game_sub"
+address = "09C45200"
+name = "hunter_tick_motion_spawn_cues_and_peer_10fe_bits"
+purpose = "Vtable slot +0x74 of 089BB3CC: for a non-local hunter, clears this hunter's bit in other same-place hunters' +0x10FE and may call 09C60DA0 by their state and +0x694 with cooldown +0x682 = 0x3C; for weapon class 9 emits 09CADF18 every 7th frame while +0x672 is set and +0x410 mask 8; then calls spawn functions on motion frames by motion id and weapon class, and finishes with hunter_motion_frame_triggers."
+confidence = "inferred"
+evidence = "Self is typed Hunter; hunter_tick_copy_324_to_684_count_682_call_slot_74 calls it; 09C6F168 adds records to the DAT_09D19860 list; what the spawned records show was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C48C78"
+name = "motion_sound_cues_hunter_tick"
+purpose = "Vtable slot +0x18 of 089BAECC, 089BB3CC and three others: when +0x29A matches the game's +0x6AF0E, sets +0x40C from table_089aa344_lookup_column_for_id; runs the motion-id cue chain when game +0x6AF14 mask 1 is set or motion +0x324 is below 0x3E9, and the weapon-class cues when that mask is clear."
+confidence = "inferred"
+evidence = "Direct read; called by object_tick 08864634 in traces; ran in all recordings including guild; vtable 089BAECC holds hunter_init."
+
+[[function]]
+module = "game_sub"
+address = "09C48D30"
+name = "motion_sound_cues_hunter_by_motion_id"
+purpose = "Long chain on motion +0x324 that schedules sounds at set motion frames through the frame-cue wrappers (09C55930, 09C55A50, 09C55F48, 09C56028 and relatives), with a few id-specific conditions such as +0x534 and player_record_weapon_base_id."
+confidence = "inferred"
+evidence = "Callees are almost all motion-frame sound wrappers; sound_pick_random_variant picks ids; caller gates it by motion below 0x3E9 unless game +0x6AF14 mask 1 is set."
+
+[[function]]
+module = "game_sub"
+address = "09C4D850"
+name = "motion_sound_cues_hunter_by_weapon_class"
+purpose = "Calls 09C56660 for the timed sounds, then switches on weapon class +0x1E8 and motion +0x324 and schedules sounds at set motion frames through the frame-cue wrappers."
+confidence = "inferred"
+evidence = "Switch over +0x1E8, which 09C45200 sees as Hunter weapon_class; callees are motion-frame sound wrappers; the guild recording, which runs 09C48C78, does not run it."
+
+[[function]]
+module = "game_sub"
+address = "09C557E0"
+name = "hunter_play_own_bank_sound_if_29a_matches"
+purpose = "When +0x29A matches the game's +0x6AF0E, plays sound param_2 in bank (+0x1E6 + 2) through sound_play_3d, with param_6 defaulted when 0 to 0xA for ids 0x18..0x1F and 0x14 for ids above; returns the result or 0."
+confidence = "inferred"
+evidence = "Direct read; bank is +0x1E6 + 2 so it differs per player; hunter_process_received_hit is among its callers; whether the bank holds voices was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C558E8"
+name = "hunter_call_sound_dispatch_own_bank"
+purpose = "Calls unknown_sound_dispatch_889eac4_or_889ee80 with bank (+0x1E6 + 2), object_get_mask_1e9_1e4, 0xA and 0."
+confidence = "inferred"
+evidence = "Direct read; same bank arithmetic as 09C557E0; callers include hunter_process_received_hit and hunter_state_evade; the dispatch's effect was not followed."
+
+[[function]]
+module = "game_sub"
+address = "09C55930"
+name = "motion_sound_cues_play_at_frame"
+purpose = "When motion player +0x80 reaches frame param_2, plays sound param_3 at place +0x200 through object_play_sound_if_29a_matches with +0x408 and +0x40C."
+confidence = "inferred"
+evidence = "Direct read; called only from the motion cue chains in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C55A50"
+name = "motion_sound_cues_play_own_bank_at_frame"
+purpose = "When byte +0x46A is zero, game +0x6AF14 mask 1 is clear and motion frame param_2 is reached, plays param_3 through 09C557E0 at place +0x200 with +0x408 and param_4."
+confidence = "inferred"
+evidence = "Direct read; called from the motion cue chains in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C55F48"
+name = "motion_sound_cues_play_bank6_random_pair_at_frame"
+purpose = "When +0x29A matches the game's +0x6AF0E and motion frame param_2 is reached, plays id param_3*2 plus a random 0 or 1 in bank 6 through sound_play_3d, passing byte +0x291, place +0x200, +0x408 and +0x40C."
+confidence = "inferred"
+evidence = "Direct read; math_rng_next low bit picks the id; called from the motion cue chains in traces; what bank 6 holds was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C56028"
+name = "motion_sound_cues_play_equip_sound_at_frame"
+purpose = "When +0x29A matches the game's +0x6AF0E and motion frame param_2 is reached, calls 09C560A0 with code param_3."
+confidence = "inferred"
+evidence = "Direct read; called from the motion cue chains in traces; the equip word comes from 09C560A0."
+
+[[function]]
+module = "game_sub"
+address = "09C560A0"
+name = "hunter_play_equip_table_sound_by_code"
+purpose = "When +0x29A matches the game's +0x6AF0E, plays bank-1 sounds (table value*2 plus a random bit) by code param_2 (0, 2, 3, 4), with table values chosen by +0x4E0 and +0x536, +0x53C, +0x53E, +0x540, skipping duplicates and, for non-local hunters under a global mask, values suppressed by local_equip_part_has_id."
+confidence = "inferred"
+evidence = "Four byte tables at PTR_DAT_089A9568..78 with stride 0x14; the local_equip_part_has_id gate suggests equipment; callers are the cue wrapper and two game_task functions."
+
+[[function]]
+module = "game_sub"
+address = "09C56660"
+name = "hunter_tick_7f4_record_sound_timers"
+purpose = "Walks the +0x7F4 record's table of 0x18-byte entries of kind 0x20 or 0x1F, advancing a timer by 2 per call per entry; when +0x612 differs from +0x7F0 resets the timer and, for kind 0x20, plays the old index's sound; plays the current index's sound once when the timer reaches the threshold in its value word."
+confidence = "inferred"
+evidence = "Direct read; sounds go through 09C557E0; 09C4D850 calls it each frame; what +0x612, +0x7F0 and the record stand for was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C56EA8"
+name = "spawn_manager_slot_reset"
+purpose = "Resets a 0x30-byte slot: +4 = 3, +8 = 0, +0xC = 0, owner +0x24 = 0."
+confidence = "inferred"
+evidence = "Direct read; 09C2C000 calls it in loops over arrays at DAT_09D19860-style +0x19BC0 and +0x1AB20 with stride 0x30; 'spawn manager' names the owner of those arrays, not read further."
+
+[[function]]
+module = "game_sub"
+address = "09C56EC0"
+name = "spawn_manager_slot_call_owner_method_10"
+purpose = "If slot +0x24 is set, calls that object's vtable +0x10 with the object and the slot."
+confidence = "inferred"
+evidence = "Direct read; render_pass 0884BB58 calls it in traces every frame, so it may draw, but the method was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C56EF8"
+name = "spawn_manager_slot_set_owner"
+purpose = "Sets slot +0x24 to param_2."
+confidence = "inferred"
+evidence = "One store; 09C58688 passes itself as param_2 for each entry of its +0x44 slot array."
+
+[[function]]
+module = "game_sub"
+address = "09C56F00"
+name = "class_089bdc58_init"
+purpose = "Installs vtable 089BDC58 and clears byte +0x41 and word +0x44."
+confidence = "inferred"
+evidence = "Direct read; 09C2D6C0 calls it then overwrites the vtable with 089BDCB8, so it acts as a base-class constructor."
+
+[[function]]
+module = "game_sub"
+address = "09C56F68"
+name = "class_089bb194_tick_call_member_fn_4c_if_set"
+purpose = "Shared vtable slot +0xC of 089BB194, 089BB1BC, 089BB1E4 and others: when member function +0x4C is set, calls it."
+confidence = "inferred"
+evidence = "member_fn_is_set then member_fn_call; 09C2D3E0 calls slot +0xC for each record on the DAT_09D19860 +0x19030 list each frame."
+
+[[function]]
+module = "game_sub"
+address = "09C56FB8"
+name = "class_089bdc58_set_pointers_2c_34_30"
+purpose = "Stores param_2 at +0x2C, param_3 at +0x34 and param_4 at +0x30; note the last two are in reversed order."
+confidence = "inferred"
+evidence = "Three stores; 09C2D6C0 passes entries of the manager's 0x20-, 0x140- and 0x10-byte stride arrays."

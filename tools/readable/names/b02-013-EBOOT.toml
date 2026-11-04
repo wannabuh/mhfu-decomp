@@ -1,0 +1,527 @@
+[[function]]
+module = "EBOOT"
+address = "088640F8"
+name = "skeleton_update_bone_roots"
+purpose = "Calls vtable method +0xC on each root pointer at +0x110 (count +0x120), passing three floats, the matrix param_2 (identity if null) and a local identity matrix."
+confidence = "inferred"
+evidence = "Loop over the roots that 088641C0 also walks; 886421C indexes bones of stride 0x250 from +0x110."
+
+[[function]]
+module = "EBOOT"
+address = "088641C0"
+name = "skeleton_update_skin_matrices"
+purpose = "Runs 08860648 on each root at +0x110 (count +0x120), which recursively recomputes each node's +0x50 matrix from +0x10 and +0x90."
+confidence = "inferred"
+evidence = "Callee recurses via +0x14C and +0x148; model draw 0886477C sends +0x50..+0x88 as GE bone matrices."
+
+[[function]]
+module = "EBOOT"
+address = "0886421C"
+name = "skeleton_get_bone"
+purpose = "Returns the bone record at index param_2: the array pointer at +0x110 plus index * 0x250."
+confidence = "inferred"
+evidence = "One-line arithmetic; 0886477C uses the same stride for GE bone matrices."
+
+[[function]]
+module = "EBOOT"
+address = "0886423C"
+name = "motion_layer_start"
+purpose = "Fills motion layer param_3 (stride 0x40): sets flag mask 1, start value arg_f12 at +0x10, 2.0 at +0x14, the motion pointer at +0x38, +0x18 and +0x1C from it, flag mask 2 from motion +0xC; layer 0 also zeroes +0x40."
+confidence = "inferred"
+evidence = "Only called by 08863D58, which is handed the record from the motion lookup 08865254."
+
+[[function]]
+module = "EBOOT"
+address = "088642FC"
+name = "skeleton_clear"
+purpose = "Zeroes the root pointers at +0x110..+0x11C, the per-layer fields at +0x128, +0x130, +0x138 and the counts at +0x120, +0x122."
+confidence = "inferred"
+evidence = "Plain zeroing of the fields the skeleton functions read."
+
+[[function]]
+module = "EBOOT"
+address = "08864408"
+name = "motion_frame_reached"
+purpose = "Returns 1 if byte +0x3E is zero and layer param_2's value at +0x10 is at least arg_f12, else 0."
+confidence = "inferred"
+evidence = "Compares the +0x10 value that motion_layer_start sets; called widely from game tasks with a float threshold."
+
+[[function]]
+module = "EBOOT"
+address = "08864440"
+name = "object_ctor"
+purpose = "Base-constructs the object via 088614DC, installs vtable 089BAC64, zeroes +0x1C4 next, +0x1C8 and bytes +0x1D4..+0x1D7, sets +0x1E9 to 3, and copies a default state function to +0x3FC if one is set."
+confidence = "inferred"
+evidence = "Writes the vtable and the known next and state function fields; vtable +8 is the matching destructor."
+
+[[function]]
+module = "EBOOT"
+address = "088644E8"
+name = "object_dtor"
+purpose = "Destructor at vtable +0x8: restores vtable 089BAC64, calls base 08861604, and calls the empty 0886454C when (short)param_2 is positive."
+confidence = "inferred"
+evidence = "088665A8 calls vtable +8 with 1 and then frees the memory itself."
+
+[[function]]
+module = "EBOOT"
+address = "0886454C"
+name = "object_delete_noop"
+purpose = "Empty function called from destructors when their delete argument is positive."
+confidence = "inferred"
+evidence = "Empty body; called from 088644E8 only under the positive-flag branch."
+
+[[function]]
+module = "EBOOT"
+address = "08864554"
+name = "object_reset_defaults"
+purpose = "Vtable +0x10: calls 088626E4, zeroes +0x1F0, +0x200 place and +0x210, sets scale +0x220..+0x228 to 1.0, clears +0x324..+0x32A, sets +0x2AC..+0x2B4 and byte +0x230 to all ones, and copies a default state function to +0x3FC."
+confidence = "inferred"
+evidence = "Writes the fields object_update_world_matrix reads; runs during loads."
+
+[[function]]
+module = "EBOOT"
+address = "088646AC"
+name = "object_vfunc_1c_empty"
+purpose = "Empty default for vtable slot +0x1C, shared by many vtables and reached from 08864634."
+confidence = "inferred"
+evidence = "Decompiles to nothing; the next function starts 0x44 bytes later, so check the disassembly before relying on it."
+
+[[function]]
+module = "EBOOT"
+address = "088646F0"
+name = "model_draw_all_meshes"
+purpose = "Calls 0884CDE4 with param_4, then 0886477C for each mesh index up to the count at model +0x1C."
+confidence = "inferred"
+evidence = "Loop bound read from the model header; callee writes GE commands."
+
+[[function]]
+module = "EBOOT"
+address = "0886477C"
+name = "gpu_emit_model_mesh"
+purpose = "Appends GE commands to the display list at DAT_089cc120 for one model mesh: for each submesh it sets material and texture state when the material changes, loads bone matrices from each bone's +0x50 block, and calls the vertex list."
+confidence = "confirmed"
+evidence = "Opcodes written directly: 0x2A and 0x2B bone matrix, 0x53..0x58 material, 0xC2..0xCB texture, 0x10 and 0x13 base and offset, 0x0A call; runs in every recording."
+
+[[function]]
+module = "EBOOT"
+address = "08865044"
+name = "object_build_bone_attach_matrix"
+purpose = "Builds matrix param_2 from object bone param_3: scale param_6, X, Y and Z rotations in radians from param_5, the bone's matrix, and position equal to the bone position plus param_4 transformed by the bone matrix."
+confidence = "inferred"
+evidence = "vrot X, Y, Z sequence with vcst 2/pi scaling and vtfm3 of the offset; one game_task caller, ran only in fight1 4350-4460."
+
+[[function]]
+module = "EBOOT"
+address = "08865254"
+name = "object_find_motion_by_id"
+purpose = "Looks up id param_2 in the table at +0x1AC: (id % 1000) / 100 picks a group of {count, offset}, the remainder picks an entry; returns the record's address, or 0 if absent or the entry is -1."
+confidence = "inferred"
+evidence = "Vtable +0x20; object_set_motion passes the result on to 08863D58, the motion setter."
+
+[[function]]
+module = "EBOOT"
+address = "088652DC"
+name = "object_update_world_matrix"
+purpose = "Rebuilds the matrix at +0x10 from rotation angles at +0x1F0 in Y, X, Z calls, translation from +0x200 place, and scale from +0x220..+0x228."
+confidence = "inferred"
+evidence = "Direct reading of the matrix calls and field copies."
+
+[[function]]
+module = "EBOOT"
+address = "088653D0"
+name = "math_mat_rotate_z"
+purpose = "Multiplies the 3x3 part of matrix param_2 by a Z rotation of arg_f12 radians and writes it to param_1."
+confidence = "inferred"
+evidence = "vrot column pattern (c,s,0) and (-s,c,0), angle scaled by vcst 2/pi."
+
+[[function]]
+module = "EBOOT"
+address = "08865480"
+name = "math_mat_rotate_x"
+purpose = "Multiplies the 3x3 part of matrix param_2 by an X rotation of arg_f12 radians and writes it to param_1."
+confidence = "inferred"
+evidence = "vrot column pattern (0,c,s) and (0,-s,c), angle scaled by vcst 2/pi."
+
+[[function]]
+module = "EBOOT"
+address = "08865530"
+name = "math_mat_rotate_y"
+purpose = "Multiplies the 3x3 part of matrix param_2 by a Y rotation of arg_f12 radians and writes it to param_1."
+confidence = "inferred"
+evidence = "vrot column pattern (c,0,-s) and (s,0,c), angle scaled by vcst 2/pi."
+
+[[function]]
+module = "EBOOT"
+address = "088655E0"
+name = "math_mat4_identity"
+purpose = "Writes a 4x4 identity matrix to param_1."
+confidence = "confirmed"
+evidence = "vmidt_q copied to all sixteen words."
+
+[[function]]
+module = "EBOOT"
+address = "088655F8"
+name = "math_angles_u16_to_radians"
+purpose = "Converts three unsigned 16-bit angles at 4-byte spacing to radians as a vec4 with w = 0."
+confidence = "confirmed"
+evidence = "Factor 9.58738e-05 equals 2*pi/65536."
+
+[[function]]
+module = "EBOOT"
+address = "0886574C"
+name = "object_set_motion"
+purpose = "Vtable +0x24: with param_4 == -1, looks up id param_2 + 200*i for each of the layers counted at +0x1A2, sets each on its layer and stores (short)param_2 at +0x324+2i; otherwise sets record param_3 on layer param_4."
+confidence = "inferred"
+evidence = "Uses vtable +0x20 lookup and 08863D58 on the skeleton at +0x80."
+
+[[function]]
+module = "EBOOT"
+address = "08865934"
+name = "object_tick_counters_and_vfunc_3c"
+purpose = "When byte +0x33C is zero: updates +0x45C (adds 2 while flag mask 0x400001 is set at +0x288, else zero), adds 2 to +0x3F4 with wrap to 10000, decrements +0x276 and calls vtable +0x3C; then, unless game +0x6AF14 mask 1 is set, clears flag 0x800 and copies flag 1 into flag 0x2000."
+confidence = "inferred"
+evidence = "Direct reading; called each frame from game and lobby tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08865A2C"
+name = "object_tick_freeze_counter_33c"
+purpose = "If byte +0x396 is nonzero adds it to counter +0x33C and clears it; otherwise decrements +0x33C towards zero."
+confidence = "inferred"
+evidence = "08865934 skips its vtable +0x3C update while +0x33C is nonzero; the hitstop reading is not proven."
+
+[[function]]
+module = "EBOOT"
+address = "08865A64"
+name = "object_set_flags_288"
+purpose = "Sets param_2 bits in +0x288, or in +0x28C when mask 0x80000000 is set in param_2."
+confidence = "confirmed"
+evidence = "Direct bit operations."
+
+[[function]]
+module = "EBOOT"
+address = "08865A9C"
+name = "object_clear_flags_288"
+purpose = "Clears param_2 bits in +0x288, or in +0x28C when mask 0x80000000 is set in param_2."
+confidence = "confirmed"
+evidence = "Direct bit operations."
+
+[[function]]
+module = "EBOOT"
+address = "08865ADC"
+name = "object_set_mode_280_and_flags"
+purpose = "Sets byte +0x280 to param_2's low byte if it is 1 or 2, else 0; sets flag mask 8 unless param_2 mask 0x8000 is set; sets or clears flag masks 1 and 2 from param_3 and param_4."
+confidence = "inferred"
+evidence = "Uses the +0x288 flag helpers; called only from lobby tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08865BAC"
+name = "object_29a_matches_game_6af0e"
+purpose = "Returns 1 if short +0x29A equals short +0x6AF0E of the game global."
+confidence = "confirmed"
+evidence = "One-line compare; neither field's meaning is read here."
+
+[[function]]
+module = "EBOOT"
+address = "08865BD0"
+name = "object_set_260_place_plus_table_09cdf040"
+purpose = "Sets +0x260 to place plus an offset from the 0x20-stride table at 09CDF040 indexed by +0x29A: table +0 for X, table +4 for Z, and the average of +0x18 and +0x1C for Y."
+confidence = "inferred"
+evidence = "Direct arithmetic; the table's meaning is not read here."
+
+[[function]]
+module = "EBOOT"
+address = "08865C2C"
+name = "table_09cdf040_offset_position"
+purpose = "Writes to arg_a1 the position arg_a3 plus an offset from the 09CDF040 table entry arg_a2, computed as in 08865BD0."
+confidence = "inferred"
+evidence = "Same arithmetic as 08865BD0 with explicit arguments."
+
+[[function]]
+module = "EBOOT"
+address = "08865C88"
+name = "object_test_flags_288"
+purpose = "Returns param_2 masked with +0x288, or with +0x28C when mask 0x80000000 is set in param_2."
+confidence = "confirmed"
+evidence = "Direct bit operations."
+
+[[function]]
+module = "EBOOT"
+address = "08865CB8"
+name = "object_state_is"
+purpose = "Returns 1 if byte +0x298 equals param_2 and byte +0x299 state equals param_3."
+confidence = "inferred"
+evidence = "Direct compare; +0x299 is the known state field and +0x298's meaning is not read here."
+
+[[function]]
+module = "EBOOT"
+address = "08865CEC"
+name = "unknown_sets_field_3f4_from_32c_334"
+purpose = "Sets +0x3F4 to +0x32C minus |+0x334|; when (short)param_2 is nonzero, also adjusts byte +0x426 by that absolute value (less 1 if nonzero) minus +0x32C."
+confidence = "guess"
+evidence = "Mechanics only; many game_task callers and no field meaning read."
+
+[[function]]
+module = "EBOOT"
+address = "08865D54"
+name = "object_load_field_27c_from_table"
+purpose = "Sets short +0x27C from the table at 09BB8B04, stride 0x1D0, indexed by byte +0x1E8."
+confidence = "inferred"
+evidence = "One-line table lookup; table meaning not read."
+
+[[function]]
+module = "EBOOT"
+address = "08865D84"
+name = "object_clear_flag1_set_state_fn"
+purpose = "Clears mask 1 in flags +4 and copies a 12-byte member function from DAT_09A5F254 to +0x3FC state function."
+confidence = "inferred"
+evidence = "Direct writes; the target function's behaviour is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08865DBC"
+name = "object_get_field_230"
+purpose = "Vtable +0x30: returns byte +0x230."
+confidence = "confirmed"
+evidence = "One-line getter; 08864554 defaults the byte to 0xFF."
+
+[[function]]
+module = "EBOOT"
+address = "08865DD4"
+name = "object_set_field_254_to_cancel_velocity_y"
+purpose = "Sets +0x254 to minus velocity Y, divided by (short)param_2 / 2 when that quotient is at least 2 and velocity Y is not negative."
+confidence = "inferred"
+evidence = "Direct arithmetic; what applies +0x254 is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08865E40"
+name = "object_zero_velocity_and_field_250"
+purpose = "Zeroes velocity +0x240..+0x24C and the vector at +0x250..+0x25C."
+confidence = "confirmed"
+evidence = "Eight plain zero writes."
+
+[[function]]
+module = "EBOOT"
+address = "08865E64"
+name = "object_zero_field_250"
+purpose = "Zeroes the vector at +0x250..+0x25C."
+confidence = "confirmed"
+evidence = "Four plain zero writes."
+
+[[function]]
+module = "EBOOT"
+address = "08865E78"
+name = "object_add_velocity_to_place"
+purpose = "Adds velocity +0x240 to place +0x200 for X, Y and Z, keeping w."
+confidence = "confirmed"
+evidence = "vadd_t of the two known fields."
+
+[[function]]
+module = "EBOOT"
+address = "08865EC0"
+name = "object_clear_fields_285_2f0_38c_3ce"
+purpose = "Vtable +0x2C: zeroes +0x285, +0x2F0, +0x38C..+0x394, the arrays at +0x3B0..+0x3B7 and +0x3B8..+0x3C6, and +0x3CE."
+confidence = "inferred"
+evidence = "Plain zeroing; field meanings not read."
+
+[[function]]
+module = "EBOOT"
+address = "08865F24"
+name = "object_get_bone_position"
+purpose = "Copies the XYZ at +0x100 of bone param_3 of the skeleton at +0x80 to param_2."
+confidence = "inferred"
+evidence = "+0x100 is the translation row of the +0xD0 matrix, as 08865044 uses it."
+
+[[function]]
+module = "EBOOT"
+address = "08865F68"
+name = "object_get_bone_matrix"
+purpose = "Returns the address of the matrix at +0xD0 of bone param_2 of the skeleton at +0x80."
+confidence = "inferred"
+evidence = "08865044 uses the result as a rotation and translation matrix."
+
+[[function]]
+module = "EBOOT"
+address = "08865F8C"
+name = "object_play_sound_if_29a_matches"
+purpose = "If object_29a_matches_game_6af0e is true, calls 08883B54 on DAT_08A62EAC with kind 1 and the caller's arguments and returns its result, else returns 0."
+confidence = "guess"
+evidence = "08883B54 scales values like volumes and has a -1 no-op id; that it plays sound is not proven."
+
+[[function]]
+module = "EBOOT"
+address = "08866050"
+name = "object_select_map_record_by_distance"
+purpose = "Clears +0x1DC, then uses byte +0x290 to pick a sphere from the object at *DAT_09A4F1A0; if place is within its far radius, stores a 0x20-stride record chosen by near or far range to +0x1DC."
+confidence = "inferred"
+evidence = "vsub, vdot, vsqrt distance against two radii; what the record is used for is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08866284"
+name = "object_get_mask_1e9_1e4"
+purpose = "Returns 0x40 if byte +0x1E9 is 1 or 2, 0x20 if 0, else 0xE0, ORed with byte +0x1E4."
+confidence = "inferred"
+evidence = "Direct mapping; object_ctor defaults +0x1E9 to 3. Meaning not read."
+
+[[function]]
+module = "EBOOT"
+address = "088662B8"
+name = "object_manager_init"
+purpose = "Stores the manager in DAT_08A62D7C, initialises the 0x80000 byte heap whose header is at +0x80000, empties the 15 object lists, and clears the file slot tables and pool fields."
+confidence = "inferred"
+evidence = "Called at frame 0 from 089B9444; same list layout as 088665A8."
+
+[[function]]
+module = "EBOOT"
+address = "088664F8"
+name = "object_manager_reset_lists"
+purpose = "Empties the 15 object lists and re-initialises the heap without destroying the objects."
+confidence = "inferred"
+evidence = "Same loop as object_manager_init; runs at loads."
+
+[[function]]
+module = "EBOOT"
+address = "088665A8"
+name = "object_manager_destroy_all"
+purpose = "Walks all 15 lists through +0x1C4 next, calling each object's vtable +8 with 1 and freeing it from the heap, then empties the lists and re-initialises the heap."
+confidence = "inferred"
+evidence = "Destructor plus 08859C40 on each node, in load-time tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08866708"
+name = "object_list_add_to_render_queue"
+purpose = "For each object in list param_2 with flags +4 mask 1 set and mask 4 clear, calls render_queue_add_object_culled with kind 5."
+confidence = "inferred"
+evidence = "Callee name from an earlier batch; walks +0x1C4 next; runs every frame."
+
+[[function]]
+module = "EBOOT"
+address = "0886678C"
+name = "file_slots_assign_pool1"
+purpose = "For each of 0x30 descriptors {byte pool, int size} with pool 1, takes memory from pool 1 unless size is -1 and records pointer, size, pool and size for the slot."
+confidence = "inferred"
+evidence = "Slot arrays are read by the loader 088673CC; descriptor size -1 is sized there at load time."
+
+[[function]]
+module = "EBOOT"
+address = "0886691C"
+name = "file_slots_assign_pool2"
+purpose = "Same as file_slots_assign_pool1 for descriptors with pool 2, taking memory from pool 2."
+confidence = "inferred"
+evidence = "Same loop with 08866BD4."
+
+[[function]]
+module = "EBOOT"
+address = "088669F4"
+name = "file_slots_release_pool2"
+purpose = "For each slot with pool 2 and size not -1, zeroes pointer, size and descriptor, and clears the slot state byte unless it is 3."
+confidence = "inferred"
+evidence = "Reverse of file_slots_assign_pool2."
+
+[[function]]
+module = "EBOOT"
+address = "08866AAC"
+name = "file_slots_setup_pool1"
+purpose = "Allocates pool 1 of size param_2 from the DAT_09A0B680 allocator id 2 and VRAM slot 7 of size param_3, and resets both pools' used counts."
+confidence = "inferred"
+evidence = "vram_alloc_raw_slot and vram_get_slot_address by earlier names; bump counters read by 08866B5C."
+
+[[function]]
+module = "EBOOT"
+address = "08866B5C"
+name = "file_slots_pool1_bump_alloc"
+purpose = "Returns the pool 1 base at +0x80230 plus used count +0x8022C, and adds param_2 to the count."
+confidence = "confirmed"
+evidence = "Three-line bump allocator."
+
+[[function]]
+module = "EBOOT"
+address = "08866B8C"
+name = "file_slots_vram_address"
+purpose = "Returns VRAM slot 7's address at +0x8023C plus param_2 * 0x1A800 plus an offset from the table at 089A6180 indexed by param_3."
+confidence = "inferred"
+evidence = "+0x8023C holds vram_get_slot_address(7) per 08866AAC; called from object setup 08867F34 and 08868234."
+
+[[function]]
+module = "EBOOT"
+address = "08866BD4"
+name = "file_slots_pool2_bump_alloc"
+purpose = "Returns the pool 2 base at +0x80248 plus used count +0x80244, and adds param_2 to the count."
+confidence = "confirmed"
+evidence = "Three-line bump allocator."
+
+[[function]]
+module = "EBOOT"
+address = "08866C04"
+name = "file_slots_setup_pool2"
+purpose = "If param_2 is positive, allocates pool 2 of that size from the DAT_09A0B680 allocator id 3; then allocates VRAM slot 8 of size param_3 and resets its used count."
+confidence = "inferred"
+evidence = "Parallel to file_slots_setup_pool1 with ids 3 and 8."
+
+[[function]]
+module = "EBOOT"
+address = "08866D40"
+name = "file_slots_free_pool2"
+purpose = "Frees allocator id 3 and VRAM slot 8, and zeroes the pool 2 fields."
+confidence = "inferred"
+evidence = "Inverse of file_slots_setup_pool2; vram_free_slot by earlier name."
+
+[[function]]
+module = "EBOOT"
+address = "08866E10"
+name = "file_slots_load_group_part"
+purpose = "Computes a file id from table 089B662C or 089B6644 (row param_3, column param_4) plus 088D6388's value, advances the loader for slot param_2*8+param_4, and returns 1 when it is done."
+confidence = "inferred"
+evidence = "Calls the slot load state machine 088673CC; the part table suggests equipment models, which is not proven."
+
+[[function]]
+module = "EBOOT"
+address = "08866F6C"
+name = "file_slots_load_group_slot6"
+purpose = "Advances the loader for slot param_2*8+6 with file id param_3+0xD50 and returns 1 when it is done."
+confidence = "inferred"
+evidence = "Calls 088673CC with fixed slot 6; what slot 6 holds is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08866FB0"
+name = "file_slots_load_group_slot7"
+purpose = "Advances the loader for slot param_2*8+7 with file id from the table at 089B665C indexed by param_3, plus param_4, and returns 1 when it is done."
+confidence = "inferred"
+evidence = "Calls 088673CC with fixed slot 7; what slot 7 holds is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08867008"
+name = "file_slots_unload_group_part"
+purpose = "Unloads slot param_2*8+param_3 through 088675BC."
+confidence = "inferred"
+evidence = "088675BC resets the slot state and file id."
+
+[[function]]
+module = "EBOOT"
+address = "08867020"
+name = "file_slots_unload_group_slot7"
+purpose = "Unloads slot param_2*8+7 through 088675BC."
+confidence = "inferred"
+evidence = "088675BC resets the slot state and file id."
+
+[[function]]
+module = "EBOOT"
+address = "08867034"
+name = "file_slots_unload_group_slot6"
+purpose = "Unloads slot param_2*8+6 through 088675BC."
+confidence = "inferred"
+evidence = "088675BC resets the slot state and file id."
+
+[[function]]
+module = "EBOOT"
+address = "08867058"
+name = "file_slots_swap_groups"
+purpose = "Swaps the eight slots of groups param_2 and param_3: file data through a 0x41000 byte temporary from allocator id 0x19, plus file ids and state bytes; with param_4 == 1 it skips slots where either file id is -1."
+confidence = "inferred"
+evidence = "Three mem_memcpy calls per slot and field swaps; ran once each in misc and shops, from a lobby task."

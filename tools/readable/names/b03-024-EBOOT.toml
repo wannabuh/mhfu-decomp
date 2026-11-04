@@ -1,0 +1,415 @@
+[[function]]
+module = "EBOOT"
+address = "088A4184"
+name = "sound_voices_init"
+purpose = "Clears the default sample block and 32 voice records of 0x2C bytes at 09A0E50C, gives each its index and bit mask, resets each, and sets the cached reverb settings to type -1 with all else 0 except word +0x14 = 1."
+confidence = "inferred"
+evidence = "Loop of 0x20 with 1<<i; records reach sceSas wrappers through 088A4344 and 088A4408; run once at boot."
+
+[[function]]
+module = "EBOOT"
+address = "088A4248"
+name = "sound_voice_by_index"
+purpose = "Returns the voice record for an index below 32, else null."
+confidence = "inferred"
+evidence = "Bounds check 0x20 and stride 0x2C into the voice array at 09A0E50C."
+
+[[function]]
+module = "EBOOT"
+address = "088A4280"
+name = "sound_voice_request_key_on"
+purpose = "With dispatch suspended, sets pending mask 0x4000 and clears mask 0x8000 in the voice's +0xC, stores the value from 088A3554 at +0, and clears the ushort at +4."
+confidence = "inferred"
+evidence = "088A4408 turns mask 0x4000 into sceSasSetVoice and sceSasSetKeyOn."
+
+[[function]]
+module = "EBOOT"
+address = "088A42F0"
+name = "sound_voice_request_key_off"
+purpose = "With dispatch suspended, sets pending mask 0x8000 and clears mask 0x4000 in the voice's +0xC."
+confidence = "inferred"
+evidence = "088A4408 turns mask 0x8000 into sceSasSetKeyOff."
+
+[[function]]
+module = "EBOOT"
+address = "088A4344"
+name = "sound_voice_reset"
+purpose = "Zeroes the voice's four volume shorts, sets +0x14 = 0x2000, +0x16 = 0x80FF, +0x18 = 0x5FC0, points its sample at the default block with size 0x10, sets pending masks 0x8C04, clears +0 and +4, and applies them at once."
+confidence = "inferred"
+evidence = "Fields written are the ones 088A4408 passes to the sceSas wrappers; mask 0x8C04 covers key off, ADSR, volume and pitch."
+
+[[function]]
+module = "EBOOT"
+address = "088A43C0"
+name = "sound_voices_apply_all_pending"
+purpose = "Applies pending changes for all 32 voices."
+confidence = "inferred"
+evidence = "Loop of 0x20 calling 088A4408 over the voice array; ran throughout every recording."
+
+[[function]]
+module = "EBOOT"
+address = "088A4408"
+name = "sound_voice_apply_pending"
+purpose = "Walks the voice's pending mask word +0xC from the low bit, making the sceSas call for each set bit and clearing it: 0x8000 key off, 0x4000 set sample (+0x24, size +0x28) and key on, 0x800 ADSR (+0x16, +0x18), 4 pitch (+0x14), 0x400 volume (+0x10, +0x12, +0x20, +0x22)."
+confidence = "confirmed"
+evidence = "Each mask calls an 08897xxx wrapper whose body calls that __sceSas import."
+
+[[function]]
+module = "EBOOT"
+address = "088A4504"
+name = "sound_reverb_apply_if_changed"
+purpose = "Compares seven words with the cached settings at 09A0E4F0 and calls sceSasRevType, RevParam, RevEVOL (0,0 when the type is -1) and RevVON for those that differ, then updates the cache."
+confidence = "confirmed"
+evidence = "The wrappers 08897738, 088977BC, 088976A4, 08897610 call those __sceSasRev imports."
+
+[[function]]
+module = "EBOOT"
+address = "088A4654"
+name = "sound_rpc_call"
+purpose = "For command 100, or 1, 2 and 0x309, picks a send and a reply buffer, fills them with 0xFF, copies up to 0x40 bytes of the request, runs the command through 0889E8F8, and returns the reply buffer."
+confidence = "inferred"
+evidence = "Buffers 09A0EB00/09A0EAC0 and 09A0EB80/09A0EB40; 088A5D38 calls it to drain the queue named SifRpc by 088A59FC."
+
+[[function]]
+module = "EBOOT"
+address = "088A47C4"
+name = "sound_spu_map_init"
+purpose = "Checks the 8-byte SPUMAPDT magic of a map header, clears the 16-slot offset and size tables, stores the header pointer, and selects map 0; returns 0x80000002 on a wrong magic."
+confidence = "confirmed"
+evidence = "String SPUMAPDT compared in the function; tables cleared and 088A489C(0) called in the code."
+
+[[function]]
+module = "EBOOT"
+address = "088A489C"
+name = "sound_spu_map_select"
+purpose = "For a map index below the header's count at +8, reads 16 sizes from header +0x10 + index*0x40 and fills the slot tables with running offsets and the sizes; returns 0x80000003 when out of range."
+confidence = "inferred"
+evidence = "Offsets accumulate into 09A0EBC4 and sizes go to 09A0EBC4+0x40; the header check is in 088A47C4."
+
+[[function]]
+module = "EBOOT"
+address = "088A49D0"
+name = "sound_spu_map_get_slot_offset"
+purpose = "Returns the selected map's offset for a slot below 16, else prints an error and returns 0x80000001."
+confidence = "inferred"
+evidence = "Reads the table 088A489C fills; 088A6690 uses it (through 088A4BE8) as the slot's wave data base."
+
+[[function]]
+module = "EBOOT"
+address = "088A4A30"
+name = "sound_request_id_init"
+purpose = "Once only, sets the request id counter DAT_09A0EC4C to 0 with interrupts off and marks it initialised."
+confidence = "inferred"
+evidence = "Guard DAT_09A0EC48 and the same counter 088A4AC0 increments."
+
+[[function]]
+module = "EBOOT"
+address = "088A4AC0"
+name = "sound_request_id_next"
+purpose = "With interrupts off, returns the next request id from a counter that skips 0."
+confidence = "inferred"
+evidence = "Returns the counter, treating 0 as 1 and storing 2; 088A5B50 writes the result to the request's +4."
+
+[[function]]
+module = "EBOOT"
+address = "088A4B5C"
+name = "sound_bank_tables_init"
+purpose = "Initialises the SPU map from the given header and, if that succeeds, clears the 16 bank slot pointers at 09A0EC50."
+confidence = "inferred"
+evidence = "Calls 088A47C4 then zeroes 0x10 words read back by 088A4C54; called by sound_driver_open."
+
+[[function]]
+module = "EBOOT"
+address = "088A4BF0"
+name = "sound_bank_slot_set"
+purpose = "Stores a bank pointer in a slot below 16, else prints an error."
+confidence = "inferred"
+evidence = "Writes the table 088A4C54 reads; 088A6690 passes that value to the bank readers."
+
+[[function]]
+module = "EBOOT"
+address = "088A4C54"
+name = "sound_bank_slot_get"
+purpose = "Returns the bank pointer in a slot below 16, else prints an error and returns 0."
+confidence = "inferred"
+evidence = "Reads the table set by 088A4BF0; 088A6690 hands the result to 088A5454 and 088A5548."
+
+[[function]]
+module = "EBOOT"
+address = "088A4CB0"
+name = "sound_bank_merge"
+purpose = "Writes one bank at param_1 from param_3 input banks: header, then the program, sample and wave chunks concatenated with their sample, wave and data references rebased; returns the total size, or -1 if two inputs define the same program."
+confidence = "inferred"
+evidence = "Copies 8-byte headers plus 0xE-byte tones, 0xC-byte samples and 0x14-byte waves, adding running counts; chunk names come from how 088A5548 walks them, not from a string."
+
+[[function]]
+module = "EBOOT"
+address = "088A53A4"
+name = "sound_bank_check_magic"
+purpose = "Returns 1 if the bank starts with the 4-byte magic at 089B279C."
+confidence = "inferred"
+evidence = "Four-byte compare; callers report error 0x80000006 when it fails."
+
+[[function]]
+module = "EBOOT"
+address = "088A5454"
+name = "sound_bank_program_tone_count"
+purpose = "Returns the first byte of a program's record, the tone count, or 0x8000000E when the program is out of range or absent, and 0x80000006 or 0x80000007 on a bad magic."
+confidence = "inferred"
+evidence = "088A6690 loops the result over tones; 088A4CB0 sizes a program as this byte * 0xE + 8."
+
+[[function]]
+module = "EBOOT"
+address = "088A5548"
+name = "sound_bank_lookup_tone"
+purpose = "Resolves bank, program, note and tone index to pointers to the program, tone, sample and wave records; returns 0x8000000F when the note is outside the tone's range at +2..+3, and negative errors on bad chunk magics."
+confidence = "inferred"
+evidence = "Follows tone +0xC to the sample table and sample +0xA to the wave table; compares param_4 with two bytes in the tone."
+
+[[function]]
+module = "EBOOT"
+address = "088A5774"
+name = "sound_bank_build_note_params"
+purpose = "Fills a voice parameter block from the program, tone, sample and wave records: multiplies three levels with /0x7F, sums three centred values clamped to -0x40..0x3F, sums pitch in hundredths using the note minus the sample's root byte, copies ADSR-like shorts, and adds the base to the wave offset."
+confidence = "inferred"
+evidence = "Arithmetic read from the code; 088A6690 calls it with the 088A5548 result and sends it through 088A6F30. Level, pan and pitch meanings are from the shape of the arithmetic."
+
+[[function]]
+module = "EBOOT"
+address = "088A59C4"
+name = "sound_bank_get_wave_data_size"
+purpose = "Returns the bank's +0x10 if its magic is good, else 0x80000006."
+confidence = "inferred"
+evidence = "088A4CB0 sums +0x10 across banks and adds the running total to wave offsets; callers are the sound loader steps."
+
+[[function]]
+module = "EBOOT"
+address = "088A59FC"
+name = "sound_rpc_queue_create"
+purpose = "Creates the semaphore SemaSifRpcQueueSend and resets the queue."
+confidence = "confirmed"
+evidence = "Semaphore name string in the function; calls 088A5A3C."
+
+[[function]]
+module = "EBOOT"
+address = "088A5A3C"
+name = "sound_rpc_queue_reset"
+purpose = "Under the semaphore and with interrupts off, clears the 0x1200-byte queue and its head, tail, count and type 2 counters."
+confidence = "inferred"
+evidence = "0x1200 is 64 entries of 0x48, matching the ring used by 088A5B50."
+
+[[function]]
+module = "EBOOT"
+address = "088A5AFC"
+name = "sound_rpc_queue_refer_status"
+purpose = "Returns 0x80000010 and prints an error when 64 commands are pending, else 0."
+confidence = "confirmed"
+evidence = "String mlRpcQueueReferStatus in the function and the compare with 0x40."
+
+[[function]]
+module = "EBOOT"
+address = "088A5B50"
+name = "sound_rpc_queue_push"
+purpose = "Under the semaphore and with interrupts off, gives the request an id at +4 if it has none, copies it into the 64-entry ring with its type and size, counts type 2 separately, and returns the id; prints the queue error whenever no new id was assigned."
+confidence = "inferred"
+evidence = "Ring of 0x48-byte entries at 09A0ECC0 with index & 0x3F; 088A5D38 drains it."
+
+[[function]]
+module = "EBOOT"
+address = "088A5D38"
+name = "sound_rpc_queue_flush"
+purpose = "If the queue semaphore is free, sends each pending entry through sound_rpc_call, stopping when a reply's first word is negative."
+confidence = "inferred"
+evidence = "Pops at DAT_09A0ECB0 with & 0x3F and decrements the count; polls rather than waits."
+
+[[function]]
+module = "EBOOT"
+address = "088A5ECC"
+name = "sound_rpc_call_309"
+purpose = "Runs command 0x309 at once if asked for it, else returns 0."
+confidence = "inferred"
+evidence = "Only forwards param_1 == 0x309 to 088A4654."
+
+[[function]]
+module = "EBOOT"
+address = "088A5EF8"
+name = "sound_rpc_call_100_copy_reply"
+purpose = "Runs command 100 at once with interrupts off and returns a 0x14-byte copy of the reply at 09A0EC94; returns null for other commands."
+confidence = "inferred"
+evidence = "Calls 088A4654(100, ...) and copies 0x14 bytes."
+
+[[function]]
+module = "EBOOT"
+address = "088A5FC0"
+name = "sound_entry_tables_init"
+purpose = "Clears the 16 entry table pointers at 09A0FEC4 and the play callback DAT_09A0FEC0."
+confidence = "inferred"
+evidence = "Zeroes the array read by 088A6040 and the pointer called by 088A6088; run once at boot."
+
+[[function]]
+module = "EBOOT"
+address = "088A6024"
+name = "sound_entry_table_set"
+purpose = "Stores an entry table pointer for a slot, unchecked."
+confidence = "inferred"
+evidence = "Writes the array read by 088A6040; called by sound_slot_set_pointers."
+
+[[function]]
+module = "EBOOT"
+address = "088A6040"
+name = "sound_entry_table_get_entry"
+purpose = "Returns a 0x20-byte entry from a slot's table if the table exists and the index is below its count at +0xC, else null."
+confidence = "inferred"
+evidence = "Stride 0x20 from +0x10 with the bound read at +0xC."
+
+[[function]]
+module = "EBOOT"
+address = "088A6088"
+name = "sound_entry_play_program"
+purpose = "Copies the entry's +4 flags to the request block, setting mask 4 unless the entry has mask 2 and then clearing it, calls the callback DAT_09A0FEC0 if set, and plays the program."
+confidence = "inferred"
+evidence = "088A6100 calls it for entry type 1; ends in 088A6690 with param_3 & 0xFFFF."
+
+[[function]]
+module = "EBOOT"
+address = "088A6100"
+name = "sound_entry_chain_run"
+purpose = "Builds a request block from each entry in a chain, adding the overrides at param_3 or replacing fields when param_3's high bit and their mask are set, and acts by type: 1 play program, 2 and 3 send a change command; follows +0x16 until 0xFFFF or a repeat."
+confidence = "inferred"
+evidence = "Loop with 088A6040, a switch on the entry's first byte, and the next index at +0x16."
+
+[[function]]
+module = "EBOOT"
+address = "088A658C"
+name = "sound_rpc_call_309_with_word"
+purpose = "Calls command 0x309 at once with a 0xC-byte block whose word +8 is the argument."
+confidence = "inferred"
+evidence = "Builds the block and calls 088A5ECC; run once at boot from 0889EB84."
+
+[[function]]
+module = "EBOOT"
+address = "088A65D4"
+name = "sound_rpc_send_cmd_10000009_with_flag"
+purpose = "Queues command 0x10000009 with the argument's low bit at +8."
+confidence = "inferred"
+evidence = "Builds a 0xC-byte block and calls 088A5B50(1, ...)."
+
+[[function]]
+module = "EBOOT"
+address = "088A6628"
+name = "sound_rpc_send_channel_ramp"
+purpose = "Queues command 0x1000000B with a channel (0xFF, or masked 0xF) at +8, a level masked 0x7F at +0x10 and param_3 at +0xC."
+confidence = "inferred"
+evidence = "Callers sound_fade_in_channels and sound_fade_out_channels pass channels and a target level."
+
+[[function]]
+module = "EBOOT"
+address = "088A6690"
+name = "sound_bank_play_program"
+purpose = "Looks up the bank for the request's slot +4 and, for each tone of the program that accepts note +5, builds voice parameters and sends them; returns the last result."
+confidence = "inferred"
+evidence = "Calls 088A4C54, 088A5454, 088A5548, 088A5774 and 088A6F30 in that order."
+
+[[function]]
+module = "EBOOT"
+address = "088A678C"
+name = "sound_se_change_send_1"
+purpose = "Sends a change block as command 0x10000001."
+confidence = "inferred"
+evidence = "Single call to 088A6E44, whose string reads SendSeChange."
+
+[[function]]
+module = "EBOOT"
+address = "088A6798"
+name = "sound_se_change_send_2_empty"
+purpose = "Sends an empty change block as command 0x10000002."
+confidence = "inferred"
+evidence = "Zeroed 0x1C-byte block to 088A6E44; caller is sound_stop_all."
+
+[[function]]
+module = "EBOOT"
+address = "088A6868"
+name = "sound_se_change_send_1_with_slot"
+purpose = "Sends command 0x10000001 with block flags mask 4 and the argument masked 0xF at +4."
+confidence = "inferred"
+evidence = "Builds the block for 088A6E44; caller is sound_slot_stop."
+
+[[function]]
+module = "EBOOT"
+address = "088A69DC"
+name = "sound_se_change_send_1_with_ids"
+purpose = "Sends command 0x10000001 with up to three ids: the first sets mask 4 at +4 or mask 2 when -1, the second mask 0x20 at +6, the third mask 0x40 at +7."
+confidence = "inferred"
+evidence = "Same block layout that 088A6D64 checks; arguments of -1 are skipped."
+
+[[function]]
+module = "EBOOT"
+address = "088A6A78"
+name = "sound_se_change_copy_overrides"
+purpose = "Copies optional fields from an override block (param_3 of the chain format, masks 0x80, 0x100, 0x200, 0x1000, 0x400, 0x40, 0x800, 0x2000) into a change block, setting its flags."
+confidence = "inferred"
+evidence = "Series of mask tests; 0x1000 sets the same block flag 0x200 as 0x100 does, as read in the code."
+
+[[function]]
+module = "EBOOT"
+address = "088A6BA0"
+name = "sound_se_change_send_3_with_overrides"
+purpose = "Sends command 0x10000003 with up to three ids as in 088A69DC plus fields from an override block."
+confidence = "inferred"
+evidence = "Same id code as 088A69DC, then 088A6A78 and 088A6E44."
+
+[[function]]
+module = "EBOOT"
+address = "088A6C48"
+name = "sound_rpc_send_cmd_10000007"
+purpose = "Queues command 0x10000007 with six words copied from the argument."
+confidence = "inferred"
+evidence = "Builds a 0x20-byte block and calls 088A5B50(1, ...); called from sound_driver_tick and task overlays."
+
+[[function]]
+module = "EBOOT"
+address = "088A6CC4"
+name = "sound_rpc_query_20000002"
+purpose = "Sends command 0x20000002 with a validated block at once as command 100 and returns byte +0x12 of the reply, or the validation error."
+confidence = "inferred"
+evidence = "Calls 088A6D64 then 088A5EF8(100, ...)."
+
+[[function]]
+module = "EBOOT"
+address = "088A6D64"
+name = "sound_se_change_validate"
+purpose = "Defaults or masks the block's byte +3 to 0x7F, masks byte +5 when mask 0x10 is set, and returns 0x80000012 or 0x80000013 when id flags 0x20 or 0x40 lack the flags they require."
+confidence = "inferred"
+evidence = "Error strings You should set ID2 and You should set FLAG_GLOBAL in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088A6E44"
+name = "sound_se_change_send"
+purpose = "Copies a seven-word block behind a command id of 0x10000001, 2 or 3, validates it, and queues it; returns the request id or 0."
+confidence = "confirmed"
+evidence = "String SendSeChange: Match UNKNOWN Comm for other ids; calls 088A6D64 and 088A5B50."
+
+[[function]]
+module = "EBOOT"
+address = "088A6F30"
+name = "sound_rpc_send_note_params"
+purpose = "Queues command 0x10000000 with the seven-word request at +8 and the seven-word voice parameters at +0x24."
+confidence = "inferred"
+evidence = "Sole caller 088A6690 passes the 088A5774 block and the request."
+
+[[function]]
+module = "EBOOT"
+address = "088A6FEC"
+name = "unknown_game_state_bad18_construct"
+purpose = "Constructs an object with vtable 089BAD18, copying the words at 089B2930 to +4..+0xC if any is set, storing itself in DAT_09A0FF04, and zeroing +0x1C..+0x24."
+confidence = "inferred"
+evidence = "Sets the vtable that holds 088A7090; caller 08895644 runs once at boot."
+
+[[function]]
+module = "EBOOT"
+address = "088A7090"
+name = "unknown_game_state_bad18_destroy"
+purpose = "Destructor at vtable slot +8: calls 08812264 with DAT_089CBD00 and 6, releases entries 4 and 5 through 08898748, clears DAT_09A0FF04, and resets the vtable to 089BACB8."
+confidence = "inferred"
+evidence = "Vtable 089BAD18 +0x8; called from game_states_update around frame 1450."

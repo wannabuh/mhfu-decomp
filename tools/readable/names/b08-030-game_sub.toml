@@ -1,0 +1,191 @@
+[[function]]
+module = "game_sub"
+address = "09C38030"
+name = "collision_push_object_spheres_vs_other_object_parts"
+purpose = "Tests param_1's two spheres (+0x4A0, +0x4C0) against param_2's bone-attached sphere and capsule parts from the table at 09BB8B00 indexed by its +0x1E8, sums up to two pushes, and by comparing byte +0x2C8 moves param_2 only (param_1's is higher), both by half (equal) or param_1 only (param_1's is lower), then keeps param_1's y at or above +0x2CC, limits rising through +0x2CC+480, and shifts its spheres by its displacement."
+confidence = "inferred"
+evidence = "Parts decoded by 09C37898 (type 0 sphere, type 1 capsule, bone matrix from +0x190); moved objects get +0x410 mask 0x80, which caller 09C37C68 clears first; seen with a hunter slot object as param_1 in that caller."
+
+[[function]]
+module = "game_sub"
+address = "09C38538"
+name = "collision_push_two_objects_apart_by_sphere"
+purpose = "Overlap-tests the collision spheres of two objects and on overlap moves both by half (equal +0x2C8) or only the one with the lower +0x2C8, zeroing the y push for an object whose +0x280 is not 2, and setting +0x410 mask 0x80 on what moved."
+confidence = "inferred"
+evidence = "Spheres from 09C38A88 selector 1 passed to 09C347C8; note param_2's offset is scaled by param_1's +0x220, its radius by its own; pairs from the 0x14-slot list in 09C37C68."
+
+[[function]]
+module = "game_sub"
+address = "09C387E8"
+name = "collision_attach_grids_from_file_relocating"
+purpose = "Takes entries 0 and 1 of an offset-table file, converts each grid's cell-list and triangle offsets to pointers in place, and stores the grids at manager +0x210 and +0x214 (zeroed first, stays zero if the entry is absent) with reciprocal cell sizes at +0x218/+0x21C and +0x220/+0x224."
+confidence = "inferred"
+evidence = "Rewrites -1 terminated offset lists in place; header read as cell size x/z, cell count x/z, tables; runs at area loads from EBOOT 088C6DF8; later consumers index by these reciprocals."
+
+[[function]]
+module = "game_sub"
+address = "09C38A88"
+name = "collision_get_object_sphere_by_kind"
+purpose = "Writes an object's collision sphere (offset vector, then radius as the fifth word) chosen by byte +0x1E9: kind 0 and kind 2 copy fixed blocks at 09CD38B0 and 09CD38D0, kind 1 calls 09AB1520 with +0x1E8 and the selector param_2, other kinds write nothing."
+confidence = "inferred"
+evidence = "Callers scale the output and add it to position, using the fifth word as radius; 09C417E0 skips a radius of -1."
+
+[[function]]
+module = "game_sub"
+address = "09C38BA8"
+name = "collision_resolve_object_against_grid_210_record_contacts"
+purpose = "Sweeps an object's sphere from param_2 to param_3 against triangles of the +0x210 grid in the cells near the end point, skipping triangles whose flags match param_4 (mask 0x8000 dropped from the test when hunter_state_in_27_to_2b_or_77_78 holds), pushes the object's +0x200 out, writes a 12-byte per-object contact list in the manager table indexed by +0x1E6 (triangles with attribute mask 1 get flag 2 and are swapped to the front), and sets +0x278 facing-relative sector bits."
+confidence = "inferred"
+evidence = "Caller 09C417E0 uses it when +0x1E9 is not 1, passing +0x210+offset and +0x200+offset; push done by 09C3C2B8; sector is the relative angle >> 0xB."
+
+[[function]]
+module = "game_sub"
+address = "09C392C8"
+name = "collision_resolve_object_against_grid_210_by_radius_range"
+purpose = "Sweeps an object's sphere from param_2 to param_3 against the +0x210 grid like 09C38BA8 but widens the cell range by the radius when it spans a cell and has no hunter-state mask or contact list; pushes the object's +0x200 out, sets +0x278 facing-relative sector bits, and clears +0x27E then sets it when a hit triangle has attribute mask 2."
+confidence = "inferred"
+evidence = "Caller 09C417E0 uses it when +0x1E9 is 1, in traces only during hunts; cell range computed from radius times the smaller cell's reciprocal."
+
+[[function]]
+module = "game_sub"
+address = "09C398D8"
+name = "collision_grid_214_height_at_xz"
+purpose = "Finds triangles in the +0x214 grid cell at param_3's x,z that have upward normal (y > 0), contain the point in x,z and have attribute mask 0x20, writes the plane height of the last such triangle to param_2, returns 1 if any matched; out of bounds returns 0 and a negative-zero result is normalised to 0."
+confidence = "inferred"
+evidence = "Height is -(d + nx*x + nz*z)/ny from triangle fields +0x28..+0x34; attribute from the table at vtable +0x28 of *DAT_09a4f1a0, +0xC; meaning of mask 0x20 not read."
+
+[[function]]
+module = "game_sub"
+address = "09C39B20"
+name = "math_point_in_triangle_2d_by_winding"
+purpose = "Tests 2D point param_4 against triangle param_1..3 using the triangle's signed area arg_f12: returns 0 if outside or the area is 0, 1 if inside with negative area, 2 if inside with positive area; points on an edge count as inside."
+confidence = "confirmed"
+evidence = "Three edge cross products sign-checked in the direction given by the area, each with the near-equal snap of 09C3A320."
+
+[[function]]
+module = "game_sub"
+address = "09C3A320"
+name = "math_cross2d_snap_near_equal"
+purpose = "Returns the 2D cross product (b-a) x (c-a) of three points, treating the two products as equal when their values compare one apart after the decompiled uint cast (apparently a float bit comparison), which yields exactly 0."
+confidence = "confirmed"
+evidence = "Body is the single formula with the two snap checks."
+
+[[function]]
+module = "game_sub"
+address = "09C3A460"
+name = "collision_grid_214_contains_xz"
+purpose = "Returns 1 if a point's x and z lie at least 8 inside the extent of the +0x214 grid (cell size times count, low side inclusive), else 0."
+confidence = "inferred"
+evidence = "Margin 8 checks against grid header fields; identical to 09C3A558 but reads +0x214."
+
+[[function]]
+module = "game_sub"
+address = "09C3A558"
+name = "collision_grid_210_contains_xz"
+purpose = "Returns 1 if a point's x and z lie at least 8 inside the extent of the +0x210 grid (cell size times count, low side inclusive), else 0."
+confidence = "inferred"
+evidence = "Margin 8 checks against grid header fields; identical to 09C3A460 but reads +0x210."
+
+[[function]]
+module = "game_sub"
+address = "09C3A650"
+name = "collision_grid_210_clip_segment_end_to_bounds"
+purpose = "Returns -1 with no output if anchor point param_4 is outside the +0x210 grid's margin-8 extent; otherwise writes param_3 to param_2, moved along the line toward param_4 until x and z are within the extent, and returns 1 if it was clipped, 0 if not."
+confidence = "inferred"
+evidence = "Four interpolations against 8 and extent-8; callers pass their start point as the anchor and sweep to the clipped point."
+
+[[function]]
+module = "game_sub"
+address = "09C3A920"
+name = "collision_sweep_sphere_and_push_out"
+purpose = "Sweeps a sphere of radius arg_f12 from param_2 to param_3 (clipped to the +0x210 grid) against its triangles, skipping flags in param_5 (plus 0x4000 when game flag +0x6AF14 mask 2 is set), then applies 09C3C2B8's push to the position param_4 and returns its hit count; -1 if the start is out of bounds, 0 if 09C41558 returns 0."
+confidence = "inferred"
+evidence = "Same cell walk as the object versions with visited and hit lists, 09C3B8D0 as the test; 09C3C2B8 adds its correction to its third argument and returns +0x228."
+
+[[function]]
+module = "game_sub"
+address = "09C3ABA8"
+name = "collision_sweep_sphere_find_hit"
+purpose = "Sweeps a sphere of radius arg_f12 from param_2 toward param_3 (clipped to the +0x210 grid) against its triangles, skipping flags in param_5 (plus 0x4000 when game flag +0x6AF14 mask 2 is set), shortening the sweep at each hit; writes the last hit position to param_4 and returns 1 if any hit, moving nothing."
+confidence = "inferred"
+evidence = "Each hit from 09C3ADE0 replaces the sweep end with param_4; no call to 09C3C2B8; returns +0x228 != 0."
+
+[[function]]
+module = "game_sub"
+address = "09C3ADE0"
+name = "collision_sweep_sphere_against_triangle"
+purpose = "Tests a swept sphere (sweep struct: end +0, start +0x10, radius +0x20) against one triangle: rejects a start behind the plane or a motion away from it, tries the plane contact inside the triangle, then the three edges, then the three vertices; on a hit writes the sphere centre to param_2, increments manager +0x228 and returns 1."
+confidence = "inferred"
+evidence = "Triangle expanded by 09C3C200 (vertices +0x10/+0x20/+0x30, normal +0x40); calls 09C3BFF0, then 09C3B168 per edge, then 09C3B430."
+
+[[function]]
+module = "game_sub"
+address = "09C3B168"
+name = "math_sweep_sphere_against_segment"
+purpose = "Solves where a sphere moving from a1+0x10 (t=0) to a1+0 (t=1), radius at a1+0x20, touches the infinite cylinder around segment a2; if the smaller t is at most 1 writes the centre to a3 and returns 1 when its projection falls within the segment, else 0 (no lower bound on t)."
+confidence = "inferred"
+evidence = "Perpendicular components, quadratic root, projection range check; called per triangle edge from 09C3ADE0."
+
+[[function]]
+module = "game_sub"
+address = "09C3B430"
+name = "math_sweep_sphere_against_three_points"
+purpose = "Finds the smallest t at which a sphere moving from a1+0x10 (t=0) to a1+0 (t=1), radius at a1+0x20, touches any of three points spaced 0x10 apart at a2; if t is at most 1 writes the centre to a3 and returns 1, else 0 (no lower bound on t)."
+confidence = "inferred"
+evidence = "Quadratic per point with loop count 3, starting from t=10; called with triangle vertices from 09C3ADE0."
+
+[[function]]
+module = "game_sub"
+address = "09C3B5C0"
+name = "collision_grid_210_set_cell_range_near_point"
+purpose = "Sets manager bytes +0x8D0..+0x8D3 (min x, min z, max x, max z cell) to a point's cell in the +0x210 grid and the neighbour on its nearer side per axis, clamped to the grid."
+confidence = "inferred"
+evidence = "Half-cell comparison per axis, clamp to count-1 and 0; the range is walked by 09C38BA8 and 09C392C8."
+
+[[function]]
+module = "game_sub"
+address = "09C3B720"
+name = "collision_grid_210_cell_list_at_xz"
+purpose = "Returns the triangle list pointer of the +0x210 grid cell holding a point's x,z, with no bounds check."
+confidence = "inferred"
+evidence = "Index x_cell*count_z + z_cell into the table at grid +0x18; same as 09C3B770 for the other grid."
+
+[[function]]
+module = "game_sub"
+address = "09C3B770"
+name = "collision_grid_214_cell_list_at_xz"
+purpose = "Returns the triangle list pointer of the +0x214 grid cell holding a point's x,z, with no bounds check."
+confidence = "inferred"
+evidence = "Index x_cell*count_z + z_cell into the table at grid +0x18; 09C398D8 walks the result as triangles."
+
+[[function]]
+module = "game_sub"
+address = "09C3B7C0"
+name = "collision_tested_triangles_contains"
+purpose = "Returns 1 if a triangle pointer is in the manager's tested list at +0x22C (count +0x254), else 0."
+confidence = "inferred"
+evidence = "Linear scan; sweeps call it before testing a triangle and 09C3B7F8 after."
+
+[[function]]
+module = "game_sub"
+address = "09C3B7F8"
+name = "collision_tested_triangles_add"
+purpose = "Appends a triangle pointer to the manager's tested list at +0x22C, dropping it silently once the count at +0x254 reaches 10."
+confidence = "inferred"
+evidence = "Bounded append; callers reset the count to 0 at the start of a sweep."
+
+[[function]]
+module = "game_sub"
+address = "09C3B828"
+name = "collision_hit_triangles_contains"
+purpose = "Returns 1 if a triangle pointer is among the first param_3 entries of the manager's hit list at +0x258, else 0."
+confidence = "inferred"
+evidence = "Linear scan; sweeps store hit triangles at +0x258 and pass their running hit count."
+
+[[function]]
+module = "game_sub"
+address = "09C3B860"
+name = "collision_test_triangle_unless_wholly_below_y"
+purpose = "Returns 0 without testing when sweep field +0x2A is nonzero and no vertex of the expanded triangle is above param_4's y; otherwise returns 09C3B8D0's result, which records a hit in the manager."
+confidence = "inferred"
+evidence = "Compares y of vertices at +0x14, +0x24, +0x34 with param_4+4; object versions pass the object's +0x200 and set +0x2A to 1; 09C3B8D0 increments +0x228."

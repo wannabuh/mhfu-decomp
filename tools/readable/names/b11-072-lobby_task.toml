@@ -1,0 +1,271 @@
+[[function]]
+module = "lobby_task"
+address = "09A9EE58"
+name = "unknown_sets_field_484_when_gates_clear"
+purpose = "Sets byte +0x484 of the first argument to 1 when arg 2 is nonzero, 9A795C8 does not return 1 and 9C1C208(DAT_09cfb998) returns 0."
+confidence = "guess"
+evidence = "Body is that one guarded store; what the two gate callees test was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A9EEC8"
+name = "gamedata_bitflag_508_set_if_arg2_zero"
+purpose = "Calls gamedata_bitflag_508_set on the game global with arg 1 when arg 2 is zero."
+confidence = "inferred"
+evidence = "One-statement body around the named callee."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F1C0"
+name = "dialogue_box_update_with_typewriter"
+purpose = "Each frame advances the text counter +0x34, runs dialogue_text_typewriter_update on the current page +0x3C, then handles buttons: while typing, mask 0x6000 sets the counter to -1; when done, mask 0x4000 or 0x2000 turns page kind 2 to the next page, on kind 1 masks 0x80/0x20 move the choice +0x38 and mask 0x2000 on choice 0 moves it to 1, returning 2 while running, 3 for choice 1 and 0 otherwise, with arg 2 nonzero suppressing the closing UI sound."
+confidence = "inferred"
+evidence = "Calls the named typewriter callee and page helpers; 9A7BB50 is a switch of sound_play_2d cues; DAT_09b22e70 passed by 09AA1B18."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F420"
+name = "dialogue_find_section_by_id"
+purpose = "Walks the 8-byte entries from pointer +0x12D8C until first word -1 and returns the address of the entry whose first word equals the low byte of arg 2, or 0."
+confidence = "inferred"
+evidence = "Terminated table scan via mem_memcpy; the same +0x12D8C base is used by the dialogue page helper 09A9F4B0."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F4B0"
+name = "dialogue_page_entry_ptr"
+purpose = "Returns the address of 8-byte page entry arg 2 of the section at +0x2C, at section second word + index*8 + base +0x12D8C, or &DAT_09b064b8 when +0x2C is 0."
+confidence = "inferred"
+evidence = "Called by the page kind and page text helpers; computation read directly."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F520"
+name = "dialogue_page_text_ptr"
+purpose = "Returns page entry 0's address plus the second word of page arg 2's entry, with arg 2 replaced by 0 when it is at or past the count +0x3E."
+confidence = "inferred"
+evidence = "09A9F1C0 stores the result in +0x30 and passes it to dialogue_text_typewriter_update."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F580"
+name = "dialogue_page_kind"
+purpose = "Returns the first word of page arg 2's 8-byte entry, which the input handlers test against 1 (a two-way choice) and 2 (more pages)."
+confidence = "inferred"
+evidence = "09A9F1C0 moves +0x38 on value 1 and increments page +0x3C on value 2."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F5B0"
+name = "dialogue_box_handle_input_flags"
+purpose = "Advances the text counter +0x34 and handles buttons without running the typewriter: returns 1 when mask 0x4000 or 0x2000 closes the page and 0 otherwise, arg 2 mask 1 ignores buttons, mask 2 suppresses most closing UI sounds, and masks 0x80/0x20 move the kind 1 choice +0x38."
+confidence = "inferred"
+evidence = "Same button tree as 09A9F1C0, reading typewriter result +0x3A instead of producing it."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F7B0"
+name = "npc_talk_is_npc_released_by_talk_state"
+purpose = "Switches on arg 1's first word: 0x3C returns whether arg 2's motion is 0x418, 0xE and 6 return 0, a listed set of values returns whether byte +0x3B differs from arg 2's +0x480, and any other value calls 9ABE418(arg 2), which can change +0x485, and returns 1."
+confidence = "inferred"
+evidence = "Read directly; 09ABF420 passes DAT_09b22e70 and advances its sub-state +0x1D5 when the result is 1; what the first word means was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F940"
+name = "dialogue_box_set_page"
+purpose = "Sets page +0x3C to arg 2 and choice +0x38 to arg 3 and resets the text counter +0x34 to 0."
+confidence = "inferred"
+evidence = "Fields match those read by 09A9F1C0; 09AA1B18 calls it with page 3 on DAT_09b22e70."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F950"
+name = "dialogue_page_count_from_first_entry"
+purpose = "Returns page entry 0's second word masked with 0x7FFFF and divided by 8, the number of 8-byte entries before the text offset it holds."
+confidence = "inferred"
+evidence = "Arithmetic read directly; called once during dialogue set-up by 09A95D08 in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09A9F988"
+name = "item_give_to_pouch_and_box_if_room"
+purpose = "If the count arg 3 fits the pouch room (clamped to 0) plus box room for item arg 2, adds it through 09A9FA30 and returns 1; otherwise calls 09A9FB10(item) and returns 0."
+confidence = "inferred"
+evidence = "item_pouch_saved_room_for and item_box_total_room summed and compared to the count."
+
+[[function]]
+module = "lobby_task"
+address = "09A9FA30"
+name = "item_add_to_pouch_then_box_with_message"
+purpose = "Pushes a HUD message for the item, adds up to arg 4 of count arg 3 to the saved pouch and copies it to the active pouch, and puts any remainder in the item box after queuing message 0x14."
+confidence = "inferred"
+evidence = "Named callees hud_message_queue_push, item_pouch_saved_add_count, pouch_copy_stored_43c8_to_active, item_box_add; 9A7B278 pushes a HUD string."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1538"
+name = "equip_copy_slots_field_4c0_to_field_60_and_queue_request_3"
+purpose = "Calls equip_refresh_equipped_copies, copies six 12-byte slots in the game global from +0x4C0..+0x507 to +0x60..+0xA7, and marks the first free of eight slots at DAT_09b23790 with value 3 through 9A7D390."
+confidence = "inferred"
+evidence = "Copies read directly; 9A7D390 writes 3 to the first zero slot; 09AA1C70 then waits on 9A7CAA8(DAT_09b23790) before calling 09AA16E8."
+
+[[function]]
+module = "lobby_task"
+address = "09AA16E8"
+name = "hunter_refresh_from_game_equipment"
+purpose = "For the local player's hunter, copies equipment from the game global, recomputes active skills and max sharpness, stores the sharpness level in +0x5F2, updates field +0x612 by weapon type and primes model effect ops with it."
+confidence = "inferred"
+evidence = "A sequence of named hunter_ callees on hunter_manager_get_slot(game +0x28)."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1760"
+name = "equip_box_count_by_type_and_id"
+purpose = "Counts the 12-byte equipment box entries from game +0x548, up to box_slot_capacity, whose byte +1 equals arg 1 and short +2 equals arg 2, capped at 999."
+confidence = "inferred"
+evidence = "Same +0x548 table walked by 09AA2658 with equip_get_name_text(byte +1, short +2)."
+
+[[function]]
+module = "lobby_task"
+address = "09AA17F8"
+name = "equip_menu_copy_slot_4c0_for_type_to_field_52"
+purpose = "Copies a 12-byte slot of the game global into the menu's +0x52: slot +0x4CC + arg*12 for values 0 to 4, slot +0x4C0 for 5 and 6, leaving only +0x53 = arg for others, then sets byte +0x52 to 1."
+confidence = "inferred"
+evidence = "Switch read directly; called by 09AA2508 with game byte +0x4C1 on one path."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1B18"
+name = "equip_menu_screen_update"
+purpose = "Screen state machine on +0x20: set-up including dialogue load via 09A95D08 and table 09AA6BB8, dialogue, menu 09AA1C70 until it returns 0 or 3 then dialogue page 3, dialogue again, then pouch_copy_stored_43c8_to_active and the exit calls 9A85B48 and 9A7E858."
+confidence = "inferred"
+evidence = "Runs in the shops recording only in traces (2800-2970); state tree read directly."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1C70"
+name = "equip_menu_state_machine"
+purpose = "Sub-state machine on +0x21 driving the option lists, the list from 09AA2508 and its input 09AA2EE0, confirmation steps and the 09AA1538 then 09AA16E8 path, delegating to 9AA6C40 when +0x23 is 3, returning 3 to leave and 2 while running."
+confidence = "inferred"
+evidence = "Runs in the shops recording in traces; switch read directly."
+
+[[function]]
+module = "lobby_task"
+address = "09AA24F0"
+name = "equip_menu_set_top_options"
+purpose = "Sets the option list +0xC to &DAT_09b04f78 and the count +0x27 to 3."
+confidence = "inferred"
+evidence = "09AA1C70 sets +0xC and +0x27 the same way for its other option lists and then branches on +0x24 values 0 to 2."
+
+[[function]]
+module = "lobby_task"
+address = "09AA2508"
+name = "equip_menu_rebuild_list"
+purpose = "Clears 0x4ED0 bytes at +0x6C, then for +0x24 of 0 or 1 sets the text +8 by +0x25 and fills the list (09AA2658 or 09AA2AB8), recomputes the cursor from +0x1C when +0x29 is 4, and calls 09AA17F8 with the resulting type."
+confidence = "inferred"
+evidence = "Read directly; 09AA1C70 calls it on entering and returning to the list state 6."
+
+[[function]]
+module = "lobby_task"
+address = "09AA2658"
+name = "equip_menu_build_weapon_list"
+purpose = "Fills 16-byte list rows at +0x6C: with +0x25 == 0 from recipe table DAT_0894944c filtered by category +0x26 (type 5 by weapon kind pair, type 6 for categories 4 and up) and the +0x4E0 mask, with half price, name and a disabled flag from materials and funds, otherwise from all equipment box entries with only types 5 and 6 enabled; also sets count +0x48, pages +0x34, +0x29 and +0x2A."
+confidence = "inferred"
+evidence = "recipe_check_material_availability, weapon_kind_by_type_and_id, equip_get_name_text, 09AA66A8; 09A801E0 given the price."
+
+[[function]]
+module = "lobby_task"
+address = "09AA2EE0"
+name = "equip_menu_list_handle_input"
+purpose = "Handles list buttons: mask 0x2000 closes the panel or returns 3, mask 0x4000 returns 0 for an enabled row or 1 with a reject sound, direction masks move the cursor by paged or 0-99 layout, 0x8000 changes panel +0x22, 0x100/0x200 change pages, 0x1000 cycles +0x30 and rebuilds, and it updates selection +0x40, returning 2 otherwise."
+confidence = "inferred"
+evidence = "Read directly; row field +8 tested; menu_cursor_move_*_wrap callees."
+
+[[function]]
+module = "lobby_task"
+address = "09AA6620"
+name = "equip_id_at_or_above_0x5dd"
+purpose = "Returns 1 when the 16-bit id is 0x5DD or more, else 0."
+confidence = "inferred"
+evidence = "One comparison; 09AA2658 gives such ids text DAT_09b04fc2 and price 1000."
+
+[[function]]
+module = "lobby_task"
+address = "09AA66A8"
+name = "equip_get_price_halved"
+purpose = "Returns equip_get_price(type, id) shifted right by 1."
+confidence = "inferred"
+evidence = "One-statement body around the named callee."
+
+[[function]]
+module = "lobby_task"
+address = "09AA6BB8"
+name = "table_0893b938_build_group_row_ranges"
+purpose = "Clears 0x14 bytes at DAT_09b23ae0 and walks the 0x1A-byte rows of DAT_0893b938, storing for each first-byte group its first and last row as two shorts, stopping at group 0xFF."
+confidence = "inferred"
+evidence = "Loop read directly; called in the set-up state of 09AA1B18."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9350"
+name = "class_089bb05c_destruct"
+purpose = "Restores the vtable, sets mask 2 on +0x48 of nodes in the list at DAT_09d19860+0x19030 whose +0xC points at this object, then calls hunter_destruct and, when arg 2 is positive, object_delete_noop."
+confidence = "inferred"
+evidence = "Vtable 089BB05C +0x8; calls hunter_destruct."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9410"
+name = "class_089bb05c_init"
+purpose = "Calls hunter_init, clears +0x10F8, +0x553, +0x554, +0x62C and +0x46A, copies the stored pouch to the active one and the hunter mirror, and sets mask 1 on +0x410."
+confidence = "inferred"
+evidence = "Vtable 089BB05C +0x10; named callees."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9470"
+name = "class_089bb05c_reset_state_and_place"
+purpose = "Resets state and restarts motions, sets the place and fields from DAT_09a0ff04+0x40, calls 9AAF0D0, recomputes max sharpness and stores the sharpness level in +0x5F2."
+confidence = "inferred"
+evidence = "Vtable 089BB05C +0x40; named hunter_ callees."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9750"
+name = "class_089bb05c_state_check_for_field_614_mask_0x400"
+purpose = "Returns 0 or 1 from game field +0x6AF0E (0xD with 9C1C208 result 2 or 3 gives 0, 0x42 with +0x614 mask 0x20000 gives 0), byte +0x298 and state +0x299, including motion 0x1AA past frame 144; the state function 09AA94C8 sets or clears +0x614 mask 0x400 from it."
+confidence = "inferred"
+evidence = "09AA94C8 sets mask 0x400 on 1 and clears on 0; what that flag does was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09AA98D8"
+name = "class_089bb05c_tick_countdown_fields"
+purpose = "Forwards to hunter_tick_countdown_fields."
+confidence = "inferred"
+evidence = "One call body; lobby_task code reached from EBOOT 08865934."
+
+[[function]]
+module = "lobby_task"
+address = "09AA98E0"
+name = "class_089bb05c_classify_field_49e_or_state"
+purpose = "Returns 0 when DAT_09b22e70+8 is 1 for the local player; otherwise the local player gets 0, 1 or 3 by +0x49E thresholds 0x28 and 0x78 and others get 0, 1 or 5 by state +0x299, overridden to 5 when nonzero and +0x280 is 0, +0x410 mask 8 clear, +0x480 mask 0x200 set and +0x630 is 0."
+confidence = "inferred"
+evidence = "Read directly; 09AAAE60 starts motion 4 calls on result 0, but what +0x49E holds was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9A10"
+name = "class_089bb05c_draw_attached_model_group_by_field_6af0e"
+purpose = "Writes display list word 0x17000000, and for game field +0x6AF0E 0x11, 0x2E, 0xD or 0x55 with matching motions and frames draws a model group at a hunter bone with set offsets (a second group for 0xD), or calls hunter_draw_attached_prop_for_324 on the early exits, then writes 0x17000001."
+confidence = "inferred"
+evidence = "Vtable 089BB05C +0x50; object_build_bone_attach_matrix, gpu_set_world_matrix_scaled, model_draw_group."
+
+[[function]]
+module = "lobby_task"
+address = "09AAA0E0"
+name = "class_089bb05c_motion_frame_triggers"
+purpose = "By id +0x684 (0xFA, 0x58A, 0x587) at set motion frames calls 9C6F168, 9C60DA0 and 9C59358, with random 9CADF18 and 88C6234 spawns at DAT_09b07ca0 on id 0xFA frames 98 and 198, and then always calls hunter_motion_frame_triggers."
+confidence = "inferred"
+evidence = "Vtable 089BB05C +0x74; motion_frame_reached tests; 9C59358 allocates an object record with a position, not a sound."

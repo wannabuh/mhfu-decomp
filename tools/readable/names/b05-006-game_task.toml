@@ -1,0 +1,151 @@
+[[function]]
+module = "game_task"
+address = "09A9DBC0"
+name = "hunter_state_evade"
+purpose = "State function for states 0x1C, 0x2D, 0x7E and 0x25 (modes 0, 1, 2, 3): on entry sets field +0x35E through f_game_task_9A8B718, passes -75 to f_game_task_9A6A598 and plays motion 0x1C (mode 1 plays 0x16 first; modes 0 and 3 play 0x3F3 for +0x1E8 values 2 and 8 with +0x410 mask 0x8), with skill 0xBC adds 10 units forward per frame in motion frames 10-40, and for some +0x1E8 values chains into weapon-specific states, optionally turning +0x1F4 by 0x2000."
+confidence = "inferred"
+evidence = "State 0x1C is entered on input mask 0x4000 only with stamina above 0x4A; 9A8B100 picks between 0x1C and the sidesteps 0x31/0x32. The -75 stamina reading of 9A6A598 comes from that gate, its code was not read."
+
+[[function]]
+module = "game_task"
+address = "09A9E288"
+name = "hunter_state_dash"
+purpose = "State function for states 0x1F and 0x46 (modes 0, 1): plays motion 3 at animation speed 2.5, moves 5 units forward per frame, adjusts stamina by -1 every other frame, writes 30 to +0x630, and leaves when stamina is below 0x4C, the height probe ahead fires, or the move-input classifier stops returning 5 (class 3 only leaves once +0x630 is 0)."
+confidence = "inferred"
+evidence = "Entered from the common input handler when the classifier returns 5 (input mask 0x200 held with +0x410 mask 0x8 clear); f_game_task_9A6A480 applies the amount on odd game counters with skills 0xA8/0xA9 changing it."
+
+[[function]]
+module = "game_task"
+address = "09A9E690"
+name = "hunter_state_slow_stamina_run"
+purpose = "State function for states 0x20, 0x22 and 0x45 (modes 0, 1, 2): plays motion 0x26 (0x27 in mode 1), moves 1.5 units forward per frame, adjusts stamina every frame or every other frame depending on mode and byte-list entry 0x18; modes 0 and 2 leave when stamina is below 0x4C or when +0x111C mask 0x100 is clear or the angle from +0x2C0 to +0x1F4 is within 0x2000; mode 1 goes to state 0x21 at zero stamina."
+confidence = "inferred"
+evidence = "Same layout as the state 0x1F function at a lower speed; state 0x20 is chosen over 0x1F when +0x111C mask 0x100 is set and the angle from +0x2C0 is outside the arc. What +0x2C0 and that flag mean was not read."
+
+[[function]]
+module = "game_task"
+address = "09A9EC08"
+name = "hunter_state_motion_13_clear_29c_camera_shake"
+purpose = "State function for state 0x26: on entry calls f_game_task_9A6F5C0 with 0x8000, clears byte +0x29C, plays motion 0x13 and starts a camera shake from this object, then leaves through f_game_task_9A678F8 when the motion ends."
+confidence = "inferred"
+evidence = "Code plus dispatcher case 0x26; entered from f_game_task_9A9D478 after its +0x414 count reaches 0x1E. Game meaning not established."
+
+[[function]]
+module = "game_task"
+address = "09A9F368"
+name = "hunter_state_stop_from_motion_3"
+purpose = "State function for state 0x2C: plays motion 0x1E with flags 0x2000000 set through object_set_flags_288 and runs the common input handler (input mode 2 from motion frame 10 on) until the motion ends, then leaves through f_game_task_9A678F8."
+confidence = "inferred"
+evidence = "f_game_task_9A9BA48 enters state 0x2C when the current motion is 3 and the move-input class is below 3; the common handler forces move class 0 in this state."
+
+[[function]]
+module = "game_task"
+address = "09A9F8E8"
+name = "hunter_state_evade_sideways"
+purpose = "State function for states 0x31 and 0x32 (modes 0, 1): on entry sets field +0x35E through f_game_task_9A8B718, passes -75 to f_game_task_9A6A598 and plays motion 0x3EF/0x3F5 (mode 0) or 0x3EE/0x3F4 (mode 1) by +0x1E8 value 7 or other; with skill 0xBC adds -8 or +8 units along local X in motion frames 10-40; for +0x1E8 values 4 and 6 can chain into a weapon-specific state."
+confidence = "inferred"
+evidence = "The skill offset is on the local X axis with sign set by mode, where state 0x1C's is on Z; f_game_task_9A8B100 chooses 0x1C, 0x31 or 0x32. Which mode is left or right was not established."
+
+[[function]]
+module = "game_task"
+address = "09AA0660"
+name = "hunter_state_motion_12_oneshot"
+purpose = "State function for state 0x3A: writes 2 to +0x2BA every frame, plays motion 0x12 on entry and leaves through f_game_task_9A678F8 when the motion ends."
+confidence = "inferred"
+evidence = "Code plus dispatcher case 0x3A; no caller entering the state with a literal was found, so its game meaning is open."
+
+[[function]]
+module = "game_task"
+address = "09AA0AB0"
+name = "hunter_state_turn_around"
+purpose = "State function for state 0x3F: on entry snaps facing +0x1F4 to the wanted angle +0x320 and plays motion 0x2A with flags 0x2000000, runs the common input handler, and goes to state 0x24 when the motion ends."
+confidence = "inferred"
+evidence = "The common input handler enters state 0x3F when the angle between +0x320 and +0x1F4 is 0x6000-0xA000, about opposite."
+
+[[function]]
+module = "game_task"
+address = "09AA0E08"
+name = "hunter_state_timed_collect_action"
+purpose = "State function for states 0x47, 0x4A, 0x51, 0x52, 0x5C and 0x7C (modes 0, 3, 4, 5, 2, 7): plays a mode-specific motion and counts +0x414 down from 60 (40 with skill 0x8B in modes 4 and 5); at zero calls f_game_task_9AAA820 (mode 2 calls f_EBOOT_886C218 instead); modes 4 and 5 first roll a chance by the held tool id, altered by skills 0x8C-0x8F and byte-list entry 0xD, that pushes HUD message 0xE and takes one of that item from the pouch."
+confidence = "inferred"
+evidence = "f_game_task_9AA6E70 enters 0x51/0x52 with the selected item stored at +0x694 and 0x4A/0x7C by pickup_point type; f_game_task_9AAA820 calls pickup_point_take_item_at_object in its modes 1 and 3. Mode 2's collect meaning was not read."
+
+[[function]]
+module = "game_task"
+address = "09AA2D50"
+name = "hunter_state_wait_flag_614_credit_item_value_zenny"
+purpose = "State function for states 0x57 and 0x7B (modes 0, 1): holds motion 1 with +0x35E at 5 until +0x614 mask 0x2 (mode 0) or mask 0x200 (mode 1) clears; mode 1 for the local hunter, when entered with +0x111C mask 0x40, sums count times an item table value over the list at DAT_08a62dd4 + 0x28 and adds it to zenny, and handles +0x111C mask 0x80 with sound calls."
+confidence = "inferred"
+evidence = "gamedata_add_zenny_clamped with the summed value; f_game_task_9AA64B0 sets the 0x111C masks 0x40 and 0x80 for zone type 0x21. What clears the 0x614 masks and what the list holds were not read."
+
+[[function]]
+module = "game_task"
+address = "09AA5270"
+name = "hunter_common_input_handler"
+purpose = "Per-frame handler shared by idle, move and related states that turns input into state changes: by +0x29C, +0x410 mask 0x8 and the move-input class it picks run, walk, dash and turn states, evade on mask 0x4000 with stamina above 0x4A, zone and gather interactions, item use, and weapon-specific states by +0x1E8."
+confidence = "inferred"
+evidence = "Called from the state functions 9A9B1E0, 9A9BA48, 9A9E288, 9A9E690, 9A9F368 and 9AA0AB0 in traces; a run of vtable +0x6C state changes and a switch over +0x1E8 to weapon functions. The run and walk labels for states 1 and 0x49 are read from the move class only."
+
+[[function]]
+module = "game_task"
+address = "09AA5FB0"
+name = "hunter_classify_move_input"
+purpose = "Returns a move class from field +0x49E: 0 below 0x28, 1 for 0x28-0x77, 3 from 0x78 up; returns 5 instead when the class is nonzero, +0x280 is 0, +0x410 mask 0x8 is clear and input mask 0x200 is held, unless the state is 0x24 with +0x630 nonzero; returns 0 for +0x1E8 values 1, 5, 10 with +0x410 mask 0x8 and +0x614 mask 0x1000."
+confidence = "inferred"
+evidence = "Thresholds read directly; callers map 1, 3 and 5 to different move states, and 9A8B790 reads the angle beside it at +0x49C against the camera heading, so +0x49E as stick magnitude is inferred."
+
+[[function]]
+module = "game_task"
+address = "09AA6220"
+name = "hunter_try_take_item_from_other_hunter"
+purpose = "When DAT_08a632c0 + 0xF7A57C mask 0x1 is set and cooldown +0x62C is 0, looks for another hunter slot in the same +0x29A value, in state 0x67, whose +0x5C9 names this hunter and within 300 units; if the pouch has room copies item id +0x5CA and count +0x5CC to this hunter, calls vtable +0x54 with 7 and returns 1, otherwise pushes a HUD message and sets the cooldown to 0x5A."
+confidence = "inferred"
+evidence = "hunter_manager_get_slot loop and the pouch room checks. State 0x67 of the other hunter was not read, so 'take' is from the copied fields and messages."
+
+[[function]]
+module = "game_task"
+address = "09AA64B0"
+name = "hunter_activate_interaction_zone"
+purpose = "Acts on the interaction zone under the hunter by its type: 0x21 sets +0x111C mask 0x80 or 0x40 from quest checks, 0x1E moves the hunter to the zone point with a per-player offset of 120 units and takes its angle, 0x23 sets wanted angle +0x320 from the direction between hunter and zone centre, 0x19 and 0x18 change state subject to flags, 0x16 does nothing, and any other type checks the two nearby-object tests."
+confidence = "inferred"
+evidence = "Switch on f_game_task_9AA6B18's return; f_EBOOT_88D64E0 moves to +0x650 with an 800-unit distance cap. What each zone type is in game was not established."
+
+[[function]]
+module = "game_task"
+address = "09AA6B18"
+name = "interaction_zone_find_at_object"
+purpose = "Walks the 0x18-byte zone records from the object at *DAT_09a4f1a0 vtable +0x28, and for the first whose height is within 50 units and whose XZ distance is within its radius writes its position, angle and byte to the out arguments and returns its type; returns 0 if none."
+confidence = "inferred"
+evidence = "Record loop with count at +0x3E and explicit range tests; 'interaction' comes from caller f_game_task_9AA64B0."
+
+[[function]]
+module = "game_task"
+address = "09AA6C88"
+name = "hunter_near_object_type_0a_flag_790"
+purpose = "With byte DAT_089cc558 + 0x10 zero, returns 1 if any of the 20 objects in the table at DAT_09c122b0 + 0x1220 has +0x1E8 equal to 0x0A and byte +0x790 equal to 1 and is within 300 units of this object."
+confidence = "inferred"
+evidence = "Direct loop and distance test; game meaning of type 0x0A and +0x790 not read. Callers skip other interactions when it returns 1."
+
+[[function]]
+module = "game_task"
+address = "09AA6D70"
+name = "hunter_near_object_type_4a_flag_790"
+purpose = "With byte DAT_089cc558 + 0x10 zero and byte DAT_08a62d9c + 0x767 nonzero, returns 1 if any of the 20 objects in the table at DAT_09c122b0 + 0x1220 has +0x1E8 equal to 0x4A and byte +0x790 equal to 1 and is within 300 units of this object."
+confidence = "inferred"
+evidence = "Direct loop and distance test; game meaning of type 0x4A and +0x790 not read. Sibling of f_game_task_9AA6C88."
+
+[[function]]
+module = "game_task"
+address = "09AA6E70"
+name = "hunter_try_start_gather"
+purpose = "For the local hunter and unless a nearby-object test holds, looks up the gather area at its position: in mode 2 (selected item) areas of kind 3 and 4 start tool states 0x51 and 0x52 if the selected item is in that area's id group and otherwise play sound 0x15; kind 0 starts state 0x47 (0x5D outside mode 0); and outside mode 2 a pickup point starts state 0x4A/0x7C (0x60/0x7D outside mode 0)."
+confidence = "inferred"
+evidence = "pickup_point_type_at_object, item_pouch_slot_ptr with two groups of four item ids, and the area lookup by +0x29A in f_game_task_9A6F490; 'gather' is from pickup_point and the pouch tools, which item is which tool was not looked up."
+
+[[function]]
+module = "game_task"
+address = "09AA74A8"
+name = "hunter_tool_refuse_sound_if_selected"
+purpose = "In mode 2, plays sound 0x15 if the pouch slot at +0x648 holds one of the eight item ids 0x90-0x92, 0x94-0x96, 0x4C9, 0x4CA."
+confidence = "inferred"
+evidence = "Same ids and same sound as the wrong-area branch of f_game_task_9AA6E70, which calls this when no matching area applies; 'refuse' is read from that no-action branch."

@@ -1,0 +1,103 @@
+[[function]]
+module = "game_sub"
+address = "09C72AF0"
+name = "effect_compute_spawn_position_by_kind"
+purpose = "Writes a spawn position for effect kind param_4 (low byte) from the owner object's bone param_3, +0x200/+0x208 place, +0x2CC and yaw +0x1F4 offsets, adjusts it through 09C726B8 and returns that function's code; kind 0x13 with code 0 also spawns effects through 09C7F520 and 09C6F168."
+confidence = "inferred"
+evidence = "Switch on kind using object_get_bone_position/matrix; the traced caller 09C6F320 passes the result on to 09C74E48 and the effect spawn."
+
+[[function]]
+module = "game_sub"
+address = "09C73958"
+name = "effect_init_kind_owner_angle_scale"
+purpose = "Sets a new effect's kind +0x24, owner +0xC and field +0x3A from owner +0x1F4 (kinds 0x1E and 0x1C from the bone matrix instead), and field +0x3C from owner +0x220 times a factor chosen by kind and owner +0x1E8; some kind and owner +0x1E8 cases also call 09B630D0 or 09B63760."
+confidence = "inferred"
+evidence = "Called in traces on a freshly pooled effect by 09C6F320 and 09C6F470; +0x3C defaults to 1.0 and the draw code uses it as scale."
+
+[[function]]
+module = "game_sub"
+address = "09C74548"
+name = "effect_compute_spawn_position_by_kind_and_field_1e8"
+purpose = "Writes a spawn position for kinds 0, 3, 6, 7, 0x13, 0x14, 0x1C, 0x1E, 0x20 and 0x28 from the owner's bone, with offsets and +0x2CC height chosen by owner +0x1E8, then returns the code from 09C726B8, called with a fourth argument of 0."
+confidence = "inferred"
+evidence = "Same shape as 09C72AF0; caller 09C6F470 in traces passes it on to 09C74E48; ran only in fight2 5140-5290."
+
+[[function]]
+module = "game_sub"
+address = "09C74E48"
+name = "effect_spawn_sub_effects_and_sound_by_code"
+purpose = "For a nonzero code from the position functions raises position Y by 5 where the case does so, spawns 09C671A8 or 09C672F8 effects scaled by arg_f12 and usually plays a 3D sound (0x2E, 0x98, or 0x70/0x76 by scale above 4.0), returning 1; returns 0 for code 0 or for code 5 without an owner."
+confidence = "inferred"
+evidence = "Switch on param_3 with sound_play_3d calls; the traced callers spawn the plain effect only when the return is not 1."
+
+[[function]]
+module = "game_sub"
+address = "09C75350"
+name = "class_089bdec0_destructor"
+purpose = "Restores vtable 089BDEC0, passes the +0x220 block to 09AB3C48 when kind +0x24 is 5, calls base 09C56F20, and calls 09C56FD0 when param_2 is positive."
+confidence = "inferred"
+evidence = "Vtable 089BDEC0 +0x8; 09C772A8 gives the same +0x220 block to 09AB38A8 for kind 5."
+
+[[function]]
+module = "game_sub"
+address = "09C75518"
+name = "effect_spawn_at_position_without_owner"
+purpose = "Takes an effect from pool 09C2E7E8, sets kind param_2, no owner, field +0x3C to 2.0 for kind 2 and otherwise 1.0, copies position param_1, and links it at the head of the list at DAT_09d19860 +0x19030, counting it in +0x19034."
+confidence = "inferred"
+evidence = "Body reads directly; called from stage021 09D633A0 in the misc trace; same list link as the spawn in 09C6F320."
+
+[[function]]
+module = "game_sub"
+address = "09C75B78"
+name = "effect_draw_particle_by_kind"
+purpose = "Draw callback for one particle child param_2: picks scale, rotation, texture offset, model group and tint from the parent's kind and the child's 0x40-byte record at parent +0x60, builds its matrix with DAT_089cbd04 +0xC80, and draws it with model_draw_group_tinted between raw GE list words."
+confidence = "inferred"
+evidence = "Vtable 089BDEC0 +0x10, called through child +0x24 by 09C56EC0; writes GE words to DAT_089cc120 and calls model_draw_group_tinted."
+
+[[function]]
+module = "game_sub"
+address = "09C767E0"
+name = "effect_queue_particles_depth_sorted_by_state"
+purpose = "When the state function at +0x4C is 09C772A8 inserts each nonnull child without flag mask 0x4 into the depth-sorted render queue; when it is 09C78E90 inserts the single child at +0x44 if nonnull."
+confidence = "inferred"
+evidence = "Vtable 089BDEC0 +0x14; member_fn_not_equal against both state functions and render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09C76938"
+name = "effect_state_initial_dispatch_by_kind"
+purpose = "If +0x48 mask 0x2 is clear resets +0x29, +0x2A and +0x38 and runs 09C78D78 for kind 2 or 09C76A90 otherwise; if the mask is set switches the state function +0x4C to the entry at DAT_09cebbd8."
+confidence = "inferred"
+evidence = "Vtable 089BDEC0 +0x1C, called by 09C56F68 in traces, which also runs the later states."
+
+[[function]]
+module = "game_sub"
+address = "09C76A90"
+name = "effect_state_init_particles_by_kind"
+purpose = "For each of the kind's count from DAT_09ceb930 allocates a child through 09C337F0 and links it, seeds its 0x40-byte record at +0x60 per kind with random values, spawns a stage object for kind 3, and sets the state function to 09C772A8."
+confidence = "inferred"
+evidence = "Loop over DAT_09ceb930 count with switch on kind +0x24, ending in the member function write; called in traces by 09C76938."
+
+[[function]]
+module = "game_sub"
+address = "09C772A8"
+name = "effect_state_update_particles_and_kind_actions"
+purpose = "Per-frame state advancing and positioning the particle records by kind, with kind actions: kind 4 spawns a kind 5 effect at timer 0xC, kind 5 past timer 8 registers its +0x220 block through 09AB38A8 and writes +0x3A0 of the object at *DAT_09a4f1a0, kind 0xC follows owner bone 0xB and calls 09ACB4E0, 09CADF18 and 09CAD5A8; other conditions clear +0x48 mask 0x10 and change state."
+confidence = "inferred"
+evidence = "Stored as state function by 09C76A90, run by 09C56F68 in misc 2250-2390; large switch on kind +0x24, of which about 200 middle lines of the listing were not read."
+
+[[function]]
+module = "game_sub"
+address = "09C78D78"
+name = "effect_kind02_state_init_single_child"
+purpose = "Allocates one child at +0x44 through 09C337F0 and, on success, links it, sets +0x41 to 1, copies the effect position to it and sets the state function to 09C78E90; on failure clears +0x48 mask 0x10 and sets the state from DAT_09cebc48."
+confidence = "inferred"
+evidence = "Body reads directly; 09C76938 runs it only for kind 2."
+
+[[function]]
+module = "game_sub"
+address = "09C78E90"
+name = "effect_kind02_state_advance_pulse_phase"
+purpose = "Adds a random 1 or 2 to field +0x38 and sets it back to 1 once above 0x10."
+confidence = "inferred"
+evidence = "Set as state by 09C78D78; the kind 2 draw case in 09C75B78 turns +0x38 / 16 into a sine alpha."
