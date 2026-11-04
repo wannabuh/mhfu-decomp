@@ -40,6 +40,8 @@ def main():
         for m in mods:
             for func in functions[m.name]["functions"]:
                 f.write(f"{func['start']:x}\t{m.name}\n")
+            for stub in m.imports:      # (named by names/imports.toml)
+                f.write(f"{stub:x}\t{m.name}\n")
     with open(os.path.join(args.work, "modules.tsv"), "w") as index:
         for m in mods:
             index.write(f"{m.name}\t{m.base:x}\t{len(m.data):x}\n")
