@@ -6,7 +6,7 @@ call by accident; repeated over the whole game to a fixed point. Also:
 - stack arguments: loads through sp at or above the function's frame;
 - return register: v0 or f0 where a caller reads it straight after the call and the function writes it (or tail-calls one that
   does). A function no direct call reaches takes the decompiler's return, from HINTS, when that is v0 or f0;
-- methods (WORK/methods.json) take a0 as `this`, and an indirect call passes a0;
+- methods (WORK/methods.json) take a0 as `this`; a virtual call passes what the methods in its vtable slot read, and a0;
 - variadic functions (saving their last argument registers to the stack on entry) take the ones before those, and "...";
 - imports take the registers the runtime's handlers read.
 Writes WORK/signatures.tsv: module, address, return register or -, arguments (registers, s<offset> for the stack)."""
@@ -106,6 +106,20 @@ def import_args(main):
     return out
 
 
+def method_slot(m, a, start, reg):
+    """A call through `reg`: the vtable slot it was loaded from just before (lw reg, slot(x)), or -1 where it can't be told."""
+    at = a - 4
+    while at >= start and at >= a - 32:
+        i = m.ins(at)
+        if i.getOpcodeName() == "lw" and (i.getRaw() >> 16 & 31) == reg:
+            off = i.getProcessedImmediate()
+            return ("slot", off) if 0 <= off < 0x400 else -1
+        if uses_defs(i)[1] >> reg & 1:
+            return -1
+        at -= 4
+    return -1
+
+
 def build(m, f, starts, table):
     """Nodes: a list (succs, use, def, call): call is the target (a callee address), or -1 for an indirect one."""
     fn = Fn()
@@ -151,7 +165,7 @@ def build(m, f, starts, table):
             nodes[a][0] = [d]
             after = a + 8
             if i.isFunctionCall():
-                target = i.getInstrIndexAsVram() if name == "jal" else -1
+                target = i.getInstrIndexAsVram() if name == "jal" else method_slot(m, a, start, i.getRaw() >> 21 & 31)
                 call = ("call", a)
                 nodes[call] = [[after], 0, 0, target]
                 nodes[d][0] = [call]
@@ -183,7 +197,7 @@ def build(m, f, starts, table):
                 nodes[d][0] = [t for t in set(tables[a]) if inside(t)]
             else:       # an unresolved jr: a virtual call as a tail call
                 tail = ("tail", a)
-                nodes[tail] = [[], 0, 0, -1]
+                nodes[tail] = [[], 0, 0, method_slot(m, a, start, i.getRaw() >> 21 & 31)]
                 nodes[d][0] = [tail]
             a += 8
             continue
@@ -235,7 +249,7 @@ def analyse(fn, callee_args, callee_ret):
                 changed = True
     wants = []
     for k, (succs, _u, _d, target) in fn.nodes.items():
-        if isinstance(k, tuple) and k[0] == "call" and target != -1:
+        if isinstance(k, tuple) and k[0] == "call" and isinstance(target, int) and target != -1:
             out = 0
             for s in succs:
                 out |= live.get(s, 0)
@@ -279,7 +293,41 @@ def main():
             return [fns[(fn.mod, target)]]
         return [fns[(m, target)] for m in o]
 
+    # A virtual call takes what the methods in that slot read, of the caller's own class tree: other trees' slots mean other things
+    with open(os.path.join(work, "vtables.json")) as f:
+        vtables = json.load(f)
+    roots, this_root = {}, {}
+    classes_path = os.path.join(work, "classes.json")
+    if os.path.exists(classes_path):
+        with open(classes_path) as f:
+            cdata = json.load(f)
+        for v, c in cdata["classes"].items():
+            r, seen = v, {v}
+            while cdata["classes"][r]["parent"] and cdata["classes"][r]["parent"] not in seen:
+                r = cdata["classes"][r]["parent"]
+                seen.add(r)
+            roots[v] = r
+        for k, (v, _how) in cdata["this"].items():
+            m, a = k.split()
+            this_root[(m, int(a, 16))] = roots[v]
+    slot_methods = collections.defaultdict(lambda: collections.defaultdict(set))
+    for v, slots in vtables.items():
+        for off, (m, a) in slots.items():
+            slot_methods[int(off)][roots.get(v, v)].add((m, int(a, 16)))
+
+    def slot_args(fn, off):
+        # (with no class to go by, a0 only: every tree's methods together would invent arguments, and did)
+        family = this_root.get((fn.mod, fn.start))
+        mask = 1 << A0
+        for k in slot_methods.get(off, {}).get(family, ()):
+            t = fns.get(k)
+            if t:
+                mask |= t.fixed if t.variadic else t.args
+        return mask
+
     def callee_args(fn, target):
+        if isinstance(target, tuple):
+            return slot_args(fn, target[1])
         if target == -1:
             return 1 << A0
         if target in imp_mask:
@@ -294,7 +342,7 @@ def main():
         return mask
 
     def callee_ret(fn, target):
-        if target == -1 or target in imp_mask:
+        if isinstance(target, tuple) or target == -1 or target in imp_mask:
             return 0
         for t in targets_of(fn, target):
             if t.ret == "v0":
@@ -334,7 +382,7 @@ def main():
         for _ in range(4):
             for k, fn in fns.items():
                 for t in fn.tails:
-                    if t == -1 or t in imp_mask:
+                    if not isinstance(t, int) or t == -1 or t in imp_mask:
                         continue
                     for c in targets_of(fn, t):
                         c.called = True

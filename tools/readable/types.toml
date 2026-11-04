@@ -13,6 +13,8 @@ fields = [
   { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
   { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed", note = "bit 0 clears: deleted" },
   { offset = 0x010, name = "rotation", type = "f32x4", confidence = "confirmed", note = "first row of a 3x3, rows of 4" },
+  { offset = 0x020, name = "rotation_row1", type = "f32x4", confidence = "confirmed" },
+  { offset = 0x030, name = "rotation_row2", type = "f32x4", confidence = "confirmed", note = "its local Z: 09A9E288 pushes the hunter along it" },
   { offset = 0x040, name = "position", type = "f32x3", confidence = "confirmed" },
   { offset = 0x1C4, name = "next", type = "ptr", confidence = "confirmed" },
   { offset = 0x1D4, name = "life_state", type = "u8", confidence = "confirmed", note = "0 alive .. 3" },

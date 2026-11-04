@@ -117,7 +117,7 @@ def start_run(work, name, rec, rate, s, args, trace=True, extra=None):
         f.write(f"iso = {args.iso}\n")
     sw = s["switch"]
     env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE="1", MHFU_FPS="0",
-               MHFU_RENDERER="soft", MHFU_SCALE="1",
+               MHFU_RENDERER=args.renderer, MHFU_SCALE="1",
                MHFU_TICK_HZ=f"{rate}@{sw}" if sw and rate != 30 else str(rate),
                MHFU_REPLAY=os.path.abspath(rec), MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"),
                MHFU_STATEDIR=os.path.join(d, "states"),
@@ -284,7 +284,7 @@ def run_scenario(s, args, stamp):
             now[str(r)] = {"hashes": [h for h in ram_hashes(runs[r][1]) if h[0] < last],
                            "states": state_runs(frames[r])}
         res["baseline_now"] = now
-        path = os.path.join(DATA, "baselines", f"{name}.json")
+        path = os.path.join(DATA, "baselines" if args.renderer == "soft" else f"baselines-{args.renderer}", f"{name}.json")
         if args.bless or not os.path.exists(path):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w") as f:
@@ -424,6 +424,7 @@ def main():
     ap.add_argument("--bless", action="store_true", help="keep this run's results as the baselines")
     ap.add_argument("--keep", action="store_true", help="keep the traces")
     ap.add_argument("--list", action="store_true")
+    ap.add_argument("--renderer", default="vulkan", help="vulkan or soft: each has baselines of its own, as the game's RAM differs")
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "mhfu"))
     ap.add_argument("--iso", default=os.path.expanduser("~/Games/psp/mhfu.iso"))
     ap.add_argument("--timeout", type=int, default=1200)

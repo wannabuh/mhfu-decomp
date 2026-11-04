@@ -91,6 +91,7 @@ HAND = {
     ("game_task", 0x09A6A2D0): "hand_hunter_stamina_add",
     ("game_task", 0x09A6A370): "hand_hunter_stamina_use",
     ("game_task", 0x09A6A480): "hand_hunter_stamina_use_alternate_ticks",
+    ("game_task", 0x09A9E288): "hand_hunter_state_sprint",
 }
 
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to

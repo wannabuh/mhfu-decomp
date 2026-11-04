@@ -68,16 +68,17 @@ static void trace_args(Ctx *c, int module, uint32_t fn) {
     }
 }
 
-void rt_trace_all(Ctx *c, int module, uint32_t fn) {
+/* Returns whether the function should be skipped: never here, but handtest's stubs do (runtime/test/handtest.c). */
+int rt_trace_all(Ctx *c, int module, uint32_t fn) {
     trace_args(c, module, fn);
     if (off)
-        return;
+        return 0;
     uint32_t ra = c->r[31];
     if (!slots) {
         const char *path = getenv("MHFU_TRACE_ALL");
         if (!path || !(out = fopen(path, "wb"))) {
             off = 1;
-            return;
+            return 0;
         }
         slots = calloc(SLOTS, sizeof(Slot));
     }
@@ -92,8 +93,9 @@ void rt_trace_all(Ctx *c, int module, uint32_t fn) {
     while (slots[h].span && !(slots[h].fn == fn && slots[h].ra == ra && slots[h].module == (uint32_t)module))
         h = (h + 1) & (SLOTS - 1);
     if (slots[h].span == span + 1)
-        return;
+        return 0;
     slots[h] = (Slot){fn, ra, (uint32_t)module, span + 1};
     uint32_t rec[4] = {span * TRACE_SPAN, (uint32_t)module, fn, ra};
     fwrite(rec, sizeof rec, 1, out);
+    return 0;
 }
