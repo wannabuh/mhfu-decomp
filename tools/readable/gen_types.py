@@ -54,6 +54,13 @@ def main():
     with open(os.path.join(HERE, "types.toml"), "rb") as f:
         types = tomllib.load(f)
     named = {s["name"]: s for s in types.get("struct", [])}
+    for path in sorted(glob.glob(os.path.join(HERE, "fields", "*.toml"))):      # fields named by system
+        with open(path, "rb") as f:
+            for fd in tomllib.load(f).get("field", []):
+                have = named[fd["struct"]].setdefault("fields", [])
+                if any(x["offset"] == fd["offset"] for x in have):
+                    raise SystemExit(f"{path}: {fd['struct']} +0x{fd['offset']:X} named twice")
+                have.append(fd)
     write_view_types(work, types)
     if header:
         write_header(header, named)

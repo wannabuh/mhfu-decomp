@@ -345,6 +345,7 @@ public class DecompileModule extends GhidraScript {
 
         DecompInterface decomp = new DecompInterface();
         DecompileOptions options = new DecompileOptions();
+        options.setIntegerFormat(DecompileOptions.IntegerFormatEnum.BestFit);   // 76 for a count, 0x4000 for a flag
         decomp.setOptions(options);
         decomp.toggleCCode(true);
         decomp.toggleSyntaxTree(true);
