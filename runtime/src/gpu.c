@@ -2354,6 +2354,10 @@ static void prim_stats_print(void) {
     memset(ps_runs, 0, sizeof ps_runs);
 }
 
+void gpu_prim_stats_now(void) {     /* (MHFU_FRAME_LOG with MHFU_PRIM_STATS: every so many frames, whatever the display) */
+    prim_stats_print();
+}
+
 static unsigned long cuts, shown_frames;      /* for MHFU_FPS_STATS */
 static float cut_turn, cut_move;
 

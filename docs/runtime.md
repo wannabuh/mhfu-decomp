@@ -111,6 +111,10 @@ The display's frames are drawn while the game waits (one host thread); when the 
 clock by more than a frame shown, frames are left out rather than the game slowed. Each primitive keeps only the span
 of vertices it indexes, consecutive primitives on one buffer sharing a copy (a hunt's strips index big shared buffers:
 copied whole, that was 70 MB a frame, and the game ran at 20-24 at 144).
+`MHFU_FRAME_LOG=<file>` writes each game frame's wall time and stage (with `MHFU_PRIM_STATS=1`, the primitives by class every 240 frames), and
+`MHFU_PROFILE=<file>,<from>,<to>` samples where the time goes between two frames, named by `tools/profile.py BINARY FILE`. Measure with `MHFU_FPS=0`: a recording
+doesn't stay in step at a display's rate.
+
 `MHFU_FPS_STATS=1` reports, by the wall clock, the frames shown and left out, the game's rate, its longest frame, the
 time idle, and the matching (with `MHFU_PRIM_STATS=1`, also the primitives a frame drawn by class - 2D, scenery,
 lit, skinned... -, their vertices, the vertex stage's time on them and how often their matrices change);
