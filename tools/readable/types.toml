@@ -4,7 +4,7 @@
 # known to reach, kept generous: past it the decompiler prints self[1].field_X, which reads wrongly.
 # Every class classes.py finds reaches the view, as Class_<vtable> with field_<offset>; what is here names them. `base` says what a
 # struct's fields start from: a field goes on the highest class it means the same thing for.
-# Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess.
+# Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess. `decimal`: a quantity, shown in decimal.
 
 [[struct]]
 name = "Object"
@@ -21,9 +21,9 @@ fields = [
   { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
   { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
   { offset = 0x299, name = "state", type = "u8", confidence = "confirmed" },
-  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred", note = "ticks in its state; monsters' in 60ths" },
+  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred", decimal = true, note = "ticks in its state; monsters' in 60ths" },
   { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed", note = "member function pointer, 3 words" },
-  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
+  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed", decimal = true },
 ]
 
 [[struct]]
@@ -33,15 +33,15 @@ vtables = ["089BAECC"]
 fields = [
   { offset = 0x1E8, name = "weapon_class", type = "u8", confidence = "confirmed" },
   { offset = 0x1F4, name = "facing", type = "u32", confidence = "confirmed" },
-  { offset = 0x2E4, name = "health", type = "s16", confidence = "inferred", note = "HUD +0x560 steps toward it; 08841AB4 tests it" },
+  { offset = 0x2E4, name = "health", type = "s16", confidence = "inferred", decimal = true, note = "HUD +0x560 steps toward it; 08841AB4 tests it" },
   { offset = 0x324, name = "motion_id", type = "u16", confidence = "inferred", note = "part 0's; 088D1DD0 copies it to +0x684" },
-  { offset = 0x41C, name = "health_red_limit", type = "u16", confidence = "inferred", note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
-  { offset = 0x41E, name = "health_max", type = "u16", confidence = "inferred", note = "100 + food + skill, capped at 150" },
-  { offset = 0x55A, name = "stamina", type = "s16", confidence = "confirmed", note = "300 full" },
-  { offset = 0x60C, name = "sharpness_max", type = "u16", confidence = "inferred", note = "current at +0x10F2" },
-  { offset = 0x62E, name = "stamina_max", type = "u16", confidence = "confirmed" },
+  { offset = 0x41C, name = "health_red_limit", type = "u16", confidence = "inferred", decimal = true, note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
+  { offset = 0x41E, name = "health_max", type = "u16", confidence = "inferred", decimal = true, note = "100 + food + skill, capped at 150" },
+  { offset = 0x55A, name = "stamina", type = "s16", confidence = "confirmed", decimal = true, note = "300 full" },
+  { offset = 0x60C, name = "sharpness_max", type = "u16", confidence = "inferred", decimal = true, note = "current at +0x10F2" },
+  { offset = 0x62E, name = "stamina_max", type = "u16", confidence = "confirmed", decimal = true },
   { offset = 0x684, name = "motion_id_copy", type = "u16", confidence = "inferred", note = "copy of +0x324 (088D1DD0); docs/testing.md and ratecheck call it the action: its values are the weapons' moves" },
-  { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred" },
+  { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred", decimal = true },
 ]
 
 [[struct]]

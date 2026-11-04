@@ -22,3 +22,4 @@ fi
 rm -rf "$out"
 run_all "$out"
 "$py" "$here/gen_types.py" "$WORK" "$out/mhfu_types.h"
+"$py" "$here/decimals.py" "$out"

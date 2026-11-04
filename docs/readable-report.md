@@ -4,7 +4,7 @@ Run overnight 2026-11-03 to 04, on `auto/readable-code`. How to use all this: `d
 
 ## What there is now
 
-- **The view** (`build/read/`, regenerated from your ISO by `tools/readable/all.sh` in about 10 minutes): all 16,966 functions decompiled,
+- **The view** (`build/read/`, regenerated from your ISO by `tools/readable/all.sh` in about 10 minutes): 16,965 of 16,966 functions decompiled in this run (`download_task 9A70370` came out empty; fixed since, and all 16,966 now do),
   no bad-instruction markers, about 814,000 lines, 4,999 gotos. Before: register-level C named by address.
 - **Names:** 5,878 entries, 272 of them imports. Every one of the 3,763 functions seen running has a name,
   directly or through identical code. 670 `confirmed`, 5,069 `inferred`, 139 `guess`; 47 honestly `unknown_`.
