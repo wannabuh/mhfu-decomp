@@ -125,6 +125,7 @@ vtables = ["08A632C8"]
 
 [[struct]]
 name = "Global_08A62EAC"
+span = 0x1000000
 vtables = ["08A62EAC"]
 
 [[struct]]
@@ -133,4 +134,5 @@ vtables = ["08A62D9C"]
 
 [[struct]]
 name = "Global_08A632C0"
+span = 0x1000000
 vtables = ["08A632C0"]

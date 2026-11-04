@@ -91,4 +91,8 @@ It is a reading aid: when it matters, check the generated C. Known, with how to 
 - **Calls through a vtable can drop `this`:** `(**(code **)(*(int *)self + 0x20))()` with nothing set beforehand usually means a0 still holds `self`.
 - **Local floats that are really words:** `float local_c = DAT_...; self->field_4C = local_c` copied through a float register, often the three words of a member function pointer. The field isn't a float: check the generated C.
 - **Structs of a class only as good as the evidence:** a function's `self` comes from what it ran on, its vtable or its callers, so one that ran only on hunters shows `Hunter *` even if it is more general.
+- **Indexed access shown from the wrong field:** `*(ushort *)((int)self->place_plus_area_offset + i + 0xc4)` is an offset from `self` that the decompiler happened to
+  anchor on a nearby named field; the field's name says nothing about it. Work out the offset (here +0x324, `motion_id`) or check the generated C.
+- **Fake array indexes on a global:** `g_x[0x56].field_0x2421` is one byte at a large offset (0x56 times the struct's size, plus 0x2421), not an array.
+- **Carried names:** a name copied from identical code can say something true only of the function it came from, such as which vtable slot it fills.
 - **Rarely, a lost store:** one write to a stack struct was missing in `demo_task 9A60A28`. When a local array matters, check the generated C.
