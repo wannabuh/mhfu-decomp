@@ -72,6 +72,9 @@ build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
 	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $^ $(TRACE_HOOK) $(LIBS) -o $@
 
+build/handtest: runtime/test/handtest.c $(RUNTIME_OBJ) build/game.a build/gen/mhfu_types.h
+	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $(HAND_FLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(TRACE_HOOK) $(LIBS) -o $@
+
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm
 
