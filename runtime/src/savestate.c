@@ -200,7 +200,7 @@ static int vars_init(void) {
                 snprintf(v->name, sizeof v->name, "var:%s:%s", file, strs + sym[i].st_name);
             else
                 snprintf(v->name, sizeof v->name, "var:%s", strs + sym[i].st_name);
-            v->at = (uint8_t *)sym[i].st_value;
+            v->at = __start_mhfu_state + (sym[i].st_value - sh[saved].sh_addr);
             v->size = sym[i].st_size;
             covered += v->size;
         }
