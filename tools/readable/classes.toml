@@ -662,10 +662,10 @@ evidence = "game_sub 9C5A740, 9C59538, class_089bdce0_tick_age_and_place_node"
 
 [[class]]
 vtable = "089BDCB8"
-name = "FxMistSheetsAtBones"
+name = "FxOwnerFloorMarkAtBones"
 base = "Fx"
-confidence = "inferred"
-note = "Render nodes placed at the owner's bones and drawn as the mist sheets"
+confidence = "guess"
+note = "spawned per owner with no stage test (Comrade, monsters), at the owner's floor, scaled and faded by the owner. Perhaps a drop shadow: unproven."
 evidence = "game_sub 9C57E08 snow_mist_sheets_draw (confirmed), 9C58688, class_089bdcb8_tick_place_nodes_at_owner_bones"
 
 [[class]]

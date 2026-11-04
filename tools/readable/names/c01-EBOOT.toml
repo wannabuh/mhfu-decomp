@@ -961,9 +961,9 @@ evidence = "Whole body: unpack, class below 2, 890621C."
 [[function]]
 module = "EBOOT"
 address = "08896A50"
-name = "hint_step_set_flag_once"
+name = "quest_notice_stage_set_flag_once"
 purpose = "If the current step byte +0x1111 equals the argument and bitflag N of 508 is not set, sets it and stores a value at +0x1113."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body: gamedata_bitflag_508_test and set. Caller quest_hint_trigger_event."
 
 [[function]]
@@ -2329,9 +2329,9 @@ evidence = "One line."
 [[function]]
 module = "EBOOT"
 address = "088AEFCC"
-name = "net_state_41e_differs"
+name = "net_record_byte1_differs"
 purpose = "Returns whether byte 09A2041E differs from the low byte of the argument."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "One line."
 
 [[function]]

@@ -371,7 +371,7 @@ evidence = "lobby_task 9ABD418, whole read"
 [[field]]
 struct = "Npc"
 offset = 0x4D2
-name = "spawn_facing"
+name = "saved_facing"
 type = "s16"
 confidence = "inferred"
 note = "facing at load; talk turns back to it"

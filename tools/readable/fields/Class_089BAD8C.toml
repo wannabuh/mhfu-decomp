@@ -141,7 +141,7 @@ offset = 0x5C
 name = "initial_load_done"
 type = "u8"
 confidence = "inferred"
-note = "set at the end of the first load; the hunter's tick tests it"
+note = "while 0, the hunter's tick sets flag 4 without the camera test"
 evidence = "game_task 9A5F868 sets 1 in its last step; EBOOT 88B97BC clears it; 9A66198 skips its volume check while 0"
 
 [[field]]

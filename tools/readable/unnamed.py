@@ -37,7 +37,13 @@ for path in glob.glob(os.path.join(GEN, "*.c")):
                 lines[cur] = 0
                 continue
             if cur:
+                if text.startswith("}"):
+                    cur = None
+                    continue
                 lines[cur] += 1
+                # (a generated function ends with a call of the next, for falling through: no address on it, not a call)
+                if text.lstrip().startswith("f_") and "/*" not in text:
+                    continue
                 for callee in call.findall(text):
                     if callee != cur:
                         calls[callee] += 1

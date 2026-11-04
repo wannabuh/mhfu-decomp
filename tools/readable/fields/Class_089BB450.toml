@@ -549,7 +549,7 @@ offset = 0x13F0
 name = "trail_place_0"
 type = "f32x4"
 confidence = "inferred"
-note = "first of 20 places left to walk, in order; used while trail_count is nonzero"
+note = "First of 26 by layout; no cap seen."
 evidence = "game_task 9A86190 appends; 9A77EF8 walks to it and shifts the rest down"
 
 [[field]]

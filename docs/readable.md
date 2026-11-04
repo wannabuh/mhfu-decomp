@@ -33,6 +33,7 @@ for it. Traces show what ran, so "in traces" is never "only". A caller's module 
 
 - `confirmed`: settled by a trace, a watchpoint, a patch, a string, or a short whole-body read. For a name about mechanics, that
   is strong; a game word in it is only as good as what it rests on.
+  Audits bear this out: fields marked `confirmed` held 11 of 11, and the misses among functions were game words on correct mechanics.
 - `inferred`: follows from the code and callers. Treat it as a lead: check it before relying on it.
 - `guess`: a plausible reading.
 
