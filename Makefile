@@ -13,6 +13,8 @@ GENFLAGS := $(CFLAGS) -w
 # -ffp-contract=off"` builds it for this machine's CPU, vectorised, no multiply-add fused (what it works out for the
 # game stays as the PSP's) - about a tenth faster at 144, but it has crashed now and then (not understood yet).
 RUNTIME_OPT ?=
+# A file linked in, for a build generated with RECOMP_TRACE_ALL=1 (tools/readable/README in docs/readable.md)
+TRACE_HOOK ?=
 
 RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
@@ -50,10 +52,10 @@ build/game.a: build/gen/.stamp
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
 
 build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(LIBS) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(TRACE_HOOK) $(LIBS) -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(LIBS) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(TRACE_HOOK) $(LIBS) -o $@
 
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm
