@@ -31,10 +31,27 @@ def load_types():
     with open(os.path.join(HERE, "types.toml"), "rb") as f:
         types = tomllib.load(f)
     named = {s["name"]: s for s in types.get("struct", [])}
+    # Classes named outside types.toml (classes.toml): Class_<vtable> until then, and a field file can use either
+    renames = {}
+    path = os.path.join(HERE, "classes.toml")
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            for c in tomllib.load(f).get("class", []):
+                renames[f"Class_{c['vtable'].upper()}"] = c["name"]
+                s = {"name": c["name"], "vtables": [c["vtable"].upper()], "note": c.get("note", ""), "confidence": c.get("confidence", "guess")}
+                if "base" in c:
+                    s["base"] = c["base"]
+                types.setdefault("struct", []).append(s)
+                named[c["name"]] = s
     for path in sorted(glob.glob(os.path.join(HERE, "fields", "*.toml"))):      # fields named by system
         with open(path, "rb") as f:
             for fd in tomllib.load(f).get("field", []):
-                have = named[fd["struct"]].setdefault("fields", [])
+                struct = renames.get(fd["struct"], fd["struct"])
+                if struct not in named and struct.startswith("Class_"):
+                    named[struct] = {"name": struct, "vtables": [struct[6:]]}
+                    types.setdefault("struct", []).append(named[struct])
+                fd["struct"] = struct
+                have = named[struct].setdefault("fields", [])
                 if any(x["offset"] == fd["offset"] for x in have):
                     raise SystemExit(f"{path}: {fd['struct']} +0x{fd['offset']:X} named twice")
                 have.append(fd)
@@ -168,13 +185,19 @@ def write_view_types(work, types):
                 for off, p in classes[a]["pointer_only"].items():
                     m = merged.setdefault(int(off, 16), {"access": [], "pointer": None, "deref": False})
                     m["pointer"] = m["pointer"] or p
+            # names along the whole chain, the base's first: a name further down wins at the same offset
+            at = {}
+            for a in reversed(chain):
+                if a in named_by_vt:
+                    for fd in named_by_vt[a].get("fields", []):
+                        at[fd["offset"]] = fd
+            own = [at[o] for o in sorted(at)]
             s = next((named_by_vt[a] for a in chain if a in named_by_vt), None)
-            own = inherited(s, named) if s else []
             span = max([SPAN, c["extent"] + 0x100, s.get("span", 0) if s else 0]
                        + [fd["offset"] + size_of(fd["type"]) + 0x100 for fd in own])
             out.write(f"S\t{names[v]}\t{span:x}\n")
             placed = []     # (offset, end)
-            for fd in inherited(s, named) if s else []:
+            for fd in own:
                 placed.append((fd["offset"], fd["offset"] + size_of(fd["type"])))
                 rows.append(f"F\t{names[v]}\t{fd['offset']:x}\t{fd['type']}\t{fd['name']}\n")
             for off, m in sorted(merged.items(), key=lambda kv: -sum(a[3] for a in kv[1]["access"])):
