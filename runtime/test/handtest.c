@@ -353,7 +353,7 @@ int main(int argc, char **argv) {
             uint32_t quiet = 0;
             if (cases[k].randomise_more) {
                 cases[k].randomise_more(c, hunter);
-                quiet = PICK(0, 8, 32, 128);
+                quiet = PICK(0, 4, 8, 16, 32, 128);
                 pokable = (const void *)upkeep_fields;
             }
             if (cases[k].small_a1)
