@@ -37,6 +37,8 @@ static const Case cases[] = {
     {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370},
     {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480},
     {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288},
+    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690},
+    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8},
 };
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
@@ -136,7 +138,11 @@ static void randomise(Ctx *c, uint32_t hunter, uint32_t *a1, int *tick30) {
         SB(hunter + 0x676 + i, PICK(0, 0, 0, 0xA8, 0xA9, 0x10));
     /* the state functions' */
     Hunter *self = (Hunter *)MEM(hunter);
-    self->state_step = (uint8_t)PICK(0, 1, 1, 1, 1, 2);
+    self->state_step = (uint8_t)PICK(0, 1, 1, 1, 1, 2, 2, 3, 3, 4);
+    self->action_count = (int32_t)PICK(150, 2, 1, 0, -1);
+    self->misc_flags = PICK(0, 8, 0xFF);
+    self->motion_part0_flags = (uint16_t)PICK(0, 1, 2, 3);
+    SW(LW(0x08A632C0u) + 0xF7A57Cu, PICK(0, 0, 1, 2));      /* (read by the sprints' input, when the slot has changed) */
     self->state_hold_timer = (int16_t)PICK(0, 0, 1, 30);
     self->motion_id = (uint16_t)PICK(3, 3, 0, 0x26);
     self->buttons_pressed = PICK(0, 0, 0x4000, 0x4000, 0x4010, 1, 2);
