@@ -56,6 +56,7 @@ typedef struct { uint32_t fn, a[8], f[8], stack0, hunter_hash; } Call;
 #define STUB_RECORD 0x09FF8000u         /* what a call returning a pointer to a record gets */
 #define RECORD_TYPE 0x3C
 #define REGEN_EFFECT_TEST 0x088DAE98u
+#define SKILL_TEST 0x088D6A1Cu
 static int stubbing;            /* within the function under test */
 static int running;             /* it is running, stubs or not */
 static uint32_t target;         /* it: not a stub */
@@ -162,8 +163,8 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
             else
                 SW(at, value);
         }
-        /* regeneration's last test, otherwise hardly ever passed */
-        if (pokable && fn == REGEN_EFFECT_TEST && c->r[5] == 0x20 && (stub_record_type[n] & 1))
+        /* two tests deep in regeneration, otherwise hardly ever passed */
+        if (pokable && ((fn == REGEN_EFFECT_TEST && c->r[5] == 0x20) || (fn == SKILL_TEST && c->r[5] == 0x7A)) && (stub_record_type[n] & 3))
             c->r[2] = 1;
         if (stub_stamina[n] != 0x7FFF)
             SH(stub_hunter + 0x55A, stub_stamina[n]);
