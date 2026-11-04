@@ -1,0 +1,1416 @@
+[[function]]
+module = "em01"
+address = "09D2A7F0"
+name = "em01_sound_at_bone_on_layer0_frame"
+purpose = "(frame, sound, bone): when motion layer 0 reaches the frame (frame 2 scaled by motion_speed_scale when that is not 1) plays the sound at the bone through 09D2A758."
+confidence = "confirmed"
+evidence = "Whole body and generated C read; 552 callers pass constants; 543 are in 09D2FDE8."
+
+[[function]]
+module = "em01"
+address = "09D1A450"
+name = "em01_request_script_and_set_rest_state"
+purpose = "Sets script_run_requested, then state 2,2 if movement_mode is nonzero, else 0,0x11 when arg is 1 or 0,1."
+confidence = "confirmed"
+evidence = "Whole body read; vtable +0x88 is the state setter, 77 state functions end through it."
+
+[[function]]
+module = "em01"
+address = "09D2F0C8"
+name = "em01_velocity_curves_tick"
+purpose = "Runs the velocity curves chosen by 09D2ED88, ORs their end bits into the result, advances frame +0x7F8 by layer 0 speed, and in movement_mode 2 moves by rotated velocity with acceleration."
+confidence = "inferred"
+evidence = "Whole body and 09D2EEB0, 09D2EFE0 read; 43 callers test nonzero as curve ended."
+
+[[function]]
+module = "em01"
+address = "09D2ED88"
+name = "em01_velocity_curves_select"
+purpose = "Clears the curve flags, stores curve id in +0x7F7, sets flags and the start frame +0x7F8 by id, zeroes velocity."
+confidence = "inferred"
+evidence = "Whole body read; the ids index tables at 09D35450, 09D35658 used by the curve functions."
+
+[[function]]
+module = "em01"
+address = "09D2D400"
+name = "em01_set_step_99_and_state_02_0f"
+purpose = "Writes 99 to state_step (+0x1D5), then sets state 2,0xF; a state change zeroes the step, so whether the 99 survives depends on when the setter runs."
+confidence = "confirmed"
+evidence = "Whole body read; every abort path of the 3,8 and 3,0x15 functions uses it."
+
+[[function]]
+module = "em01"
+address = "09D1A5D0"
+name = "em01_restore_layer_base_motion_from_two_ids"
+purpose = "For layer arg 0, 1 or 2: if that layer plays one of two listed ids (0x405/0x41B, 0x4CD/0x4E3, 0x595/0x5AB) restarts its base motion (0x3E9, 0x4B1, 0x579) with blend 10."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D2EC80"
+name = "em01_velocity_y_from_frame_curve_and_move"
+purpose = "Sets velocity[1] by table 09D34E20[arg] at layer 0 frame +0x90, piecewise, then moves by that velocity rotated by facing."
+confidence = "inferred"
+evidence = "Whole body read; skipped while motion_frame_checks_off."
+
+[[function]]
+module = "em01"
+address = "09D2A888"
+name = "em01_sound_at_place_on_layer_frame"
+purpose = "(frame, sound, bone, layer): when the layer reaches the frame plays the sound with bone as an argument, at place."
+confidence = "confirmed"
+evidence = "Whole body read; frame 2 scaled like 09D2A7F0."
+
+[[function]]
+module = "em01"
+address = "09D2E8F8"
+name = "em01_pitch_angle_x_to_target_or_level"
+purpose = "Steps angle_x by +0x7E0: mode 0 toward the pitch to target_slot plus a height offset, mode 1 toward 0xD000, mode 2 toward 0. Nothing without a target slot."
+confidence = "inferred"
+evidence = "Read; the atan through VFPU in mode 0 not followed op by op, only its result into 16-bit angle."
+
+[[function]]
+module = "em01"
+address = "09D2D220"
+name = "em01_effect_0b_unless_area_0"
+purpose = "Spawns effect kind 0xB when area_id is nonzero."
+confidence = "confirmed"
+evidence = "Whole body read; called at the landing step of many states."
+
+[[function]]
+module = "em01"
+address = "09D24250"
+name = "em01_shift_xz_10_along_facing_or_reverse"
+purpose = "Rotates the vector (0,0,10) by facing, or facing+0x8000 when arg is nonzero, and adds it to place x and z."
+confidence = "inferred"
+evidence = "Whole body read; used by states 3,0x1C/0x23 and 3,0x1D/0x24 with their 0/1 arg."
+
+[[function]]
+module = "em01"
+address = "09D2A758"
+name = "em01_sound_at_bone"
+purpose = "(sound, bone): plays the 3D sound at bone position, type byte from 089AA2E8 by subtype."
+confidence = "confirmed"
+evidence = "Whole body read; generated C of the caller confirms argument order."
+
+[[function]]
+module = "em01"
+address = "09D2D2A0"
+name = "em01_motion_2d_within_range_of_target_slot"
+purpose = "Returns 0 with no target slot; 1 if motion_id is 0x415 already; when distance to the slot is at most speed*30+4.5 starts table motion 0x2D and returns 1; else 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D22960"
+name = "em01_state_03_14_21_22_motions_5c_5d_5e_curves_a_b_turn_by_arg"
+purpose = "Motion 0x5C, curve 0xA, mode 2 at frame 94; under floor+372 at curve end motion 0x5D curve 0xB; at the floor motion 0x5E, effect 0xB, shake 2; arg 1 or 2 turns facing in frame windows. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x14,0x21,0x22."
+
+[[function]]
+module = "em01"
+address = "09D22228"
+name = "em01_state_03_10_1f_20_motions_34_39_curve_8_positioned_attack_turn_by_arg"
+purpose = "Motion 0x34, curve 8, mode 2 at frame 76; arg 1 or 2 turns facing +/-0x666 in frames 0..20; frame 90 spawns a KindSwitchedPositionedAttack (owned_obj_spawn_vtable_089bd548...) kind 2 yaw 0x2222; at the floor motion 0x39, effect 0xB, shake 2. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x10,0x1f,0x20."
+
+[[function]]
+module = "em01"
+address = "09D2E6D8"
+name = "em01_move_target_farthest_table_point_from_target_slot"
+purpose = "With no target slot sets state 2,6. Otherwise of the 4 area points at the type block +8 takes the one farthest from the target slot, stores it as target kind 2 param 2 and in move_target_place; (1000,0,1000) with no table."
+confidence = "inferred"
+evidence = "Read; the distance loop and max index read, callers 3,8 and group 3 setup."
+
+[[function]]
+module = "em01"
+address = "09D1C980"
+name = "em01_state_00_21_22_23_motion_3e"
+purpose = "Table motion 0x3E; dispatched for all three. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x21,0x22,0x23."
+
+[[function]]
+module = "em01"
+address = "09D27468"
+name = "em01_state_06_00_03_fly_to_object_5c8_land_place_it_advance_its_state"
+purpose = "Mode 2: flies to (3000,2000,9000), then at the object at +0x5C8 with motions 0x2C, 0x57, 0x2D; lands with motion 0x29, places the object 600 units along a rotated axis and sets it to 6,1, then 6,2, 6,3 and its facing; then motions 0x23, 0x4F, 0x3B, 1, 0x14. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29A78 case 0x0,0x3. Body read through a filter of the local copies. States 6,1 and 6,2 are stubs here and 6,3 runs this function, so the object may be a second monster of this class."
+
+[[function]]
+module = "em01"
+address = "09D24E78"
+name = "em01_state_03_25_26_after_9ad96b8_motion_2f_or_32_3a_5c_5d_5e"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then by arg motion 0x2F or 0x32 with spawns as 3,4 or 3,0x17; at frame 194 or 244 motion 0x3A then 0x5C, 0x5D, 0x5E. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x25,0x26."
+
+[[function]]
+module = "em01"
+address = "09D25E98"
+name = "em01_state_04_06_18_motions_45_or_4a_46_or_4b_47_or_48_37_5c_5d_5e"
+purpose = "By arg 0x45/0x46/0x47 or 0x4A/0x4B/0x48, then at frame 66 motion 0x37, 0x5C, 0x5D, 0x5E, landing shake. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x6,0x18."
+
+[[function]]
+module = "em01"
+address = "09D24810"
+name = "em01_state_03_1d_24_mode_2_motions_31_2e_three_attacks_shift_xz_by_arg"
+purpose = "As 3,0x16 with yaw 0x2D83, shifting place through 09D24250 by arg. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x1d,0x24."
+
+[[function]]
+module = "em01"
+address = "09D245E8"
+name = "em01_state_03_1c_23_mode_2_motions_31_2e_attack_shift_xz_by_arg"
+purpose = "As 3,9 with yaw 0x2D83, shifting place through 09D24250 by arg instead of turning. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x1c,0x23."
+
+[[function]]
+module = "em01"
+address = "09D2A608"
+name = "em01_run_state_by_group"
+purpose = "Copies group and state to +0x460/+0x461, forces +0x4B4 and +0x35E to 5 in state 2,0xD on maps 0xE, 0xF, then calls the group function."
+confidence = "confirmed"
+evidence = "Whole body read; called once or twice from the tick."
+
+[[function]]
+module = "em01"
+address = "09D24048"
+name = "em01_state_03_0e_1a_motion_2a_twice_facing_plus_200"
+purpose = "Motion 0x2A twice waiting on layer 1, facing +0x200 a tick. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xe,0x1a."
+
+[[function]]
+module = "em01"
+address = "09D20748"
+name = "em01_state_03_05_06_motion_2b_twice_facing_minus_200"
+purpose = "Motion 0x2B twice waiting on layer 1, facing -0x200 a tick. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x5,0x6."
+
+[[function]]
+module = "em01"
+address = "09D1A388"
+name = "em01_init_fields_and_start_motion_01"
+purpose = "Calls entity_set_bit_572 with 3, 4, 8, starts table motion 1, movement_mode 0, health and maximum from the type table, requests a script run, turn and rate fields."
+confidence = "confirmed"
+evidence = "Whole body read; 09D1A340 calls it and sets state 0,1."
+
+[[function]]
+module = "em01"
+address = "09D1CB70"
+name = "em01_state_01_04_08_motion_11_advance_move"
+purpose = "Motion 0x11, advance rate 0x40 until ended. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x4,0x8."
+
+[[function]]
+module = "em01"
+address = "09D2D368"
+name = "em01_motion_2d_within_range_of_move_target"
+purpose = "As 09D2D2A0 for move_target_place with speed*22+2.42."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D2D258"
+name = "em01_effect_0a_every_5_ticks"
+purpose = "Spawns effect kind 0xA when g_game tick is a multiple of 5."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D20980"
+name = "em01_state_03_08_steer_to_slot_motions_2c_57_2d_0e_descend_and_climb"
+purpose = "Mode 2: slows to speed 100, steers at the target slot; within 4000 and in line aborts; motion 0x2C, 0x57 descending; 09D2D2A0 starts motion 0x2D near the slot; motion 0xE and climbing to area table height +1300; ends to 2,0xF through 09D2D400. Any failed check aborts the same way."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x8. Body read, not each VFPU op. Group 3 setup 09D2DD08 picks the far point."
+
+[[function]]
+module = "em01"
+address = "09D2DD08"
+name = "em01_setup_state_group_03"
+purpose = "Prepares group 3 states from the target slot: move target, distances, repeat count +0x7AA, picks 3,4, 3,0x18 or 3,0x19 by target height and distance, 3,5 or 3,0xE or 3,0x1A at random, drops to 2,2 or 0,1 without a target."
+confidence = "inferred"
+evidence = "Read with the VFPU of case 0x27 not followed; caller 09D2F198 case 3."
+
+[[function]]
+module = "em01"
+address = "09D22C78"
+name = "em01_state_03_15_steer_to_slot_motions_2c_57_2d_descend_land_29"
+purpose = "Like 3,8 but ends falling to the floor: acceleration -10, then motion 0x29. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x15. Body read, compared with 3,8."
+
+[[function]]
+module = "em01"
+address = "09D218C0"
+name = "em01_state_03_0b_mode_2_motion_35_close_on_target_slot_return_to_start"
+purpose = "Mode 2: saves place at +0x7C0; turn until within 0x100 of target yaw, 120 ticks else 2,1; motion 0x35; accelerates to target slot less 300, staying at its height or more; at frame 120 returns linearly to the saved place in 55 ticks; ends 2,0xE."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xb. Body read through a filter of the distance lines."
+
+[[function]]
+module = "em01"
+address = "09D2D918"
+name = "em01_setup_state_group_02"
+purpose = "Prepares group 2 states: velocity, count, waypoint target (kind 2, param 2) and flags by state."
+confidence = "inferred"
+evidence = "Whole body read; caller 09D2F198 case 2."
+
+[[function]]
+module = "em01"
+address = "09D1E9E0"
+name = "em01_state_02_0d_steer_to_area_point_then_edge_next_route"
+purpose = "Mode 2, motion 0xF, speed 80: steers to area table point or area middle, then edge point until out of bounds; moves to route_next_area; 2,9 at the route end else 2,0xD. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xd."
+
+[[function]]
+module = "em01"
+address = "09D238C8"
+name = "em01_state_03_17_after_9ad96b8_motion_32_three_positioned_attacks"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x32; frames 78, 120, 164 spawn a KindSwitchedPositionedAttack (owned_obj_spawn_vtable_089bd548...) kind 0, yaw from script_random_counter; effects in 256..316. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x17."
+
+[[function]]
+module = "em01"
+address = "09D24AF0"
+name = "em01_state_03_1e_motions_5c_5d_37_5c_5d_5e"
+purpose = "Motions 0x5C, 0x5D (as 3,0x14), at the floor 0x37 with a turn in frames 50..70, then 0x5C, 0x5D, 0x5E. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x1e."
+
+[[function]]
+module = "em01"
+address = "09D1B340"
+name = "em01_state_00_0e_motions_4f_3b_refill_meter_b_heal_5_percent"
+purpose = "Motion 0x4F with effects by frame, meter_b plus 0xDE each tick; then 0x3B with 5% of maximum health; type blocks 1 then 0. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xe."
+
+[[function]]
+module = "em01"
+address = "09D28998"
+name = "em01_state_05_02_motions_4d_4e_52_fall_quest_removed_pickup_point_fade"
+purpose = "Falls as 4,8, motion 0x4E, at frame 60 motion 0x52, mode 3. Quest told through quest_on_monster_removed; pickup point for 1800 ticks; alpha fades 150 ticks; then 5,3."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D299F0 case 0x2. From the tick for result 1, 2 in movement mode 2."
+
+[[function]]
+module = "em01"
+address = "09D28D60"
+name = "em01_state_07_10_motions_0f_0b_13_descend_to_floor"
+purpose = "Same body as 2,1; setup 09D2F198 places height from table 09BCC6A8 and mode 2. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29B10 case 0x10."
+
+[[function]]
+module = "em01"
+address = "09D1CFE0"
+name = "em01_state_02_01_motions_0f_0b_13_descend_to_floor"
+purpose = "Mode 2, motion 0xF, downward speed from height above floor+1000; under floor+630 at frames 10, 86, 160 motion 0xB for 30 ticks; motion 0x13, mode 0, shake 1. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x1."
+
+[[function]]
+module = "em01"
+address = "09D1DEC8"
+name = "em01_state_02_08_rise_steer_to_area_edge_change_area"
+purpose = "Mode 2: rises at 20 to the edge point height; motion 0xC to the edge point until out of the area bounds; moves to route_next_area, then 2,9 at the route end else 2,0xD. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x8. Group 2 setup 09D2D918."
+
+[[function]]
+module = "em01"
+address = "09D1F050"
+name = "em01_state_02_11_motions_0c_0e_waypoints_re_enter"
+purpose = "Mode 2, steers to point +0x5D0 within 1000 or count end; next of 4 points, re-enters 2,0x11. No other exit here. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x11."
+
+[[function]]
+module = "em01"
+address = "09D235D8"
+name = "em01_state_03_16_mode_2_motions_31_2e_three_positioned_attacks"
+purpose = "As 3,0xA with motion 0x2E three times, kind 2 yaw 0x1E94. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x16."
+
+[[function]]
+module = "em01"
+address = "09D22498"
+name = "em01_state_03_11_mode_2_motions_31_2e_two_positioned_attacks"
+purpose = "As 3,0xA with motion 0x2E twice, spawning kind 2 yaw 0x1E94 each time. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x11."
+
+[[function]]
+module = "em01"
+address = "09D1DA08"
+name = "em01_state_02_06_motions_0c_0e_waypoints_count_then_02_0f"
+purpose = "Mode 2, speed at least 50, steers to point +0x5D0, next of 4 points when within 3000 or count ends; +0x795 reaches 0: 2,0xF, else re-enters 2,6. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x6."
+
+[[function]]
+module = "em01"
+address = "09D1D410"
+name = "em01_state_02_03_motions_12_0b_13_up_turn_down_to_floor"
+purpose = "Motion 0x12, curve by subtype, mode 2 at frame 30, turn in frames 50..114; below floor+800 at curve end, motion 0xB; at the floor motion 0x13, shake 2, +0x796 = 150. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D1E5C8"
+name = "em01_state_02_0b_motion_0c_to_move_target_then_02_01"
+purpose = "Mode 2, motion 0xC, speed capped 100; steers until within 1000 or count ends, speed 50; then 2,1. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xb."
+
+[[function]]
+module = "em01"
+address = "09D2D6C0"
+name = "em01_setup_state_group_01"
+purpose = "Chooses and prepares group 1 states: 0 or 2 go to 6 under a health ratio, 2 to 4 and 3 to 5 when alert; sets move distance or count; state 8 sets speed scale 0.7."
+confidence = "confirmed"
+evidence = "Whole body read; caller 09D2F198 case 1."
+
+[[function]]
+module = "em01"
+address = "09D29570"
+name = "em01_state_group_03_dispatch"
+purpose = "Calls the state function for group 3 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D256E8"
+name = "em01_state_03_28_motions_34_38_0f_positioned_attack_yaw_2222"
+purpose = "As 2,0x19 with a spawn kind 2 yaw 0x2222 at frame 90; ends 2,0xE. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x28."
+
+[[function]]
+module = "em01"
+address = "09D284F8"
+name = "em01_state_05_00_motion_44_quest_removed_pickup_point_fade"
+purpose = "Motion 0x44, mode 3, shake at frame 212. Quest told through quest_on_monster_removed; pickup point for 1800 ticks; alpha fades 150 ticks; then 5,3."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D299F0 case 0x0. From the tick for result 1, 2."
+
+[[function]]
+module = "em01"
+address = "09D28758"
+name = "em01_state_05_01_motion_61_quest_removed_pickup_point_fade"
+purpose = "Motion 0x61, mode 3. Quest told through quest_on_monster_removed; pickup point for 1800 ticks; alpha fades 150 ticks; then 5,3."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D299F0 case 0x1. From the tick for result 1, 2 with short_timer_side_0 running."
+
+[[function]]
+module = "em01"
+address = "09D1F4F8"
+name = "em01_state_02_13_motions_0c_0e_to_point_then_02_0f"
+purpose = "Mode 2, speed at least 50, steers to point +0x5D0 within 1000 or count end; then 2,0xF. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x13."
+
+[[function]]
+module = "em01"
+address = "09D20240"
+name = "em01_state_03_02_after_9ad96b8_motion_28_curve_5_distance_land_29"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x28, curve 5, mode 2 at frame 60, move_distance_left falls by speed; acceleration -10 at 0; effect 0xA under 500; at the floor motion 0x29. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x2."
+
+[[function]]
+module = "em01"
+address = "09D280E8"
+name = "em01_state_06_04_motion_61_begin_status_01_quest_count_fade"
+purpose = "Motion 0x61, type block 1, status 01 begins; then quest_on_monster_counted_update_records, 1800 ticks, alpha fade 150; 5,3. Effects and a sound while step under 3."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29A78 case 0x4. From the tick for result 7 with short_timer_side_0 running."
+
+[[function]]
+module = "em01"
+address = "09D1F9F0"
+name = "em01_state_02_17_motions_12_0b_13_block_requests_to_floor"
+purpose = "Motion 0x12, curve 2, mode 2, script_requests_blocked, short_timer_side_0 and +0x5F1 cleared; down to the floor as 2,3. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x17."
+
+[[function]]
+module = "em01"
+address = "09D29058"
+name = "em01_state_group_00_dispatch"
+purpose = "Calls the state function for group 0 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D21680"
+name = "em01_state_03_0a_mode_2_motions_31_2e_positioned_attack_kind_2"
+purpose = "As 3,9 with kind 2. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xa."
+
+[[function]]
+module = "em01"
+address = "09D1DCB0"
+name = "em01_state_02_07_motion_0f_to_move_target_level_roll"
+purpose = "Mode 2, motion 0xF, frame curve 1, turn and pitch to the move target; rolls angle_z to 0; at speed*10 or count end 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x7."
+
+[[function]]
+module = "em01"
+address = "09D1FF60"
+name = "em01_state_02_1a_motions_34_38_back_down_to_floor_64_or_39"
+purpose = "Motion 0x34, curve 0xE, mode 2 at frame 76; at 116 motion 0x38, velocity[2] -12, velocity[1] falling 2 a tick; at the floor motion 0x64 (subtypes 0x25, 0x2A) or 0x39, effect 0xB, shake 2. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x1a."
+
+[[function]]
+module = "em01"
+address = "09D1E1B8"
+name = "em01_state_02_09_motion_0f_speed_80_to_move_target_then_02_01"
+purpose = "Mode 2, motion 0xF, speed 80, steers until within 1000 or count ends; then 2,1. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x9."
+
+[[function]]
+module = "em01"
+address = "09D23E30"
+name = "em01_state_03_19_after_9ad96b8_motion_2f_attack_yaw_f1c8_repeat"
+purpose = "As 3,4 with yaw 0xF1C8, re-enters 3,0x19. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x19."
+
+[[function]]
+module = "em01"
+address = "09D23C18"
+name = "em01_state_03_18_after_9ad96b8_motion_2f_attack_yaw_e39_repeat"
+purpose = "As 3,4 with yaw 0xE39, re-enters 3,0x18. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x18."
+
+[[function]]
+module = "em01"
+address = "09D21450"
+name = "em01_state_03_09_mode_2_motions_31_2e_positioned_attack_kind_1"
+purpose = "Mode 2, motion 0x31 curve 0xD, turning; at frame 60 motion 0x2E curve 0x10; frame 6 spawns a KindSwitchedPositionedAttack (owned_obj_spawn_vtable_089bd548...) kind 1 yaw 0x1E94; frame 40 motion 0xF; ends 2,0xE. Clamps height to the floor."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x9."
+
+[[function]]
+module = "em01"
+address = "09D20530"
+name = "em01_state_03_04_after_9ad96b8_motion_2f_positioned_attack_repeat"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x2F; at frame 78 spawns a KindSwitchedPositionedAttack (owned_obj_spawn_vtable_089bd548...) kind 0 yaw 0; effects in frames 154..276; +0x7AA counts repeats, re-enters 3,4. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x4."
+
+[[function]]
+module = "em01"
+address = "09D1BEA0"
+name = "em01_state_00_15_motions_27_22_sight_off_heal_then_00_18"
+purpose = "As 0,0x12 for 12600 or 9000 ticks; then 0,0x18."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x15."
+
+[[function]]
+module = "em01"
+address = "09D1B998"
+name = "em01_state_00_12_motions_27_22_sight_off_heal_then_00_17"
+purpose = "Sight off; motion 0x27 then 0x22; heals every 3 ticks up to 60% (subtypes 1, 0x25, 0x2A) or 30% of maximum for 9000 or 7200 ticks; then 0,0x17."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x12."
+
+[[function]]
+module = "em01"
+address = "09D1FD50"
+name = "em01_state_02_19_motions_34_38_0f_curve_0e_back_and_up"
+purpose = "Motion 0x34, curve 0xE, mode 2 at frame 76 with height +6 a tick; at frame 144 motion 0x38 velocity[2] -12 and velocity[1] 6; then 0xF; at frame 74 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x19."
+
+[[function]]
+module = "em01"
+address = "09D1E3C0"
+name = "em01_state_02_0a_rise_steer_to_area_edge_toggle_area_0f_13"
+purpose = "Mode 2: rises at 100 to the edge point; motion 0xC until out of bounds; moves area, then area_id toggles between 0xF and 0x13; then 2,0xF. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xa. The toggle is hard-coded."
+
+[[function]]
+module = "em01"
+address = "09D1F318"
+name = "em01_state_02_12_motion_5a_curve_9_level_then_02_01"
+purpose = "Mode 2, motion 0x5A, curve 9, angles x and z stepped to 0; at curve end motion 0xF and 2,1. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x12."
+
+[[function]]
+module = "em01"
+address = "09D25518"
+name = "em01_state_03_27_after_9ad96b8_motion_2f_attack_yaw_from_count"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x2F; frame 78 spawn with yaw action_count, set by setup 09D2DD08. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x27."
+
+[[function]]
+module = "em01"
+address = "09D28320"
+name = "em01_state_06_05_motions_26_22_begin_status_01_quest_count_fade"
+purpose = "Motion 0x26 then 0x22, type block 1, status 01 begins; then as 6,4."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29A78 case 0x5. From the tick for result 7 with short_timer_side_1 running."
+
+[[function]]
+module = "em01"
+address = "09D26380"
+name = "em01_state_04_09_motions_4d_4e_47_fall_sight_off"
+purpose = "As 4,8 with sight off. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x9. Set by 09D2F580."
+
+[[function]]
+module = "em01"
+address = "09D29388"
+name = "em01_state_group_02_dispatch"
+purpose = "Calls the state function for group 2 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D261B8"
+name = "em01_state_04_08_motions_4d_4e_47_fall_to_floor"
+purpose = "Mode 2, motion 0x4D, velocity[1] at most -50, acceleration -10; at the floor motion 0x4E, a timed pickup point for subtypes 0xB, 0x29, 0x31; then 0x47. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x8. From the tick for result 5 and 0xC in mode 2."
+
+[[function]]
+module = "em01"
+address = "09D2D4F0"
+name = "em01_setup_state_group_00"
+purpose = "Motion speed 1.0, status begin or end by state (0x12, 0x14, 0x15, 0x17, 0x18, 0x1B..0x1F, 0x21..0x23, 0x28), 0,1 becomes 0,0x11 when alert, then sets the state with movement_mode 0."
+confidence = "confirmed"
+evidence = "Whole body read; caller 09D2F198 case 0."
+
+[[function]]
+module = "em01"
+address = "09D29828"
+name = "em01_state_group_04_dispatch"
+purpose = "Calls the state function for group 4 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D21F48"
+name = "em01_state_03_0c_stored_point_within_150_motions_23_30"
+purpose = "Looks at the point stored by 9AD2078 at +0x620; when bone 0x23 is within 150 motions 0x23 then 0x30; to 09D1A450 at once when 9AD2078 answers 0. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xc. 9AD2078 not read."
+
+[[function]]
+module = "em01"
+address = "09D25BE0"
+name = "em01_state_04_04_motion_41_turn_936_per_tick_then_04_0f"
+purpose = "Motion 0x41; in frames 52..122 facing minus 936*motion_speed_scale a tick; point checks blocked; then 4,0xF. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x4."
+
+[[function]]
+module = "em01"
+address = "09D26F28"
+name = "em01_state_04_14_motions_45_46_47_count_then_00_22"
+purpose = "Motions 0x45, 0x46 until action_count ends, 0x47; calls 9C97220; then 0,0x22. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x14."
+
+[[function]]
+module = "em01"
+address = "09D1D880"
+name = "em01_state_02_05_motions_12_13_curve_3_speed_minus_20"
+purpose = "As 2,4 with velocity[2] -20. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x5."
+
+[[function]]
+module = "em01"
+address = "09D1D6F8"
+name = "em01_state_02_04_motions_12_13_curve_3_speed_plus_20"
+purpose = "Motion 0x12, curve 3, velocity[2] +20, mode 2 at frame 30; at the floor motion 0x13, shake 2, +0x796 = 150. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x4."
+
+[[function]]
+module = "em01"
+address = "09D272E0"
+name = "em01_state_04_17_motions_3c_4c_count_then_00_23"
+purpose = "Motion 0x3C, at frame 52 motion 0x4C; flag 0x20000 of misc set then cleared; a timed pickup point for subtypes 1, 0x25, 0x2A; count; then 0,0x23. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x17."
+
+[[function]]
+module = "em01"
+address = "09D1F888"
+name = "em01_state_02_16_motion_5a_curve_9_level_then_02_0e"
+purpose = "As 2,0x12; at curve end 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x16."
+
+[[function]]
+module = "em01"
+address = "09D266E8"
+name = "em01_state_04_0c_motion_5f_block_requests_then_04_0d"
+purpose = "Motion 0x5F, script_requests_blocked, sight on, a timed pickup point for subtypes 1, 0x25, 0x2A; short_timer_side_0 at least 5; then 4,0xD. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xc."
+
+[[function]]
+module = "em01"
+address = "09D1E870"
+name = "em01_state_02_0c_motions_34_39_curve_0e_to_floor"
+purpose = "Motion 0x34, curve 0xE, mode 2 at frame 76; at the floor motion 0x39, effect 0xB, shake 2. Clamps height to the floor. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xc."
+
+[[function]]
+module = "em01"
+address = "09D1C828"
+name = "em01_state_00_1f_motion_61_sight_off_count_then_04_13"
+purpose = "As 0,0x1D; then 4,0x13."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1f."
+
+[[function]]
+module = "em01"
+address = "09D1C6D0"
+name = "em01_state_00_1d_motion_61_sight_off_count_then_04_12"
+purpose = "Motion 0x61, sight off, short_timer_side_0 held at 5; a sound every 0x87 ticks; until action_count ends; then 4,0x12."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1d."
+
+[[function]]
+module = "em01"
+address = "09D2F7B0"
+name = "em01_hide_materials_by_slot_breaks_subtypes_01_25_2a"
+purpose = "Zeroes material +3 by model group and index when break counts of slots 1, 2, 6 or mask 1 of +0x2B8 say so, for subtypes 1, 0x25, 0x2A."
+confidence = "inferred"
+evidence = "Whole body read; slot counts at 0x582+8n, caller 09D2F698."
+
+[[function]]
+module = "em01"
+address = "09D1F730"
+name = "em01_state_02_15_motion_0f_direct_to_move_target_then_02_0e"
+purpose = "Mode 2, motion 0xF, heading straight to the move target with pitch; at speed*10 or count end 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x15."
+
+[[function]]
+module = "em01"
+address = "09D22788"
+name = "em01_state_03_12_motion_11_near_500_motion_5b_attack_volume_24_motion_63"
+purpose = "Motion 0x11, advance rate 0x40 until move_distance_left under 500 or count ends; motion 0x5B and attack volume 0x24; then 0x63. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x12."
+
+[[function]]
+module = "em01"
+address = "09D2F948"
+name = "em01_hide_materials_by_slot_breaks_subtypes_0b_29_31"
+purpose = "As 09D2F7B0 with other group numbers, for subtypes 0xB, 0x29, 0x31."
+confidence = "inferred"
+evidence = "Whole body read; caller 09D2F698."
+
+[[function]]
+module = "em01"
+address = "09D1C360"
+name = "em01_state_00_1a_motions_4f_3b_refill_meter_a_heal_5_percent"
+purpose = "Motion 0x4F; then 0x3B with 5% of maximum health and meter_a filled; type blocks 1 then 0. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1a."
+
+[[function]]
+module = "em01"
+address = "09D1ADD8"
+name = "em01_state_00_08_motion_1b_attack_volume_29_frames_26_90"
+purpose = "Table motion 0x1B waiting on layer 2, attack volume 0x29 at layer 2 frames 26 and 90. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x8."
+
+[[function]]
+module = "em01"
+address = "09D20848"
+name = "em01_state_03_07_after_9ad96b8_motions_22_30"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x22, at frame 30 motion 0x30. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x7."
+
+[[function]]
+module = "em01"
+address = "09D1D2D8"
+name = "em01_state_02_02_motion_0f_turn_count_then_02_01"
+purpose = "Mode 2 rest: motion 0xF, frame curve 1, turn to target; 2,0xE when count is 300, 2,1 when it ends. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x2."
+
+[[function]]
+module = "em01"
+address = "09D1CD80"
+name = "em01_state_01_07_motion_36_turn_200_per_tick_to_move_target"
+purpose = "Motion 0x36; facing turns 0x200 per tick to the move target until frame 60; then 09D1A450 with arg 1."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x7."
+
+[[function]]
+module = "em01"
+address = "09D1C4B8"
+name = "em01_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1b."
+
+[[function]]
+module = "em01"
+address = "09D1BD68"
+name = "em01_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x14."
+
+[[function]]
+module = "em01"
+address = "09D26AE0"
+name = "em01_state_04_10_motions_4a_4b_48_120_ticks"
+purpose = "Motions 0x4A, 0x4B for 120 ticks, 0x48. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x10."
+
+[[function]]
+module = "em01"
+address = "09D25D68"
+name = "em01_state_04_05_motions_45_46_47_120_ticks"
+purpose = "Motions 0x45, 0x46 for 120 ticks, 0x47. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x5."
+
+[[function]]
+module = "em01"
+address = "09D1CEB0"
+name = "em01_state_02_00_motion_12_mode_2_curve_then_02_0e"
+purpose = "Motion 0x12, curve 0xF by subtypes 0xB, 0x29, 0x31 else 2; at frame 38 mode 2; at curve end 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x0."
+
+[[function]]
+module = "em01"
+address = "09D26C10"
+name = "em01_state_04_11_motion_60_count_77a_then_02_17_b"
+purpose = "Same body as 4,0xD."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x11."
+
+[[function]]
+module = "em01"
+address = "09D26850"
+name = "em01_state_04_0d_motion_60_count_77a_then_02_17"
+purpose = "Motion 0x60 repeated, short_timer_side_0 at 5, +0x77A counted down; then 2,0x17."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xd."
+
+[[function]]
+module = "em01"
+address = "09D270B8"
+name = "em01_state_04_15_motion_61_count_then_04_16"
+purpose = "Motion 0x61, requests blocked, calls 9C97220; until action_count ends; then 4,0x16. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x15."
+
+[[function]]
+module = "em01"
+address = "09D2EEB0"
+name = "em01_velocity_y_curve_step"
+purpose = "Sets velocity[1] from curve table 09D35450[+0x7F7] at frame +0x7F8; at the curve end returns 2 and decays or zeroes velocity[1]."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1EF38"
+name = "em01_state_02_10_motion_0f_turn_to_move_target_then_02_0e"
+purpose = "Mode 2, motion 0xF, frame curve 1, turn rate 0x180 to the move target until done or 150 ticks; then 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x10."
+
+[[function]]
+module = "em01"
+address = "09D1B7E8"
+name = "em01_state_00_10_motions_51_01_50_01"
+purpose = "As 0,0xF in the other order. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x10."
+
+[[function]]
+module = "em01"
+address = "09D1B6C0"
+name = "em01_state_00_0f_motions_50_01_51_01"
+purpose = "Table motions 0x50, 1, 0x51, 1, waiting for motion_frame_checks_off to clear between. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xf."
+
+[[function]]
+module = "em01"
+address = "09D1FC38"
+name = "em01_state_02_18_motion_0f_rise_20_to_move_target_plus_1000"
+purpose = "Mode 2, motion 0xF, velocity[1] 20 until above move target+1000 or count ends; then 2,0xE. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x18."
+
+[[function]]
+module = "em01"
+address = "09D24148"
+name = "em01_state_03_1b_motion_11_near_500_motion_09"
+purpose = "Motion 0x11, advance rate 0x40 until move_distance_left under 500 or count ends; then motion 9. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x1b."
+
+[[function]]
+module = "em01"
+address = "09D1BB98"
+name = "em01_state_00_13_motion_4f_until_frame_200_then_00_28"
+purpose = "Motion 0x4F, type block 1; at frame 200 sets 0,0x28."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x13."
+
+[[function]]
+module = "em01"
+address = "09D1AFC8"
+name = "em01_state_00_0a_motion_36_snap_facing_to_move_target"
+purpose = "Table motion 0x36; facing snaps to the move target yaw when within 0x200, until frame 60. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xa."
+
+[[function]]
+module = "em01"
+address = "09D271E0"
+name = "em01_state_04_16_motion_60_count_77a_then_02_17_c"
+purpose = "Motion 0x60, +0x77A counted down; then 2,0x17."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x16."
+
+[[function]]
+module = "em01"
+address = "09D26E30"
+name = "em01_state_04_13_motion_62_sight_off_then_04_0d_b"
+purpose = "Same body as 4,0x12."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x13."
+
+[[function]]
+module = "em01"
+address = "09D26D38"
+name = "em01_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x12."
+
+[[function]]
+module = "em01"
+address = "09D26978"
+name = "em01_state_04_0e_motion_61_count_then_04_11"
+purpose = "Motion 0x61 until action_count ends, byte +0x3CF 4; resolves target kind 0xC; then 4,0x11. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xe."
+
+[[function]]
+module = "em01"
+address = "09D265E8"
+name = "em01_state_04_0b_motion_4c_count_then_00_21"
+purpose = "Motion 0x4C until action_count ends; byte +0x3CF 4; 9ACD4F0(2); then 0,0x21. Calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xb."
+
+[[function]]
+module = "em01"
+address = "09D1AB08"
+name = "em01_state_00_05_motion_18_wait_layer_1"
+purpose = "Table motion 0x18 waiting on layer 1, base motions on layers 0, 2. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x5."
+
+[[function]]
+module = "em01"
+address = "09D1B248"
+name = "em01_state_00_0d_motion_14_wait_layer_1"
+purpose = "Table motion 0x14 waiting on layer 1. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xd."
+
+[[function]]
+module = "em01"
+address = "09D1B0C8"
+name = "em01_state_00_0b_motion_1c_wait_layer_1"
+purpose = "Table motion 0x1C waiting on layer 1. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xb."
+
+[[function]]
+module = "em01"
+address = "09D1AC00"
+name = "em01_state_00_06_motion_19_wait_layer_1"
+purpose = "Table motion 0x19 waiting on layer 1. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x6."
+
+[[function]]
+module = "em01"
+address = "09D2EFE0"
+name = "em01_velocity_z_curve_step"
+purpose = "Sets velocity[2] from curve table 09D35658[+0x7F7] at frame +0x7F8; returns 4 at the curve end."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1C5F0"
+name = "em01_state_00_1c_motion_25_sight_off_then_00_19_c"
+purpose = "Same body as 0,0x17."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1c."
+
+[[function]]
+module = "em01"
+address = "09D1C208"
+name = "em01_state_00_18_motion_25_sight_off_then_00_19_b"
+purpose = "Same body as 0,0x17."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x18."
+
+[[function]]
+module = "em01"
+address = "09D1C128"
+name = "em01_state_00_17_motion_25_sight_off_then_00_19"
+purpose = "Motion 0x25 with type block 0, sight off during it; then 0,0x19."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x17."
+
+[[function]]
+module = "em01"
+address = "09D1A6F8"
+name = "em01_state_00_00_base_layer_motions_count_then_request_script"
+purpose = "Puts base motions on layers 0..2 and counts action_count down to a script run request."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x0."
+
+[[function]]
+module = "em01"
+address = "09D1ACF8"
+name = "em01_state_00_07_motion_1a_wait_layer_1"
+purpose = "Table motion 0x1A waiting on layer 1. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x7."
+
+[[function]]
+module = "em01"
+address = "09D1A968"
+name = "em01_state_00_03_motion_17_wait_layer_2_sound"
+purpose = "As 0,2 with one sound. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D1EE68"
+name = "em01_state_02_0f_motion_0c_then_02_0f"
+purpose = "Mode 2, motion 0xC; on its end sets 2,0xF, a loop. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xf."
+
+[[function]]
+module = "em01"
+address = "09D1A7D0"
+name = "em01_state_00_01_motions_1d_01"
+purpose = "Table motion 0x1D then 1, then 09D1A450 when owner."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x1."
+
+[[function]]
+module = "em01"
+address = "09D1EDA8"
+name = "em01_state_02_0e_motion_0f_then_02_0e"
+purpose = "Mode 2, motion 0xF; on its end sets 2,0xE, a loop. Clamps height to the floor."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0xe."
+
+[[function]]
+module = "em01"
+address = "09D292C0"
+name = "em01_state_group_01_dispatch"
+purpose = "Calls the state function for group 1 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1A8A0"
+name = "em01_state_00_02_motion_17_wait_layer_2"
+purpose = "Table motion 0x17 waiting on layer 2, base motions held on layers 0, 1. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x2."
+
+[[function]]
+module = "em01"
+address = "09D22170"
+name = "em01_state_03_0f_motion_11_advance_0x80_or_count"
+purpose = "Motion 0x11, advance rate 0x80 in mode 1 until ended or count ends. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xf."
+
+[[function]]
+module = "em01"
+address = "09D20188"
+name = "em01_state_03_00_after_9ad96b8_motion_24"
+purpose = "Waits for 9AD96B8(0xE38,3,6,5) then motion 0x24. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x0."
+
+[[function]]
+module = "em01"
+address = "09D1CCC8"
+name = "em01_state_01_06_motion_0a_advance_move_or_count"
+purpose = "Motion 0xA, advance rate 0x40 in mode 1 until ended or action_count ends. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x6."
+
+[[function]]
+module = "em01"
+address = "09D1BCA8"
+name = "em01_state_00_28_finish_motion_then_3b"
+purpose = "Type block 0, waits for the running motion, then motion 0x3B. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x28."
+
+[[function]]
+module = "em01"
+address = "09D1AA48"
+name = "em01_state_00_04_motion_01_base_layers_1_2"
+purpose = "Table motion 1 with base motions held on layers 1, 2. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x4."
+
+[[function]]
+module = "em01"
+address = "09D1CC18"
+name = "em01_state_01_05_turn_motion_table_09d3577c"
+purpose = "Turn motion toward target by table 09D3577C. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x5."
+
+[[function]]
+module = "em01"
+address = "09D1CAC0"
+name = "em01_state_01_03_turn_motion_table_09d35760"
+purpose = "Turn motion toward target by table 09D35760 until the saved yaw is reached. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D1C9F8"
+name = "em01_state_01_00_motion_03_advance_move"
+purpose = "Motion 3, advance by object_advance_move_distance rate 0x40 until ended. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x0."
+
+[[function]]
+module = "em01"
+address = "09D28CC0"
+name = "em01_state_05_03_quest_record_to_02_01_or_life_state_2"
+purpose = "If the quest record is active: height from area table 09BCC6A8, mode 2, state 2,1. Otherwise life_state 2."
+confidence = "inferred"
+evidence = "Whole body read; Dispatched from 09D299F0 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D1AF20"
+name = "em01_state_00_09_motion_50_or_51_random"
+purpose = "Table motion 0x50 or 0x51 by script_random_counter. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x9."
+
+[[function]]
+module = "em01"
+address = "09D26548"
+name = "em01_state_04_0a_motion_3d"
+purpose = "Table motion 0x3D. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xa. Set by 09D2F580."
+
+[[function]]
+module = "em01"
+address = "09D25B40"
+name = "em01_state_04_03_motion_40"
+purpose = "Table motion 0x40. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D25AA0"
+name = "em01_state_04_02_motion_3f"
+purpose = "Table motion 0x3F. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x2."
+
+[[function]]
+module = "em01"
+address = "09D25A00"
+name = "em01_state_04_01_motion_42"
+purpose = "Table motion 0x42. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x1."
+
+[[function]]
+module = "em01"
+address = "09D25960"
+name = "em01_state_04_00_motion_3c"
+purpose = "Table motion 0x3C. Calls monster_script_restart_from_main_entry. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x0. From the tick for result 0xC and 0xD."
+
+[[function]]
+module = "em01"
+address = "09D20498"
+name = "em01_state_03_03_motion_24_misc_flag_2"
+purpose = "Sets misc_flags bit 2 for motion 0x24, clears it after. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x3."
+
+[[function]]
+module = "em01"
+address = "09D29A78"
+name = "em01_state_group_06_dispatch"
+purpose = "Calls the state function for group 6 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D228D8"
+name = "em01_state_03_13_motion_23"
+purpose = "Table motion 0x23. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0x13."
+
+[[function]]
+module = "em01"
+address = "09D220E8"
+name = "em01_state_03_0d_motion_53"
+purpose = "Table motion 0x53. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29570 case 0xd."
+
+[[function]]
+module = "em01"
+address = "09D1C0A0"
+name = "em01_state_00_16_motion_50"
+purpose = "Table motion 0x50. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x16."
+
+[[function]]
+module = "em01"
+address = "09D1B910"
+name = "em01_state_00_11_motion_33"
+purpose = "Table motion 0x33; the rest state when alert. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x11."
+
+[[function]]
+module = "em01"
+address = "09D1B1C0"
+name = "em01_state_00_0c_motion_1d"
+purpose = "Table motion 0x1D. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0xc."
+
+[[function]]
+module = "em01"
+address = "09D299F0"
+name = "em01_state_group_05_dispatch"
+purpose = "Calls the state function for group 5 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1C2E8"
+name = "em01_state_00_19_motion_3e"
+purpose = "Table motion 0x3E. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29058 case 0x19."
+
+[[function]]
+module = "em01"
+address = "09D26A78"
+name = "em01_state_04_0f_finish_motion_to_rest"
+purpose = "Restarts the script, waits for the running motion. Ends through 09D1A450 (requests a script run and sets the rest state)."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0xf."
+
+[[function]]
+module = "em01"
+address = "09D29B10"
+name = "em01_state_group_07_dispatch"
+purpose = "Calls the state function for group 7 by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1F720"
+name = "em01_state_02_14_to_rest_state"
+purpose = "Only calls 09D1A450."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29388 case 0x14."
+
+[[function]]
+module = "em01"
+address = "09D1CAB0"
+name = "em01_state_01_02_to_rest_state"
+purpose = "Only calls 09D1A450."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x2."
+
+[[function]]
+module = "em01"
+address = "09D1CAA0"
+name = "em01_state_01_01_to_rest_state"
+purpose = "Only calls 09D1A450."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D292C0 case 0x1."
+
+[[function]]
+module = "em01"
+address = "09D261B0"
+name = "em01_state_04_07_to_state_02_0f"
+purpose = "Only sets 2,0xF."
+confidence = "confirmed"
+evidence = "Whole body read; Dispatched from 09D29828 case 0x7."
+
+[[function]]
+module = "em01"
+address = "09D2FDE8"
+name = "em01_motion_frame_sounds"
+purpose = "By motion id: frame-triggered sounds; also refreshes sound_area_param."
+confidence = "inferred"
+evidence = "Callee count over the whole body: 543 of 09D2A7F0, one 09D2A758-like; head read, 99 cases not read one by one."
+
+[[function]]
+module = "em01"
+address = "09D2A9F0"
+name = "em01_motion_frame_effects_and_attack_volumes"
+purpose = "By motion id: frame-triggered effects, attack volumes (9B63008), camera shake and one sound."
+confidence = "inferred"
+evidence = "Callee count over the whole body: 65 effect spawns, 43 attack volumes, 157 frame checks, 11 shakes; head read, cases not read one by one."
+
+[[function]]
+module = "em01"
+address = "09D29B48"
+name = "em01_tick_meters_damage_result_and_state"
+purpose = "Reduces meters by map and subtype, takes a result code from entity_apply_pending_damage_and_choose_result_code and sets a state by it (death group 5, statuses, hit groups 4, 6, 0), then runs the state; sets cannot_die_ticks when in group 2 with +0x7A8 = 1."
+confidence = "inferred"
+evidence = "Body read; the only caller of 09D2A608. Its being the object tick is inferred: no em01 caller, called through a vtable not seen."
+
+[[function]]
+module = "em01"
+address = "09D2FAC0"
+name = "em01_rotate_four_bones_by_look_yaw_shares"
+purpose = "For the four bones at the type block +6..+9, rotates by look_yaw_share0..3 (+0x5FC..+0x608)."
+confidence = "guess"
+evidence = "Pattern read through a filter, VFPU not followed; the field offsets and skeleton_get_bone calls are plain."
+
+[[function]]
+module = "em01"
+address = "09D2F198"
+name = "em01_set_state_method"
+purpose = "(group, state, mode): with movement_mode 0 turns many group 2 states into 0,1, reloads the type block, runs the group setup (09D2D4F0..09D2DD08) or status begin/end for group 4, then entity_set_state_by_global_flag_and_mode."
+confidence = "inferred"
+evidence = "Body read; signature matches every vtable +0x88 call, slot not seen in a dump."
+
+[[function]]
+module = "em01"
+address = "09D2F698"
+name = "em01_set_group_material_alpha_and_hide_parts"
+purpose = "For each material of a model group copies alpha byte +0x230 into its +3, then lets the subtype function zero it."
+confidence = "inferred"
+evidence = "Whole body read; +0x230 is what the group 5 fades write."
+
+[[function]]
+module = "em01"
+address = "09D2F580"
+name = "em01_sight_off_then_state_04_09_or_04_0a"
+purpose = "Sets sight_off_ticks 10, end_vfunc_ec_ticks from the type table, calls 9C97220, then if owner, free of 5F0/5F2 and status 8, sets 4,9 in movement_mode 2 or 4,0xA otherwise."
+confidence = "inferred"
+evidence = "Whole body read; no em01 caller."
+
+[[function]]
+module = "em01"
+address = "09D2D410"
+name = "em01_returns_1_unless_air_579_or_states_04_0c_to_13"
+purpose = "Returns 0 in states 4,0xC 0xD 0xE 0x11 0x12 0x13, when movement_mode is 2 or +0x579 is nonzero; else 1."
+confidence = "confirmed"
+evidence = "Whole body read; no em01 caller."
+
+[[function]]
+module = "em01"
+address = "09D2F520"
+name = "em01_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "confirmed"
+evidence = "Whole body read; no em01 caller."
+
+[[function]]
+module = "em01"
+address = "09D2F678"
+name = "em01_set_state_00_19_mode_4"
+purpose = "Tail calls vtable +0x88 with 0, 0x19, 4."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "em01"
+address = "09D1A380"
+name = "em01_init_fields_and_start_motion_01_thunk"
+purpose = "Thunk to 09D1A388."
+confidence = "confirmed"
+evidence = "Two-instruction jump."
+
+[[function]]
+module = "em01"
+address = "09D1A300"
+name = "em01_entity_reload_area_values_and_reduce_494_498_thunk"
+purpose = "Thunk to entity_reload_area_values_and_reduce_494_498."
+confidence = "confirmed"
+evidence = "Two-instruction jump; no em01 caller, likely a vtable slot."
+

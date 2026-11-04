@@ -12,6 +12,7 @@ import collections
 import glob
 import json
 import os
+import re
 import struct
 import sys
 import tomllib
@@ -414,12 +415,16 @@ def main():
         def global_type(self, addr):
             return global_type.get(addr)
 
+    MONSTER = 0x089BC098
+    in_monster_code = re.compile(r"em\d")
+
     for round_no in range(6):
         passed = collections.defaultdict(list)
+        monster_callers = set()
         for key, x in funcs.items():
             m = by_name[key[0]]
             fl = TypedFlow(m, x, starts[m.name])
-            entry = {A0: ("o", this[key])} if key in this else {}
+            entry = {A0: ("o", this[key])} if key in this else {A0: ("t", 0)} if in_monster_code.match(key[0]) else {}
 
             def call(a, i, name, facts, key=key):
                 if name == "jal":
@@ -427,10 +432,21 @@ def main():
                     if c:
                         fact = facts.get(A0)
                         passed[c].append(fact[1] if fact and fact[0] == "o" else None)
+                        if fact and fact[0] == "t":
+                            monster_callers.add(c)
 
             fl.call = call
             fl.run(entry, lambda *a: None)
         added = 0
+        # A helper seen running only on hunters, but handed a monster overlay's own first argument, isn't a hunter's alone: what it takes
+        # is what they have in common. (Else its narrow type spreads up into every caller the decompiler sees.)
+        for key in monster_callers:
+            if key in this and this[key] not in declared and MONSTER not in ancestors(this[key]):
+                c = lub({this[key], MONSTER})
+                if c and c != this[key]:
+                    this[key] = c
+                    how[key] = "widened"
+                    added += 1
         for key, seen in passed.items():
             if key in this or key not in funcs or None in seen:
                 continue

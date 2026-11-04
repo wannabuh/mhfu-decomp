@@ -59,7 +59,7 @@ groups = collections.defaultdict(list)
 for fn, n in lines.items():
     m = re.match(r"f_(\w+?)_([0-9A-F]{8})$", fn)
     module, addr = m.group(1), int(m.group(2), 16)
-    if (module, addr) in named or module.startswith("stage") or re.match(r"em\d", module):
+    if (module, addr) in named or module.startswith("stage") or (re.match(r"em\d", module) and not os.environ.get("UNNAMED_MONSTERS")):
         continue
     groups[module].append((calls[fn], n, addr, module, fn))
 for module, rows in groups.items():

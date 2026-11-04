@@ -37,7 +37,7 @@ evidence = "game_task 09AD9EE0 tests &1; game_task 09AC5328 tests &2 per layer a
 [[field]]
 struct = "Monster"
 offset = 0xBE
-name = "motion_frame_checks_off"
+name = "motion_layer0_blending"
 type = "s8"
 confidence = "inferred"
 note = "nonzero makes motion frame checks answer no"
@@ -2061,7 +2061,7 @@ evidence = "game_task 9ACD6B0 sets 2 at 0; 9AC2DE8; 9AC5C30 and 9AC69B0 count do
 [[field]]
 struct = "Monster"
 offset = 0x5F0
-name = "short_timer_side_0_ticks"
+name = "held_marker_ticks_0"
 type = "s8"
 confidence = "confirmed"
 decimal = true
@@ -2071,7 +2071,7 @@ evidence = "game_task 9AD8808 sets 5; 9AC5C30 counts down; 9AD8688 tests either;
 [[field]]
 struct = "Monster"
 offset = 0x5F2
-name = "short_timer_side_1_ticks"
+name = "held_marker_ticks_1"
 type = "s8"
 confidence = "confirmed"
 decimal = true

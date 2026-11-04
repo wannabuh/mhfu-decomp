@@ -1,0 +1,1152 @@
+[[function]]
+module = "em20"
+address = "09D1A340"
+name = "em20_init_fields_health_and_start_motion_01_thunk"
+purpose = "Tail-jumps to em20_init_fields_health_and_start_motion_01."
+confidence = "confirmed"
+evidence = "Generated C is only the jump to 09D1A348."
+
+[[function]]
+module = "em20"
+address = "09D1B538"
+name = "em20_run_state_by_group_saving_group_and_state"
+purpose = "Copies state group and state to +0x460/+0x461, then calls the group dispatcher for groups 0 to 7."
+confidence = "confirmed"
+evidence = "Short whole body; ran in overnight-misc from em20_tick_apply_damage_result_then_run_state."
+
+[[function]]
+module = "em20"
+address = "09D1C288"
+name = "em20_set_state_group_03_setup_by_state"
+purpose = "Set-state setup for group 3: resets motion_speed_scale, per state aims with game_task 9AD9608, sets move_distance_left, action_count, move_target_place or moving_to_target, adds 5 or 1 to some states when size_percent is below 51, then sets the state."
+confidence = "inferred"
+evidence = "Whole switch read; ends in entity_set_state_by_global_flag_and_mode(self,3,state,arg); caller em20_set_state_run_group_setup_and_remove_pickup_point. Aim purpose of 9AD9608 from its body."
+
+[[function]]
+module = "em20"
+address = "09D1C598"
+name = "em20_set_state_group_04_setup_status_begin_end"
+purpose = "Set-state setup for group 4: per state calls the status begin and end functions (0xB, 0xC, 0xE, 0x11-0x13, 0x15-0x18), then sets the state."
+confidence = "confirmed"
+evidence = "Short whole body; ends in entity_set_state_by_global_flag_and_mode(self,4,state,arg)."
+
+[[function]]
+module = "em20"
+address = "09D1C6D0"
+name = "em20_set_default_state_00_01_or_02_02_by_field_280_thunk"
+purpose = "Tail-jumps to em20_set_default_state_00_01_or_02_02_by_field_280."
+confidence = "confirmed"
+evidence = "Generated C is only the jump to 09D29270."
+
+[[function]]
+module = "em20"
+address = "09D1C748"
+name = "em20_add_pickup_point_at_bone_2_id_by_subtype_and_quest_byte"
+purpose = "Adds a pickup point at bone 2 on the floor, with an id chosen by subtype 0x14 or not and by quest header byte +0x44 (6 when quest flag 0x400000 is set), and keeps its index in +0x7C9."
+confidence = "inferred"
+evidence = "Whole body; pickup_point_add and object_get_bone_position. Only caller 09D272F8, which then moves the point with bone 2."
+
+[[function]]
+module = "em20"
+address = "09D1CAF8"
+name = "em20_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0."
+
+[[function]]
+module = "em20"
+address = "09D1CC60"
+name = "em20_state_00_02_motion_6a_then_default_state"
+purpose = "Plays motion table entry 0x6A on the ground, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 2."
+
+[[function]]
+module = "em20"
+address = "09D1CCF8"
+name = "em20_state_00_03_motion_66_then_default_state"
+purpose = "Plays motion table entry 0x66, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 3."
+
+[[function]]
+module = "em20"
+address = "09D1CD78"
+name = "em20_state_00_04_motion_01_restart_layers_1_2"
+purpose = "Plays motion table entry 1 until layer 0 ends, restarting layers 1 and 2, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 4."
+
+[[function]]
+module = "em20"
+address = "09D1D010"
+name = "em20_state_00_07_motion_19_restart_layers_0_2"
+purpose = "Plays motion table entry 0x19 until mask 1 of +0xFC clears, restarting layers 0 and 2, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 7."
+
+[[function]]
+module = "em20"
+address = "09D1D0A8"
+name = "em20_state_00_09_motion_50_or_51_by_random_counter"
+purpose = "Plays motion table entry 0x51 or 0x50 by script_random_counter bit 0, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 9."
+
+[[function]]
+module = "em20"
+address = "09D1D150"
+name = "em20_state_00_0a_motion_65_snap_yaw_to_move_target"
+purpose = "Plays motion table entry 0x65, aims turn_target_yaw at move_target_place, sets facing to it once within 0x200, and goes to the default state when mask 1 of +0xFC clears after frame 60."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0xA."
+
+[[function]]
+module = "em20"
+address = "09D1D248"
+name = "em20_state_00_0b_motion_1c_layers_and_sounds"
+purpose = "Plays motion table entry 0x1C until mask 1 of +0xFC clears, restarting layers 0 and 2, with two motion sound cues, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0xB."
+
+[[function]]
+module = "em20"
+address = "09D1D320"
+name = "em20_state_00_0c_motion_1d_then_default_state"
+purpose = "Plays motion table entry 0x1D, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0xC."
+
+[[function]]
+module = "em20"
+address = "09D1D3A0"
+name = "em20_state_00_0d_motion_14_layers_and_sounds"
+purpose = "Plays motion table entry 0x14 until mask 1 of +0xFC clears, restarting layers 0 and 2, with two motion sound cues, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0xD."
+
+[[function]]
+module = "em20"
+address = "09D1D478"
+name = "em20_state_00_0e_motion_4f_frame_spawns_then_motion_3b_heal"
+purpose = "Motion 0x4F with type block 1 and spawns and sounds at listed frames, then motion 0x3B and health up 5% of maximum, back to type block 0, then the default state; meter_b rises 0xDE a tick to its maximum throughout."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_00 (09D1C890) 0xE. Meaning of the spawn kinds 6, 7, 8, 0xF, 0x10 not checked."
+
+[[function]]
+module = "em20"
+address = "09D1D920"
+name = "em20_state_00_10_motion_sequence_51_01_50_01"
+purpose = "Plays motion table entries 0x51, 1, 0x50, 1 in turn, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x10. Motion 1 waits on motion_frame_checks_off, the others on layer 0 flags."
+
+[[function]]
+module = "em20"
+address = "09D1DA40"
+name = "em20_state_00_11_motion_33_then_default_state"
+purpose = "Plays motion table entry 0x33, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x11."
+
+[[function]]
+module = "em20"
+address = "09D1DAC0"
+name = "em20_state_00_12_motions_20_1f_heal_timer_then_state_00_17"
+purpose = "Motion 0x20 then 0x1F with type block 1 and sight off, health added at a rate by subtype, for 5400 or 9000 ticks, then state 00_17."
+confidence = "confirmed"
+evidence = "Whole body; case of em20_run_state_group_00 (09D1C890) 0x12. Subtypes 6 and 0x26 get the shorter timer."
+
+[[function]]
+module = "em20"
+address = "09D1DCB0"
+name = "em20_state_00_13_motion_4f_until_frame_200_then_state_00_28"
+purpose = "Motion 0x4F with type block 1 until frame 200, then state 00_28."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x13."
+
+[[function]]
+module = "em20"
+address = "09D1DDC0"
+name = "em20_state_00_28_type_block_0_motion_3b_then_default_state"
+purpose = "Clears status_hold_mode and returns to type block 0 when the current motion ends, plays motion 0x3B, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x28; 00_13 leads here."
+
+[[function]]
+module = "em20"
+address = "09D1DE80"
+name = "em20_state_00_14_motions_26_22_timer_then_state_00_18"
+purpose = "Motion 0x26 then 0x22 with type block 1 and sight off until action_count runs out, then state 00_18."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x14."
+
+[[function]]
+module = "em20"
+address = "09D1DFB8"
+name = "em20_state_00_15_motions_27_22_heal_timer_then_state_00_18"
+purpose = "Motion 0x27 then 0x22 with type block 1 and sight off, health added at a rate by subtype, for 5400 or 9000 ticks, then state 00_18."
+confidence = "confirmed"
+evidence = "Whole body; case of em20_run_state_group_00 (09D1C890) 0x15."
+
+[[function]]
+module = "em20"
+address = "09D1E1A0"
+name = "em20_state_00_16_motion_50_then_default_state"
+purpose = "Plays motion table entry 0x50, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x16."
+
+[[function]]
+module = "em20"
+address = "09D1E220"
+name = "em20_state_00_17_motion_21_then_state_00_19"
+purpose = "Motion 0x21 with type block 0 and sight off, then state 00_19."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x17."
+
+[[function]]
+module = "em20"
+address = "09D1E300"
+name = "em20_state_00_18_motion_25_then_state_00_19"
+purpose = "Motion 0x25 with type block 0 and sight off, then state 00_19."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x18."
+
+[[function]]
+module = "em20"
+address = "09D1E3E0"
+name = "em20_state_00_19_motion_3e_then_default_state"
+purpose = "Plays motion table entry 0x3E, then the default state. Same code as 09D1EAF8."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x19."
+
+[[function]]
+module = "em20"
+address = "09D1E450"
+name = "em20_state_00_1a_motions_4f_3b_refill_meter_a_and_heal"
+purpose = "Motion 0x4F with type block 1, then motion 0x3B with meter_a filled and health up 5% of maximum, back to type block 0, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x1A."
+
+[[function]]
+module = "em20"
+address = "09D1E598"
+name = "em20_state_00_1b_motions_26_22_timer_then_state_00_1c"
+purpose = "Motion 0x26 then 0x22 with type block 1 and sight off until action_count runs out, then state 00_1C."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x1B."
+
+[[function]]
+module = "em20"
+address = "09D1E6D0"
+name = "em20_state_00_1c_motion_25_then_state_00_19"
+purpose = "Motion 0x25 with type block 0 and sight off, then state 00_19. Same steps as 09D1E300."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x1C."
+
+[[function]]
+module = "em20"
+address = "09D1E7B8"
+name = "em20_state_00_1d_motion_61_fx_timer_then_state_04_12"
+purpose = "Motion 0x61 with type block 1, sight off and effect and sound at bones 0x22 and 0x23, until action_count runs out, then state 04_12."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x1D."
+
+[[function]]
+module = "em20"
+address = "09D1E918"
+name = "em20_state_00_1f_motion_61_fx_timer_then_state_04_13"
+purpose = "Motion 0x61 with type block 1, sight off and effect and sound at bones 0x22 and 0x23, until action_count runs out, then state 04_13."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x1F."
+
+[[function]]
+module = "em20"
+address = "09D1EA78"
+name = "em20_state_00_21_motion_64_then_default_state"
+purpose = "Plays motion table entry 0x64 until mask 1 of +0xFC clears, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 0x21."
+
+[[function]]
+module = "em20"
+address = "09D1EAF8"
+name = "em20_state_00_08_22_24_motion_3e_then_default_state"
+purpose = "Plays motion table entry 0x3E, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_00 (09D1C890) 8, 0x22, 0x24."
+
+[[function]]
+module = "em20"
+address = "09D1EDF8"
+name = "em20_state_01_01_set_default_state"
+purpose = "Advances the step and sets the default state at once."
+confidence = "confirmed"
+evidence = "Two-line whole body; case of em20_run_state_group_01 (09D1EBF8) 1."
+
+[[function]]
+module = "em20"
+address = "09D1EE08"
+name = "em20_state_01_02_motion_68_until_timer_or_move_distance_done"
+purpose = "Motion 0x68, and until action_count runs out or, when moving to target, object_advance_move_distance reports done; then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 2."
+
+[[function]]
+module = "em20"
+address = "09D1EF78"
+name = "em20_state_01_motion_11_until_timer_or_move_distance_done"
+purpose = "Motion 0x11, and until action_count runs out or, when moving to target, object_advance_move_distance reports done; then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 4, 8, 0xB-0xF."
+
+[[function]]
+module = "em20"
+address = "09D1F040"
+name = "em20_state_01_05_turn_motion_to_saved_yaw_then_default_state"
+purpose = "Starts a turn motion toward the target from table 09D327F4, updates it until done, clears flag 0x20000, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 5."
+
+[[function]]
+module = "em20"
+address = "09D1F0E8"
+name = "em20_state_01_06_motion_0a_until_timer_or_move_distance_done"
+purpose = "Motion 0xA until object_advance_move_distance reports done or action_count runs out, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 6."
+
+[[function]]
+module = "em20"
+address = "09D1F198"
+name = "em20_state_01_07_motion_36_turn_to_move_target"
+purpose = "Motion 0x36, turning facing up to 0x200 a tick to move_target_place; after frame 60 waits for mask 1 of +0xFC to clear, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 7."
+
+[[function]]
+module = "em20"
+address = "09D1F2C8"
+name = "em20_state_01_0a_motion_68_until_timer_or_distance_then_motion_65"
+purpose = "Motion 0x68 until object_advance_move_distance reports done or action_count runs out, then motion 0x65, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_01 (09D1EBF8) 0xA."
+
+[[function]]
+module = "em20"
+address = "09D1F970"
+name = "em20_state_02_02_motion_0f_turn_timer_then_state_02_01"
+purpose = "Motion 0xF with keyframed vertical speed, turning at 0x100 toward the target; when action_count runs out sets 02_01, and at exactly 300 sets 02_0E. Stays above the floor."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 2. Default state when airborne."
+
+[[function]]
+module = "em20"
+address = "09D1FAA8"
+name = "em20_state_02_03_motion_12_curve_02_then_motion_0b_and_13"
+purpose = "Motion 0x12 and curve 2, turning between frames 50 and 114; once the curve is done within 800 of the floor plays 0xB and descends, then at the floor plays 0x13 with camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 3."
+
+[[function]]
+module = "em20"
+address = "09D1FD50"
+name = "em20_state_02_04_motion_12_curve_03_speed_forward_then_motion_13"
+purpose = "Motion 0x12 and curve 3 with Z speed +20; after frame 30 steps the curve until it is done at the floor, then 0x13 with camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 4. 02_0D flies forward with positive Z speed, which is why + reads as forward."
+
+[[function]]
+module = "em20"
+address = "09D1FED0"
+name = "em20_state_02_05_motion_12_curve_03_speed_backward_then_motion_13"
+purpose = "As 02_04 with Z speed -20."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 5."
+
+[[function]]
+module = "em20"
+address = "09D20050"
+name = "em20_state_02_06_motion_0c_0e_steer_cycle_4_points_count_in_7c5"
+purpose = "Motion 0xC then 0xE, steering to move_target_place; within 3000 or when action_count runs out, counts down +0x7C5: at zero sets 02_0F, otherwise takes the next of four target points and re-enters."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 6. Field_0x5D0 is move_target_place; field_0x50E is resolved_target_param2, masked with 3."
+
+[[function]]
+module = "em20"
+address = "09D202F8"
+name = "em20_state_02_07_motion_0f_approach_move_target_then_state_02_0e"
+purpose = "Motion 0xF, turning at 0x100 and pitching toward move_target_place; when within speed*10 in XZ or action_count runs out, zeroes velocity and sets 02_0E."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 7."
+
+[[function]]
+module = "em20"
+address = "09D20970"
+name = "em20_state_02_0a_set_state_02_0f"
+purpose = "Sets state 02_0F at once."
+confidence = "confirmed"
+evidence = "Generated C and view are this one call with argument 1; case of em20_run_state_group_02 (09D1F3B8) 0xA."
+
+[[function]]
+module = "em20"
+address = "09D20978"
+name = "em20_state_02_0b_motion_0c_steer_to_target_then_state_02_01"
+purpose = "Motion 0xC limited to speed 100, steering to move_target_place; within 1000 or at the end of action_count sets 02_01, then if still here retries every 300 ticks when locally owned."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0xB."
+
+[[function]]
+module = "em20"
+address = "09D20C18"
+name = "em20_state_02_0c_motion_34_curve_0e_then_motion_39_spawn_and_shake"
+purpose = "Motion 0x34 and curve 0xE from frame 76; at the floor, motion 0x39, spawn kind 0xB and camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0xC."
+
+[[function]]
+module = "em20"
+address = "09D20D80"
+name = "em20_state_02_0d_steer_to_area_edge_change_area_along_route"
+purpose = "Motion 0xF at speed 80 toward an area table point, then an edge point; on leaving the area bounds moves to the next route area and either re-enters for the rest of the route or sets 02_09."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0xD. entity_move_to_area_2e0_at_rect_edge, route_next_area, route_final_area, map_table_pos_within_inset_bounds."
+
+[[function]]
+module = "em20"
+address = "09D21208"
+name = "em20_state_02_0f_motion_0c_then_re_enter_state"
+purpose = "Clears X and Y speed, plays motion 0xC, and on its end sets 02_0F again through em20_set_state_02_0e_or_02_0f_by_arg, which also sets script_run_requested."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_02 (09D1F3B8) 0xF."
+
+[[function]]
+module = "em20"
+address = "09D212D8"
+name = "em20_state_02_10_motion_0f_turn_to_move_target_then_state_02_0e"
+purpose = "Motion 0xF with keyframed vertical speed, turning at 0x100 toward move_target_place for at most 150 ticks or until aligned, then 02_0E."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x10."
+
+[[function]]
+module = "em20"
+address = "09D213F0"
+name = "em20_state_02_11_motion_0c_0e_steer_cycle_4_points"
+purpose = "Motion 0xC then 0xE, steering with a faster rate; within 1000 or when action_count runs out, takes the next of four target points and re-enters."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x11. Unlike 02_06 it has no count."
+
+[[function]]
+module = "em20"
+address = "09D21898"
+name = "em20_state_02_13_motion_0c_0e_steer_to_move_target_then_state_02_0f"
+purpose = "Motion 0xC then 0xE, steering to move_target_place; within 1000 or when action_count runs out, re-enters as 02_0F through entity_set_state_randomize_322."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x13."
+
+[[function]]
+module = "em20"
+address = "09D21AC8"
+name = "em20_state_02_14_motion_54_curve_0c_spawn_and_shake"
+purpose = "Motion 0x54 and curve 0xC from frame 36; at the floor, spawn kind 0xB and camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x14."
+
+[[function]]
+module = "em20"
+address = "09D21C28"
+name = "em20_state_02_15_motion_0f_approach_in_3d_then_state_02_0e"
+purpose = "Motion 0xF, yaw and pitch toward move_target_place; when within speed*10 in 3D or action_count runs out, zeroes velocity and sets 02_0E."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x15; 02_07 is the XZ version."
+
+[[function]]
+module = "em20"
+address = "09D21D80"
+name = "em20_state_02_16_motion_5a_curve_09_level_angles_then_state_02_0e"
+purpose = "Motion 0x5A and curve 9, stepping angle_x and angle_z toward zero; when the curve is done, zeroes velocity and sets 02_0E."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x16."
+
+[[function]]
+module = "em20"
+address = "09D21ED0"
+name = "em20_state_02_17_motion_12_curve_02_block_requests_then_motion_13"
+purpose = "Clears status_hold_mode and short timer, blocks script requests, motion 0x12 and curve 2; once done within scale*800 of the floor plays 0xB and descends, at the floor plays 0x13 with camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x17; 04_0D and 04_17 lead here."
+
+[[function]]
+module = "em20"
+address = "09D22118"
+name = "em20_state_02_18_motion_0f_rise_speed_20_then_state_02_0e"
+purpose = "Motion 0xF with Y speed 20 until 1000 above move_target_place or action_count runs out, then zeroes velocity and sets 02_0E."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_02 (09D1F3B8) 0x18. The aim point auStack_10 is uninitialised in the view: read generated C before relying on the yaw."
+
+[[function]]
+module = "em20"
+address = "09D22338"
+name = "em20_move_with_vertical_speed_from_curve_table"
+purpose = "Takes keyframes for its index from table 09D32170, sets velocity Y from the segment holding motion frame +0x90 unless motion_frame_checks_off, and moves by the rotated velocity with yaw from facing."
+confidence = "inferred"
+evidence = "Whole body; called with index 1 by the motion 0xF states 02_02, 02_07, 02_10."
+
+[[function]]
+module = "em20"
+address = "09D22710"
+name = "entity_reload_area_values_and_reduce_494_498_thunk"
+purpose = "Tail-jumps to entity_reload_area_values_and_reduce_494_498 in game_task."
+confidence = "confirmed"
+evidence = "Generated C is only the jump to 9AD0648; ran in overnight-misc from em20_set_state_group_02_setup_target_and_timer."
+
+[[function]]
+module = "em20"
+address = "09D22718"
+name = "em20_run_state_group_03"
+purpose = "Calls the handler for state byte +0x299 of group 3; many states share a handler, and 5, 0xC-0x11, 0x13, 0x14, 0x16 have none."
+confidence = "confirmed"
+evidence = "Whole body is the switch; called for group 3 by 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D22AD0"
+name = "em20_state_03_00_turn_then_motion_24_then_default_state"
+purpose = "Turns by game_task 9AD96B8, then motion 0x24, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0."
+
+[[function]]
+module = "em20"
+address = "09D22B80"
+name = "em20_state_03_01_motion_6f_then_default_state"
+purpose = "Plays motion table entry 0x6F, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 1."
+
+[[function]]
+module = "em20"
+address = "09D22C00"
+name = "em20_state_03_02_turn_motion_28_curve_05_travel_then_motion_29"
+purpose = "Turns, motion 0x28 and curve 5; from frame 60 reduces move_distance_left by Z speed, spawning kind 0xA every 5 ticks when at most 500 left; at zero adds gravity, and at the floor plays 0x29, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_03 (09D22718) 2."
+
+[[function]]
+module = "em20"
+address = "09D22E50"
+name = "em20_state_03_03_motion_24_with_misc_flag_2"
+purpose = "Sets misc_flags bit 2, plays motion 0x24, clears it, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 3. 03_00 is the same motion after turning."
+
+[[function]]
+module = "em20"
+address = "09D22EE0"
+name = "em20_state_03_04_motion_44_frame_350_timer_then_state_03_09"
+purpose = "Motion 0x44 with point checks blocked until frame 350, then until action_count runs out, then state 03_09, retrying every 300 ticks when locally owned."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 4. Setup sets action_count 1800."
+
+[[function]]
+module = "em20"
+address = "09D23020"
+name = "em20_state_03_06_motion_2a_twice_spinning_facing"
+purpose = "Plays motion 0x2A twice on the layer flagged at +0xFC, adding 0x200 to facing each tick, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 6."
+
+[[function]]
+module = "em20"
+address = "09D23118"
+name = "em20_state_03_07_20_motion_6d_restart_script"
+purpose = "Motion 0x6D, restarts the script from its main entry and blocks script requests, then the default state when mask 1 of +0xFC clears."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 7, 0x20."
+
+[[function]]
+module = "em20"
+address = "09D231B8"
+name = "em20_state_03_08_steer_to_target_motions_2c_57_2d_then_climb_away"
+purpose = "Slows and steers to the target hunter, motion 0x2C when aimed and beyond 4000, then motion 0x57 descending with pitch tracking, motion 0x2D within reach, then motion 0xE climbing to the point farthest from the target, ending in 02_0F."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_03 (09D22718) 8. Motion ids from table entries; 0x415 tested as 0x2D by 09D24F38."
+
+[[function]]
+module = "em20"
+address = "09D23BC8"
+name = "em20_state_03_09_motion_6e_alert_off_timer_then_state_03_07"
+purpose = "Motion 0x6E with alert off and a timed pickup at +0x200 when object_band_from_field_4bc is 0, until action_count runs out, then state 03_07, retrying every 300 ticks when locally owned."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 9. View self type is Class_09BBC7DC: offsets match Monster."
+
+[[function]]
+module = "em20"
+address = "09D23CF8"
+name = "em20_state_03_0a_26_turn_then_motion_66_then_default_state"
+purpose = "Turns by game_task 9AD96B8, then motion 0x66, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0xA, 0x26."
+
+[[function]]
+module = "em20"
+address = "09D23DA8"
+name = "em20_state_03_0b_28_turn_motion_66_remove_pouch_item_on_connected_hit"
+purpose = "Turns, motion 0x66; if attack_connected is set on a current hunter by a record of kind 0x11, removes one item from its pouch through 09D255A8, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_03 (09D22718) 0xB, 0x28. +0x33D is attack_connected on Hunter; +0x2E8 and +0x2EC read as attacker fields set with it, +0xC 0x11 is what 09D2FF88 writes."
+
+[[function]]
+module = "em20"
+address = "09D23EE8"
+name = "em20_state_03_12_3c_3d_motion_11_move_then_motion_5b_spawn_then_motion_63"
+purpose = "Motion 0x11 advancing move distance until at most 500 left or action_count runs out, then motion 0x5B with an attack volume of kind 0x24 spawned, then motion 0x63, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x12, 0x3C, 0x3D."
+
+[[function]]
+module = "em20"
+address = "09D24038"
+name = "em20_state_03_15_steer_to_target_motions_2c_57_2d_then_motion_29"
+purpose = "As 03_08 up to motion 0x2D, with a gravity fall afterwards: at the floor plays 0x29, then the default state."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_03 (09D22718) 0x15. Steps 0-5 match 09D231B8."
+
+[[function]]
+module = "em20"
+address = "09D24950"
+name = "em20_state_03_turn_motion_2f_spawn_at_table_frame"
+purpose = "Turns by game_task 9AD96B8, plays motion 0x2F, at the frame from table 09D326F0 for its first argument spawns through em20_spawn_owned_obj_089bd548_kind_by_subtype_and_arg with its second, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x17-0x1A, 0x21-0x24, 0x29-0x2C, 0x2E-0x31."
+
+[[function]]
+module = "em20"
+address = "09D24AF0"
+name = "em20_state_03_turn_then_motion_69_then_default_state"
+purpose = "Turns by game_task 9AD96B8, then motion 0x69, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x1B, 0x25, 0x2D, 0x32-0x3B."
+
+[[function]]
+module = "em20"
+address = "09D24BD0"
+name = "em20_state_03_turn_then_motion_6a_then_default_state"
+purpose = "Turns by game_task 9AD96B8, then motion 0x6A, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x1C, 0x27."
+
+[[function]]
+module = "em20"
+address = "09D24CB0"
+name = "em20_state_03_1d_motion_6b_with_byte_7c8_set"
+purpose = "Plays motion 0x6B with byte +0x7C8 set, clears it, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x1D."
+
+[[function]]
+module = "em20"
+address = "09D24D58"
+name = "em20_state_03_1e_motion_2f_spawn_at_table_frame_0"
+purpose = "Motion 0x2F without turning, at the frame from table entry 0 spawns with argument 0, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x1E."
+
+[[function]]
+module = "em20"
+address = "09D24E98"
+name = "em20_state_03_1f_motion_69_then_default_state"
+purpose = "Plays motion 0x69 without turning, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_03 (09D22718) 0x1F."
+
+[[function]]
+module = "em20"
+address = "09D24F30"
+name = "em20_set_default_state_00_01_or_02_02_by_field_280_thunk_thunk"
+purpose = "Tail-jumps to the thunk 09D1C6D0."
+confidence = "confirmed"
+evidence = "Generated C is only the jump to 09D1C6D0."
+
+[[function]]
+module = "em20"
+address = "09D24F38"
+name = "em20_start_motion_2d_when_within_reach_of_target_slot"
+purpose = "Returns 0 without a target slot; otherwise 1 if motion id is 0x415, or starts motion table entry 0x2D and returns 1 when the target is within speed*30+4.5, else 0."
+confidence = "confirmed"
+evidence = "Short whole body; callers 09D231B8 and 09D24038 test motion id 0x415 after it."
+
+[[function]]
+module = "em20"
+address = "09D25000"
+name = "em20_step_angle_x_toward_target_slot_or_fixed_angle"
+purpose = "Steps angle_x by the rate at +0x7B0, limited at 0x3000 and 0xD000, toward: argument 0 the pitch to the target slot with a height offset, 1 angle 0xD000, 2 angle 0. Does nothing without a target slot."
+confidence = "inferred"
+evidence = "Whole body read; the VFPU block in mode 0 is an arctangent read through vector calls, the rest is plain."
+
+[[function]]
+module = "em20"
+address = "09D25388"
+name = "em20_set_move_target_to_point_farthest_from_target_slot"
+purpose = "Without a target slot sets state 02_06. Otherwise picks the farthest from the target of four points in the map area table, writes target kind 2 param 2 and that index, and copies the point to move_target_place; 1000,0,1000 if the area has no table."
+confidence = "inferred"
+evidence = "Whole body; the loop keeps distances in local_10 and picks the largest. Callers 03_08 steps 5 and 7, and the setup for states 03_08 and 03_15."
+
+[[function]]
+module = "em20"
+address = "09D255A8"
+name = "em20_remove_random_pouch_item_unless_skill_5c_or_d6"
+purpose = "For the local hunter while the quest has no end result and without skills 0x5C and 0xD6: takes a pouch slot holding one of nine listed items, else one passing item data tests, picks by script_random_counter, removes one and queues a HUD message."
+confidence = "inferred"
+evidence = "Whole body; pouch_change_item_count with -1 and hud_message_queue_push(1,6,item). Only caller is 03_0B after attack_connected."
+
+[[function]]
+module = "em20"
+address = "09D257F8"
+name = "em20_run_state_group_04"
+purpose = "Calls the handler for state byte +0x299 of group 4, states 0 to 0x1B; 0x19-0x1B share 09D272F8 with argument 0, 1, 2."
+confidence = "confirmed"
+evidence = "Whole body is the switch; called for group 4 by 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D259F0"
+name = "em20_state_04_00_motion_3c_restart_script_then_random_default"
+purpose = "Restarts the script, plays motion 0x3C, then 09D27548."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0."
+
+[[function]]
+module = "em20"
+address = "09D25A88"
+name = "em20_state_04_01_motion_42_restart_script_then_random_default"
+purpose = "Restarts the script, plays motion 0x42, then 09D27548."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 1."
+
+[[function]]
+module = "em20"
+address = "09D25B20"
+name = "em20_state_04_02_motion_3f_restart_script_then_random_default"
+purpose = "Restarts the script, plays motion 0x3F, then 09D27548."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 2."
+
+[[function]]
+module = "em20"
+address = "09D25BB8"
+name = "em20_state_04_03_motion_40_restart_script_then_random_default"
+purpose = "Restarts the script, plays motion 0x40, then 09D27548."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 3."
+
+[[function]]
+module = "em20"
+address = "09D25C58"
+name = "em20_state_04_05_motions_4a_4b_48_120_ticks_then_default_state"
+purpose = "Restarts the script, motion 0x4A, 0x4B for 120 ticks, 0x48, then the default state, keeping group and state in +0x460/+0x461."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 5."
+
+[[function]]
+module = "em20"
+address = "09D25D80"
+name = "em20_state_04_06_motions_45_46_47_120_ticks_then_default_state"
+purpose = "Restarts the script, motion 0x45, 0x46 for 120 ticks, 0x47, then the default state, keeping group and state in +0x460/+0x461."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 6."
+
+[[function]]
+module = "em20"
+address = "09D25EA8"
+name = "em20_state_04_07_motion_4d_14_frames_then_state_02_0f"
+purpose = "Restarts the script, motion 0x4D falling at Y speed at least -50 and moving; at frame 14 zeroes Y speed and sets 02_0F."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 7."
+
+[[function]]
+module = "em20"
+address = "09D25F98"
+name = "em20_state_04_08_motion_4d_fall_then_motions_4e_47"
+purpose = "Restarts the script, motion 0x4D with gravity to the floor, then 0x4E and 0x47, zeroing velocity, then 09D27548."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 8."
+
+[[function]]
+module = "em20"
+address = "09D26110"
+name = "em20_state_04_09_motion_4d_fall_sight_off_then_motions_4e_47"
+purpose = "As 04_08 with sight off and yaw kept from facing."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 9."
+
+[[function]]
+module = "em20"
+address = "09D26298"
+name = "em20_state_04_0a_motion_3d_restart_script_then_default_state"
+purpose = "Restarts the script, plays motion 0x3D, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xA."
+
+[[function]]
+module = "em20"
+address = "09D26330"
+name = "em20_state_04_0b_motion_4c_timer_then_state_00_22"
+purpose = "Restarts the script, motion 0x4C with script requests blocked and an effect at a bone, until action_count runs out, then state 00_22."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xB."
+
+[[function]]
+module = "em20"
+address = "09D26438"
+name = "em20_state_04_0c_motion_5f_then_state_04_0d"
+purpose = "Restarts the script, motion 0x5F with script requests blocked and the side 0 timer kept at 5 or more, then state 04_0D."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xC."
+
+[[function]]
+module = "em20"
+address = "09D26568"
+name = "em20_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xD. Same code as 04_11."
+
+[[function]]
+module = "em20"
+address = "09D266A8"
+name = "em20_state_04_0e_motion_61_timer_then_state_04_11"
+purpose = "Motion 0x61 with effect at a bone, restarted script and blocked requests, until action_count runs out, then sets the target from +0x77A and state 04_11."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xE."
+
+[[function]]
+module = "em20"
+address = "09D267B0"
+name = "em20_state_04_0f_motions_6c_64_timed_pickup_at_place"
+purpose = "Restarts the script, motion 0x6C with a timed pickup point at its place, then motion 0x64, then the default state."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0xF."
+
+[[function]]
+module = "em20"
+address = "09D26890"
+name = "em20_state_04_10_motion_44_frame_350_then_state_03_09"
+purpose = "Restarts the script, motion 0x44 with point checks blocked until frame 350, then state 03_09 when it ends."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x10."
+
+[[function]]
+module = "em20"
+address = "09D26978"
+name = "em20_state_04_11_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x11. Same code as 04_0D."
+
+[[function]]
+module = "em20"
+address = "09D26AB8"
+name = "em20_state_04_12_motion_62_then_state_04_0d"
+purpose = "Motion 0x62 with sight off, then sets the target from +0x77A and state 04_0D."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x12; 00_1D leads here."
+
+[[function]]
+module = "em20"
+address = "09D26BB0"
+name = "em20_state_04_13_motion_62_then_state_04_0d"
+purpose = "Motion 0x62 with sight off, then sets the target from +0x77A and state 04_0D. Same code as 04_12."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x13; 00_1F leads here."
+
+[[function]]
+module = "em20"
+address = "09D26CA8"
+name = "em20_state_04_14_motion_3f_spawn_at_bone_27_then_random_default"
+purpose = "Restarts the script, plays motion 0x3F, spawns class_089bdce0 with value 10 at 90 along bone 0x27, then 09D27548."
+confidence = "confirmed"
+evidence = "Whole body; case of em20_run_state_group_04 (09D257F8) 0x14."
+
+[[function]]
+module = "em20"
+address = "09D26DF0"
+name = "em20_state_04_15_motions_45_46_47_timer_then_state_00_24"
+purpose = "Restarts the script, motion 0x45 with game_sub 9C97220, 0x46 until action_count runs out, 0x47, then state 00_24."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x15."
+
+[[function]]
+module = "em20"
+address = "09D26F80"
+name = "em20_state_04_16_motion_61_timer_then_state_04_17"
+purpose = "Motion 0x61 with game_sub 9C97220 and blocked script requests, until action_count runs out, then sets the target from +0x77A and state 04_17."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x16."
+
+[[function]]
+module = "em20"
+address = "09D270A8"
+name = "em20_state_04_17_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5, then state 02_17."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x17."
+
+[[function]]
+module = "em20"
+address = "09D271A8"
+name = "em20_state_04_18_motions_3c_4c_timer_then_state_00_08"
+purpose = "Restarts the script, motion 0x3C with flag 0x20000 to frame 52, then 0x4C until action_count runs out, then state 00_08."
+confidence = "confirmed"
+evidence = "Short whole body; case of em20_run_state_group_04 (09D257F8) 0x18."
+
+[[function]]
+module = "em20"
+address = "09D272F8"
+name = "em20_state_04_19_1b_motion_44_frame_212_hold_by_arg_then_state_03_20"
+purpose = "Motion 0x44 with alert off and blocked requests, camera shake at frame 212, then a hold of 300, 150 or 30 ticks by argument with a pickup point following bone 2 when object_band_from_field_4bc is nonzero, then state 03_20."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_04 (09D257F8) 0x19-0x1B."
+
+[[function]]
+module = "em20"
+address = "09D27548"
+name = "em20_set_default_state_or_ten_percent_state_03_1e_1f"
+purpose = "Sets the default state; when script_random_counter %100 is below 10 also clears script_run_requested and sets 03_1E, or 03_1F for other subtypes when monster_flags bit 0x20 is set."
+confidence = "confirmed"
+evidence = "Short whole body. Subtypes 0x14 and 0x27 always get 03_1E."
+
+[[function]]
+module = "em20"
+address = "09D27628"
+name = "em20_run_state_group_05"
+purpose = "Sets +0x2BA to 5 and calls the handler for state 0 to 3 of group 5."
+confidence = "confirmed"
+evidence = "Whole body; called for group 5 by 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D276B8"
+name = "em20_state_05_00_motion_44_pickup_point_timer_and_fade"
+purpose = "Motion 0x44 with quest_on_monster_removed, camera shake at frame 212, then a pickup point for 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_05 (09D27628) 0."
+
+[[function]]
+module = "em20"
+address = "09D27910"
+name = "em20_state_05_01_motion_61_pickup_point_timer_and_fade"
+purpose = "Motion 0x61 with quest_on_monster_removed, then a pickup point for 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_05 (09D27628) 1."
+
+[[function]]
+module = "em20"
+address = "09D27B48"
+name = "em20_state_05_02_fall_motions_4d_4e_52_pickup_point_timer_and_fade"
+purpose = "Motion 0x4D with gravity to the floor, 0x4E, at frame 60 motion 0x52 with quest_on_monster_removed, then a pickup point for 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_05 (09D27628) 2."
+
+[[function]]
+module = "em20"
+address = "09D27E68"
+name = "em20_state_05_03_end_or_respawn_by_quest_record"
+purpose = "If quest_object_record_check_active is 0 sets life_state 2; otherwise repositions and sets 00_01 at fixed places on map 9, or 02_01 in the air elsewhere."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_05 (09D27628) 3; 05_00-02 and 06_04-05 end here."
+
+[[function]]
+module = "em20"
+address = "09D28028"
+name = "em20_run_state_group_06"
+purpose = "Calls the handler for state 0, 1, 4 or 5 of group 6."
+confidence = "confirmed"
+evidence = "Whole body; called for group 6 by 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D280B0"
+name = "em20_state_06_00_fixed_path_wait_flag_143"
+purpose = "At fixed coordinates: moves through steps with motions 0xE, 0xC, 0xF, 0x13, 6, 1, 0x33, 0x69, then waits for gamedata flag 0x143 and sets the default state, with perception and point checks off throughout."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_06 (09D28028) 0."
+
+[[function]]
+module = "em20"
+address = "09D28678"
+name = "em20_state_06_01_fixed_path_wait_flag_145"
+purpose = "At fixed coordinates: moves through steps with motions 1, 3, 0x68, 0x65, 3, 0x33, 1, then waits for gamedata flag 0x145 and sets the default state, with perception and point checks off throughout."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_06 (09D28028) 1."
+
+[[function]]
+module = "em20"
+address = "09D28B30"
+name = "em20_state_06_04_motion_61_quest_count_timer_and_fade"
+purpose = "Motion 0x61 with type block 1 and monster_status_01_begin, then quest_on_monster_counted_update_records and 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_06 (09D28028) 4."
+
+[[function]]
+module = "em20"
+address = "09D28D68"
+name = "em20_state_06_05_motions_26_22_quest_count_timer_and_fade"
+purpose = "Motion 0x26 with type block 1 and monster_status_01_begin, then motion 0x22 with quest_on_monster_counted_update_records and 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "Whole body; case of em20_run_state_group_06 (09D28028) 5."
+
+[[function]]
+module = "em20"
+address = "09D28F40"
+name = "em20_run_state_group_07"
+purpose = "Calls 09D28F78 for state 0x10 of group 7, the only state it has."
+confidence = "confirmed"
+evidence = "Whole body; called for group 7 by 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D28F78"
+name = "em20_state_07_10_motion_0f_slowed_drop_then_motions_0b_13"
+purpose = "From height, Y speed computed to slow toward the floor; motion 0xF to scale*630 above it, then 0xB at frame 10, 86 or 160, then 0x13 with camera shake, then the default state."
+confidence = "inferred"
+evidence = "Whole body; the only state of group 7."
+
+[[function]]
+module = "em20"
+address = "09D2C140"
+name = "em20_spawn_owned_obj_089bd548_kind_by_subtype_and_arg"
+purpose = "Spawns an owned object through owned_obj_spawn_vtable_089bd548 with first value 0x22: for subtypes 6 and 0x26 kind 3, 0x1A or 0x1B by argument, otherwise kind 2 or 0x19 with subtype 0x27 flagged."
+confidence = "confirmed"
+evidence = "Short whole body; callers are the motion 0x2F states at a table frame."
+
+[[function]]
+module = "em20"
+address = "09D2C208"
+name = "em20_set_model_group_material_alpha_by_subtype"
+purpose = "Calls 09D2C3F0 for subtypes 0x14 and 0x27, 09D2C278 for 6 and 0x26."
+confidence = "confirmed"
+evidence = "Short whole body; uncalled directly, so through a table."
+
+[[function]]
+module = "em20"
+address = "09D2C278"
+name = "em20_set_model_group_material_alpha_for_subtype_06_26"
+purpose = "For each material of a model group writes alpha +0x230, zeroing chosen materials of groups 0, 1, 2, 4 by +0x2B8 bit 1 and by +0x5B2 below 2."
+confidence = "inferred"
+evidence = "Whole body; model_data_group_material_indices and byte +3 of a 0x10-byte entry at +0x58, which is taken as alpha from the value copied."
+
+[[function]]
+module = "em20"
+address = "09D2C3F0"
+name = "em20_set_model_group_material_alpha_for_subtype_14_27"
+purpose = "For each material of a model group writes alpha +0x230, showing or hiding chosen materials of groups 0, 2, 3 by +0x7DB, +0x7C8, monster_flags bit 0x20 and group 5."
+confidence = "inferred"
+evidence = "Whole body; same material loop as 09D2C278."
+
+[[function]]
+module = "em20"
+address = "09D2C610"
+name = "em20_fx_kind_3_at_bone_22_every_60_ticks"
+purpose = "When tick_30ths is a multiple of 60, calls game_sub 9C60F48 with kind 3, bone 0x22, an offset of 100 up and scale 2."
+confidence = "confirmed"
+evidence = "Short whole body; the offset word 0x42C80000 is 100.0."
+
+[[function]]
+module = "em20"
+address = "09D2C780"
+name = "em20_start_end_vfunc_ticks_and_set_state_04_09_or_04_0a"
+purpose = "Sets sight_off_ticks to 10, end_vfunc_ec_ticks from the subtype table, runs game_sub 9C97220, and when locally owned with both short timers clear and status_mask bit 8 clear, sets 04_09 if movement_mode is 2 else 04_0A."
+confidence = "inferred"
+evidence = "Whole body read; uncalled directly, so through a table, which slot not checked."
+
+[[function]]
+module = "em20"
+address = "09D2CDC0"
+name = "em20_spawn_class_089bdfb0_kind_0a_every_5_ticks"
+purpose = "When tick_30ths is a multiple of 5, spawns class_089bdfb0 kind 0xA with scale 1."
+confidence = "confirmed"
+evidence = "Four-line whole body; called by 03_02 when move_distance_left is at most 500."
+
+[[function]]
+module = "em20"
+address = "09D2FF88"
+name = "em20_attack_volume_setup_from_owner_and_link_to_list"
+purpose = "Sets kind byte +0xC to 0x11 and +0xD to the argument, copies owner slot, motion id and the owner vector at +0x1F0, clears the owner bytes +0x33D and +0x3F8, flips the yaw copy for 0x28, copies the owner vector at +0x200 for 0x16, and links itself into the list at manager +0x502C."
+confidence = "confirmed"
+evidence = "Whole body; game_task 9B64A08 calls it after setting vtable 089BEB6C."
+
+[[function]]
+module = "em20"
+address = "09D30070"
+name = "em20_attack_volume_first_state_bind_record_and_set_next"
+purpose = "First state: binds and loads the record for its kind from table 09D39688, reads values for it, assigns the counter, for kind 0x16 registers +0xE0 with game_task 9AB38A8, and sets the next state function."
+confidence = "inferred"
+evidence = "Whole body; KutKuGypcerosAttackVolume class, member function pointer at +0x78."
+
+[[function]]
+module = "em20"
+address = "09D30270"
+name = "em20_attack_volume_second_state_until_owner_motion_changes"
+purpose = "Until the owner motion id differs from +0xC2 or byte +0x14 clears, keeps going; then clears +0x14, sets the next state function and for kind 0x16 calls game_task 9AB3C48. Kinds 0x13, 0x17, 0x1C set +0x1D to 99."
+confidence = "inferred"
+evidence = "Whole body; the +0x324 read through the owner slot is motion_id."
+
+[[function]]
+module = "em20"
+address = "09D30398"
+name = "em20_attack_volume_third_state_clear_14_set_next"
+purpose = "Clears byte +0x14 and sets the next state function from the word at 09D396B0."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "em20"
+address = "09D30408"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Tail-jumps to owned_obj_base_clear_state_fn_78."
+confidence = "confirmed"
+evidence = "Generated C is only the jump to 9B673F8."
+
+[[function]]
+module = "em20"
+address = "09D30410"
+name = "em20_attack_volume_call_vfunc_24"
+purpose = "Calls vtable +0x24 of its argument."
+confidence = "confirmed"
+evidence = "Generated C is only this call."
+
+[[function]]
+module = "em20"
+address = "09D30420"
+name = "em20_attack_volume_call_vfunc_28_at_09d30420"
+purpose = "Calls vtable +0x28 of its argument."
+confidence = "confirmed"
+evidence = "Generated C is only this call."
+
+[[function]]
+module = "em20"
+address = "09D30430"
+name = "em20_attack_volume_call_vfunc_28_at_09d30430"
+purpose = "Calls vtable +0x28 of its argument."
+confidence = "confirmed"
+evidence = "Generated C is only this call."
+
+[[function]]
+module = "em20"
+address = "09D30440"
+name = "em20_attack_volume_call_vfunc_28_at_09d30440"
+purpose = "Calls vtable +0x28 of its argument."
+confidence = "confirmed"
+evidence = "Generated C is only this call."
+
+[[function]]
+module = "em20"
+address = "09D30458"
+name = "em20_attack_volume_destructor"
+purpose = "Sets vtable 089BEB6C, runs owned_obj_base_destructor, and on a positive argument calls the delete stub."
+confidence = "confirmed"
+evidence = "Short whole body; classes.json lists it as the ctor site for that vtable, but it destroys."
+

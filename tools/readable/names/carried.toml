@@ -1122,6 +1122,22 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em02"
+address = "09D1F4D0"
+name = "em02_air_controller_update"
+purpose = "Runs the tracks, advances the tick by motion speed, moves if in mode 2, returns their done bits."
+confidence = "inferred"
+evidence = "same code as em75 09D3D638"
+
+[[function]]
+module = "em02"
+address = "09D1FBF0"
+name = "em02_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "inferred"
+evidence = "same code as em20 09D1CAF8"
+
+[[function]]
+module = "em02"
 address = "09D22B30"
 name = "math_mat_rotate_z"
 purpose = "Multiplies the 3x3 part of matrix param_2 by a Z rotation of arg_f12 radians and writes it to param_1."
@@ -1207,6 +1223,14 @@ name = "stub_noop"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em07"
+address = "09D1AA48"
+name = "em07_rotate_four_bones_by_look_yaw_shares"
+purpose = "For the four bones at the type block +6..+9, rotates by look_yaw_share0..3 (+0x5FC..+0x608)."
+confidence = "guess"
+evidence = "same code as em01 09D2FAC0"
 
 [[function]]
 module = "em07"
@@ -1298,6 +1322,14 @@ evidence = "same code as em20 09D1EB68"
 
 [[function]]
 module = "em14"
+address = "09D1FD18"
+name = "em14_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "inferred"
+evidence = "same code as em20 09D1CAF8"
+
+[[function]]
+module = "em14"
 address = "09D20004"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
@@ -1338,6 +1370,30 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em14"
+address = "09D20B60"
+name = "em14_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "inferred"
+evidence = "same code as em01 09D1BD68"
+
+[[function]]
+module = "em14"
+address = "09D20EA0"
+name = "em14_state_00_17_motion_21_then_state_00_19"
+purpose = "Motion 0x21 with type block 0 and sight off, then state 00_19."
+confidence = "inferred"
+evidence = "same code as em20 09D1E220"
+
+[[function]]
+module = "em14"
+address = "09D20F80"
+name = "em14_state_00_17_motion_25_sight_off_then_00_19"
+purpose = "Motion 0x25 with type block 0, sight off during it; then 0,0x19."
+confidence = "inferred"
+evidence = "same code as em01 09D1C128"
+
+[[function]]
+module = "em14"
 address = "09D210D0"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
@@ -1346,11 +1402,35 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em14"
+address = "09D210D8"
+name = "em14_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "inferred"
+evidence = "same code as em01 09D1C4B8"
+
+[[function]]
+module = "em14"
+address = "09D23C60"
+name = "em14_state_04_04_motion_41_turn_936_per_tick_then_04_0f"
+purpose = "Motion 0x41; in frames 52..122 facing minus 936*motion_speed_scale a tick; point checks blocked; then 4,0xF. Calls monster_script_restart_from_main_entry."
+confidence = "inferred"
+evidence = "same code as em01 09D25BE0"
+
+[[function]]
+module = "em14"
 address = "09D26F10"
 name = "class_089bbbac_camera_shake_on_motion_frame"
 purpose = "When motion_frame_reached returns true on layer 0 for frame param_2 (frame 2 is first scaled by float +0x4B0 when that is not 1.0), calls camera_start_shake_from_object on DAT_089cbd04 with type param_3 and this object."
 confidence = "inferred"
 evidence = "same code as em20 09D2C580"
+
+[[function]]
+module = "em14"
+address = "09D27038"
+name = "em14_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
 
 [[function]]
 module = "em14"
@@ -1410,11 +1490,51 @@ evidence = "same code as em20 09D1EB68"
 
 [[function]]
 module = "em15"
+address = "09D1FA20"
+name = "em15_state_00_13_motion_4f_until_frame_200_then_00_28"
+purpose = "Motion 0x4F, type block 1; at frame 200 sets 0,0x28."
+confidence = "inferred"
+evidence = "same code as em01 09D1BB98"
+
+[[function]]
+module = "em15"
+address = "09D1FD60"
+name = "em15_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "inferred"
+evidence = "same code as em01 09D1BD68"
+
+[[function]]
+module = "em15"
 address = "09D20004"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em15"
+address = "09D20078"
+name = "em15_state_00_17_motion_21_then_state_00_19"
+purpose = "Motion 0x21 with type block 0 and sight off, then state 00_19."
+confidence = "inferred"
+evidence = "same code as em20 09D1E220"
+
+[[function]]
+module = "em15"
+address = "09D20158"
+name = "em15_state_00_17_motion_25_sight_off_then_00_19"
+purpose = "Motion 0x25 with type block 0, sight off during it; then 0,0x19."
+confidence = "inferred"
+evidence = "same code as em01 09D1C128"
+
+[[function]]
+module = "em15"
+address = "09D20388"
+name = "em15_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "inferred"
+evidence = "same code as em01 09D1C4B8"
 
 [[function]]
 module = "em15"
@@ -1450,6 +1570,14 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em15"
+address = "09D26018"
+name = "em15_state_06_05_motions_26_22_begin_status_01_quest_count_fade"
+purpose = "Motion 0x26 then 0x22, type block 1, status 01 begins; then as 6,4."
+confidence = "inferred"
+evidence = "same code as em01 09D28320"
+
+[[function]]
+module = "em15"
 address = "09D27A28"
 name = "class_089bbbac_camera_shake_on_motion_frame"
 purpose = "When motion_frame_reached returns true on layer 0 for frame param_2 (frame 2 is first scaled by float +0x4B0 when that is not 1.0), calls camera_start_shake_from_object on DAT_089cbd04 with type param_3 and this object."
@@ -1463,6 +1591,14 @@ name = "class_089bdfb0_spawn_for_owner_or_alternative_kind_0x0b"
 purpose = "Calls class_089bdfb0_spawn_for_owner_or_9c91420_alternative with owner param_1, kind 0x0B, param_3 0 and scale 1.0."
 confidence = "inferred"
 evidence = "same code as em20 09D2C768"
+
+[[function]]
+module = "em15"
+address = "09D27C90"
+name = "em15_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
 
 [[function]]
 module = "em15"
@@ -1514,6 +1650,14 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em17"
+address = "09D1E710"
+name = "em17_air_controller_update"
+purpose = "Runs the tracks, advances the tick by motion speed, moves if in mode 2, returns their done bits."
+confidence = "inferred"
+evidence = "same code as em75 09D3D638"
+
+[[function]]
+module = "em17"
 address = "09D1E938"
 name = "em17_restart_layer_motion_when_mask_1_clear"
 purpose = "When mask 0x1 of the layer's motion flag (+0xBC + layer * 0x40) is clear, starts on layer 0, 1 or 2 motion 0x3E9, 0x4B1 or 0x579 with blend 10 through entity_motion_play_id_on_layer."
@@ -1522,11 +1666,67 @@ evidence = "same code as em20 09D1EB68"
 
 [[function]]
 module = "em17"
+address = "09D1FBB8"
+name = "em17_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "inferred"
+evidence = "same code as em01 09D1BD68"
+
+[[function]]
+module = "em17"
+address = "09D200A0"
+name = "em17_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "inferred"
+evidence = "same code as em01 09D1C4B8"
+
+[[function]]
+module = "em17"
+address = "09D24C40"
+name = "em17_state_04_0b_motion_4c_count_then_00_21"
+purpose = "Motion 0x4C until action_count ends; byte +0x3CF 4; 9ACD4F0(2); then 0,0x21. Calls monster_script_restart_from_main_entry."
+confidence = "inferred"
+evidence = "same code as em01 09D265E8"
+
+[[function]]
+module = "em17"
+address = "09D24E88"
+name = "em17_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26568"
+
+[[function]]
+module = "em17"
+address = "09D253D8"
+name = "em17_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "inferred"
+evidence = "same code as em01 09D26D38"
+
+[[function]]
+module = "em17"
 address = "09D27AD0"
 name = "class_089bbbac_camera_shake_on_motion_frame"
 purpose = "When motion_frame_reached returns true on layer 0 for frame param_2 (frame 2 is first scaled by float +0x4B0 when that is not 1.0), calls camera_start_shake_from_object on DAT_089cbd04 with type param_3 and this object."
 confidence = "inferred"
 evidence = "same code as em20 09D2C580"
+
+[[function]]
+module = "em17"
+address = "09D27B60"
+name = "em17_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
+
+[[function]]
+module = "em17"
+address = "09D27BC0"
+name = "em17_sight_off_then_state_04_09_or_04_0a"
+purpose = "Sets sight_off_ticks 10, end_vfunc_ec_ticks from the type table, calls 9C97220, then if owner, free of 5F0/5F2 and status 8, sets 4,9 in movement_mode 2 or 4,0xA otherwise."
+confidence = "inferred"
+evidence = "same code as em01 09D2F580"
 
 [[function]]
 module = "em17"
@@ -1682,6 +1882,14 @@ evidence = "same code as game_task 09AE94E8"
 
 [[function]]
 module = "em21"
+address = "09D1E6B0"
+name = "em21_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "inferred"
+evidence = "same code as em20 09D1CAF8"
+
+[[function]]
+module = "em21"
 address = "09D1FC70"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
@@ -1751,6 +1959,14 @@ name = "class_089bdfb0_spawn_for_owner_or_alternative_kind_0x0b"
 purpose = "Calls class_089bdfb0_spawn_for_owner_or_9c91420_alternative with owner param_1, kind 0x0B, param_3 0 and scale 1.0."
 confidence = "inferred"
 evidence = "same code as em20 09D2C768"
+
+[[function]]
+module = "em21"
+address = "09D287F0"
+name = "em21_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
 
 [[function]]
 module = "em21"
@@ -1850,6 +2066,150 @@ evidence = "same code as em20 09D1EB68"
 
 [[function]]
 module = "em40"
+address = "09D1D870"
+name = "em40_state_00_13_motion_4f_until_frame_200_then_00_28"
+purpose = "Motion 0x4F, type block 1; at frame 200 sets 0,0x28."
+confidence = "inferred"
+evidence = "same code as em01 09D1BB98"
+
+[[function]]
+module = "em40"
+address = "09D1D980"
+name = "em40_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "inferred"
+evidence = "same code as em01 09D1BD68"
+
+[[function]]
+module = "em40"
+address = "09D1DC28"
+name = "em40_state_00_17_motion_25_sight_off_then_00_19"
+purpose = "Motion 0x25 with type block 0, sight off during it; then 0,0x19."
+confidence = "inferred"
+evidence = "same code as em01 09D1C128"
+
+[[function]]
+module = "em40"
+address = "09D1DD08"
+name = "em40_state_00_17_motion_25_sight_off_then_00_19"
+purpose = "Motion 0x25 with type block 0, sight off during it; then 0,0x19."
+confidence = "inferred"
+evidence = "same code as em01 09D1C128"
+
+[[function]]
+module = "em40"
+address = "09D1DE58"
+name = "em40_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "inferred"
+evidence = "same code as em01 09D1C4B8"
+
+[[function]]
+module = "em40"
+address = "09D1DF90"
+name = "em40_state_00_1c_motion_25_then_state_00_19"
+purpose = "Motion 0x25 with type block 0 and sight off, then state 00_19. Same steps as 09D1E300."
+confidence = "inferred"
+evidence = "same code as em20 09D1E6D0"
+
+[[function]]
+module = "em40"
+address = "09D257C8"
+name = "em40_state_04_0b_motion_4c_timer_then_state_00_22"
+purpose = "Restarts the script, motion 0x4C with script requests blocked and an effect at a bone, until action_count runs out, then state 00_22."
+confidence = "inferred"
+evidence = "same code as em20 09D26330"
+
+[[function]]
+module = "em40"
+address = "09D258D0"
+name = "em40_state_04_0c_motion_5f_then_state_04_0d"
+purpose = "Restarts the script, motion 0x5F with script requests blocked and the side 0 timer kept at 5 or more, then state 04_0D."
+confidence = "inferred"
+evidence = "same code as em20 09D26438"
+
+[[function]]
+module = "em40"
+address = "09D25A00"
+name = "em40_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26568"
+
+[[function]]
+module = "em40"
+address = "09D25B40"
+name = "em40_state_04_0e_motion_61_timer_then_state_04_11"
+purpose = "Motion 0x61 with effect at a bone, restarted script and blocked requests, until action_count runs out, then sets the target from +0x77A and state 04_11."
+confidence = "inferred"
+evidence = "same code as em20 09D266A8"
+
+[[function]]
+module = "em40"
+address = "09D25DD0"
+name = "em40_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26568"
+
+[[function]]
+module = "em40"
+address = "09D25F10"
+name = "em40_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "inferred"
+evidence = "same code as em01 09D26D38"
+
+[[function]]
+module = "em40"
+address = "09D26008"
+name = "em40_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "inferred"
+evidence = "same code as em01 09D26D38"
+
+[[function]]
+module = "em40"
+address = "09D26160"
+name = "em40_state_04_15_motions_45_46_47_timer_then_state_00_24"
+purpose = "Restarts the script, motion 0x45 with game_sub 9C97220, 0x46 until action_count runs out, 0x47, then state 00_24."
+confidence = "inferred"
+evidence = "same code as em20 09D26DF0"
+
+[[function]]
+module = "em40"
+address = "09D262F0"
+name = "em40_state_04_16_motion_61_timer_then_state_04_17"
+purpose = "Motion 0x61 with game_sub 9C97220 and blocked script requests, until action_count runs out, then sets the target from +0x77A and state 04_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26F80"
+
+[[function]]
+module = "em40"
+address = "09D26418"
+name = "em40_state_04_16_motion_60_count_77a_then_02_17_c"
+purpose = "Motion 0x60, +0x77A counted down; then 2,0x17."
+confidence = "inferred"
+evidence = "same code as em01 09D271E0"
+
+[[function]]
+module = "em40"
+address = "09D26518"
+name = "em40_state_04_18_motions_3c_4c_timer_then_state_00_08"
+purpose = "Restarts the script, motion 0x3C with flag 0x20000 to frame 52, then 0x4C until action_count runs out, then state 00_08."
+confidence = "inferred"
+evidence = "same code as em20 09D271A8"
+
+[[function]]
+module = "em40"
+address = "09D27708"
+name = "em40_state_06_05_motions_26_22_begin_status_01_quest_count_fade"
+purpose = "Motion 0x26 then 0x22, type block 1, status 01 begins; then as 6,4."
+confidence = "inferred"
+evidence = "same code as em01 09D28320"
+
+[[function]]
+module = "em40"
 address = "09D2C218"
 name = "class_089bbbac_camera_shake_on_motion_frame"
 purpose = "When motion_frame_reached returns true on layer 0 for frame param_2 (frame 2 is first scaled by float +0x4B0 when that is not 1.0), calls camera_start_shake_from_object on DAT_089cbd04 with type param_3 and this object."
@@ -1858,11 +2218,35 @@ evidence = "same code as em20 09D2C580"
 
 [[function]]
 module = "em40"
+address = "09D2C340"
+name = "em40_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
+
+[[function]]
+module = "em40"
+address = "09D2C3A0"
+name = "em40_sight_off_then_state_04_09_or_04_0a"
+purpose = "Sets sight_off_ticks 10, end_vfunc_ec_ticks from the type table, calls 9C97220, then if owner, free of 5F0/5F2 and status 8, sets 4,9 in movement_mode 2 or 4,0xA otherwise."
+confidence = "inferred"
+evidence = "same code as em01 09D2F580"
+
+[[function]]
+module = "em40"
 address = "09D2C498"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em40"
+address = "09D2C4A8"
+name = "em40_returns_1_unless_air_579_or_states_04_0c_to_13"
+purpose = "Returns 0 in states 4,0xC 0xD 0xE 0x11 0x12 0x13, when movement_mode is 2 or +0x579 is nonzero; else 1."
+confidence = "inferred"
+evidence = "same code as em01 09D2D410"
 
 [[function]]
 module = "em40"
@@ -1991,6 +2375,14 @@ name = "stub_return_0"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em54"
+address = "09D21560"
+name = "em54_state_00_00_base_layer_motions_count_then_request_script"
+purpose = "Puts base motions on layers 0..2 and counts action_count down to a script run request."
+confidence = "inferred"
+evidence = "same code as em01 09D1A6F8"
 
 [[function]]
 module = "em54"
@@ -2634,6 +3026,62 @@ evidence = "same code as em20 09D1C6D8"
 
 [[function]]
 module = "em82"
+address = "09D1D5C0"
+name = "em82_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "inferred"
+evidence = "same code as em20 09D1CAF8"
+
+[[function]]
+module = "em82"
+address = "09D1E1D8"
+name = "em82_state_00_13_motion_4f_until_frame_200_then_00_28"
+purpose = "Motion 0x4F, type block 1; at frame 200 sets 0,0x28."
+confidence = "inferred"
+evidence = "same code as em01 09D1BB98"
+
+[[function]]
+module = "em82"
+address = "09D1E3A8"
+name = "em82_state_00_14_motions_26_22_sight_off_count_then_00_18"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x18."
+confidence = "inferred"
+evidence = "same code as em01 09D1BD68"
+
+[[function]]
+module = "em82"
+address = "09D1E888"
+name = "em82_state_00_1b_motions_26_22_sight_off_count_then_00_1c"
+purpose = "Sight off; motion 0x26 then 0x22 until action_count ends; then 0,0x1C."
+confidence = "inferred"
+evidence = "same code as em01 09D1C4B8"
+
+[[function]]
+module = "em82"
+address = "09D1E9C0"
+name = "em82_state_00_1c_motion_25_then_state_00_19"
+purpose = "Motion 0x25 with type block 0 and sight off, then state 00_19. Same steps as 09D1E300."
+confidence = "inferred"
+evidence = "same code as em20 09D1E6D0"
+
+[[function]]
+module = "em82"
+address = "09D1EAA8"
+name = "em82_state_00_1d_motion_61_fx_timer_then_state_04_12"
+purpose = "Motion 0x61 with type block 1, sight off and effect and sound at bones 0x22 and 0x23, until action_count runs out, then state 04_12."
+confidence = "inferred"
+evidence = "same code as em20 09D1E7B8"
+
+[[function]]
+module = "em82"
+address = "09D1EC08"
+name = "em82_state_00_1f_motion_61_fx_timer_then_state_04_13"
+purpose = "Motion 0x61 with type block 1, sight off and effect and sound at bones 0x22 and 0x23, until action_count runs out, then state 04_13."
+confidence = "inferred"
+evidence = "same code as em20 09D1E918"
+
+[[function]]
+module = "em82"
 address = "09D1EE58"
 name = "em82_restart_layer_motion_when_mask_1_clear"
 purpose = "When mask 0x1 of the layer's motion flag (+0xBC + layer * 0x40) is clear, starts on layer 0, 1 or 2 motion 0x3E9, 0x4B1 or 0x579 with blend 10 through entity_motion_play_id_on_layer."
@@ -2666,6 +3114,30 @@ evidence = "same code as em20 09D22440"
 
 [[function]]
 module = "em82"
+address = "09D25798"
+name = "em82_motion_2d_within_range_of_target_slot"
+purpose = "Returns 0 with no target slot; 1 if motion_id is 0x415 already; when distance to the slot is at most speed*30+4.5 starts table motion 0x2D and returns 1; else 0."
+confidence = "inferred"
+evidence = "same code as em01 09D2D2A0"
+
+[[function]]
+module = "em82"
+address = "09D25860"
+name = "em82_step_angle_x_toward_target_slot_or_fixed_angle"
+purpose = "Steps angle_x by the rate at +0x7B0, limited at 0x3000 and 0xD000, toward: argument 0 the pitch to the target slot with a height offset, 1 angle 0xD000, 2 angle 0. Does nothing without a target slot."
+confidence = "inferred"
+evidence = "same code as em20 09D25000"
+
+[[function]]
+module = "em82"
+address = "09D25BE8"
+name = "em82_move_target_farthest_table_point_from_target_slot"
+purpose = "With no target slot sets state 2,6. Otherwise of the 4 area points at the type block +8 takes the one farthest from the target slot, stores it as target kind 2 param 2 and in move_target_place; (1000,0,1000) with no table."
+confidence = "inferred"
+evidence = "same code as em01 09D2E6D8"
+
+[[function]]
+module = "em82"
 address = "09D26220"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
@@ -2674,11 +3146,139 @@ evidence = "the generated code, one line"
 
 [[function]]
 module = "em82"
+address = "09D26900"
+name = "em82_state_04_0b_motion_4c_timer_then_state_00_22"
+purpose = "Restarts the script, motion 0x4C with script requests blocked and an effect at a bone, until action_count runs out, then state 00_22."
+confidence = "inferred"
+evidence = "same code as em20 09D26330"
+
+[[function]]
+module = "em82"
+address = "09D26A08"
+name = "em82_state_04_0c_motion_5f_then_state_04_0d"
+purpose = "Restarts the script, motion 0x5F with script requests blocked and the side 0 timer kept at 5 or more, then state 04_0D."
+confidence = "inferred"
+evidence = "same code as em20 09D26438"
+
+[[function]]
+module = "em82"
+address = "09D26B38"
+name = "em82_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26568"
+
+[[function]]
+module = "em82"
+address = "09D26C78"
+name = "em82_state_04_0e_motion_61_timer_then_state_04_11"
+purpose = "Motion 0x61 with effect at a bone, restarted script and blocked requests, until action_count runs out, then sets the target from +0x77A and state 04_11."
+confidence = "inferred"
+evidence = "same code as em20 09D266A8"
+
+[[function]]
+module = "em82"
 address = "09D26D80"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em82"
+address = "09D26D88"
+name = "em82_state_04_0d_motion_60_ticks_77a_then_state_02_17"
+purpose = "Motion 0x60 looping for +0x77A ticks with side 0 timer at 5 and script requests blocked, then state 02_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26568"
+
+[[function]]
+module = "em82"
+address = "09D26EC8"
+name = "em82_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "inferred"
+evidence = "same code as em01 09D26D38"
+
+[[function]]
+module = "em82"
+address = "09D26FC0"
+name = "em82_state_04_12_motion_62_sight_off_then_04_0d"
+purpose = "Motion 0x62 with sight off; resolves target kind 0xC; then 4,0xD."
+confidence = "inferred"
+evidence = "same code as em01 09D26D38"
+
+[[function]]
+module = "em82"
+address = "09D27150"
+name = "em82_state_04_15_motions_45_46_47_timer_then_state_00_24"
+purpose = "Restarts the script, motion 0x45 with game_sub 9C97220, 0x46 until action_count runs out, 0x47, then state 00_24."
+confidence = "inferred"
+evidence = "same code as em20 09D26DF0"
+
+[[function]]
+module = "em82"
+address = "09D272E0"
+name = "em82_state_04_16_motion_61_timer_then_state_04_17"
+purpose = "Motion 0x61 with game_sub 9C97220 and blocked script requests, until action_count runs out, then sets the target from +0x77A and state 04_17."
+confidence = "inferred"
+evidence = "same code as em20 09D26F80"
+
+[[function]]
+module = "em82"
+address = "09D27408"
+name = "em82_state_04_16_motion_60_count_77a_then_02_17_c"
+purpose = "Motion 0x60, +0x77A counted down; then 2,0x17."
+confidence = "inferred"
+evidence = "same code as em01 09D271E0"
+
+[[function]]
+module = "em82"
+address = "09D27508"
+name = "em82_state_04_18_motions_3c_4c_timer_then_state_00_08"
+purpose = "Restarts the script, motion 0x3C with flag 0x20000 to frame 52, then 0x4C until action_count runs out, then state 00_08."
+confidence = "inferred"
+evidence = "same code as em20 09D271A8"
+
+[[function]]
+module = "em82"
+address = "09D276C8"
+name = "em82_run_state_group_05"
+purpose = "Sets +0x2BA to 5 and calls the handler for state 0 to 3 of group 5."
+confidence = "inferred"
+evidence = "same code as em20 09D27628"
+
+[[function]]
+module = "em82"
+address = "09D27F08"
+name = "em82_state_05_03_end_or_respawn_by_quest_record"
+purpose = "If quest_object_record_check_active is 0 sets life_state 2; otherwise repositions and sets 00_01 at fixed places on map 9, or 02_01 in the air elsewhere."
+confidence = "inferred"
+evidence = "same code as em20 09D27E68"
+
+[[function]]
+module = "em82"
+address = "09D28BD0"
+name = "em82_state_06_04_motion_61_quest_count_timer_and_fade"
+purpose = "Motion 0x61 with type block 1 and monster_status_01_begin, then quest_on_monster_counted_update_records and 1800 ticks, then alpha fading over 150 ticks, then state 05_03."
+confidence = "inferred"
+evidence = "same code as em20 09D28B30"
+
+[[function]]
+module = "em82"
+address = "09D28E08"
+name = "em82_state_06_05_motions_26_22_begin_status_01_quest_count_fade"
+purpose = "Motion 0x26 then 0x22, type block 1, status 01 begins; then as 6,4."
+confidence = "inferred"
+evidence = "same code as em01 09D28320"
+
+[[function]]
+module = "em82"
+address = "09D29918"
+name = "em82_run_state_group_07"
+purpose = "Calls 09D28F78 for state 0x10 of group 7, the only state it has."
+confidence = "inferred"
+evidence = "same code as em20 09D28F40"
 
 [[function]]
 module = "em82"
@@ -2703,6 +3303,14 @@ name = "class_089bbbac_camera_shake_on_motion_frame"
 purpose = "When motion_frame_reached returns true on layer 0 for frame param_2 (frame 2 is first scaled by float +0x4B0 when that is not 1.0), calls camera_start_shake_from_object on DAT_089cbd04 with type param_3 and this object."
 confidence = "inferred"
 evidence = "same code as em20 09D2C580"
+
+[[function]]
+module = "em82"
+address = "09D2CA70"
+name = "em82_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
 
 [[function]]
 module = "em82"
@@ -2738,11 +3346,27 @@ evidence = "same code as em20 09D2C768"
 
 [[function]]
 module = "em82"
+address = "09D2CBE0"
+name = "em82_sight_off_then_state_04_09_or_04_0a"
+purpose = "Sets sight_off_ticks 10, end_vfunc_ec_ticks from the type table, calls 9C97220, then if owner, free of 5F0/5F2 and status 8, sets 4,9 in movement_mode 2 or 4,0xA otherwise."
+confidence = "inferred"
+evidence = "same code as em01 09D2F580"
+
+[[function]]
+module = "em82"
 address = "09D2CCD8"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em82"
+address = "09D2D240"
+name = "em82_effect_0a_every_5_ticks"
+purpose = "Spawns effect kind 0xA when g_game tick is a multiple of 5."
+confidence = "inferred"
+evidence = "same code as em01 09D2D258"
 
 [[function]]
 module = "em82"
@@ -2775,6 +3399,14 @@ name = "stub_return_0"
 purpose = "Does nothing else: its whole body."
 confidence = "confirmed"
 evidence = "the generated code, one line"
+
+[[function]]
+module = "em83"
+address = "09D1EAC0"
+name = "em83_state_00_00_three_layer_motions_timer_then_request_script"
+purpose = "Starts motions 0x3E9, 0x4B1 and 0x579 on layers 0-2 where not already playing (the view tests 0x44D on layer 1 and 0x4B1 on layer 2); when action_count runs out sets script_run_requested each tick."
+confidence = "inferred"
+evidence = "same code as em20 09D1CAF8"
 
 [[function]]
 module = "em83"
@@ -2839,6 +3471,14 @@ name = "math_angles_u16_to_radians"
 purpose = "Converts three unsigned 16-bit angles at 4-byte spacing to radians as a vec4 with w = 0."
 confidence = "inferred"
 evidence = "same code as EBOOT 088655F8"
+
+[[function]]
+module = "em83"
+address = "09D28DA0"
+name = "em83_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
 
 [[function]]
 module = "em83"
@@ -3626,6 +4266,14 @@ evidence = "same code as em20 09D2C768"
 
 [[function]]
 module = "game_task"
+address = "09AF1AE0"
+name = "game_task_call_9c60f48_every_60_ticks"
+purpose = "Calls 9C60F48 kind 3 with a fixed offset when g_game tick is a multiple of 60."
+confidence = "inferred"
+evidence = "same code as em01 09D2F520"
+
+[[function]]
+module = "game_task"
 address = "09AF80A8"
 name = "stub_noop"
 purpose = "Does nothing else: its whole body."
@@ -4175,6 +4823,14 @@ name = "math_mat4_identity"
 purpose = "Writes a 4x4 identity matrix to param_1."
 confidence = "inferred"
 evidence = "same code as EBOOT 088655E0"
+
+[[function]]
+module = "game_task"
+address = "09B60330"
+name = "game_task_run_state_group_07"
+purpose = "Calls 09D28F78 for state 0x10 of group 7, the only state it has."
+confidence = "inferred"
+evidence = "same code as em20 09D28F40"
 
 [[function]]
 module = "game_task"

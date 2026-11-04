@@ -1,0 +1,1815 @@
+[[function]]
+module = "em75"
+address = "09D36CF0"
+name = "em75_sound_at_bone_at_motion_frame"
+purpose = "If layer 0 reaches the frame (frame 2 scaled when motion_speed_scale is not 1), plays the sound at the bone; args frame, sound, bone."
+confidence = "confirmed"
+evidence = "whole body in generated C; 09D36C58"
+
+[[function]]
+module = "em75"
+address = "09D26258"
+name = "em75_request_script_set_state_00_01_to_03_or_02_02"
+purpose = "Requests a script run; mode 0: state 00 01, 00 02 (arg 2), or 00 03 (arg 1); any other movement mode: 02 02."
+confidence = "confirmed"
+evidence = "short body read whole; +0x280 is movement_mode"
+
+[[function]]
+module = "em75"
+address = "09D2E5A8"
+name = "em75_states_03_3c_to_6b_motions_6b_to_74_repeated_moves"
+purpose = "Multi-step moves by table speed and yaw, side from +0x7AB, repeats counted by +0x794 set in 09D3D180; entries 0x6B to 0x74; ends chaining 03 54 to 03 65 or 01 26 or the 09D26258."
+confidence = "inferred"
+evidence = "read about two thirds in detail; dispatch args map the state ranges"
+
+[[function]]
+module = "em75"
+address = "09D2E328"
+name = "em75_states_03_28_to_3b_motion_69_6a_spawn_fan_at_frame_46"
+purpose = "Entry 0x69 (blend 6 with arg 3 of 1), then 0x6A; at frame 46 calls 9B66478 3 or 5 times with yaws 0xE39 apart and a value chosen by the first arg."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26330"
+name = "em75_request_script_reset_speed_set_state_02"
+purpose = "Requests a script run, speed scale 1.0; arg 0 state 02 0E, 1 state 02 0F, 2 state 02 06."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D36C58"
+name = "em75_sound_at_bone"
+purpose = "Reads the bone position and plays the sound in 3D with the type table byte, if the object is in the game area."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3BAF0"
+name = "em75_type_4b_spawn_at_bone_26_by_arg"
+purpose = "For type 0x4B in the game area, a spawn at bone 0x26 by arg. Called 16 times from the motion effects."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D3C158"
+name = "em75_spawn_at_bone_22_for_type"
+purpose = "In the game area, a spawn at bone 0x22 with a type branch; random rotation for 0x4C."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D1CA10"
+name = "em75_spawn_fx_9c30190_scale_and_vectors"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by entry 0x2E frames; args two vectors, scale; byte +0x24 by type."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D28838"
+name = "em75_states_01_04_05_09_1e_to_21_27_28_motion_11_move_distance_or_map_contact"
+purpose = "Entry 0x11, joining mid-motion from ids 0x3F4, 0x3F5, with a speed bonus; ends when the move distance is done, or on map contact sets state 00 06."
+confidence = "inferred"
+evidence = "body read whole; 09D263C0; distances set in 09D3CC18"
+
+[[function]]
+module = "em75"
+address = "09D3D258"
+name = "em75_height_table_speed_then_move"
+purpose = "Sets vertical velocity from a frame and height table by arg and motion frame; moves by rotated velocity."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D29308"
+name = "em75_states_01_0d_0e_22_to_26_motion_64_or_75_velocity_hop_then_chain"
+purpose = "Entry 0x64 or 0x75 by side, jumps at frame 40 with forward 150 up 20, gravity -5, then 0x65 or 0x76 and at frame 58 chains: arg 3 gives 03 19, arg 2 03 01, arg 1 03 48 or 03 66; arg 0 goes to 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D3D638"
+name = "em75_air_controller_update"
+purpose = "Runs the tracks, advances the tick by motion speed, moves if in mode 2, returns their done bits."
+confidence = "confirmed"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3D360"
+name = "em75_air_controller_start"
+purpose = "Fields +0x7F4..+0x7F8 and which of the height and side tracks run, by mode 2..7; mode 7 clears velocity."
+confidence = "confirmed"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26308"
+name = "em75_request_script_set_state_00_19"
+purpose = "Requests a script run and sets state 00 19."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D27CF8"
+name = "em75_states_00_15_to_18_1e_21_motion_3e_then_20_if_not_alert"
+purpose = "Entry 0x3E; 0x4B and 0x51 not alert add entry 0x20; ends with 09D26258 or, for 1E (mode 4), the mode-2 request with arg 2. 16 and 17 end statuses 0x8 and 0x10 on entry; 18 clears short timer 1."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8"
+
+[[function]]
+module = "em75"
+address = "09D2E188"
+name = "em75_states_03_22_to_27_motion_2d_spawn_three_at_frame_68"
+purpose = "Entry 0x2D; 09D1B9C0 at the start for type 0x4B; at frame 68 calls 9B66478 three times with yaws from 09D54BE0, kind and scale from args."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2D328"
+name = "em75_states_03_0c_to_10_mode_1_scheduled_points_spawn_for_type_4c"
+purpose = "Mode 1 entry 0x5C; at ticks from table 09D589C8 walks the pattern selected by the arg, working out a point from bone 2 and table offsets with a pseudo-random shift; only type 0x4C spawns there; up to 600 ticks; then 00 19."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2D918"
+name = "em75_states_03_13_to_17_motion_2e_scheduled_points_spawn_for_type_4c"
+purpose = "Entry 0x2E; 09D1CA10 at frame 222; after frame 200 walks the same pattern tables as 03 0C; only type 0x4C spawns; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D29BD8"
+name = "em75_states_01_16_1a_29_2a_motion_5c_mode_1_move_distance_camera_shake"
+purpose = "Mode 1 entry 0x5C at speed 40, or -40 with bit 2, consuming move_distance_left, camera shakes and a sound every 8 ticks. Bit 1 hides as above and goes to 01 17."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2DF18"
+name = "em75_states_03_1b_to_1e_motion_34_39_chain_by_arg"
+purpose = "Entries 0x34 then 0x39; at frame 92 chains by arg: 1 gives 03 52, 2 gives 03 35, 3 gives 03 3A; arg 0 goes to 09D26258 at the end."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D519D8"
+name = "em75_owned_obj_trajectory_position"
+purpose = "Position at tick arg 4: velocity times ticks, minus a squared drop in y, plus the start."
+confidence = "inferred"
+evidence = "body read whole; called from 09D51610"
+
+[[function]]
+module = "em75"
+address = "09D1EE70"
+name = "em75_spawn_fx_9c30480_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 01 17, 01 1C."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D2CB90"
+name = "em75_states_03_04_05_0b_motion_29_optional_2a_first"
+purpose = "Entry 0x29, or 0x2A then 0x29 from frame 0x60 with arg bit 1; arg bit 0x10 turns 0x180 a tick in frames 10 to 30; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2CE60"
+name = "em75_states_03_08_1f_20_motion_63_then_script"
+purpose = "Entry 0x63; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2CEE8"
+name = "em75_states_03_09_12_21_motion_37_spawns_by_type"
+purpose = "Entry 0x37 with a sound at frame 150; type 0x58 09D25508 at start; type 0x4C spawns at bone 0x21 at frames 124 and 150; others 9B66B78 at frame 140 and 9B662E8 at 122; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2FED8"
+name = "em75_states_04_08_09_1e_fall_to_floor_motion_4d_4e_46_47"
+purpose = "Mode 2 falls with gravity -10 and entry 0x4D, 0x4E at the floor, 0x46 for 60, 90 or 30 ticks, 0x47; state 09 keeps sight off."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D3FC18"
+name = "em75_scene_velocity_track_step"
+purpose = "Sets velocity +0x240..+0x248 from the track, advancing keyframes until -1."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3FED0"
+name = "em75_scene_angle_track_step"
+purpose = "Adds to angle_x, facing, angle_z from the track."
+confidence = "inferred"
+evidence = "first part read, same as 09D3FC18"
+
+[[function]]
+module = "em75"
+address = "09D1A360"
+name = "em75_spawn_fx_9c2fdb0"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by at frame 150 of entry 0x37."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1D5D8"
+name = "em75_spawn_fx_9c30308_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 01 14 frame 3."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D211A8"
+name = "em75_spawn_fx_9c305f8_scale"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by type 0x4C at entry 0x28."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D23310"
+name = "em75_spawn_fx_9c323c0_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 01 1B, 06 06."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D23D90"
+name = "em75_spawn_fx_9c32538_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 09D36E08."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26118"
+name = "em75_init_fields_start_motion"
+purpose = "Bits 4, 6 of the scaling mask, start motion 0x33 alert for 0x4C, 0x58, else 1; health from the type table, fields, random +0x800 of 15 to 49."
+confidence = "confirmed"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26C10"
+name = "em75_states_00_08_09_layer_1_motion_18_19_then_script"
+purpose = "Entry 0x18 (state 08) or 0x19 (state 09), base ids restarted on layers 0 and 2; ends on layer 1 flag +0xFC."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D270C0"
+name = "em75_states_00_0d_1c_hold_2_motion_26_22_regen_health_until_count"
+purpose = "Hold mode 2, sight off, entries 0x26 then 0x22, regen every 6 ticks up to 40 percent (0x4B, 0x51) or 70 percent of max for 9000 or 7200 ticks; then 00 0E or 00 1D. Hit code 10 ends it early."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 code 10 maps 0D to 0E and 1C to 1D"
+
+[[function]]
+module = "em75"
+address = "09D27320"
+name = "em75_states_00_0e_1d_motion_25_sight_off_to_state_00_15_or_1e"
+purpose = "Sight off, entry 0x25, blocks 0, then state 00 15 (0E) or 00 1E (1D); 1D uses movement mode 4."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D27EF0"
+name = "em75_states_00_1a_1b_motion_1f_or_20_then_script_arg_1"
+purpose = "Entry 0x1F (1A) or 0x20 (1B), then 09D26258 with arg 1."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28388"
+name = "em75_states_01_02_0b_turn_motion_to_target"
+purpose = "Starts and updates the turn motion from table 09D587C8, clears flag 0x20000; 0B uses mode 4 and the mode-2 request."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28CC0"
+name = "em75_states_01_07_0a_motion_09_or_04_then_script"
+purpose = "Entry 9 (07) or 4 (0A), with a blend length by type; 09D26258 at the end."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D29878"
+name = "em75_states_01_14_18_motion_5b_into_mode_1"
+purpose = "Entry 0x5B, 09D1D5D8 at frame 3, movement mode 1 from frame 190. State 18 (arg 1) also turns pushes off, hides the attached effect, and goes to 01 19."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D29A40"
+name = "em75_states_01_15_19_motion_5c_mode_1_turn_to_target"
+purpose = "Mode 1 entry 0x5C, turns 0x180 a tick to the target up to 150 ticks. State 19 (arg 1) hidden as above, then 01 1A."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2A240"
+name = "em75_states_02_00_03_motion_1f_12_rise_to_mode_2"
+purpose = "Entry 0x1F (state 00) then 0x12 with the rise controller, mode 2 from frame 60; then 02 0E."
+confidence = "inferred"
+evidence = "body read whole; movement_mode 2 is in the air; 09D3D360, 09D3D638"
+
+[[function]]
+module = "em75"
+address = "09D2A3B8"
+name = "em75_states_02_01_05_motion_0f_0b_13_descend_to_height"
+purpose = "Mode 2 fall at a speed worked out from the height, entries 0xF, 0xB, 0x13 at the floor (state 01, camera shake, mode 0) or the target height (state 05, mode 4); 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2BB98"
+name = "em75_states_02_10_11_motion_0f_turn_in_air"
+purpose = "Mode 2 entry 0xF, turns 0x180 a tick to the target for up to 150 ticks; state 11 also approaches the target height plus 1000 and runs the full count."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2DD40"
+name = "em75_states_03_19_1a_motion_77_78_velocity_60_lunge"
+purpose = "Entry 0x77; from frame 38 mode 2 with forward 60, state 1A also falling to the floor, then 0x78 braking at -5, mode 0; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2FB78"
+name = "em75_states_04_05_1f_script_restart_motion_45_46_47"
+purpose = "Entries 0x45, 0x46 for 120 ticks (240 for 0x58), 0x47; state 1F (arg 1) adds a timed pickup and 180 ticks."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D31328"
+name = "em75_states_06_00_03_scene_fixed_place_motions_until_flag_15b"
+purpose = "Fixed places and yaws, entries 1, 0x2F, 0x30, 0x50, 7, 0x2E on a timer, hidden and shown; waits game flag 0x15B. Quest 0x2714 enters state 00."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 sets these by quest id, stage and scene playing"
+
+[[function]]
+module = "em75"
+address = "09D36B08"
+name = "em75_state_dispatch"
+purpose = "Copies group and state to +0x460, +0x461; for 02 0D on stage 0xE, 0xF pauses perception; switches on group +0x298 to the eight dispatchers."
+confidence = "confirmed"
+evidence = "body read whole; called from tick"
+
+[[function]]
+module = "em75"
+address = "09D3C800"
+name = "em75_spawn_class_089bdfb0_unless_area_0"
+purpose = "Spawns class_089bdfb0 kind 0xB scale 1 unless area_id is 0."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1B9C0"
+name = "em75_spawn_fx_9c30028_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by type 0x4B at 03 22..27."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D21DA8"
+name = "em75_spawn_fx_9c31cb0"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by type 0x51 in 09D26038."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D22688"
+name = "em75_vectors_from_bones_27_24"
+purpose = "Works out two vectors from bone 0x27 and bone 0x24 matrices for 09D222B8."
+confidence = "guess"
+evidence = "read with vector lines filtered"
+
+[[function]]
+module = "em75"
+address = "09D22838"
+name = "em75_spawn_fx_9c32248_bones_2b_29_floor"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 03 02 at entry 0x79."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D24678"
+name = "em75_spawn_fx_9c326b0_type_51_place_scale"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by 09D4D8A0."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D25508"
+name = "em75_spawn_fx_9c334f8_in_game_area"
+purpose = "Allocates through the named function, inits, links it into the effect list at DAT_09D19860 +0x19030. Used by type 0x58 at entry 0x37."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D263C0"
+name = "em75_map_contact_with_mask_c0000003"
+purpose = "Zero for type 0x51; else nonzero when map_contact_bits has mask 0xC0000003 and +0x27E is set."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26498"
+name = "em75_state_00_00_hold_base_layer_motions_until_count"
+purpose = "Plays ids 0x3E9, 0x4B1, 0x579 on layers 0, 1, 2 unless already playing; counts action_count, requests the script at 0."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26570"
+name = "em75_state_00_01_motion_01_then_script"
+purpose = "Motion table entry 1 to its end, then if locally owned 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26620"
+name = "em75_state_00_02_motion_33_then_script"
+purpose = "Motion table entry 0x33 to its end, then 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D266A8"
+name = "em75_state_00_03_wait_60_ticks_flag_20000_then_script"
+purpose = "Sets state flag 0x20000, counts 60 ticks, then if locally owned 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26748"
+name = "em75_state_00_04_motion_36_turn_to_target_until_frame_60"
+purpose = "Entry 0x36 with script requests blocked; steps facing 0x200 a tick to the move target until frame 60, then requests with arg 2 at the end."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26880"
+name = "em75_state_00_05_motion_2e_or_36_fx_at_type_frame"
+purpose = "Entry 0x2E (0x36 for type 0x51); spawns 09D1CA10 at frame 222 (0x4C, 0x58, scale 1.8), 128 (0x51) or 116 (0x4B); 09D26258 at the end."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26A40"
+name = "em75_state_00_06_motion_14_hold_180_ticks_then_15"
+purpose = "Entry 0x14, 180 ticks, then 0x15; restarts the script; types 0x4B and 0x51 also add a timed pickup. State 01 motion-0x11 runs enter it on map contact."
+confidence = "inferred"
+evidence = "body read whole; 09D28838 sets it when 09D263C0 answers yes"
+
+[[function]]
+module = "em75"
+address = "09D26B88"
+name = "em75_state_00_07_motion_50_then_script"
+purpose = "Motion table entry 0x50 to its end, then 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26D18"
+name = "em75_state_00_0a_hold_3_motion_3a_frame_200_to_state_00_0b"
+purpose = "Status hold mode 3, type blocks 1, entry 0x3A; at frame 200 sets state 00 0B."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26E28"
+name = "em75_state_00_0b_motion_3b_then_1f_if_alert"
+purpose = "Restores type blocks 0, waits for the motion then entry 0x3B; types 0x4B and 0x51 when alert add entry 0x1F; ends with 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D26F68"
+name = "em75_state_00_0c_motion_3a_3b_heal_5_percent_refill_meter_a"
+purpose = "Hold mode 3, entry 0x3A then 0x3B: adds 5 percent of health_max, refills meter_a, clears +0x548 and +0x52C."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D27460"
+name = "em75_state_00_0f_hold_2_motion_26_22_count_to_state_00_10"
+purpose = "Hold mode 2, sight off, entries 0x26 then 0x22, action_count down, then 00 10. Status 0x2 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; set-state 09D3C9D8 runs monster_status_02_begin; tick code 8 and code 10"
+
+[[function]]
+module = "em75"
+address = "09D275D0"
+name = "em75_state_00_10_status_02_ended_motion_25_to_state_00_15"
+purpose = "Entry 0x25 sight off, then 00 15. Status 0x2 ends on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8 runs monster_status_02_end"
+
+[[function]]
+module = "em75"
+address = "09D276B0"
+name = "em75_state_00_11_hold_2_motion_26_22_count_to_state_00_12"
+purpose = "As 00 0F, ending in 00 12. Status 0x1 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8 runs monster_status_01_begin; tick code 7 and code 10"
+
+[[function]]
+module = "em75"
+address = "09D277E8"
+name = "em75_state_00_12_status_01_ended_motion_25_to_state_00_15"
+purpose = "Entry 0x25 sight off, then 00 15. Status 0x1 ends on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8 runs monster_status_01_end"
+
+[[function]]
+module = "em75"
+address = "09D278C8"
+name = "em75_state_00_13_hold_2_motion_61_count_to_state_04_12_bone_25_fx"
+purpose = "Hold mode 2, short timer 0 held at 5, entry 0x61, action_count down, then 04 12; effect on bone 0x25 and a sound every 135 ticks. Status 0x2 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; tick code 8 with short timer 0 set; 09D3C9D8"
+
+[[function]]
+module = "em75"
+address = "09D27AE0"
+name = "em75_state_00_14_hold_2_motion_61_count_to_state_04_13_bone_25_fx"
+purpose = "As 00 13, ending in 04 13. Status 0x1 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8; code 10 maps 14 to 04 13"
+
+[[function]]
+module = "em75"
+address = "09D27E38"
+name = "em75_state_00_19_motion_5c_mode_1_count_60_then_script"
+purpose = "Movement mode 1, entry 0x5C, 60 ticks, then the request that sets 00 19 again."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D27F98"
+name = "em75_state_00_1f_hold_2_motion_58_mode_4_count_to_state_00_20"
+purpose = "Hold mode 2, sight off, movement mode 4, entry 0x58, action_count down, then 00 20. Status 0x2 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; tick code 8 for 0x4C, 0x58 in mode 4; 09D3C9D8"
+
+[[function]]
+module = "em75"
+address = "09D280C0"
+name = "em75_state_00_20_status_02_ended_motion_59_to_state_00_15"
+purpose = "Entry 0x59 sight off, then 00 15. Status 0x2 ends on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3C9D8"
+
+[[function]]
+module = "em75"
+address = "09D281A0"
+name = "em75_state_01_00_motion_03_move_distance_then_motion_01"
+purpose = "Entry 3 until object_advance_move_distance answers done, entry 1 and count 10; 09D26258 once layer 0 is out of its blend."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28270"
+name = "em75_state_01_01_motion_0a_move_distance_then_11_if_not_alert"
+purpose = "Entry 0xA until the move distance is done; 0x4B and 0x51 not alert play 0x11 from frame 0x92, then 09D26258 with arg 2."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28470"
+name = "em75_state_01_03_turn_in_place_motion_table_by_type"
+purpose = "Turn toward turn_target_yaw using a table chosen by type (0x4C, 0x58 another), stepping facing and restarting table entries until within a step."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28B38"
+name = "em75_state_01_06_motion_1f_11_20_01_move_distance"
+purpose = "Entries 0x1F, 0x11 at 0.7 speed until the move distance is done, 0x20, then 1; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D28DB8"
+name = "em75_state_01_08_turn_while_sliding_motion_0c_0d"
+purpose = "Picks entry 0xC or 0xD by the angle to the target from a point 1100 ahead; yaw steps by that angle over 53 ticks to frame 106 while velocity 22 decays by 0.169."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D29E10"
+name = "em75_state_01_17_motion_5c_5d_out_of_mode_1_fx"
+purpose = "Mode 1 entry 0x5C with shakes for 30 ticks, then 0x5D with 09D1EE70; mode 0 at frame 100; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D29F90"
+name = "em75_state_01_1b_motion_54_57_mode_4_to_state_01_1c"
+purpose = "Mode 4 entry 0x54 with 09D23310, then 0x57 moving the move distance, feeding the root motion to the 08A62EAC global and shaking the camera; then 01 1C."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2A180"
+name = "em75_state_01_1c_motion_5a_fx_clear_global_flag_then_script"
+purpose = "Entry 0x5A with 09D1EE70 arg 2; movement mode 0, 09D26258, clears the 08A62EAC flag."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2A708"
+name = "em75_state_02_02_motion_0f_hold_height_count_to_state_02_01"
+purpose = "Mode 2 entry 0xF following the height table, turning; at count 300 requests 02 0E; at 0 sets 02 01."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2A840"
+name = "em75_state_02_04_motion_0f_fly_to_target"
+purpose = "Mode 2 entry 0xF, turning and moving by velocity until within 10 ticks of the target or the count ends; then 02 0E."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2A9C0"
+name = "em75_state_02_06_mode_4_motion_01_then_script"
+purpose = "Mode 4 entry 1, then if locally owned the mode-2 request arg 2."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2AA70"
+name = "em75_state_02_07_motion_0f_fly_to_target_then_30_tick_approach"
+purpose = "Mode 2 entry 0xF to within 27.5 ticks, then moves straight to the target in 30 ticks; then 02 0E."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2AC60"
+name = "em75_state_02_08_rise_and_leave_to_next_area"
+purpose = "Mode 2 rise to the edge height, entry 0x17 then 0xE steering out of the area bounds, moves to route_next_area, then 02 09 or on to 02 0D by route_final_area; minimap pulse."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2AFB0"
+name = "em75_state_02_09_enter_area_velocity_80_to_state_02_12"
+purpose = "Mode 2 speed 80 facing the target, steers until within 1000 or 600 ticks, then 02 12."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2B1A0"
+name = "em75_state_02_0a_rise_and_leave_toggling_area_0f_13"
+purpose = "Rises 100 a tick then flies out of the bounds with entry 0xC; moves to the next area and swaps area_id between 0xF and 0x13; then 02 0F."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2B3A8"
+name = "em75_state_02_0b_motion_0c_fly_to_target_to_state_02_01"
+purpose = "Mode 2 entry 0xC, speed capped 100 then 50 near the target; after arriving or the count, count 300 and 02 01."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2B650"
+name = "em75_state_02_0d_fly_to_area_point_then_edge_next_area"
+purpose = "Mode 2 speed 80 to a point from the area table at the area height, then to the edge toward route_next_area, out of the bounds, into the next area; then 02 09 or 02 0D again."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2BA08"
+name = "em75_state_02_0e_motion_0f_then_script"
+purpose = "Mode 2 entry 0xF to its end, then requests 02 0E."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2BAC8"
+name = "em75_state_02_0f_motion_0c_then_script"
+purpose = "Mode 2 entry 0xC, horizontal velocity cleared; then requests 02 0F."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2BD08"
+name = "em75_state_02_12_motion_5a_level_angles_to_state_02_01"
+purpose = "Mode 2 entry 0x5A with controller 4, steps angle_x and angle_z to 0; when the controller ends, entry 0xF, count 300, then 02 01."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2BEB8"
+name = "em75_state_02_13_motion_17_0e_steer_to_target"
+purpose = "Mode 2 steers to the target with params 09D58768, entry 0x17 and speed 50 first if slower; within 1000 or at the count, 02 0F."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2C100"
+name = "em75_state_02_16_motion_5a_level_angles_then_script"
+purpose = "As 02 12, ending with the request for 02 0E."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2C268"
+name = "em75_state_02_17_motion_12_0f_0b_13_drop_to_floor"
+purpose = "Scripts blocked, clears the two short timers, entries 0x12, 0xF, 0xB at speed -56, then 0x13 at the floor with a camera shake and mode 0; +0x796 loaded 150; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; entered from 04 0D, 04 11, 04 16"
+
+[[function]]
+module = "em75"
+address = "09D2C448"
+name = "em75_state_02_18_motion_0f_rise_to_target_height"
+purpose = "Mode 2 entry 0xF rising at 20 until 1000 above the target or the count; then 02 0E."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2C570"
+name = "em75_state_03_00_motion_2b_quarter_turn_for_types_4c_58"
+purpose = "Entry 0x2B; types 0x4C, 0x58 turn facing by 0x4000 over the motion; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2C650"
+name = "em75_state_03_01_motion_66_67_by_target_side"
+purpose = "Entry 0x67 or 0x66 by which side the target is on, speed 0.8 or 0.88 with flag 0x20; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2C788"
+name = "em75_state_03_02_motion_68_back_velocity_then_79_fx_7a"
+purpose = "Entry 0x68 moving at velocity -41 and turning from frame 86 and 100 to 124, then 0x79 with 09D22838 at frame 11, then 0x7A; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2CA58"
+name = "em75_state_03_03_motion_28_fx_for_type_4c"
+purpose = "Entry 0x28; type 0x4C spawns 09D211A8 in frames 1 to 3; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2CD10"
+name = "em75_state_03_06_motion_2f_30_then_script"
+purpose = "Entries 0x2F then 0x30; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2CDD8"
+name = "em75_state_03_07_motion_5e_then_script"
+purpose = "Entry 0x5E; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2D1F8"
+name = "em75_state_03_0a_motion_2a_then_28"
+purpose = "Entry 0x2A then 0x28 from frame 0x3E; type 0x4C spawns 09D211A8 at frame 1; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2D6C0"
+name = "em75_state_03_11_motion_55_56_shake_spawn_ahead"
+purpose = "Entry 0x55 then 0x56 with effect, camera shake and a spawn 500 scaled by size ahead; cannot_die from frame 120 of 0x55."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2F6C8"
+name = "em75_state_04_00_script_restart_motion_3c_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x3C, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2F768"
+name = "em75_state_04_01_script_restart_motion_3d_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x3D, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2F808"
+name = "em75_state_04_02_script_restart_motion_3f_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x3F, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2F8A8"
+name = "em75_state_04_03_script_restart_motion_40_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x40, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2F948"
+name = "em75_state_04_04_script_restart_motion_41_turning_to_state_04_0f"
+purpose = "Restarts the script, entry 0x41; turns facing in frame windows by type; then 04 0F."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2FCF0"
+name = "em75_state_04_06_script_restart_motion_4a_4b_48"
+purpose = "Entries 0x4A, 0x4B for 120 ticks (240 for 0x58), 0x48; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D2FE38"
+name = "em75_state_04_07_script_restart_motion_42_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x42, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D30110"
+name = "em75_state_04_0a_script_restart_motion_3d_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x3D, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D301B0"
+name = "em75_state_04_0b_hold_4_motion_4c_count_to_state_00_16"
+purpose = "Hold mode 4, entry 0x4C, 9ACD4F0 arg 2, then 00 16. Status 0x8 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708 case 4, tick code 6"
+
+[[function]]
+module = "em75"
+address = "09D302B0"
+name = "em75_state_04_0c_hold_3_motion_5f_to_state_04_0d"
+purpose = "Hold mode 3, short timer 0 kept at least 5, entry 0x5F, scripts blocked; then 04 0D."
+confidence = "inferred"
+evidence = "body read whole; tick codes 3, 4 lead here"
+
+[[function]]
+module = "em75"
+address = "09D303E0"
+name = "em75_state_04_0d_motion_60_count_77a_to_state_02_17"
+purpose = "Short timer 0 at 5, repeats entry 0x60, counts +0x77A down; then 02 17."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D30508"
+name = "em75_state_04_0e_hold_4_motion_61_count_to_state_04_11"
+purpose = "Short timer 0 at 5, hold mode 4, entry 0x61 and 9ACD4F0; retargets by +0x77A at the end; then 04 11. Status 0x8 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D30608"
+name = "em75_state_04_0f_script_restart_motion_53_then_script"
+purpose = "Restarts the script, entry 0x53; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D30688"
+name = "em75_state_04_10_script_restart_motion_38_wait_300_then_3a"
+purpose = "Entry 0x38 for 300 ticks then 0x3A; type 0x4C adds a timed pickup; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D30778"
+name = "em75_state_04_11_status_08_ended_motion_60_to_state_02_17"
+purpose = "As 04 0D, entered with status 0x8 ended."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708 case 4 state 0x11"
+
+[[function]]
+module = "em75"
+address = "09D308A0"
+name = "em75_state_04_12_status_02_ended_motion_62_to_state_04_0d"
+purpose = "Entry 0x62 sight off, retargets by +0x77A, then 04 0D. Status 0x2 ends on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708 case 4"
+
+[[function]]
+module = "em75"
+address = "09D30998"
+name = "em75_state_04_13_status_01_ended_motion_62_to_state_04_0d"
+purpose = "As 04 12, with status 0x1 ended on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708 case 4"
+
+[[function]]
+module = "em75"
+address = "09D30A90"
+name = "em75_state_04_14_script_restart_motion_45_46_47_status_10_to_state_00_17"
+purpose = "Entries 0x45, 0x46, 0x47 with 9C97220 at the start; then 00 17. Status 0x10 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708; tick code 0x11"
+
+[[function]]
+module = "em75"
+address = "09D30C20"
+name = "em75_state_04_15_script_restart_motion_61_status_10_to_state_04_16"
+purpose = "Entry 0x61 with 9C97220, retargets by +0x77A, then 04 16. Status 0x10 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708; tick code 0x11"
+
+[[function]]
+module = "em75"
+address = "09D30D48"
+name = "em75_state_04_16_status_10_ended_motion_60_to_state_02_17"
+purpose = "As 04 0D, entered with status 0x10 ended."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708"
+
+[[function]]
+module = "em75"
+address = "09D30E48"
+name = "em75_state_04_17_script_restart_motion_3c_4c_short_timer_1_to_state_00_18"
+purpose = "Short timer 1 at 5; entry 0x3C then 0x4C with blend from frame 52, count, then 00 18; flag 0x20000 during 0x3C."
+confidence = "inferred"
+evidence = "body read whole; tick code 0x12"
+
+[[function]]
+module = "em75"
+address = "09D30F98"
+name = "em75_state_04_18_script_restart_motion_58_wait_300_to_state_04_19"
+purpose = "Entry 0x58, 300 ticks, clears the 08A62EAC flag; then 04 19."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D31078"
+name = "em75_state_04_19_motion_59_then_script"
+purpose = "Entry 0x59; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D310F0"
+name = "em75_state_04_1a_hold_4_motion_58_mode_4_to_state_04_1b"
+purpose = "Hold mode 4, entry 0x58, 9ACD4F0; then 04 1B. Status 0x8 begins on entry."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708; tick code 6"
+
+[[function]]
+module = "em75"
+address = "09D311E8"
+name = "em75_state_04_1b_script_restart_motion_59_then_script"
+purpose = "Restarts the script, entry 0x59; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D31278"
+name = "em75_state_04_1c_calls_09d29308_args_0_0"
+purpose = "Sets args 0, 0 and jumps to the hop state function 09D29308."
+confidence = "confirmed"
+evidence = "generated C: two register moves and a jump"
+
+[[function]]
+module = "em75"
+address = "09D31288"
+name = "em75_state_04_1d_script_restart_motion_3d_then_script"
+purpose = "Restarts the script from main entry, plays entry 0x3D, 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D31638"
+name = "em75_state_06_01_scene_fixed_place_motions_until_flag_15c"
+purpose = "Fixed places, entries 0x33, 0x2D, 0x3A, 0x50, 0x2E with 09D1CA10, 0x11, 1; waits flag 0x15C. Quest 0x28A1."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 sets these by quest id, stage and scene playing"
+
+[[function]]
+module = "em75"
+address = "09D31938"
+name = "em75_state_06_02_scene_fixed_place_motions_type_4c_skippable"
+purpose = "Fixed places, entries 0x5C, 0x5D, 3, 0x36, 0x37 with 09D1A360; 9AD7FA8 yes jumps to the final place and 06 99."
+confidence = "inferred"
+evidence = "body read whole; tick for type 0x4C at flag 0x160"
+
+[[function]]
+module = "em75"
+address = "09D31C88"
+name = "em75_state_06_04_quest_count_motion_61_fade_to_state_05_04"
+purpose = "Short timer via p2 0, entry 0x61, status 0x1 begins, quest_on_monster_counted, 1800 ticks, fade, 05 04, with the bone 0x25 effect."
+confidence = "inferred"
+evidence = "body read whole; tick code 7 with short timer 0"
+
+[[function]]
+module = "em75"
+address = "09D31FA0"
+name = "em75_state_06_05_quest_count_motion_26_22_fade_to_state_05_04"
+purpose = "As 06 04 with entries 0x26, 0x22 and p2 1."
+confidence = "inferred"
+evidence = "body read whole; tick code 7 with short timer 1"
+
+[[function]]
+module = "em75"
+address = "09D32178"
+name = "em75_state_06_06_scene_fixed_place_motions_type_58_skippable"
+purpose = "Fixed places, entries 0x5C, 0x54, 0x57 steered by a table, 0x5A, 0x63, 0x33; waits flag 0x163; 9AD7FA8 yes jumps to the final place and 06 99."
+confidence = "inferred"
+evidence = "body read whole; tick for type 0x58"
+
+[[function]]
+module = "em75"
+address = "09D32590"
+name = "em75_state_06_07_scene_keyframed_place_motions"
+purpose = "Scene: fixed places, angles and speeds on a tick counter; flag 0x20 and boost ticks forced; uses the keyframe tracks 09D3FB68..09D3FED0. Quest 0x2BC1."
+confidence = "guess"
+evidence = "first 150 of 639 lines read; tick sets it"
+
+[[function]]
+module = "em75"
+address = "09D330A0"
+name = "em75_state_06_99_after_scene_skip_wait_5_then_script"
+purpose = "Counts 5 ticks, type 0x58 restarts motion 0x33 if needed; 09D26258."
+confidence = "confirmed"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D33138"
+name = "em75_state_05_00_health_zero_motion_44_pickup_then_fade"
+purpose = "Entry 0x44 and quest_on_monster_removed, mode 3; a pickup point for 2700 ticks, fade over 150, then 05 04."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 hit codes 1 and 2 (health zero) lead here"
+
+[[function]]
+module = "em75"
+address = "09D333F8"
+name = "em75_state_05_01_health_zero_motion_61_pickup_then_fade"
+purpose = "As 05 00 with entry 0x61 and short timer 0 held; the choice when short timer 0 was set."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 hit codes 1 and 2 (health zero) lead here"
+
+[[function]]
+module = "em75"
+address = "09D33670"
+name = "em75_state_05_02_health_zero_fall_motion_4d_4e_44_pickup_then_fade"
+purpose = "From the air (mode 2): falls with 0x4D, 0x4E at the floor, 0x44, then as 05 00."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 hit codes 1 and 2 (health zero) lead here"
+
+[[function]]
+module = "em75"
+address = "09D339B8"
+name = "em75_state_05_03_health_zero_motion_58_freeze_at_frame_370_then_fade"
+purpose = "Mode 4 types 0x4C, 0x58: entry 0x58, motion speed 0 from frame 370, pickup point, fade."
+confidence = "inferred"
+evidence = "body read whole; tick 09D35428 hit codes 1 and 2 (health zero) lead here"
+
+[[function]]
+module = "em75"
+address = "09D33C08"
+name = "em75_state_05_04_after_fade_respawn_from_quest_record_or_end"
+purpose = "If the quest record is active, sets the height for the area, mode 2, state 02 01; otherwise life_state 2."
+confidence = "inferred"
+evidence = "body read whole; 09D3D708 case 5 repositions from the quest record"
+
+[[function]]
+module = "em75"
+address = "09D33CA8"
+name = "em75_state_07_10_motion_0f_0b_13_descend_to_floor"
+purpose = "Same steps as 02 01 from a height set in 09D3D708: falls to the floor, camera shake, mode 0; 09D26258."
+confidence = "inferred"
+evidence = "body read whole; state numbers from its group dispatch"
+
+[[function]]
+module = "em75"
+address = "09D33FA0"
+name = "em75_dispatch_group_00_states"
+purpose = "Calls the state function for state +0x299 of group 0, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D341F8"
+name = "em75_dispatch_group_01_states"
+purpose = "Calls the state function for state +0x299 of group 1, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D34490"
+name = "em75_dispatch_group_02_states"
+purpose = "Calls the state function for state +0x299 of group 2, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D34628"
+name = "em75_dispatch_group_03_states"
+purpose = "Calls the state function for state +0x299 of group 3, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D35008"
+name = "em75_dispatch_group_04_states"
+purpose = "Calls the state function for state +0x299 of group 4, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D35240"
+name = "em75_dispatch_group_05_states"
+purpose = "Calls the state function for state +0x299 of group 5, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D352E0"
+name = "em75_dispatch_group_06_states"
+purpose = "Calls the state function for state +0x299 of group 6, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D353F0"
+name = "em75_dispatch_group_07_states"
+purpose = "Calls the state function for state +0x299 of group 7, some with args."
+confidence = "confirmed"
+evidence = "body read whole; 09D36B08"
+
+[[function]]
+module = "em75"
+address = "09D36E08"
+name = "em75_motion_frame_effects_types_4b_51"
+purpose = "Spawns and effects by motion id and frame for two types."
+confidence = "inferred"
+evidence = "start and callees read, not all 2383 lines"
+
+[[function]]
+module = "em75"
+address = "09D39A48"
+name = "em75_motion_frame_effects_types_4c_58"
+purpose = "Spawns and effects by motion id and frame for two types."
+confidence = "inferred"
+evidence = "start and callees read, not all 1785 lines"
+
+[[function]]
+module = "em75"
+address = "09D3C9D8"
+name = "em75_set_state_group_00_prepare"
+purpose = "Before a group 0 state: mode, status begin and end by state, then base set-state."
+confidence = "confirmed"
+evidence = "body read whole; 09D3D708"
+
+[[function]]
+module = "em75"
+address = "09D3CC18"
+name = "em75_set_state_group_01_prepare"
+purpose = "Before a group 1 state: move distance setup per state, then base set-state."
+confidence = "confirmed"
+evidence = "body read whole; 09D3D708"
+
+[[function]]
+module = "em75"
+address = "09D3CE48"
+name = "em75_set_state_group_02_prepare"
+purpose = "Before a group 2 state: speeds, counts and targets per state, then base set-state."
+confidence = "confirmed"
+evidence = "body read whole; 09D3D708"
+
+[[function]]
+module = "em75"
+address = "09D3D180"
+name = "em75_set_state_group_03_prepare"
+purpose = "Before a group 3 state: repeat count +0x794 by state, then base set-state."
+confidence = "confirmed"
+evidence = "body read whole; 09D3D708"
+
+[[function]]
+module = "em75"
+address = "09D3D420"
+name = "em75_air_controller_vertical_step"
+purpose = "Vertical velocity from the table at 09D58548 by mode and tick +0x7F8; ends with 2."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3D550"
+name = "em75_air_controller_forward_step"
+purpose = "Forward velocity from the table at 09D58650 by mode and tick; ends with 4."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3DEE8"
+name = "em75_material_alpha_by_group_type_4b"
+purpose = "Sets each material byte +3 to +0x230 or 0 by group and by broken part and boost state; scrolls group 2."
+confidence = "confirmed"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3E1E0"
+name = "em75_material_alpha_by_group_type_4c"
+purpose = "Same shape as the 0x4B one."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D3ED08"
+name = "em75_material_alpha_by_group_type_51"
+purpose = "Same shape as the 0x4B one."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D3F0E0"
+name = "em75_material_alpha_by_group_type_58"
+purpose = "Same shape as the 0x4B one."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D3FB68"
+name = "em75_scene_velocity_track_start"
+purpose = "Loads a keyframe track by index into globals."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3FE18"
+name = "em75_scene_angle_track_start"
+purpose = "Loads an angle keyframe track by index into globals."
+confidence = "inferred"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D40230"
+name = "em75_motion_sounds_type_4b"
+purpose = "Sounds at bone by motion id and frame, 477 calls of 09D36CF0."
+confidence = "inferred"
+evidence = "calls counted in the body; 09D3F438 selects it by type byte"
+
+[[function]]
+module = "em75"
+address = "09D42D48"
+name = "em75_motion_sounds_type_4c"
+purpose = "As for 0x4B, 368 calls."
+confidence = "inferred"
+evidence = "calls counted in the body; 09D3F438 selects it by type byte"
+
+[[function]]
+module = "em75"
+address = "09D44E58"
+name = "em75_motion_sounds_type_51"
+purpose = "As for 0x4B, 461 calls."
+confidence = "inferred"
+evidence = "calls counted in the body; 09D3F438 selects it by type byte"
+
+[[function]]
+module = "em75"
+address = "09D479C8"
+name = "em75_motion_sounds_type_58"
+purpose = "As for 0x4B, 663 calls; depends on motion id, a state group 6 branch in one."
+confidence = "inferred"
+evidence = "start read; calls counted; 09D3F438 selects it by type byte"
+
+[[function]]
+module = "em75"
+address = "09D4B928"
+name = "em75_owned_obj_step_by_owner_motion_a"
+purpose = "By kind +0xD, compares the owner motion id and sets +0x1D, +0x26, +0x34."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D4BE28"
+name = "em75_owned_obj_step_by_owner_motion_b"
+purpose = "As the other, other kinds."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D4FA70"
+name = "em75_class_089bf5e4_construct"
+purpose = "Runs the base constructor and sets vtable 89bf5e4."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4FB60"
+name = "em75_owned_obj_init_kind_34_from_owner"
+purpose = "Kind 0x34, owner fields and angles, links it into the list at DAT_09C190D0 +0x502C."
+confidence = "confirmed"
+evidence = "body read whole"
+
+[[function]]
+module = "em75"
+address = "09D50DD8"
+name = "em75_owned_obj_tick_at_bone_1f"
+purpose = "Owned object following bone 0x1F, keyframes of float and vec3."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D51610"
+name = "em75_owned_obj_tick_trajectory_floor"
+purpose = "Owned object along 09D519D8, floor test ends it."
+confidence = "guess"
+evidence = "first lines read"
+
+[[function]]
+module = "em75"
+address = "09D1A300"
+name = "em75_class_089bf2f4_destruct"
+purpose = "Sets vtable 89bf2f4, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1B928"
+name = "em75_class_089bf31c_construct"
+purpose = "Runs the base constructor and sets vtable 89bf31c."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1B960"
+name = "em75_class_089bf31c_destruct"
+purpose = "Sets vtable 89bf31c, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1C978"
+name = "em75_class_089bf344_construct"
+purpose = "Runs the base constructor and sets vtable 89bf344."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1C9B0"
+name = "em75_class_089bf344_destruct"
+purpose = "Sets vtable 89bf344, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1D540"
+name = "em75_class_089bf36c_construct"
+purpose = "Runs the base constructor and sets vtable 89bf36c."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1D578"
+name = "em75_class_089bf36c_destruct"
+purpose = "Sets vtable 89bf36c, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1EDD8"
+name = "em75_class_089bf394_construct"
+purpose = "Runs the base constructor and sets vtable 89bf394."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D1EE10"
+name = "em75_class_089bf394_destruct"
+purpose = "Sets vtable 89bf394, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D21110"
+name = "em75_class_089bf3bc_construct"
+purpose = "Runs the base constructor and sets vtable 89bf3bc."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D21148"
+name = "em75_class_089bf3bc_destruct"
+purpose = "Sets vtable 89bf3bc, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D21D10"
+name = "em75_class_089bf3e4_construct"
+purpose = "Runs the base constructor and sets vtable 89bf3e4."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D21D48"
+name = "em75_class_089bf3e4_destruct"
+purpose = "Sets vtable 89bf3e4, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D227A0"
+name = "em75_class_089bf40c_construct"
+purpose = "Runs the base constructor and sets vtable 89bf40c."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D227D8"
+name = "em75_class_089bf40c_destruct"
+purpose = "Sets vtable 89bf40c, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D23278"
+name = "em75_class_089bf434_construct"
+purpose = "Runs the base constructor and sets vtable 89bf434."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D232B0"
+name = "em75_class_089bf434_destruct"
+purpose = "Sets vtable 89bf434, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D23CF8"
+name = "em75_class_089bf45c_construct"
+purpose = "Runs the base constructor and sets vtable 89bf45c."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D23D30"
+name = "em75_class_089bf45c_destruct"
+purpose = "Sets vtable 89bf45c, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D245E0"
+name = "em75_class_089bf484_construct"
+purpose = "Runs the base constructor and sets vtable 89bf484."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D24618"
+name = "em75_class_089bf484_destruct"
+purpose = "Sets vtable 89bf484, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D25470"
+name = "em75_class_089bf4ac_construct"
+purpose = "Runs the base constructor and sets vtable 89bf4ac."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D254A8"
+name = "em75_class_089bf4ac_destruct"
+purpose = "Sets vtable 89bf4ac, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26030"
+name = "em75_entity_reload_area_values_and_reduce_494_498_thunk"
+purpose = "Jumps to 09AD0648."
+confidence = "confirmed"
+evidence = "generated C"
+
+[[function]]
+module = "em75"
+address = "09D26038"
+name = "em75_spawn_attached_classes_by_type"
+purpose = "class_089bdf88 at bone 0x20 (0x4C, 0x58) or 0x24 (0x4B, 0x51, the latter with 09D21DA8), then class_089bdcb8."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D26110"
+name = "em75_init_fields_start_motion_thunk"
+purpose = "Falls through to 09D26118."
+confidence = "confirmed"
+evidence = "generated C"
+
+[[function]]
+module = "em75"
+address = "09D35428"
+name = "em75_tick_hit_reactions_scenes_dispatch"
+purpose = "The tick: applies pending damage and maps its result code to a state, starts quest scenes, dispatches the state, repeats when a state was just set."
+confidence = "inferred"
+evidence = "read whole except the last lines; result codes from entity_apply_pending_damage_and_choose_result_code"
+
+[[function]]
+module = "em75"
+address = "09D36D88"
+name = "em75_motion_frame_effects_dispatch_by_type"
+purpose = "Tracks the motion id in +0x792; calls 09D39A48 for 0x4C, 0x58 and 09D36E08 for 0x4B, 0x51."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3C838"
+name = "em75_can_react_outside_held_states"
+purpose = "Zero in states 04 0C, 0D, 0E, 11, 12, 13, 18, 1A, in mode 2, or with +0x579; 0x4C, 0x58 only below 25 percent health; 0x51 needs +0x59A above 3 and flag 0x20."
+confidence = "inferred"
+evidence = "body read whole; no direct caller"
+
+[[function]]
+module = "em75"
+address = "09D3D708"
+name = "em75_set_state"
+purpose = "Set-state entry: per-group preparation, airborne request redirection on the ground, then entity_set_state_by_global_flag_and_mode. No direct caller; matches the vtable +0x88 calls by signature."
+confidence = "inferred"
+evidence = "body read whole; args group, state, mode as callers pass them"
+
+[[function]]
+module = "em75"
+address = "09D3DC68"
+name = "em75_periodic_fx_every_60_ticks"
+purpose = "Every 60 ticks 9C60F48 with a bone by type (0x24 or 0x20) and offset."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3DCF8"
+name = "em75_sight_off_load_timer_set_state_04_09_0a"
+purpose = "Sight off 10, timer from the type table, 9C97220; if local and not held and no status 0x8, state 04 09 in mode 2 or 04 0A."
+confidence = "inferred"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3DDF0"
+name = "em75_set_state_00_15_restart_script_in_mode_1"
+purpose = "Types 0x4C, 0x58 in mode 1 restart the script; state 00 15."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3DE60"
+name = "em75_material_alpha_dispatch_by_type"
+purpose = "Calls the material function for the type with the model group."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3F438"
+name = "em75_motion_sounds_dispatch_by_type"
+purpose = "Calls the sound table of the type: 0x4B, 0x4C, 0x51, 0x58."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D3F4B8"
+name = "em75_part_break_check_calls_9ad77e8"
+purpose = "Calls 9AD77E8 with a code by type and arg when part counts and health below half pass."
+confidence = "guess"
+evidence = "first part read"
+
+[[function]]
+module = "em75"
+address = "09D3F680"
+name = "em75_update_hunter_distances_and_bearings"
+purpose = "For hunters in the area, stores distances and the yaw to each; for 0x51 hold mode 2 another distance."
+confidence = "guess"
+evidence = "first 40 lines read"
+
+[[function]]
+module = "em75"
+address = "09D4B380"
+name = "em75_class_089bf4d4_construct"
+purpose = "Runs the base constructor and sets vtable 89bf4d4."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4B3B8"
+name = "em75_class_089bf4d4_destruct"
+purpose = "Sets vtable 89bf4d4, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4C2A0"
+name = "em75_class_089bf518_construct"
+purpose = "Runs the base constructor and sets vtable 89bf518."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4C2E0"
+name = "em75_class_089bf518_destruct"
+purpose = "Sets vtable 89bf518, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4CAB0"
+name = "em75_class_089bf55c_construct"
+purpose = "Runs the base constructor and sets vtable 89bf55c."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4CAE8"
+name = "em75_class_089bf55c_destruct"
+purpose = "Sets vtable 89bf55c, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4F060"
+name = "em75_class_089bf5a0_construct"
+purpose = "Runs the base constructor and sets vtable 89bf5a0."
+confidence = "confirmed"
+evidence = "short body read whole"
+
+[[function]]
+module = "em75"
+address = "09D4F098"
+name = "em75_class_089bf5a0_destruct"
+purpose = "Sets vtable 89bf5a0, runs the base destructor, frees when arg 2 is positive."
+confidence = "confirmed"
+evidence = "short body read whole"
