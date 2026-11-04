@@ -1,0 +1,479 @@
+[[function]]
+module = "EBOOT"
+address = "088812B4"
+name = "sound_request_track_file_load"
+purpose = "Clears the target track slot unless it already holds the file id, then queues loader state 1 with slot, file id and a byte option; with param_4 == 1 it first zeroes the sizes of slots 0x13 and 0x14 and clears three slots."
+confidence = "inferred"
+evidence = "Sets +0x8b94 = 1, which the loader tick dispatches to 088825FC; compares the id from 0888670C on DAT_08a62eb4."
+
+[[function]]
+module = "EBOOT"
+address = "088813E0"
+name = "sound_clear_track_slots_12_to_14"
+purpose = "Clears the three request entries at +0x8b54 and calls 088865B0 to zero buffer, size and id of track slots 0x12 to 0x14."
+confidence = "inferred"
+evidence = "Loop of 3 over 08881438 and 088865B0, whose body zeroes the slot record fields."
+
+[[function]]
+module = "EBOOT"
+address = "08881438"
+name = "sound_clear_track_request_entry"
+purpose = "Sets request entry N at +0x8b54 to id 0xffff and its slot value (three shorts later) to 0."
+confidence = "inferred"
+evidence = "Those fields are read as file id and slot by 08881458 and 08882750."
+
+[[function]]
+module = "EBOOT"
+address = "08881458"
+name = "sound_request_track_files_load"
+purpose = "Queues loading of up to three files into consecutive track slots from param_2, recording each file's size in the slot layout, and sets loader state 6; ids 0x19BE and 0x19BF zero slot 0x14's size and drop the third file."
+confidence = "inferred"
+evidence = "Sets +0x8b94 = 6, dispatched to 08882750; calls 088816AC then 088817E8 for each id, re-registers slot buffers through 0888291C."
+
+[[function]]
+module = "EBOOT"
+address = "088816AC"
+name = "sound_get_track_file_size"
+purpose = "Returns the size for a track file: asks the file loader (vtable +0x18) for four special ids, otherwise takes the column for the slot from the six-row table at 089AC514 matched on game global byte +0x6AF10, falling back to the loader if no row matches or global byte +0x480 is set."
+confidence = "inferred"
+evidence = "Results are stored as slot sizes by 088817E8 and passed as size to 08886638."
+
+[[function]]
+module = "EBOOT"
+address = "088817E8"
+name = "sound_set_layout_slot_size"
+purpose = "Writes a slot's size into the current layout row of the table at 089AC2C8, 21 ints per row, indexed by layout +0x308BC0."
+confidence = "inferred"
+evidence = "0888291C reads the same table and advances a buffer pointer by each value."
+
+[[function]]
+module = "EBOOT"
+address = "08881824"
+name = "sound_loader_clear_state"
+purpose = "Zeroes the loader's state +0x8B94 and step +0x8B98, ending the current load."
+confidence = "confirmed"
+evidence = "Two field writes; every load step routine calls it on its last step and the tick dispatches on those fields."
+
+[[function]]
+module = "EBOOT"
+address = "08881840"
+name = "sound_loader_tick"
+purpose = "Each frame, dispatches the pending load by state +0x8B94: states 6 and 1 when the file loader query +0x40(2) is clear, states 5, 4, 3 and 2 when query +0x38 is clear."
+confidence = "inferred"
+evidence = "State switch over the load step functions; ran across all recordings, called from 08880708."
+
+[[function]]
+module = "EBOOT"
+address = "08881970"
+name = "sound_loader_is_busy"
+purpose = "Returns 1 if file loader query +0x38 returns 1 or a sound load is pending in +0x8B94, else 0."
+confidence = "inferred"
+evidence = "Reads only those two; polled by many demo and game tasks."
+
+[[function]]
+module = "EBOOT"
+address = "088819D0"
+name = "sound_track_loader_is_busy"
+purpose = "Returns 1 if file loader query +0x40(2) returns 1 or a sound load is pending in +0x8B94, else 0."
+confidence = "inferred"
+evidence = "Same form as 08881970 with the query the tick uses to gate track load states 6 and 1."
+
+[[function]]
+module = "EBOOT"
+address = "08881A30"
+name = "sound_load_step_single_bank"
+purpose = "Loader state 2: over three steps reads the bank's files for bank +0x8B32 into its buffers (ids +0x8B2C, +0x8B30, +0x8B2E), records the ids on the bank object, and finishes."
+confidence = "inferred"
+evidence = "Step counter +0x8B98; read through file loader vtable +0x34 or 088DDD9C when 088DE014 finds the id; dest buffers from 0887FDAC, 0887FDC4, 0887FDDC on DAT_08a62ea4."
+
+[[function]]
+module = "EBOOT"
+address = "08881CE0"
+name = "sound_load_step_bank_multi_part"
+purpose = "Loader state 3: over four steps reads +0x8B40 files consecutively into bank +0x8B3E's buffer, then its file at +0x8B3C, records the ids, and finishes."
+confidence = "inferred"
+evidence = "Step counter +0x8B98 with a count-driven loop; same loader and bank calls as 08881A30."
+
+[[function]]
+module = "EBOOT"
+address = "08882014"
+name = "sound_load_step_bank_list"
+purpose = "Loader state 4: over three steps reads three files for each of +0x8B88 banks listed from +0x8B64, starting at the index in DAT_08a62d9c+0x5C0 when +0x8B8C is set, records the ids, and finishes."
+confidence = "inferred"
+evidence = "Loop over parallel short arrays at offsets 0, 8, 0x10 with bank at 0x18; same loader and bank calls as 08881A30."
+
+[[function]]
+module = "EBOOT"
+address = "088825FC"
+name = "sound_load_step_track_file"
+purpose = "Loader state 1: reads file +0x8B2C into the buffer of track slot +0x8B2E, then records id and size on that slot and finishes; a 0xffff id just finishes."
+confidence = "inferred"
+evidence = "Uses 08886664 for the buffer and 08886638 with the loader's size; dispatched by state 1 set in 088812B4."
+
+[[function]]
+module = "EBOOT"
+address = "08882750"
+name = "sound_load_step_track_files"
+purpose = "Loader state 6: reads each queued file from +0x8B54 into its track slot, then records id and size on each slot and finishes."
+confidence = "inferred"
+evidence = "Multi-entry form of 088825FC, count +0x562434; dispatched by state 6 set in 08881458."
+
+[[function]]
+module = "EBOOT"
+address = "0888291C"
+name = "sound_register_track_slot_buffers"
+purpose = "Walks the current layout's slot sizes, advancing from buffer base +0x8BC0, and registers buffer and size on each slot from a group start (0, 6, 0x12, 0x13 or 0x14 for param_2 0 to 4), stopping at a zero size or after the requested count in +0x562434."
+confidence = "inferred"
+evidence = "Accumulates sizes from table 089AC2C8 and calls 08886618 with slot, address, size."
+
+[[function]]
+module = "EBOOT"
+address = "08882A74"
+name = "sound_select_track_layout"
+purpose = "Zeroes +0x562434, copies three values from 089AC518 into layout table slots at 089AC364, and if the layout index changes stores it and re-registers slot buffers."
+confidence = "inferred"
+evidence = "Writes +0x308BC0 used as the row index by 088817E8 and 0888291C, then calls 0888291C."
+
+[[function]]
+module = "EBOOT"
+address = "08882B4C"
+name = "sound_track_get_status"
+purpose = "Returns field +8 of a track slot, set from 088A2338 by the play routine 08886780."
+confidence = "guess"
+evidence = "Body of 0888671C reads that field; what 088A2338 returns was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08882B58"
+name = "sound_track_fade_out"
+purpose = "Starts a fade of a track slot to volume 0 over a given duration."
+confidence = "inferred"
+evidence = "08886870 stores current volume as start, target, and duration; this passes target 0."
+
+[[function]]
+module = "EBOOT"
+address = "08882C24"
+name = "sound_track_fade_to_scaled_volume"
+purpose = "Starts a track slot fade to a volume scaled by the volume setting, +0x5623D4 for slot 0 and +0x5623D0 for others."
+confidence = "inferred"
+evidence = "08880884 is value*setting/7; then 08886870 sets the fade."
+
+[[function]]
+module = "EBOOT"
+address = "08882C9C"
+name = "sound_find_track_slot_by_id"
+purpose = "Returns the first of the 21 track slots whose id matches, or -1."
+confidence = "inferred"
+evidence = "Loop to 0x15 comparing 0888670C's low 16 bits."
+
+[[function]]
+module = "EBOOT"
+address = "08882CFC"
+name = "sound_track_get_id"
+purpose = "Returns the 16-bit file id held by a track slot."
+confidence = "inferred"
+evidence = "Wraps 0888670C, whose result is compared to file ids in 088812B4 and 08882C9C."
+
+[[function]]
+module = "EBOOT"
+address = "08882D20"
+name = "sound_track_play_full_volume"
+purpose = "Plays an id on a track slot at volume 0x7F scaled by the slot's volume setting."
+confidence = "inferred"
+evidence = "Same form as 08882E24 with the volume fixed at 0x7F; calls 08882D9C."
+
+[[function]]
+module = "EBOOT"
+address = "08882D9C"
+name = "sound_track_play"
+purpose = "Sets the track's +0x60 flag argument, sets volume, resets the fade to that volume, and starts the id on the slot."
+confidence = "inferred"
+evidence = "Calls 08886834, 08886850, 08886870, then 08886780 which looks the id up and starts the slot's handle."
+
+[[function]]
+module = "EBOOT"
+address = "08882E24"
+name = "sound_track_play_scaled_volume"
+purpose = "Plays an id on a track slot at a volume scaled by the slot's volume setting."
+confidence = "inferred"
+evidence = "Scales through 08880884 with +0x5623D4 or +0x5623D0, then 08882D9C."
+
+[[function]]
+module = "EBOOT"
+address = "08882EA0"
+name = "sound_track_play_fade_in"
+purpose = "Plays an id on a track slot at volume 0, then starts a fade up to the scaled target volume."
+confidence = "inferred"
+evidence = "08882D9C with volume 0 followed by 08882C24."
+
+[[function]]
+module = "EBOOT"
+address = "08882F04"
+name = "sound_track_set_flag_60"
+purpose = "Sets the boolean at +0x60 of a track slot's handle object."
+confidence = "inferred"
+evidence = "Wraps 08886834, which calls 088A232C writing (arg != 0) to +0x60; its meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08882FA4"
+name = "sound_bank_register_buffers"
+purpose = "Walks the size pairs of the current bank layout at 089AC574, 16 pairs per row, assigning consecutive buffers from +0x549BD0 to banks through 0887FC40, including bank 0 only when param_2 is 1."
+confidence = "inferred"
+evidence = "Accumulated pointer plus sizes passed to 0887FC40 on DAT_08a62ea4, stops at a zero entry; layout from 0887FF1C."
+
+[[function]]
+module = "EBOOT"
+address = "0888307C"
+name = "sound_bank_register_buffers_range"
+purpose = "Skips to bank param_2 by summing earlier size pairs, then calls 0887FBC4 and re-registers buffers for banks param_2 through param_3."
+confidence = "inferred"
+evidence = "Same table and 0887FC40 use as 08882FA4, with an unrolled summing loop."
+
+[[function]]
+module = "EBOOT"
+address = "08883268"
+name = "sound_bank_clear_file_ids"
+purpose = "Sets to 0xffff the three shorts at +0x24, +0x26, +0x28 of a bank's record, also clearing mask 0x1 in its +0x2A."
+confidence = "inferred"
+evidence = "Bodies of 0887FD04, 0887FD48, 0887FD2C read; that these hold the ids set by 0887FCBC and friends is from their parallel form, not read."
+
+[[function]]
+module = "EBOOT"
+address = "088832B4"
+name = "sound_bank_set_layout_and_register"
+purpose = "Calls 0887FE5C on the bank object with param_2 and param_3, then registers bank buffers."
+confidence = "inferred"
+evidence = "Followed by 08882FA4, which reads the layout index the bank object holds; 0887FE5C's body was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088832F8"
+name = "sound_bank_set_layout_and_register_range"
+purpose = "Calls 0887FEE4 on the bank object with param_2, then re-registers buffers for a bank range."
+confidence = "inferred"
+evidence = "Followed by 0888307C with the range arguments; 0887FEE4's body was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888334C"
+name = "sound_set_table_308bc4_entry"
+purpose = "Stores a value at index param_3 of record param_2 in the table pointed to by +0x308BC4, records 0x40 bytes with the array at +0x10."
+confidence = "inferred"
+evidence = "One indexed write; what the values mean was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08883374"
+name = "sound_listener_mark_stale"
+purpose = "Clears +0x5623E0 so the sound listener is recomputed on the next request."
+confidence = "inferred"
+evidence = "08883384 only runs when that byte is 0, then sets it; called from the sound ticks 088803FC and 08880708."
+
+[[function]]
+module = "EBOOT"
+address = "08883384"
+name = "sound_update_listener"
+purpose = "Once until marked stale, derives a normalized view direction at +0x562400 and an angle at +0x562410 from two vectors of the DAT_089cbd04 object, and sets the listener position at +0x5623F0 to one of those vectors or an object's +0x200 place offset along that direction (0, -150 or 250) depending on game global state."
+confidence = "inferred"
+evidence = "08884E44 and 088849B4 measure sound distance from +0x5623F0; guarded by +0x5623E0."
+
+[[function]]
+module = "EBOOT"
+address = "088838B0"
+name = "sound_play_voice"
+purpose = "Starts a sound by bank and id through 0887FFE8 with volume converted to percent, pan minus 0x40, the next value minus 0x2000, and a percent value scaled by volume; returns 0 for id -1."
+confidence = "inferred"
+evidence = "Shared by the 2D and 3D play functions; 088808B0 is value/127*100."
+
+[[function]]
+module = "EBOOT"
+address = "08883988"
+name = "sound_play_2d"
+purpose = "Plays a sound at centre pan with volume 0x7F scaled by setting +0x5623D0 and adjusted by 088858EC; a silent result returns 0 unless the stack byte forces it."
+confidence = "inferred"
+evidence = "Calls 088838B0 with pan 0x40; no position argument; many game callers."
+
+[[function]]
+module = "EBOOT"
+address = "08883A80"
+name = "sound_play_2d_setting_5623d4"
+purpose = "Plays a sound at centre pan with volume 0x7F scaled by setting +0x5623D4, skipped if that gives 0."
+confidence = "inferred"
+evidence = "Calls 088838B0 with pan 0x40; ran in boot frames from 088BC7F0 and cont_task."
+
+[[function]]
+module = "EBOOT"
+address = "08883B54"
+name = "sound_play_3d"
+purpose = "Plays a sound at a world position: evaluates map zones, computes volume and pan from the position and a curve index (or the alternate 088851C8 path when the bank object's mode is 2), scales by setting +0x5623D0, adjusts by 088858EC, and starts it; returns -1 if silent unless forced."
+confidence = "inferred"
+evidence = "Position goes to 08884E44 and 088840A8; ends in 088838B0 or 088800C0; game-object callers."
+
+[[function]]
+module = "EBOOT"
+address = "08883FF0"
+name = "sound_get_3d_volume"
+purpose = "Returns the volume for a position and curve index, scaled by setting +0x5623D0, without playing anything."
+confidence = "inferred"
+evidence = "Same 088851C8 / 08884E44 choice as 08883B54, returning only the volume."
+
+[[function]]
+module = "EBOOT"
+address = "088840A8"
+name = "sound_eval_map_zones"
+purpose = "Scans the current map's sound zone list (0x40-byte entries by type: nearest point types 0, 3, 4, 5, line types 1, 2) against the sound and object positions, and returns a value from 088846F4 or, for certain banks and ids, sets a curve override and volume multiplier through its out pointers."
+confidence = "inferred"
+evidence = "List and count from the object at DAT_09a4f1a0 vtable +0x28; distance tests 1800, 2400, 3000, 500; output adds to the last play argument in 08883B54."
+
+[[function]]
+module = "EBOOT"
+address = "088846F4"
+name = "sound_map_zone_value"
+purpose = "Stores a zone distance in +0x562460, gets the zone curve value through 08885088, and returns it scaled by setting +0x5623D0."
+confidence = "inferred"
+evidence = "Only called from 088840A8; passes zone type + 1 as the mode."
+
+[[function]]
+module = "EBOOT"
+address = "08884748"
+name = "sound_apply_3d_mix"
+purpose = "Computes volume and pan for a position and curve index and passes them with four caller arguments to 088801E8 or 088801A0 if volume is above 0, without a sound id."
+confidence = "guess"
+evidence = "Same computation as 08883B54; the callees' bodies were not read, so updating an existing voice is a reading."
+
+[[function]]
+module = "EBOOT"
+address = "088849B4"
+name = "sound_calc_distance_volume"
+purpose = "Returns volume for a position and curve index by interpolating that curve's table over distance from the listener, 0x7F inside the inner radius and 0 beyond the outer; curves 0x11, 0x20, 0x21 also set +0x562438 from a second table when +0x562464 is set."
+confidence = "inferred"
+evidence = "Radius and step tables at 089AA47C to 089AA484; distance from +0x5623F0; uses table offset 0x44 when 0888616C returns 1."
+
+[[function]]
+module = "EBOOT"
+address = "08884CE4"
+name = "sound_calc_zone_curve_volume"
+purpose = "Returns a value interpolated from a table over distance, using the distance between two vectors for mode 1 or the stored +0x562460 for mode 2; 0 past the outer radius unless it is 19800."
+confidence = "inferred"
+evidence = "Same interpolation as 088849B4 over tables at 089AB9A4, 089AB9A8, 089ABE00."
+
+[[function]]
+module = "EBOOT"
+address = "08884E44"
+name = "sound_calc_3d_volume_pan"
+purpose = "Updates the listener, returns volume from the curve, and returns pan: 0x40 inside the inner radius, otherwise from the position's projected x in the range 0 to 480, mirrored when another projected value is below 0."
+confidence = "inferred"
+evidence = "Projection through 08814674 on DAT_089CBD04, then a cosine mapped as 63 - cos*48."
+
+[[function]]
+module = "EBOOT"
+address = "08885088"
+name = "sound_calc_zone_volume"
+purpose = "Gets the zone curve value through 08884CE4, and in mode 1 when the bank mode is not 2 zeroes it past the outer radius or inside the inner radius."
+confidence = "inferred"
+evidence = "Radius tests against tables 089AB9A0 and 089AB9A8 on the distance between two vectors."
+
+[[function]]
+module = "EBOOT"
+address = "08885494"
+name = "unknown_sound_dispatch_889eac4_or_889ee80"
+purpose = "Forwards three arguments through 08880254, which calls 0889EAC4 when the fourth is 0 and 0889EE80 otherwise."
+confidence = "guess"
+evidence = "Only the forwarding read; effect of the callees not read."
+
+[[function]]
+module = "EBOOT"
+address = "088854C4"
+name = "unknown_sound_dispatch_889eab4_or_889ea9c"
+purpose = "Forwards through 088802C4, which calls 0889EAB4 for arg 0 and 0889EA9C otherwise on the given index."
+confidence = "guess"
+evidence = "Only the forwarding read; effect of the callees not read."
+
+[[function]]
+module = "EBOOT"
+address = "088854D0"
+name = "unknown_sound_dispatch_889eab4_or_889ea9c_range"
+purpose = "Calls 088802C4 for each index from param_1 through param_2 with the same selector argument."
+confidence = "guess"
+evidence = "Range loop form of 088854C4; effect of the callees not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888553C"
+name = "sound_pick_random_variant"
+purpose = "Rolls 0 to 7 from generator 1 and returns param_1 if the roll is below param_2, param_3 if below param_2 + param_4, else -1."
+confidence = "inferred"
+evidence = "088900C4 advances a stored value with modulo 0xFF53 like a generator; the sound prefix rests only on its file and game-task callers."
+
+[[function]]
+module = "EBOOT"
+address = "088855C4"
+name = "unknown_sound_call_889eae8_optional_args"
+purpose = "Returns as a bool the result of 0889EAE8, which builds a 0x1C-byte block from three arguments where -1 omits a field."
+confidence = "guess"
+evidence = "08880324 and the start of 0889EAE8 read; the target of the block was not."
+
+[[function]]
+module = "EBOOT"
+address = "088855D0"
+name = "unknown_lookup_56243c_by_table_9bc8500"
+purpose = "Finds which of 4 byte entries at +0x56245C maps in table 09BC8500 to the same value as param_2, and returns the matching short at +0x562454; no match returns an unset register."
+confidence = "inferred"
+evidence = "Loop body; the fields' meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888571C"
+name = "sound_fade_in_channels"
+purpose = "Ramps channels 1 to 10 to level 0x7F at a rate from the duration; with param_2 == 0 also sets the bank object's ramp from 0 to 0x1000."
+confidence = "inferred"
+evidence = "08880384 passes 0x7F and 0x10000000/duration to 0889EA84; 088803C4 stores start, target and duration; pairs with 08885870 about 20 frames earlier in the same tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08885870"
+name = "sound_fade_out_channels"
+purpose = "Ramps channels 1 to 10 to level 0 at a rate from the duration; with param_2 == 0 also sets the bank object's ramp from 0x1000 to 0."
+confidence = "inferred"
+evidence = "088803A4 passes 0 and 0x10000000/duration to 0889EA84; 088803C4 stores start, target and duration."
+
+[[function]]
+module = "EBOOT"
+address = "088858EC"
+name = "sound_attenuate_listed_ids"
+purpose = "When game global mask 0x1 at +0x6AF14 is set and short +0x6AF0E is 0xD, scales the volume for listed ids of banks 3 and 7: by 0.3 or 0.5 according to byte +0x562466, or by 0.8 for bank 7 id 0x85 when that byte is 0."
+confidence = "inferred"
+evidence = "Explicit id lists and factors; takes volume and returns it to the play functions; what the condition means in the game was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08885D80"
+name = "sound_state_init_global"
+purpose = "Stores the sound state pointer in DAT_08A62EB0 and resets it."
+confidence = "inferred"
+evidence = "Runs at frame 0 from 088803FC; calls 08885E00."
+
+[[function]]
+module = "EBOOT"
+address = "08885E00"
+name = "sound_state_reset"
+purpose = "Zeroes the state's counters and flags and sets its id shorts at +8, +0xA, +0xC, +0x1C, +0x1E, +0x20 to 0xffff."
+confidence = "inferred"
+evidence = "Plain field initialisation on the object held in DAT_08A62EB0."
+
+[[function]]
+module = "EBOOT"
+address = "08885E3C"
+name = "sound_state_play_on_slot_1"
+purpose = "Plays an id on track slot 1 at full volume, sets mask 0x2 in +0x14, clears mask 0x400, and stores the id at +0xA."
+confidence = "inferred"
+evidence = "Calls 08882D20 with slot 1; mask 0x402 is cleared again by 08885E9C."
+
+[[function]]
+module = "EBOOT"
+address = "08885E9C"
+name = "sound_state_restore_slot_0_volume"
+purpose = "If the id at +0xA is 0x18E9 calls 08882F58(1); if mask 0x402 is set in +0x14 clears it and fades slot 0 over 0xF to +0x10, or to 0x7F when +4 is 4 or more; always clears mask 0x100 and +0x2A."
+confidence = "inferred"
+evidence = "08882C24(slot 0, 0xF, volume); ran from game tasks in fight and camp recordings."

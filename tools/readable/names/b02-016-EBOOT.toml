@@ -1,0 +1,639 @@
+[[function]]
+module = "EBOOT"
+address = "08871BC4"
+name = "quest_process_records_separate_field_5f4"
+purpose = "Walks the 0x3C-byte records from f_EBOOT_8869774(obj,1), gets an object for each from game_task 09AB2A58, and when a later object shares the first object's table 09BC8500 entry and its short +0x5F4 is within 200 of the first's, moves +0x5F4 by 200 within the limits at 089ABE38/089ABE3C."
+confidence = "guess"
+evidence = "Code shows the +/-200 separation with per-entry limits; what +0x5F4 means and what 09AB2A58 does were not read."
+
+[[function]]
+module = "EBOOT"
+address = "08871DCC"
+name = "quest_request_sound_ids_from_list_0"
+purpose = "Takes up to 4 table indices from f_EBOOT_8869774(obj,0), fills the sound manager's pending slots with the three ids of table 09BC8500, marks duplicates, takes the largest DAT_089cc554 vtable +0x18 result per group, requests the slots and stores the count at +0x5C0."
+confidence = "inferred"
+evidence = "Passes table ids to 08880CF8, 08880D64, 08880D94 and 08880E50 on the sound manager DAT_08A62EAC."
+
+[[function]]
+module = "EBOOT"
+address = "0887221C"
+name = "quest_request_sound_ids_from_table_09a4f210"
+purpose = "Fills the remaining slots from the +0x5C0 count to 3 using entries of DAT_09A4F210 (id at +0x6E when mask 0x3 at +0x6C is set, table index is id - 0x17DF), then requests them with no minimum sizes."
+confidence = "inferred"
+evidence = "Same sound manager call sequence as 08871DCC, with stack argument 0."
+
+[[function]]
+module = "EBOOT"
+address = "0887265C"
+name = "table_pick_weighted_random"
+purpose = "Picks from a 0xFFFF-terminated table of weight/value entries (a third column is written to param_2 when given) by a random roll modulo the total weight; returns the value or 0xFFFF."
+confidence = "inferred"
+evidence = "Sums weights, takes f_EBOOT_88900C4 modulo the sum, walks a running total."
+
+[[function]]
+module = "EBOOT"
+address = "0887276C"
+name = "quest_find_id_in_table_089a82a4"
+purpose = "Returns the index of a byte id in the 8-entry table 089A82A4, or 0xFF if absent or mask 0x80 at DAT_08A62D9C +0x28 is clear."
+confidence = "inferred"
+evidence = "Linear search in the code; ran only in recordings with a quest in progress, caller is game_task."
+
+[[function]]
+module = "EBOOT"
+address = "08872B7C"
+name = "quest_consume_flag_418_post_event_12"
+purpose = "When game byte +0x418 is 1 and field +0x678 is below 1, clears the byte; if +0x678 is exactly 0 also increments byte +0x724 and sends a 6-byte message of type 0x12 holding that count via f_EBOOT_88AB514."
+confidence = "inferred"
+evidence = "Direct reading of the code; meaning of the flag and of the message receiver was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08872BFC"
+name = "quest_jitter_byte_within_band_random"
+purpose = "Unless mask 0x4000 at +0x28 is set, adds a signed offset from a 20-entry table (089A8174 if f_EBOOT_8856DA0(game,0x1D) is nonzero, else 089A8160) picked by f_EBOOT_886B8DC modulo 20 to the byte at param_2, kept within its band of 8."
+confidence = "inferred"
+evidence = "Table selection and call to 08872CC0; the modulo use suggests 0886B8DC is a random source."
+
+[[function]]
+module = "EBOOT"
+address = "08872CC0"
+name = "math_add_clamp_within_band_of_8"
+purpose = "Adds a signed byte to a value and clamps the result to the value's own band: 0-7, 8-15, 16-23, or 24-31."
+confidence = "inferred"
+evidence = "Band limits are explicit in the code."
+
+[[function]]
+module = "EBOOT"
+address = "08872E2C"
+name = "quest_byte_75c_mask_80_is_set"
+purpose = "Returns whether the byte at +0x75C+index has mask 0x80 set."
+confidence = "inferred"
+evidence = "One-line sign test; called from stage097 in fight1."
+
+[[function]]
+module = "EBOOT"
+address = "08872E48"
+name = "quest_byte_75c_reset"
+purpose = "Sets the byte at +0x75C+index to 0x7F, clearing mask 0x80 and setting the lower 7 bits."
+confidence = "inferred"
+evidence = "Two direct writes; called from quest setup 08869904."
+
+[[function]]
+module = "EBOOT"
+address = "08872FB8"
+name = "quest_object_set_byte_4bc_from_record"
+purpose = "For an object whose ushort +0x1E6 is below 2, searches 5 record pointers at +0x768 of that group for one whose short +0x2C matches the object's +0x4AC, copies its byte +5 to the object's +0x4BC and jitters it; otherwise copies quest byte +0x7C0."
+confidence = "inferred"
+evidence = "Direct reading; stride 0x2C matches other per-group fields in this object."
+
+[[function]]
+module = "EBOOT"
+address = "08873488"
+name = "quest_check_conditions_field_77c_not_excluded"
+purpose = "Returns 1 when f_EBOOT_8857C38(game) is nonzero, mask 0x1 at DAT_08A632C0 +0xF7A57C is clear, game byte +0x480 is 0, masks 0x10 and 0x1000000 at +0x28 are clear and byte +0x77C is not 7, 0x32, 0x37 or 0x3A."
+confidence = "inferred"
+evidence = "Direct reading; what the result gates is not shown here."
+
+[[function]]
+module = "EBOOT"
+address = "08873554"
+name = "quest_tally_records_by_type"
+purpose = "Clears the 16-word bitset at +0x56C and the short counter array at param_2, then counts records from the lists at +0x71C and +0x718 into it."
+confidence = "inferred"
+evidence = "Clears then calls 08873614 and 0887370C."
+
+[[function]]
+module = "EBOOT"
+address = "08873614"
+name = "quest_tally_record_list_unique"
+purpose = "Walks 0x10-byte groups, each with an offset at +0xC to 0x3C-byte records relative to +0x50; for each record whose id at +0x2C is not yet in the +0x56C bitset, adds its signed byte +4 to counters[short +0] and marks it."
+confidence = "inferred"
+evidence = "Bitset test and set by record id are explicit."
+
+[[function]]
+module = "EBOOT"
+address = "0887370C"
+name = "quest_tally_record_list_of_lists_unique"
+purpose = "Same tally as 08873614 over a zero-terminated list of group-list pointers, adding the +0x50 base to the list pointer when game short +0x6AF12 is nonzero."
+confidence = "inferred"
+evidence = "Same inner loop as 08873614 with one more level of pointers."
+
+[[function]]
+module = "EBOOT"
+address = "08874124"
+name = "gamedata_flag_for_mapped_id_or_true"
+purpose = "Looks up an id in the 38-entry 6-byte table 089A8744 and returns the gamedata bit named by that entry (gamedata_bitflag_508_test); returns 1 if not found or the entry's bit number is 0x164."
+confidence = "inferred"
+evidence = "Linear search and call to the named 0884FB38; what the ids are was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0887F54C"
+name = "task_089baca4_load_resources_step"
+purpose = "Step of a task at vtable 089BACA4: starts a screen fade, runs a start/poll/finish sequence for resource pairs (0x3F,1) and (0x4B,2) skipping any f_EBOOT_8890284 already reports, updates game +0x498 from DAT_09A44DA0 +0x9A2 when game +0x494 is set, then installs the next step pointer chosen by *DAT_09C1B820."
+confidence = "inferred"
+evidence = "Step counter at +0x1C, polling f_EBOOT_88901E0, member pointer written at +4..+C; ran once around frame 570 in boot."
+
+[[function]]
+module = "EBOOT"
+address = "0887F794"
+name = "sound_driver_state_init"
+purpose = "Stores the driver state pointer in DAT_08A62EA4, clears all slots and the fields of the state."
+confidence = "inferred"
+evidence = "Called once at frame 0 from the sound manager init 088803FC."
+
+[[function]]
+module = "EBOOT"
+address = "0887F848"
+name = "sound_driver_open"
+purpose = "Initialises the sound library with a buffer and a second pointer, stores them at +0 and +4, selects group 0, sets mode 1 and installs the callback 0887F934."
+confidence = "inferred"
+evidence = "Called once from 08880660 with the sound manager buffer; calls library wrappers 0889E848, 0889EA4C and 0889EAD4."
+
+[[function]]
+module = "EBOOT"
+address = "0887F8D4"
+name = "sound_driver_tick"
+purpose = "Advances the level ramp at +0x174..+0x17A by linear interpolation when frames remain, applying it through 088803D8, then calls the library tick 0889E9D4."
+confidence = "inferred"
+evidence = "Runs every frame through 08880708; interpolation is explicit."
+
+[[function]]
+module = "EBOOT"
+address = "0887F934"
+name = "sound_voice_callback_apply_random_variation"
+purpose = "Library callback that adds random offsets to a voice-like struct: +0xC within the range at param_2 +0x1A (scaled by 8), +8 within the range at +0x1C, adds +0x1E to byte +0x11 clamped to 0-255, and subtracts 3 from byte +3 under a condition on mask 0x20 of +6."
+confidence = "guess"
+evidence = "Installed by 0887F848; the random arithmetic is in the code, but what each field controls was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0887FAB4"
+name = "sound_begin_hold_once"
+purpose = "If byte +0x14 is 0, calls f_EBOOT_088A3480 (which increments a counter and on the first count waits while f_EBOOT_08897B84(0) is positive) and sets the byte to 1."
+confidence = "guess"
+evidence = "Guard flag pair with 0887FAEC; purpose of the wait is not known."
+
+[[function]]
+module = "EBOOT"
+address = "0887FAEC"
+name = "sound_end_hold_once"
+purpose = "If byte +0x14 is 1, calls f_EBOOT_088A34E4 (which on the last count calls 08897A08, 08897A78 with 0x8000 values, and 08897B48, and decrements) and clears the byte."
+confidence = "guess"
+evidence = "Opposite of 0887FAB4; demo_sub calls them on adjacent frames."
+
+[[function]]
+module = "EBOOT"
+address = "0887FB28"
+name = "sound_driver_set_mode"
+purpose = "Stores a mode at +0x10; for a mode above 2 it sets DAT_09A0DC84 to 3, makes three extra calls with 1 and passes 1 to f_EBOOT_0889E9DC, otherwise passes the mode itself."
+confidence = "guess"
+evidence = "Reads as a mode setter; what the modes select was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0887FBBC"
+name = "sound_driver_get_mode"
+purpose = "Returns the mode at +0x10."
+confidence = "inferred"
+evidence = "Field set by 0887FB28."
+
+[[function]]
+module = "EBOOT"
+address = "0887FBC4"
+name = "sound_slot_clear"
+purpose = "Clears slot N of the 0x14-byte slot table at +0x18: zeroes the three words, sets the three ids to 0xFFFF and zeroes the flags."
+confidence = "inferred"
+evidence = "Direct writes; used by the clear-all loop."
+
+[[function]]
+module = "EBOOT"
+address = "0887FBF8"
+name = "sound_slots_clear_all"
+purpose = "Clears all 16 sound slots."
+confidence = "inferred"
+evidence = "Loop to 0x10 over 0887FBC4."
+
+[[function]]
+module = "EBOOT"
+address = "0887FC40"
+name = "sound_slot_set_pointers"
+purpose = "Stores two values in slot N at +0x18 and +0x1C, stores the buffer base plus the offset from 0889EA5C at +0x20, and passes the two values to the library."
+confidence = "inferred"
+evidence = "Direct reading; library wrappers 0889EA5C, 0889EA64 and 0889EA6C."
+
+[[function]]
+module = "EBOOT"
+address = "0887FCBC"
+name = "sound_slot_set_id_24"
+purpose = "Stores a short id in slot N at +0x24."
+confidence = "inferred"
+evidence = "Field setter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FCD4"
+name = "sound_slot_set_id_26"
+purpose = "Stores a short id in slot N at +0x26."
+confidence = "inferred"
+evidence = "Field setter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FCEC"
+name = "sound_slot_set_id_28"
+purpose = "Stores a short id in slot N at +0x28."
+confidence = "inferred"
+evidence = "Field setter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FD04"
+name = "sound_slot_clear_id_24"
+purpose = "Sets the slot's id at +0x24 to 0xFFFF and clears mask 0x1 in its flags at +0x2A."
+confidence = "inferred"
+evidence = "Direct writes."
+
+[[function]]
+module = "EBOOT"
+address = "0887FD2C"
+name = "sound_slot_clear_id_26"
+purpose = "Sets the slot's id at +0x26 to 0xFFFF."
+confidence = "inferred"
+evidence = "Direct write."
+
+[[function]]
+module = "EBOOT"
+address = "0887FD48"
+name = "sound_slot_clear_id_28"
+purpose = "Sets the slot's id at +0x28 to 0xFFFF."
+confidence = "inferred"
+evidence = "Direct write."
+
+[[function]]
+module = "EBOOT"
+address = "0887FD64"
+name = "sound_slot_clear_ids"
+purpose = "Clears all three ids of a slot."
+confidence = "inferred"
+evidence = "Calls 0887FD04, 0887FD2C and 0887FD48."
+
+[[function]]
+module = "EBOOT"
+address = "0887FDAC"
+name = "sound_slot_get_pointer_18"
+purpose = "Returns the slot's word at +0x18."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FDC4"
+name = "sound_slot_get_pointer_1c"
+purpose = "Returns the slot's word at +0x1C."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FDDC"
+name = "sound_slot_get_pointer_20"
+purpose = "Returns the slot's word at +0x20."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FDF4"
+name = "sound_slot_get_id_24"
+purpose = "Returns the slot's id at +0x24."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FE0C"
+name = "sound_slot_get_id_26"
+purpose = "Returns the slot's id at +0x26."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FE24"
+name = "sound_slot_get_id_28"
+purpose = "Returns the slot's id at +0x28."
+confidence = "inferred"
+evidence = "Field getter."
+
+[[function]]
+module = "EBOOT"
+address = "0887FE3C"
+name = "sound_slot_flag_1_is_set"
+purpose = "Returns whether mask 0x1 is set in the slot's flags at +0x2A."
+confidence = "inferred"
+evidence = "Field test."
+
+[[function]]
+module = "EBOOT"
+address = "0887FE5C"
+name = "sound_driver_select_group"
+purpose = "Selects a group in the library and stores it at +8; clears all slots when param_3 is 1, otherwise clears slots 1-15 only if the group changed."
+confidence = "inferred"
+evidence = "Direct reading; what a group is was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0887FEE4"
+name = "sound_driver_set_group_no_clear"
+purpose = "Selects a group in the library and stores it at +8 without touching the slots."
+confidence = "inferred"
+evidence = "Calls 0889EA54 and writes +8 only."
+
+[[function]]
+module = "EBOOT"
+address = "0887FF1C"
+name = "sound_driver_get_group"
+purpose = "Returns the group at +8."
+confidence = "inferred"
+evidence = "Field set by 0887FE5C."
+
+[[function]]
+module = "EBOOT"
+address = "0887FF24"
+name = "sound_slot_has_all_ids"
+purpose = "Returns 1 only if none of the slot's three ids is 0xFFFF."
+confidence = "inferred"
+evidence = "Direct comparison."
+
+[[function]]
+module = "EBOOT"
+address = "0887FF74"
+name = "sound_slot_set_flag_1_if_library_accepts"
+purpose = "If the slot's +0x18 is set and its id +0x24 is 0xFFFF, calls f_EBOOT_0889EA7C with +0x18 and two arguments and sets flags mask 0x1 when that returns a positive value."
+confidence = "inferred"
+evidence = "Direct reading; meaning of the call was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0887FFE0"
+name = "sound_library_call_889ea74"
+purpose = "Passes its argument to f_EBOOT_0889EA74 and returns the result."
+confidence = "inferred"
+evidence = "Plain wrapper; result used alongside the slot pointers by its callers."
+
+[[function]]
+module = "EBOOT"
+address = "0887FFE8"
+name = "sound_slot_play_with_params"
+purpose = "If the slot has all three ids, builds a parameter block (flags 0x2B01, adding masks 0x4 and 0x8 when optional params are not -1) with volume and pan from its caller and starts it through f_EBOOT_0889EADC; returns its result, or 0."
+confidence = "inferred"
+evidence = "Caller 088838B0 passes a percent from 088808B0 and a value minus 0x40; the mask meanings are not read."
+
+[[function]]
+module = "EBOOT"
+address = "088801A0"
+name = "sound_start_with_params"
+purpose = "Builds the same 0x2B01 parameter block as 0887FFE8 without a slot check and passes it to f_EBOOT_0889EACC."
+confidence = "inferred"
+evidence = "Caller 08884748 passes a volume scaled by 08880884 and 088808B0."
+
+[[function]]
+module = "EBOOT"
+address = "08880254"
+name = "unknown_sound_dispatch_889eac4_or_889ee80"
+purpose = "Forwards three arguments to f_EBOOT_0889EAC4 when the fourth is 0, else to f_EBOOT_0889EE80."
+confidence = "guess"
+evidence = "Only the dispatch is visible; both targets are library wrappers not read further."
+
+[[function]]
+module = "EBOOT"
+address = "088802C4"
+name = "sound_slot_stop"
+purpose = "Calls a library function for a slot chosen by a2: f_EBOOT_0889EAB4 when 0, else f_EBOOT_0889EA9C."
+confidence = "inferred"
+evidence = "Callers pass slot and 0 just before clearing the slot's ids; what the nonzero path does differently is unread."
+
+[[function]]
+module = "EBOOT"
+address = "088802F4"
+name = "sound_stop_all"
+purpose = "Calls f_EBOOT_0889EAAC when the argument is 0, else f_EBOOT_0889EA94, with no slot argument."
+confidence = "guess"
+evidence = "Argless counterpart of 088802C4, called from scene-changing tasks."
+
+[[function]]
+module = "EBOOT"
+address = "08880324"
+name = "sound_library_query_bool_889eae8"
+purpose = "Calls f_EBOOT_0889EAE8 with three arguments and returns whether the low byte of the result is nonzero."
+confidence = "inferred"
+evidence = "Plain wrapper with a bool conversion."
+
+[[function]]
+module = "EBOOT"
+address = "08880350"
+name = "sound_params_15c_set"
+purpose = "Sets byte +0x158 to 1, stores six values at +0x15C..+0x170 and applies the block through f_EBOOT_0889EA8C."
+confidence = "inferred"
+evidence = "Direct writes; the fourth value is the one ramped by 088803D8."
+
+[[function]]
+module = "EBOOT"
+address = "08880378"
+name = "sound_clear_global_08a62ea8"
+purpose = "Sets DAT_08A62EA8 to 0."
+confidence = "inferred"
+evidence = "One direct write, called in driver init."
+
+[[function]]
+module = "EBOOT"
+address = "08880384"
+name = "sound_fade_to_max"
+purpose = "Calls f_EBOOT_0889EA84 with target 0x7F and a rate of 0x10000000 divided by the time argument (time 0 means rate 0x10000000)."
+confidence = "inferred"
+evidence = "Target and rate are explicit; caller 0888571C runs just after 088803A4."
+
+[[function]]
+module = "EBOOT"
+address = "088803A4"
+name = "sound_fade_to_zero"
+purpose = "Calls f_EBOOT_0889EA84 with target 0 and a rate of 0x10000000 divided by the time argument (time 0 means rate 0x10000000)."
+confidence = "inferred"
+evidence = "Target and rate are explicit; pairs with 08880384."
+
+[[function]]
+module = "EBOOT"
+address = "088803C4"
+name = "sound_params_15c_start_level_ramp"
+purpose = "Stores ramp start at +0x174, end at +0x176 and the frame count at +0x178 and +0x17A."
+confidence = "inferred"
+evidence = "Fields consumed by 0887F8D4."
+
+[[function]]
+module = "EBOOT"
+address = "088803D8"
+name = "sound_params_15c_set_level"
+purpose = "Stores a value at +0x168 and reapplies the block at +0x15C through f_EBOOT_0889EA8C."
+confidence = "inferred"
+evidence = "Called by the ramp in 0887F8D4."
+
+[[function]]
+module = "EBOOT"
+address = "088803FC"
+name = "sound_manager_init"
+purpose = "Stores the sound manager pointer in DAT_08A62EAC, initialises sub-objects at +0x8980 and +0x8B00, and sets the defaults of the two scale fields (7) and the init flags."
+confidence = "inferred"
+evidence = "Sets the global used by all sound calls; ran at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "0888051C"
+name = "sound_start_prx_loader_thread"
+purpose = "Unless the loaded flag at +0x562421 is 1, creates and starts the thread sndPrxLoader running 088805A0."
+confidence = "confirmed"
+evidence = "String sndPrxLoader passed to sceKernelCreateThread and its entry 088805A0 in the code."
+
+[[function]]
+module = "EBOOT"
+address = "088805A0"
+name = "sound_prx_loader_thread_main"
+purpose = "Thread body: loads utility modules 0x300, 0x301 and 0x302 with sceUtilityLoadModule, stores their results, stores a table pointer, waits until a DAT_089CC554 vtable +0x38 call returns 0, sets the loaded flag at +0x562421 and exits."
+confidence = "confirmed"
+evidence = "Entry of the sndPrxLoader thread; sceUtilityLoadModule and sceKernelExitDeleteThread are in the code."
+
+[[function]]
+module = "EBOOT"
+address = "08880660"
+name = "sound_open_after_prx_loaded"
+purpose = "Once the loaded flag is set and the opened flag at +0x562420 is not 1, opens the driver, runs the sub-object and first-group setup, then sets the opened flag."
+confidence = "inferred"
+evidence = "Guards on the two flags, calls 0887F848; ran in the first 60 frames from demo_task."
+
+[[function]]
+module = "EBOOT"
+address = "08880708"
+name = "sound_manager_tick"
+purpose = "When the opened flag is set, runs the manager, sub-object and driver per-frame updates."
+confidence = "inferred"
+evidence = "Called from main_loop; guard flag from 08880660."
+
+[[function]]
+module = "EBOOT"
+address = "08880760"
+name = "sound_set_mode"
+purpose = "Sets the driver's mode (0887FB28) on the global driver state."
+confidence = "inferred"
+evidence = "One-line wrapper using DAT_08A62EA4."
+
+[[function]]
+module = "EBOOT"
+address = "0888076C"
+name = "sound_params_15c_set_by_table_id"
+purpose = "Maps an index to a value through the ushort table 089AC684 and calls 08880350 on the global driver state with it and five further arguments."
+confidence = "inferred"
+evidence = "One-line wrapper over 08880350."
+
+[[function]]
+module = "EBOOT"
+address = "0888078C"
+name = "sound_params_15c_set_for_id_level_1000"
+purpose = "For a 16-bit id, gets a byte through the tables 089AA370 and 089AA344 and calls 0888076C with level 0x1000."
+confidence = "inferred"
+evidence = "Differs from 088807CC only in the level value."
+
+[[function]]
+module = "EBOOT"
+address = "088807CC"
+name = "sound_params_15c_set_for_id_level_zero"
+purpose = "Same as 0888078C with level 0."
+confidence = "inferred"
+evidence = "Differs from 0888078C only in the level value."
+
+[[function]]
+module = "EBOOT"
+address = "0888080C"
+name = "table_089aa344_lookup_column_for_id"
+purpose = "For a 16-bit id, gets a row through table 089AA370 and returns byte 1, 2 or 3 of that row in 089AA344 for column 0, 1 or 2; 0 for other columns."
+confidence = "inferred"
+evidence = "Direct table lookup; used by many game_task and game_sub functions, id meaning not read."
+
+[[function]]
+module = "EBOOT"
+address = "08880864"
+name = "sound_set_scale_5623d0"
+purpose = "Stores a value at +0x5623D0, the scale read with 08880884 by caller 08884748; default is 7."
+confidence = "inferred"
+evidence = "Field setter with default set in 088803FC, used with divisor 7."
+
+[[function]]
+module = "EBOOT"
+address = "08880874"
+name = "sound_set_scale_5623d4"
+purpose = "Stores a value at +0x5623D4; default is 7 like the field at +0x5623D0."
+confidence = "inferred"
+evidence = "Field setter set at the same call sites as 08880864."
+
+[[function]]
+module = "EBOOT"
+address = "08880884"
+name = "math_scale_by_sevenths"
+purpose = "Returns a * b / 7 computed in floating point."
+confidence = "confirmed"
+evidence = "The whole function is that expression; scale default 7 in 088803FC is consistent."
+
+[[function]]
+module = "EBOOT"
+address = "088808B0"
+name = "math_127_range_to_percent"
+purpose = "Returns a / 127 * 100 computed in floating point."
+confidence = "confirmed"
+evidence = "The whole function is that expression."
+
+[[function]]
+module = "EBOOT"
+address = "088808DC"
+name = "sound_slot_queue_ids_request"
+purpose = "Compares three requested ids with a slot's ids; drops unchanged ones to 0xFFFF, stops the slot and clears changed ids, and if the request state at +0x8B94 is 0 stores the slot and ids at +0x8B2C..+0x8B32 and sets state 2."
+confidence = "inferred"
+evidence = "Direct reading; the consumer of state +0x8B94 was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08880A70"
+name = "sound_slot_queue_id_arrays_request"
+purpose = "Stops the slot and clears its ids if any is set, and if the request state at +0x8B94 is 0 copies param_6 entries from two short arrays to +0x8B2C and +0x8B34, stores slot and param_5 at +0x8B3E and +0x8B3C, the count at +0x8B40, and sets state 3."
+confidence = "inferred"
+evidence = "Direct reading; same state field as 088808DC."
+
+[[function]]
+module = "EBOOT"
+address = "08880CF8"
+name = "sound_slot_request_clear"
+purpose = "Resets entry N of the id groups at +0x8B64 and +0x56243C (ids to 0xFFFF, slot word and byte to 0); entry 0 also resets +0x8B88 and +0x8B8C to -1."
+confidence = "inferred"
+evidence = "Direct writes; called before filling each entry in 08871DCC and 0887221C."
+
+[[function]]
+module = "EBOOT"
+address = "08880D64"
+name = "sound_slot_request_store"
+purpose = "Stores three ids, a short and a byte in entry N of the id groups at +0x56243C."
+confidence = "inferred"
+evidence = "Direct writes; values from table 09BC8500 in its callers."
+
+[[function]]
+module = "EBOOT"
+address = "08880D94"
+name = "sound_slot_request_mark_duplicates"
+purpose = "For the id column chosen by param_3 (+0x56243C, +0x562444 or +0x56244C), sets later entries of the caller's array to -1 when their stored id repeats an earlier one, and returns 1 if any was marked."
+confidence = "inferred"
+evidence = "Nested comparison loop in the code."
+
+[[function]]
+module = "EBOOT"
+address = "08880E50"
+name = "sound_slot_queue_multi_request"
+purpose = "For each entry from the count at DAT_08A62D9C +0x5C0 to param_7: stops and clears the slot if it holds ids, gets a value from DAT_089CC554 vtable +0x18 (raised to the given minimum if any), passes it to 0888334C, stores the entry's ids at +0x8B64 when idle; finally sets request state 4 with the range at +0x8B88/+0x8B8C and calls 088832F8."
+confidence = "inferred"
+evidence = "Direct reading; same state field as 088808DC."

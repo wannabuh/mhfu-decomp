@@ -1,0 +1,391 @@
+[[function]]
+module = "EBOOT"
+address = "0886BE50"
+name = "quest_copy_two_header_records_to_74c"
+purpose = "Copies up to two non-empty 8-byte records from the block at +0x4C, offset +0x28, into +0x74C, storing index+1 in each record's last byte."
+confidence = "inferred"
+evidence = "Copy loop read in code; runs once at quest setup via 08869904."
+
+[[function]]
+module = "EBOOT"
+address = "0886BF28"
+name = "quest_copy_id_list_to_bytes"
+purpose = "Copies the -1 terminated int list from the +0x71C table into a byte buffer and returns the count, or 0 when either of its two lists is missing."
+confidence = "inferred"
+evidence = "Loop over f_EBOOT_8869774 list 0 read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886CA74"
+name = "pickup_points_init"
+purpose = "Marks all 20 point entries free (id 0xFFFF), fills the active order list with 0xFF and zeroes the active count at +0x21."
+confidence = "inferred"
+evidence = "Clears the same table 0886CC24 fills; runs once at quest setup."
+
+[[function]]
+module = "EBOOT"
+address = "0886CADC"
+name = "pickup_points_tick"
+purpose = "Per frame, for each active point: removes it when its count is 0 or its timer at entry +0x1C runs out, and every 0x40 timer values calls f_game_sub_9C6F5B8 id 0x15 at the point with a timer-scaled value."
+confidence = "inferred"
+evidence = "Countdown and remove read in code; called every frame from 0886B0E0 during quests."
+
+[[function]]
+module = "EBOOT"
+address = "0886CC24"
+name = "pickup_point_add"
+purpose = "Fills the first free of 20 point entries from a template, optionally at a given position, adding to the count for type 2 from hunter checks and random rolls, and returns its index or -1."
+confidence = "inferred"
+evidence = "game_task 09AC94D8 calls it for a monster with its position, type 2 and an area; extra counts test the local hunter's list via 88D6A54."
+
+[[function]]
+module = "EBOOT"
+address = "0886CE10"
+name = "pickup_point_remove"
+purpose = "Frees point entry param_2 (id 0xFFFF) and removes it from the active order list; ignores -1."
+confidence = "inferred"
+evidence = "Writes entry id and calls 0886D114."
+
+[[function]]
+module = "EBOOT"
+address = "0886CE4C"
+name = "pickup_point_set_position"
+purpose = "Copies a vec3 into the position of point entry arg_a1."
+confidence = "inferred"
+evidence = "Three word copy into entry +0; called from game_task 09AC9658 over many frames after 0886CC24 ran."
+
+[[function]]
+module = "EBOOT"
+address = "0886CEA8"
+name = "pickup_point_find_at_object"
+purpose = "Returns the active point in the object's area (+0x29A) whose vertical band (y-200 to y+100) and XZ radius contain the object, or 0."
+confidence = "inferred"
+evidence = "Distance test read in code against object +0x200 place."
+
+[[function]]
+module = "EBOOT"
+address = "0886CF78"
+name = "pickup_point_type_at_object"
+purpose = "Returns the type at entry +0x14 of the point under the object, or 0xFFFF if none."
+confidence = "inferred"
+evidence = "Called per frame by hunter code 09AA6E70, which picks action 0x4A when the result is 2."
+
+[[function]]
+module = "EBOOT"
+address = "0886CFA0"
+name = "pickup_point_take_item_at_object"
+purpose = "Uses up one count of the point under the object and returns an item rolled from its table, 0 if no point, or 0xFFFE if no count is left; count 0xFF is not decremented."
+confidence = "inferred"
+evidence = "Ran only once in fight1; caller 09AAA820 passes the result to f_EBOOT_8858F1C and handles 0xFFFE apart."
+
+[[function]]
+module = "EBOOT"
+address = "0886D024"
+name = "pickup_points_evict_if_full"
+purpose = "When 20 points are active, removes the oldest whose flag byte lacks mask 0x1 (or the last in the order list if all have it)."
+confidence = "inferred"
+evidence = "Called first in 0886CC24; scan and remove read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886D0AC"
+name = "pickup_point_order_remove_at"
+purpose = "Removes position param_2 of the order list at DAT_08a62dbc, shifting later bytes down, and decrements the count at +0x21."
+confidence = "inferred"
+evidence = "Shift loop read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886D114"
+name = "pickup_point_order_remove_value"
+purpose = "Finds point index param_2 in the order list and removes that position."
+confidence = "inferred"
+evidence = "Search loop calling 0886D0AC."
+
+[[function]]
+module = "EBOOT"
+address = "0886D168"
+name = "pickup_points_clear_nonkept"
+purpose = "Calls f_game_task_9AD7D88 on list objects whose +0x630 is not -1, then removes every active point whose flag byte lacks mask 0x1."
+confidence = "inferred"
+evidence = "Loops read in code; called from game_task 09A62F70, which also calls 088714F8."
+
+[[function]]
+module = "EBOOT"
+address = "0886D248"
+name = "pickup_point_order_append"
+purpose = "Appends point index param_2 to the order list and increments the count at +0x21."
+confidence = "inferred"
+evidence = "Two lines of code; only caller is 0886CC24."
+
+[[function]]
+module = "EBOOT"
+address = "0886D26C"
+name = "pickup_point_roll_item"
+purpose = "Rolls a value from the weighted table at DAT_09cd7fb0[id] through f_EBOOT_887265C."
+confidence = "inferred"
+evidence = "887265C sums weights and picks by a random number; only caller is 0886CFA0."
+
+[[function]]
+module = "EBOOT"
+address = "0886D28C"
+name = "quest_show_message_with_field_18"
+purpose = "Formats the string for message id DAT_089ac6c6 with param_1 +0x18 and passes it to f_EBOOT_8830850."
+confidence = "inferred"
+evidence = "Format then display calls read in code; ran only in fight1 at frame 5380."
+
+[[function]]
+module = "EBOOT"
+address = "0886D2E4"
+name = "spawn_list_reset_flagged_entries"
+purpose = "For the current spawn group of an area, sets flags to 2 and saved value +0x32 to -1 on every entry whose flags (+0x2E) have mask 0x4."
+confidence = "inferred"
+evidence = "Loop over 0x3C byte entries from f_EBOOT_88697D4; called from 088718F4 on area unload."
+
+[[function]]
+module = "EBOOT"
+address = "0886D374"
+name = "spawn_list_advance_when_all_flagged"
+purpose = "If every entry of the area's current spawn list has flag mask 0x1 or 0x4 and the list ends in -2, calls f_EBOOT_886D450 on the following list and on +0x10 of the id list row."
+confidence = "guess"
+evidence = "Mask 0x5 scan and -2 terminator read; effect of 886D450 not read."
+
+[[function]]
+module = "EBOOT"
+address = "0886D4D8"
+name = "quest_init_spawn_tables"
+purpose = "Initialises the spawn tables at +0x71C and +0x718 with one shared running entry index."
+confidence = "inferred"
+evidence = "Calls 0886DB0C and 0886DC68 with a shared counter; runs once at quest setup."
+
+[[function]]
+module = "EBOOT"
+address = "0886D524"
+name = "spawn_roll_percent_from_tables"
+purpose = "Picks a table with one random roll and a byte from it with another, then clamps it to the min and max bytes selected by quest byte +0x4A."
+confidence = "inferred"
+evidence = "Calls to 886B8DC, table reads and clamp read in code; result multiplied by a quest value /100 in 0886DB0C."
+
+[[function]]
+module = "EBOOT"
+address = "0886D5E4"
+name = "spawn_entry_init"
+purpose = "Resets a 0x3C byte spawn entry: flags 2, saved value -1, +0x34 0xFF, +0x2C from the running index (then incremented), +0x35 from a per-id table byte."
+confidence = "inferred"
+evidence = "Field writes read in code; callers walk spawn lists."
+
+[[function]]
+module = "EBOOT"
+address = "0886D644"
+name = "monster_type_in_id_set_a"
+purpose = "Returns 1 if the id is in a fixed set of 49 ids (the same set as 0886D8A8), else 0."
+confidence = "confirmed"
+evidence = "The comparisons are the whole function; set compared to 0886D8A8 by reading."
+
+[[function]]
+module = "EBOOT"
+address = "0886D8A8"
+name = "monster_type_in_id_set_b"
+purpose = "Returns 1 if the id is in the same fixed set of 49 ids as 0886D644, else 0."
+confidence = "confirmed"
+evidence = "The comparisons are the whole function; only the order differs from 0886D644."
+
+[[function]]
+module = "EBOOT"
+address = "0886DB0C"
+name = "quest_init_spawn_table_71c"
+purpose = "Inits each entry of the +0x71C spawn lists, and sets +0x30 to 100, or to a rolled percent of quest value +0x38 for ids in set a when two global checks pass."
+confidence = "inferred"
+evidence = "Loops and calls to 0886D5E4, 0886A4CC and 0886D524 read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886DC68"
+name = "quest_init_spawn_tables_718"
+purpose = "Inits each entry of the +0x718 per-group spawn lists and sets +0x30 to 100."
+confidence = "inferred"
+evidence = "Walks pointer rows and calls 0886D5E4."
+
+[[function]]
+module = "EBOOT"
+address = "0886DD3C"
+name = "quest_find_spawn_entry_for_object"
+purpose = "Returns the spawn entry matching the object: by area, +0x1E6 and index +0x4AC across the area lists, then by index alone in the +0x71C lists, or 0."
+confidence = "inferred"
+evidence = "Search read in code; 088718F4 then saves object health into the result."
+
+[[function]]
+module = "EBOOT"
+address = "0886DFAC"
+name = "quest_timers_tick"
+purpose = "Unless game byte +0x422 is set, subtracts param_2 from the timers at +0x10 and +0x678, clamping at 0."
+confidence = "inferred"
+evidence = "Subtract and clamp read in code; 0886E9F4 calls it with 1 per step and reads +0x10 as frames per minute 0x708."
+
+[[function]]
+module = "EBOOT"
+address = "0886E23C"
+name = "quest_objectives_clear"
+purpose = "Zeroes the two 0x10 byte objective blocks at +0x728 and +0x738."
+confidence = "inferred"
+evidence = "Two f_EBOOT_880C464 calls; 0886E2EC fills the same blocks."
+
+[[function]]
+module = "EBOOT"
+address = "0886E27C"
+name = "quest_objectives_load"
+purpose = "Copies the required count byte from the data at +0x68 to +0x67C and adds each non-empty 8-byte objective record at +0x20."
+confidence = "inferred"
+evidence = "Calls 0886E2EC for two records; +0x67C is read by 0886E828."
+
+[[function]]
+module = "EBOOT"
+address = "0886E2EC"
+name = "quest_objective_add"
+purpose = "Stores a record in the first slot lacking mask 0x10, in the live block +0x728 and the copy +0x738, setting mask 0x10 in both."
+confidence = "inferred"
+evidence = "Slot search and double write read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886E36C"
+name = "quest_objectives_update"
+purpose = "Per frame, for each undone objective tests its condition by flag: mask 2 remaining count, 0x4004 a bit in the bytes at +0x5C2, 0x8004 health lost by the object at +0x720; calls f_EBOOT_886E0D8 on a pass."
+confidence = "inferred"
+evidence = "Conditions read in code, including one message shown once with mask 0x10000; called from 0886B0E0."
+
+[[function]]
+module = "EBOOT"
+address = "0886E578"
+name = "quest_objective_get_required_count"
+purpose = "Returns the count from the copy block for slot param_3 when its flags have mask 0x12 and its id matches, else -1."
+confidence = "inferred"
+evidence = "Read in code; 0886E36C subtracts 0886E6F4's result from it."
+
+[[function]]
+module = "EBOOT"
+address = "0886E6F4"
+name = "quest_objective_sum_hunter_counters"
+purpose = "For an objective id with mask 0x12, sums matching +0x544 counters over all four hunters, or returns the local hunter's if flag mask 0x80 is set."
+confidence = "inferred"
+evidence = "Loops over f_EBOOT_88DCEBC results and slots +0x542 read in code."
+
+[[function]]
+module = "EBOOT"
+address = "0886E828"
+name = "quest_objectives_check_complete"
+purpose = "Returns 1 when the required objectives (+0x67C of 1 or 2) have mask 0x20; if param_2 is set also calls 886E978, and a first-time mask 0x40 objective instead calls 886E92C and returns 0."
+confidence = "inferred"
+evidence = "Bit gathering and +0x67C test read in code; used by script opcodes 3, 6 and 0x39 in 0886E9F4."
+
+[[function]]
+module = "EBOOT"
+address = "0886E9F4"
+name = "quest_script_step"
+purpose = "Runs the quest script of 8-byte records at +0x54 from index param_3 until a blocking opcode and returns the next index; also counts down the timer +0x10 with messages, and sets the status at game +0x2E to 3, 5 or 6 on some opcodes."
+confidence = "inferred"
+evidence = "Opcode dispatch, label search for op 0x1A and jump-over ops read in code; called from 0886B0E0 every frame."
+
+[[function]]
+module = "EBOOT"
+address = "08870264"
+name = "quest_objective_targets_id"
+purpose = "Returns 1 if an objective with flag masks 0x11 or 0x14 has id param_2 and counts toward the required number at +0x67C."
+confidence = "inferred"
+evidence = "Masks and +0x67C test read in code."
+
+[[function]]
+module = "EBOOT"
+address = "088709D4"
+name = "quest_post_timer_event"
+purpose = "Unless game byte +0x422 is set, posts event type 5 with the timer value +0x10 through f_EBOOT_88AB514."
+confidence = "inferred"
+evidence = "Struct build read in code; 0886E9F4 calls it every 9000 timer frames and at time up."
+
+[[function]]
+module = "EBOOT"
+address = "08870A2C"
+name = "quest_post_event_type7_for_object"
+purpose = "Posts event type 7 with arg_a1 +0x2C and a word of the object's area with arg_a1 +4 through f_EBOOT_88AB514."
+confidence = "guess"
+evidence = "Struct build read in code; what event 7 means not read."
+
+[[function]]
+module = "EBOOT"
+address = "08870AEC"
+name = "quest_data_load_step"
+purpose = "Two-step load: state 0 maps a five digit id through table DAT_089a7e08 to a file and starts reading it into a 0x6800 byte block; state 1 waits, hands the block to f_EBOOT_88C2BE0 and frees it. Returns 1 when done."
+confidence = "inferred"
+evidence = "State byte +0x716, id cache +0x714, loader vtable +0x34 and +0x38 read in code; runs at quest setup."
+
+[[function]]
+module = "EBOOT"
+address = "08870D30"
+name = "quest_data_load_reset"
+purpose = "Resets the load state +0x716 to 0 and the cached file id +0x714 to 0xFFFF."
+confidence = "inferred"
+evidence = "Two writes; both fields are used by 08870AEC."
+
+[[function]]
+module = "EBOOT"
+address = "08870D40"
+name = "quest_reserve_asset_slots_for_id_groups"
+purpose = "For the two id groups at +0x77C (count +0x786), takes the largest loader vtable +0x18 value over id+0x17DF and passes it to f_EBOOT_88DE0B8 for each distinct first id."
+confidence = "inferred"
+evidence = "Max loop and duplicate check read in code; 88DE0B8 uses id+0x17DF too."
+
+[[function]]
+module = "EBOOT"
+address = "08870E88"
+name = "quest_area_request_assets"
+purpose = "Requests assets for the current area: id 0x12 when the area matches f_EBOOT_88564F8, ids 10 and 0x4A on listed areas when flags at +0x28 allow, and up to 4 ids from the area's list."
+confidence = "inferred"
+evidence = "Each id goes through 88DDFE8 then 88DDE20 or 88DE0B8; area from game +0x6AF0E, ran around area changes."
+
+[[function]]
+module = "EBOOT"
+address = "0887142C"
+name = "file_loader_query_vtable_38"
+purpose = "Tail call to vtable +0x38 of the loader at DAT_089cc554."
+confidence = "inferred"
+evidence = "One indirect call; 08870AEC treats a 0 result from it as load finished."
+
+[[function]]
+module = "EBOOT"
+address = "08871444"
+name = "quest_last_mapped_id_from_list"
+purpose = "Maps the first 4 ids of the +0x71C list through f_game_task_9AB32C8 and returns the last result that is not 0xFFFF."
+confidence = "inferred"
+evidence = "Loop read in code."
+
+[[function]]
+module = "EBOOT"
+address = "088714F8"
+name = "quest_area_spawn_entries"
+purpose = "Calls vtable +0x40 on the 20 list objects, spawns the current area's entries lacking mask 0x1 via f_game_task_9AB2A58, and on listed areas spawns ids 10 and 0x4A from local tables."
+confidence = "inferred"
+evidence = "Same area checks as 08870E88; called from game_task 09A62F70."
+
+[[function]]
+module = "EBOOT"
+address = "0887184C"
+name = "quest_area_uses_object_type"
+purpose = "Returns 1 if the type is 0x12, 10, 0x4A or in the current area's id list."
+confidence = "inferred"
+evidence = "Comparisons read in code; 088718F4 passes object +0x1E8."
+
+[[function]]
+module = "EBOOT"
+address = "088718F4"
+name = "quest_area_unload_objects"
+purpose = "For list objects of types used by the area, saves health into their spawn entry or marks them via f_EBOOT_886AB7C, removes them, then resets flagged entries and releases the area's assets."
+confidence = "inferred"
+evidence = "Health copy +0x2E4 to entry +0x32 and release calls read in code; called from game_task 09A62FF0 around area changes."
+
+[[function]]
+module = "EBOOT"
+address = "08871B34"
+name = "hunter_clear_refs_to_type12_object"
+purpose = "For an object of type 0x12, clears +0x560 on each of 4 hunters whose flags have mask 0x1 and whose +0x560 points to it."
+confidence = "inferred"
+evidence = "Loop over f_EBOOT_88DCEBC results read in code; called while unloading objects."

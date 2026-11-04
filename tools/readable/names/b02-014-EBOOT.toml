@@ -1,0 +1,375 @@
+[[function]]
+module = "EBOOT"
+address = "088673CC"
+name = "model_file_slot_load_step"
+purpose = "Advances one slot's load state byte at +0x803D8: gets a size through the DAT_089cc554 vtable +0x18 and reserves pool space, starts a load with vtable +0x34, polls vtable +0x38, then records the id at +0x80408; returns 1 when done or when the id is 0xFFFF."
+confidence = "inferred"
+evidence = "State machine 0 to 3 over the DAT_089cc554 vtable calls; ran during area loads"
+
+[[function]]
+module = "EBOOT"
+address = "088675BC"
+name = "model_file_slot_release"
+purpose = "Resets a slot's load state and sets its id to 0xFFFF, returning its reserved size to pool counter +0x80244 or +0x8022C according to the slot's type byte."
+confidence = "inferred"
+evidence = "Undoes the reservation made by the load step (8866B5C adds to +0x8022C); same slot arrays"
+
+[[function]]
+module = "EBOOT"
+address = "0886789C"
+name = "model_build_node_tree"
+purpose = "Constructs an array of 0x250-byte nodes from a data block, resolves each node's three link indices into pointers at +0x144, +0x14C and +0x148, stores root pointers at +0x110 with their count at +0x120, and passes the roots an inverse-scale matrix."
+confidence = "inferred"
+evidence = "Index * 0x250 links, placement vtable DAT_089bac28, vmidt divided by three floats"
+
+[[function]]
+module = "EBOOT"
+address = "08867EC8"
+name = "model_parts_setup_all"
+purpose = "Calls the per-part setup for parts 0 to 5 of one slot group."
+confidence = "inferred"
+evidence = "Loop of six calls to 08867F34 with the part index"
+
+[[function]]
+module = "EBOOT"
+address = "08867F34"
+name = "model_part_setup_from_loaded_file"
+purpose = "Sets up one model part from sections 0, 1 and 2 of a loaded slot file: allocates from the heap at +0x80000, optionally DMA-copies section 0's data into the slot pool, initialises the part's block, builds its node tree, and runs 8862518 on section 2 and on the group's pointer at +0x80274."
+confidence = "inferred"
+evidence = "88B89B0 section lookups, sceDmacMemcpy when the slot type is 1, calls 0886789C"
+
+[[function]]
+module = "EBOOT"
+address = "08868234"
+name = "model_extra_part_setup_from_loaded_file"
+purpose = "Same setup as the six-part path but for slot index 6 of a group, into the block at +0xF60, with null checks on each file section."
+confidence = "inferred"
+evidence = "Slot group * 8 + 6, block at +0xF60 and +0xF80, calls 0886789C"
+
+[[function]]
+module = "EBOOT"
+address = "08868498"
+name = "model_parts_free_all"
+purpose = "For parts 0 to 5, frees the heap pointers of the part's three blocks and zeroes those blocks."
+confidence = "inferred"
+evidence = "Same part offsets as the setup, mem_memset sizes 0x20, 0x140 and 0x10, 8859C40 on the heap at +0x80000"
+
+[[function]]
+module = "EBOOT"
+address = "08868678"
+name = "object_clear_field_1ac"
+purpose = "Sets the word at +0x1AC to zero."
+confidence = "inferred"
+evidence = "Single store; called at the end of the extra part's free and from lobby_task"
+
+[[function]]
+module = "EBOOT"
+address = "08868680"
+name = "model_extra_part_free"
+purpose = "Frees the blocks of the extra part at +0xF60, +0xF80 and +0x10C0, zeroes them, gives 0x3800 back to pool counter +0x80238 when the slot type is 1, and clears +0x1AC."
+confidence = "inferred"
+evidence = "Mirrors 08868234's blocks and the slot group * 8 + 6 index"
+
+[[function]]
+module = "EBOOT"
+address = "08868778"
+name = "model_part_free_by_field_10f1"
+purpose = "Frees and zeroes one set of part blocks, the first part's at +0x50, +0x80, +0x70 when byte +0x10F1 is below 5, otherwise the extra part's at +0xF60, +0xF80, +0x10C0."
+confidence = "inferred"
+evidence = "Branch on +0x10F1 before each free and mem_memset; lobby_task callers, ran only in the shops recording"
+
+[[function]]
+module = "EBOOT"
+address = "088688C8"
+name = "model_first_part_free"
+purpose = "Frees and zeroes the first part's blocks at +0x50, +0x80 and +0x70."
+confidence = "inferred"
+evidence = "Same pointers (+0x58, +0x190, +0x74) and sizes as part 0 in 08868498"
+
+[[function]]
+module = "EBOOT"
+address = "08868968"
+name = "model_first_part_free_and_vram_slot"
+purpose = "Frees the first part's heap pointers without zeroing the blocks and, when +0x58 was set and byte +0x1E8 is 0, also frees vram slot 0x29."
+confidence = "inferred"
+evidence = "8859C40 on +0x58, +0x190, +0x74; vram_free_slot(DAT_089cbd00, 0x29) under the +0x1E8 test"
+
+[[function]]
+module = "EBOOT"
+address = "088689F4"
+name = "osk_state_init"
+purpose = "Clears the on-screen keyboard active byte +0x74 and sets the language fields."
+confidence = "inferred"
+evidence = "+0x74 gates osk_update and is cleared when the keyboard finishes (8868E54)"
+
+[[function]]
+module = "EBOOT"
+address = "088689FC"
+name = "osk_select_language_from_setting"
+purpose = "Maps the setting at DAT_08a632c0 + 0xF7A574 to a value at +0x75, sets +0x76 to 0 or 1, and derives +0x77 as +0x75 plus one (0 for 9 and above)."
+confidence = "guess"
+evidence = "Called beside osk_state_init; the plus-one mapping resembles the PSP keyboard language numbering, use of +0x77 not read"
+
+[[function]]
+module = "EBOOT"
+address = "08868B6C"
+name = "osk_update"
+purpose = "While +0x74 is set, polls sceUtilityOskGetStatus: status 2 calls sceUtilityOskUpdate, status 3 calls sceUtilityOskShutdownStart, and status 0 calls 8868E54 to finish."
+confidence = "confirmed"
+evidence = "The sceUtilityOsk imports in the function"
+
+[[function]]
+module = "EBOOT"
+address = "08868F0C"
+name = "ctrl_init"
+purpose = "Sets controller sampling cycle 0 and mode 1, and zeroes +0x10 and the bytes +0x14 to +0x17."
+confidence = "confirmed"
+evidence = "sceCtrlSetSamplingCycle and sceCtrlSetSamplingMode imports; ran at frame 0"
+
+[[function]]
+module = "EBOOT"
+address = "08869570"
+name = "quest_file_lookup_table_entry"
+purpose = "Turns an id into a table index with 88C722C and global byte +0x6AF10, then returns the table entry at +0x60 relocated by base +0x50, or 0 for index 0xFFFF or an empty entry."
+confidence = "inferred"
+evidence = "+0x60 and +0x50 are set from the file at DAT_08a5c560 in 08869904"
+
+[[function]]
+module = "EBOOT"
+address = "08869774"
+name = "quest_file_get_section_71c_ptr"
+purpose = "Returns word +8 (selector 0) or +0xC (selector 1) of the section at +0x71C, relocated by base +0x50 when non-zero, provided global short +0x6AF12 is non-zero."
+confidence = "inferred"
+evidence = "+0x71C and +0x50 set in 08869904; selector branches"
+
+[[function]]
+module = "EBOOT"
+address = "088697D4"
+name = "quest_file_find_set_record_by_key"
+purpose = "In record set N of the table at +0x718, walks 0x10-byte records to the one whose first word equals the key and returns its word [2] or [3], relocated unless 0 or -1; returns 0 otherwise."
+confidence = "inferred"
+evidence = "Loop over 0x718 sets; 886DD3C calls it with object field +0x29A as the key and walks the result for +0x1E6"
+
+[[function]]
+module = "EBOOT"
+address = "08869880"
+name = "quest_file_get_header_section_8"
+purpose = "Returns the word at +8 of the file header at +0x4C relocated by base +0x50, or 0 when global short +0x6AF12 is 0."
+confidence = "inferred"
+evidence = "Direct code; +0x4C is the file start set in 08869904"
+
+[[function]]
+module = "EBOOT"
+address = "088698B8"
+name = "quest_object_construct"
+purpose = "Zeroes the 0x8A8-byte quest object and calls 8870D30 on it."
+confidence = "inferred"
+evidence = "mem_memset of 0x8A8; 08869904 uses offsets up to +0x8A4 on the same type"
+
+[[function]]
+module = "EBOOT"
+address = "088698EC"
+name = "quest_info_has_flag_800000"
+purpose = "Returns whether mask 0x800000 is set in the first word of the info block at +0x68."
+confidence = "inferred"
+evidence = "Direct code; 08869904 copies the result to global byte +0x41A"
+
+[[function]]
+module = "EBOOT"
+address = "08869904"
+name = "quest_init_from_file"
+purpose = "Sets up the quest object when a quest begins: sets global state +0x2E to 2, relocates section pointers of the file at DAT_08a5c560, copies its fields (including +0x10, +0x14, +0x18, +0x28), and clears counters and per-type arrays."
+confidence = "inferred"
+evidence = "Runs once near frame 1450 from game_task in hunts, not in shops; pointers built from DAT_08a5c560 + offsets"
+
+[[function]]
+module = "EBOOT"
+address = "0886A0B4"
+name = "quest_choose_start_area"
+purpose = "Picks a value for global short +0x6AF0E: from global +0x484, from the map's default table, or by a weighted roll over a {weight, value} list chosen by file byte +0x45; a non-0xFF argument instead copies +0x6AF0E to field +0x29A of the object from 88DCEBC."
+confidence = "guess"
+evidence = "Tables indexed by the byte at global +0x6AF10, field +0x29A is the key for spawn lookups; 'start area' is a reading, not shown by a user of +0x6AF0E"
+
+[[function]]
+module = "EBOOT"
+address = "0886A2D8"
+name = "quest_if_running_reset_08a62eb0"
+purpose = "While the end result is 0, calls 9A64F48(DAT_08a62eb0, 0), which zeroes that object's second word."
+confidence = "inferred"
+evidence = "Tests 0886A30C(1); called from game_task 09A91B10 in fight1 at frame 5380, as the hunter faints"
+
+[[function]]
+module = "EBOOT"
+address = "0886A30C"
+name = "quest_get_end_result"
+purpose = "Reads global state +0x2E: returns 1 for states 3 and 4, -1 for states 5 to 7 when the argument is 1, otherwise 0."
+confidence = "inferred"
+evidence = "Direct code; 886E92C sets state 5 when the faint pool runs out, 0886B0E0 sets state 4"
+
+[[function]]
+module = "EBOOT"
+address = "0886A35C"
+name = "quest_get_time_left_or_limit"
+purpose = "With selector 1 returns word +0x10 of the info block; otherwise returns the object's +0x10 clamped to at least 0."
+confidence = "guess"
+evidence = "Value divided by 9000 in 08869904 and compared to table * 0x708 in 0886B918 (frame counts at 30 per second); the decrement was not read"
+
+[[function]]
+module = "EBOOT"
+address = "0886A444"
+name = "quest_monster_queues_clear"
+purpose = "Zeroes the entry fields, counts (+0x786) and cursors (+0x787) of the two 0x2C-byte queues starting at +0x768."
+confidence = "inferred"
+evidence = "Stores across both queues; 0886A4CC and 0886A648 use the same fields"
+
+[[function]]
+module = "EBOOT"
+address = "0886A4CC"
+name = "quest_monster_queue_append"
+purpose = "Appends an entry pointer to queue N, saving the entry's byte +4 at +0x781[n] and its first short's low byte at +0x77C[n], then increments the count at +0x786."
+confidence = "inferred"
+evidence = "+0x77C is later passed as the type to spawn in 0886A648; ran at quest start in the hunts"
+
+[[function]]
+module = "EBOOT"
+address = "0886A58C"
+name = "quest_object_record_check_active"
+purpose = "Returns 1 when the quest has not ended, a record exists for the object (886DD3C), its +0x2E has mask 0x1 clear and its byte +0xA is not 1; otherwise 0."
+confidence = "inferred"
+evidence = "Direct code; same record lookup as the other quest object functions"
+
+[[function]]
+module = "EBOOT"
+address = "0886A60C"
+name = "quest_monster_queue_advance_cursor"
+purpose = "When the object's +0x1E6 is below 2, increments the cursor +0x787 of that queue."
+confidence = "inferred"
+evidence = "Direct code; 0886A648 reads the cursor to find the next entry"
+
+[[function]]
+module = "EBOOT"
+address = "0886A648"
+name = "quest_monster_queues_spawn_next"
+purpose = "For each of the two queues, when its slot at DAT_09c122b0 + 0x1220 is empty and an entry at the cursor has not started (+0x78D), acts on the previous entry's type (9AB47A8 and 88DE3D4), creates the current type with 9AB2C40, and marks it started."
+confidence = "inferred"
+evidence = "9AB2C40 links a new object of that type and stores it in +0x1E8; called from quest_update every frame"
+
+[[function]]
+module = "EBOOT"
+address = "0886A73C"
+name = "quest_monster_queues_count_pending"
+purpose = "Counts how many of the two queues have a cursor below their entry count."
+confidence = "inferred"
+evidence = "Direct code over +0x786 and +0x787"
+
+[[function]]
+module = "EBOOT"
+address = "0886A8AC"
+name = "monster_reposition_from_quest_record"
+purpose = "Marks the object's record +0x2E as 2 and saves +0x2E4 into record +0x32, adds 5 to +0x274 with a per-type cap for types accepted by 886D8A8, then sets +0x200 to +0x208, +0x1F4 and +0x29A from the record or 886AA28's random point, and calls vtable +0xF4 and 9AC7768."
+confidence = "inferred"
+evidence = "Stores into known place +0x200; ran in fight2 only, at frame 4500"
+
+[[function]]
+module = "EBOOT"
+address = "0886AB7C"
+name = "quest_on_monster_removed"
+purpose = "Handles an object's removal: decrements its record's +4 and sets +0x2E to 1 or 4, adds one to the per-type count at +0x29C capped at 9999, keeps the max and min of +0x274 per type for types 886D644 accepts, and runs the objective and event checks."
+confidence = "inferred"
+evidence = "Called from a state switch in game_task 09B02600; ran in fights at frames near monster ends"
+
+[[function]]
+module = "EBOOT"
+address = "0886AD0C"
+name = "quest_record_save_object_health"
+purpose = "When the object's record has mask 0x1 clear in +0x2E, copies the object's +0x2E4 into record +0x32 and sets record +0x34 to 0xFF."
+confidence = "inferred"
+evidence = "+0x2E4 is the known health field; record from 886DD3C"
+
+[[function]]
+module = "EBOOT"
+address = "0886AEEC"
+name = "quest_store_object_if_objective_target"
+purpose = "Stores the object at +0x24 when 8870264 reports its type matches an active objective record."
+confidence = "inferred"
+evidence = "8870264 compares type to the ids at +0x728 under masks 0x11 and 0x14"
+
+[[function]]
+module = "EBOOT"
+address = "0886AF2C"
+name = "quest_objectives_count_removed"
+purpose = "For the two 8-byte records at +0x728 skipping mask 0x60: matching id under mask 0x11 sets 0x40 (with mask 0x100) or counts +6 down, then 886E0D8 with 0x200 or a progress call; matching id under mask 0x8014 calls 886E0D8 with 0x8000."
+confidence = "inferred"
+evidence = "Called from quest_on_monster_killed with the object's type; 886E36C treats the same records"
+
+[[function]]
+module = "EBOOT"
+address = "0886B064"
+name = "quest_apply_faint_penalty"
+purpose = "Subtracts +0x18 from the pool at +0x14 (returns 0); when it reaches 0 and the quest is running, calls 886E92C, which sets state 5, and returns 1; returns 2 when the pool was already empty."
+confidence = "inferred"
+evidence = "Called from game_task 09A91B10 for the local player's object; only fight1 ran it, at frame 5380 when the hunter faints"
+
+[[function]]
+module = "EBOOT"
+address = "0886B0E0"
+name = "quest_update"
+purpose = "Per-frame quest state machine on +0 and +1: in phase 0 runs objective, script, spawn and trigger checks; in phase 1 times HUD messages through +0x710; in phase 2 sends network messages, waits on player mask +0x110 and sets global state +0x2E to 4."
+confidence = "inferred"
+evidence = "Called each frame in quests from game_task 09A60298, drives the other quest functions in this file"
+
+[[function]]
+module = "EBOOT"
+address = "0886B7C0"
+name = "quest_rng_seed_from_bytes"
+purpose = "Sets the generator state +0x132 to the sum of seven shorts read from +0x11D, or 0x1C3 when the sum is 0."
+confidence = "inferred"
+evidence = "Direct code; 0886B8DC reads and updates +0x132"
+
+[[function]]
+module = "EBOOT"
+address = "0886B8DC"
+name = "quest_rng_next"
+purpose = "Linear congruential step on the short at +0x132: state = state * 176 mod 0xFF53, with a zero state treated as 1, and returns it."
+confidence = "inferred"
+evidence = "The arithmetic ((8s + 3s) * 16) % 0xFF53"
+
+[[function]]
+module = "EBOOT"
+address = "0886B918"
+name = "quest_event_roll_by_timer"
+purpose = "When mode byte +0x12D is 1 and +0x10 has reached the next table step (minutes * 0x708), advances the step and rolls against its chance; on success clears the mode, pushes a HUD message, calls 8883988 with 0x77 and sends network message 0xE."
+confidence = "inferred"
+evidence = "Table DAT_089a812c indexed by +0x131 and +0x130, 88900C4 roll masked 0x7F"
+
+[[function]]
+module = "EBOOT"
+address = "0886BA50"
+name = "quest_event_count_on_monster_removed"
+purpose = "When mode byte +0x12D is 2 and the object type matches +0x12E, or under a queue-state test when +0x12E is 0, counts +0x12F down; at 0 clears the mode, pushes the HUD message and calls 8883988 with 0x77."
+confidence = "inferred"
+evidence = "Called from quest_on_monster_killed; same message and call as quest_event_roll_by_timer"
+
+[[function]]
+module = "EBOOT"
+address = "0886BCD0"
+name = "quest_triggers_check_held_count"
+purpose = "For the two 8-byte records at +0x74C with type 2, when 88568AC reports at least the required count of the id, raises +0x20 to the record's level if higher (calling 886BBE4) and clears the record."
+confidence = "inferred"
+evidence = "88568AC searches a 24-entry {id, count} list; 886DD3C loops record sets 0 to +0x20"
+
+[[function]]
+module = "EBOOT"
+address = "0886BD84"
+name = "quest_triggers_count_removed"
+purpose = "For the two records at +0x74C with type 1 and a matching id, counts byte +6 down; at 0 raises +0x20 to the record's level if higher (calling 886BBE4) and clears the record."
+confidence = "inferred"
+evidence = "Called from quest_on_monster_killed with the object's type"
+
+[[function]]
+module = "EBOOT"
+address = "0886BE34"
+name = "quest_triggers_clear"
+purpose = "Zeroes the type, id and count fields of the two records at +0x74C."
+confidence = "inferred"
+evidence = "Direct stores; called from 08869904"

@@ -1,0 +1,463 @@
+[[function]]
+module = "EBOOT"
+address = "08857C98"
+name = "item_obtained_bitset_test"
+purpose = "Tests the id's bit in the bitset at base+0x6A7B4; returns 0 for id 0xFFFF or id >= 0x4ED."
+confidence = "inferred"
+evidence = "Bit test; 0885C5CC passes game+0x4A0, the same bitset 0885ACA8 sets through 0885C5BC when an item id is added."
+
+[[function]]
+module = "EBOOT"
+address = "08857CF0"
+name = "item_obtained_bitset_set"
+purpose = "Sets the id's bit in the bitset at base+0x6A7B4, with no range check on the id."
+confidence = "inferred"
+evidence = "Bit set matching 08857C98; reached from the item list add in 0885ACA8."
+
+[[function]]
+module = "EBOOT"
+address = "08857E74"
+name = "record70_compute_stat_18"
+purpose = "Computes a value for a 0x70-byte record: float +0x18 plus byte +0x4C plus bonuses from field +0x2A == 7000, flags +0x34 (masks 0x400000, 0x20000000), +0x38 (mask 0x1) and byte 0xC0 in the local hunter's list at +0x676; or returns f_EBOOT_88DADD8 of hunter 1 when param_3 is 0, a record has mask 0x2 and a global flag is clear."
+confidence = "inferred"
+evidence = "Code; game_sub 09C26778 calls it on the 13 records at game+0x69BEC with param_3 = 1 and stores the result; what the value means was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "08858010"
+name = "record70_compute_stat_1c"
+purpose = "Computes a second value for a 0x70-byte record: float +0x1C plus byte +0x4D plus bonuses from field +0x2A == 7000, flags +0x34 (mask 0x800000), +0x38 (mask 0x1) and byte 0xC1 in the local hunter's list at +0x676; or returns hunter 1's ushort +0x422 under the same condition as 08857E74."
+confidence = "inferred"
+evidence = "Parallel to 08857E74 and called beside it by game_sub 09C26778; what the value means was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "088581C0"
+name = "record70_tier_from_field_2a"
+purpose = "Maps a ushort to a tier 0-5 using thresholds 1000, 2500, 4500, 6000 and 7000."
+confidence = "inferred"
+evidence = "Threshold ladder; game_sub 09C268D0 passes record field +0x2A, the field 08857E74 compares with 7000."
+
+[[function]]
+module = "EBOOT"
+address = "08858840"
+name = "record_log_add_dated"
+purpose = "Builds a zeroed 0x88-byte record with two shorts at +4 and +6 and the first field of the local clock time (the year) at +2, then adds it to the log."
+confidence = "inferred"
+evidence = "Memset 0x88, sceRtcGetCurrentClockLocalTime, then 08858904."
+
+[[function]]
+module = "EBOOT"
+address = "08858904"
+name = "record_log_push_front"
+purpose = "Shifts the ten 0x88-byte log entries at base+0x67D98 down one and copies the record to the front, unless its first word matches the front entry's and 08858BD8 rejects it."
+confidence = "inferred"
+evidence = "Field by field copy loop over 10 entries, followed by a copy from param_2 to entry 0."
+
+[[function]]
+module = "EBOOT"
+address = "08858BD8"
+name = "record_log_check_and_remove_duplicate"
+purpose = "For a record with short +4 below 5, scans the log for an entry with the same short +6 and +4 below 5 and not 3; returns 0 if that entry's +4 is higher, otherwise closes the gap over it unless its +4 is 4, and returns 1."
+confidence = "inferred"
+evidence = "Scan and shift loops over the log at base+0x67D98; returns 1 early if an entry's first word differs."
+
+[[function]]
+module = "EBOOT"
+address = "08858F1C"
+name = "list_priority_raise_field_682"
+purpose = "Overwrites short +0x682 of the object at DAT_08a62d9c with param_2 if param_2 sits earlier than the current value in the zero-terminated short list copied from DAT_0899ce1c; does nothing when param_1+0x6AF14 has mask 0x1."
+confidence = "inferred"
+evidence = "Two index searches of one list, compared; ran once in fight1 at frame 4400; what the list holds was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "08858FF4"
+name = "gpu_display_init"
+purpose = "Sets the display mode to 480x272, sets the EDRAM address translation, runs the display list at DAT_0899ceb4, registers the GE callback with finish function 08859768, and builds the layer chains."
+confidence = "confirmed"
+evidence = "sce display and GE calls in the code; runs only at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "08859174"
+name = "display_register_vblank_handler"
+purpose = "Registers 08859188 as a sub-interrupt handler for interrupt 0x1E through 08804678."
+confidence = "confirmed"
+evidence = "08804678 calls sceKernelRegisterSubIntrHandler(0x1E, ...); 08859188 is the known vblank wake handler; runs at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "08859218"
+name = "frame_sleep_until_wakeup"
+purpose = "Clears the woken flag DAT_08a62d64 and sleeps the thread until the vblank handler wakes it."
+confidence = "confirmed"
+evidence = "sceKernelSleepThreadCB here; 08859188 tests that flag, sets it and calls sceKernelWakeupThread; called from 088590B0 throughout every recording."
+
+[[function]]
+module = "EBOOT"
+address = "088592A8"
+name = "display_set_framebuffer"
+purpose = "Shows the framebuffer chosen by whether field +4 is nonzero, through f_EBOOT_8812610 and sceDisplaySetFrameBuf with stride 512."
+confidence = "confirmed"
+evidence = "sceDisplaySetFrameBuf call in the code; runs throughout every recording from 088590B0."
+
+[[function]]
+module = "EBOOT"
+address = "088592E4"
+name = "gpu_reset_layer_jump_chain"
+purpose = "Rebuilds, in the current buffer's 0xA0-byte area, a chain of 20 GE BASE+JUMP pairs each jumping to the next, ending in a jump to DAT_0899d228, and records each pair's address at +0x148."
+confidence = "inferred"
+evidence = "Writes words with GE commands 0x10 and 0x08 linked to the next pair; 08859480 accepts layer numbers 0-19 and has 088596C8 use them."
+
+[[function]]
+module = "EBOOT"
+address = "08859480"
+name = "gpu_append_commands_to_layer"
+purpose = "Copies param_3 words to the display list cursor at +0x80198 and passes the start, count and layer param_4 (0-19) to f_EBOOT_88596C8; ignored if the layer is out of range or the buffer would pass 0xFFFF words."
+confidence = "inferred"
+evidence = "Word copy with cursor advance, range checks against the current 0x40000-byte buffer; 20 layers match 088592E4."
+
+[[function]]
+module = "EBOOT"
+address = "08859728"
+name = "gpu_enqueue_frame_list"
+purpose = "Clears the list-finished flag DAT_08a62d65 and enqueues the jump chain of the buffer other than field +4 with sceGeListEnQueue."
+confidence = "confirmed"
+evidence = "sceGeListEnQueue with the 0xA0-sized chain area and the callback id from +0x8019C; flag is set back by 08859768."
+
+[[function]]
+module = "EBOOT"
+address = "08859768"
+name = "gpu_list_finish_callback"
+purpose = "GE finish callback: syncs and sets the list-finished flag DAT_08a62d65."
+confidence = "confirmed"
+evidence = "08858FF4 places it in the finish slot of the structure given to sceGeSetCallback."
+
+[[function]]
+module = "EBOOT"
+address = "088597BC"
+name = "gpu_wait_list_finished"
+purpose = "Spins until the list-finished flag DAT_08a62d65 is set."
+confidence = "inferred"
+evidence = "Busy loop on the flag; 08859768 sets it from the GE finish callback."
+
+[[function]]
+module = "EBOOT"
+address = "088597FC"
+name = "gpu_get_list_cursor"
+purpose = "Returns the display list write cursor at +0x80198."
+confidence = "inferred"
+evidence = "One-line getter; 08859480 writes commands through that field."
+
+[[function]]
+module = "EBOOT"
+address = "0885980C"
+name = "gpu_set_list_cursor"
+purpose = "Sets the display list write cursor at +0x80198."
+confidence = "inferred"
+evidence = "One-line setter; shares callers with 088597FC."
+
+[[function]]
+module = "EBOOT"
+address = "0885981C"
+name = "math_ceil_log2_capped_11"
+purpose = "Returns the smallest n with (1 << n) >= the argument, capped at 11."
+confidence = "confirmed"
+evidence = "The whole function is that loop."
+
+[[function]]
+module = "EBOOT"
+address = "08859848"
+name = "tmh_find_image_and_clut"
+purpose = "Checks the .TMH magic, walks size-chained blocks to a group and to its image and optional second-kind block, and fills an output struct with data pointer, format, two shorts, and the second block's pointer and fields; returns 1 on success, 0 on any mismatch; formats 1 and 3 skip the second block."
+confidence = "inferred"
+evidence = "Compares the first bytes with '.TMH'; block kinds 1 and 2 checked at +4; that kind 2 is a palette comes from its use with a format, not from a read of its users."
+
+[[function]]
+module = "EBOOT"
+address = "08859AE4"
+name = "mem_heap_init"
+purpose = "Stores a heap's size and base address and resets it through 08859AF0."
+confidence = "inferred"
+evidence = "Stores param_3 and param_2 in the fields 08859AF0 reads as size and first block."
+
+[[function]]
+module = "EBOOT"
+address = "08859AF0"
+name = "mem_heap_reset"
+purpose = "Makes the whole heap one block with (size - 0x20) >> 4 free 16-byte units and makes it the free list head at +0x10."
+confidence = "inferred"
+evidence = "Block fields match those 08859B44 and 08859C40 use."
+
+[[function]]
+module = "EBOOT"
+address = "08859B44"
+name = "mem_heap_alloc_aligned"
+purpose = "First-fit allocation of param_2 bytes aligned to param_3 from the free list, carved from the free space following a block; returns the pointer, or 0 for size 0 or no fit."
+confidence = "confirmed"
+evidence = "Free list walk and block split in the code; 0885AAEC calls it with size 0x34, align 0x10 and constructs an object in the result."
+
+[[function]]
+module = "EBOOT"
+address = "08859C40"
+name = "mem_heap_free"
+purpose = "Frees a block from 08859B44, giving its size and free space to the previous block and updating the free list; ignores a null pointer or a block already freed."
+confidence = "confirmed"
+evidence = "Reads the header below the pointer and undoes the split of 08859B44; 0885A8F0 calls it on a text pointer."
+
+[[function]]
+module = "EBOOT"
+address = "08859D14"
+name = "hud_message_window_setup"
+purpose = "Advances the window state, formats its text by type (+1), measures its lines to set size, position and slide speed, sets the hold timer +0x18 to 60, and draws the first frame."
+confidence = "inferred"
+evidence = "Switch on type with sprintf-style formatting, line count and width measured, then 0885A23C; state 0 of 0885A1B8."
+
+[[function]]
+module = "EBOOT"
+address = "0885A1B8"
+name = "hud_message_window_tick"
+purpose = "Runs the message window state in +2: setup, show, advance, close."
+confidence = "inferred"
+evidence = "Dispatch to 08859D14, 0885A23C, 0885A8E0, 0885A8F0."
+
+[[function]]
+module = "EBOOT"
+address = "0885A23C"
+name = "hud_message_window_draw_and_animate"
+purpose = "Draws the window and its text by type, then runs phase +3: slide to the screen middle, hold on timer +0x18 (ending early once the timer is at most 30 and DAT_089cbd0c+0x10F8 is positive), slide back, then advance the state; sets game field +0x381 to 0xFF on leaving the hold."
+confidence = "inferred"
+evidence = "Rectangle and text calls, then the three phases with float position +0x10; target 0x88 minus half the height."
+
+[[function]]
+module = "EBOOT"
+address = "0885A8E0"
+name = "hud_message_window_advance_state"
+purpose = "Increments the window state byte +2."
+confidence = "inferred"
+evidence = "One line; state 2 of 0885A1B8."
+
+[[function]]
+module = "EBOOT"
+address = "0885A8F0"
+name = "hud_message_window_close"
+purpose = "Clears the active, state and phase bytes and, for type 6, frees the text pointer at +0x20 from the heap at DAT_089cbd0c+0x500."
+confidence = "inferred"
+evidence = "State 3 of 0885A1B8; calls 08859C40."
+
+[[function]]
+module = "EBOOT"
+address = "0885A934"
+name = "hud_message_window_open_by_id"
+purpose = "Opens the window with a type, text index +0xA and value +8, and stores param_5 in game field +0x381."
+confidence = "inferred"
+evidence = "Sets active byte and state 0; 08859D14 uses these fields to look up text."
+
+[[function]]
+module = "EBOOT"
+address = "0885A95C"
+name = "hud_message_window_open_text"
+purpose = "Opens the window with a text pointer at +0x20, type 4, or type 6 (freed on close) when param_4 is nonzero, and stores param_3 in game field +0x381."
+confidence = "inferred"
+evidence = "Types 4 and 6 print +0x20 in 08859D14 and 0885A23C; 0885A8F0 frees it for type 6."
+
+[[function]]
+module = "EBOOT"
+address = "0885AA7C"
+name = "boot_task_step_start"
+purpose = "Clears field +0x1C and sets the task's next step at +4..+0xC to 0885AAEC, if f_EBOOT_890C4F8 accepts it."
+confidence = "inferred"
+evidence = "Vtable 089BAC14 +0x10, called by 088971A0 at frame 0; copies a triple holding the pointer to 0885AAEC."
+
+[[function]]
+module = "EBOOT"
+address = "0885AAEC"
+name = "boot_task_step_init_globals"
+purpose = "Passes the clock's seconds to f_EBOOT_8890080, calls init functions on the game and DAT_08a62d80, allocates a 0x34-byte object with vtable 089BABB4 into DAT_089cc13c and DAT_08a8b308+8, and sets the next step to 0885AC8C."
+confidence = "inferred"
+evidence = "Runs at frame 0 from 088971A0; allocation through 08859B44 and step pointer in the code; what the object does was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885AC8C"
+name = "boot_task_step_sets_fields_11_18"
+purpose = "Sets byte +0x11 to 1 and word +0x18 to 2."
+confidence = "inferred"
+evidence = "Step installed by 0885AAEC; runs at frame 0; what those fields do was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885ACA0"
+name = "item_mark_obtained_thunk"
+purpose = "Calls 0885C5BC."
+confidence = "inferred"
+evidence = "One-line forward."
+
+[[function]]
+module = "EBOOT"
+address = "0885ACA8"
+name = "item_pouch_saved_add_count"
+purpose = "Adds or removes a count of an item id in the 24-slot id/count list at game+0x43C8: fills the first empty slot if absent, caps at the item table's byte +3, clears the slot at 0 or below, and marks the id obtained."
+confidence = "guess"
+evidence = "The add logic is read; 'pouch' rests on 24 slots only, and a second 24-slot list at game+0x6AEA6 (0885C580) is the one read during quests."
+
+[[function]]
+module = "EBOOT"
+address = "0885AED0"
+name = "item_pouch_saved_count"
+purpose = "Returns the count of an item id in the 24-slot list at game+0x43C8, or 0 if absent."
+confidence = "guess"
+evidence = "Lookup is read; same 'pouch' reading as 0885ACA8."
+
+[[function]]
+module = "EBOOT"
+address = "0885AF28"
+name = "item_pouch_saved_room_for"
+purpose = "Returns how many more of an item id the 24-slot list can take: 0xFF if its cap is 0xFF, cap minus count if present, the cap if a slot is empty, or -1 if the list is full."
+confidence = "guess"
+evidence = "Logic is read; same 'pouch' reading as 0885ACA8."
+
+[[function]]
+module = "EBOOT"
+address = "0885B048"
+name = "table_89a48f0_count_set_entries"
+purpose = "Counts entries of the 0xAC-entry, 10-byte table at DAT_089a48f0 whose bit (index byte +6) is set at game+0x446C: mode 1 only with byte +7 mask 0x1 clear, mode 3 only with it set, other modes all; mode 0 picks 2 or 1 from 0885B160."
+confidence = "inferred"
+evidence = "Loop over the table in the code; what the table lists was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "0885B160"
+name = "table_89a48f0_entry_allowed"
+purpose = "Returns 1 if the entry has byte +7 mask 0x1 clear, the hunter's list at +0x676 holds 0xA0, the list at game+0x6AEA6 holds id 6, or (param_4 == 1) a box slot holds id 6; a null entry takes the same checks."
+confidence = "inferred"
+evidence = "Code with 088D6A1C, 088568AC and 0885BD0C; what id 6 is was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "0885B21C"
+name = "id_filter_36a_371_45c_473"
+purpose = "Returns the id if it is 0x36A or 0x36C-0x371 or 0x45C-0x473, otherwise -1."
+confidence = "inferred"
+evidence = "Chain of comparisons; what the ids stand for was not settled."
+
+[[function]]
+module = "EBOOT"
+address = "0885B3A0"
+name = "table_89a48f0_any_entry_for_id"
+purpose = "Returns 1 if an allowed entry exists in id's group of DAT_089a48f0 (count and start from pairs at DAT_089a4fa8), or in any lower-numbered group's entries whose first short equals id; param_4 of -1 tests byte +7 mask 0x1 clear, 0 uses 0885B160, other values count as the answer."
+confidence = "inferred"
+evidence = "Two nested scans in the code; called from lobby_task 09ADF5F8 in shops."
+
+[[function]]
+module = "EBOOT"
+address = "0885BD0C"
+name = "item_box_find_slot"
+purpose = "Returns the index of the first supply box slot holding the id with count above 0, or 0xFFFF."
+confidence = "inferred"
+evidence = "Scans id/count pairs at game+0x3428 up to 08850EC4's size, which is a value times 100."
+
+[[function]]
+module = "EBOOT"
+address = "0885C33C"
+name = "item_box_total_count"
+purpose = "Sums the id's count over all supply box slots; returns 999 on finding the id if its item table byte +3 is 0xFF."
+confidence = "inferred"
+evidence = "Loop over the slots of game+0x4A0+0x2F88; called in shops with 0885C3DC by lobby_task 09A82F08."
+
+[[function]]
+module = "EBOOT"
+address = "0885C3DC"
+name = "item_box_total_room"
+purpose = "Sums free room for the id over the supply box: 99 minus count in its slots, 99 in each empty slot; 0 for id 0 or item table byte +3 of 0xFF."
+confidence = "inferred"
+evidence = "Loop with 99 per slot in the code."
+
+[[function]]
+module = "EBOOT"
+address = "0885C498"
+name = "item_box_room_capped"
+purpose = "Returns room for the id in the supply box capped at one stack (99, or 0xFF for ids with table byte +3 of 0xFF): the full stack on reaching an empty slot or enough room, otherwise the room in its stacks; -1 for id 0."
+confidence = "inferred"
+evidence = "Walks slots from game+0x3428, stopping at an empty one; called from lobby_task in shops and misc."
+
+[[function]]
+module = "EBOOT"
+address = "0885C580"
+name = "item_data_of_list_slot"
+purpose = "Returns the 0x18-byte item table entry at DAT_0899d2b8 for the id in a slot of the list at game+0x6AEA6."
+confidence = "inferred"
+evidence = "08856884 gives the slot and the code indexes the table by its first short; runs during quests."
+
+[[function]]
+module = "EBOOT"
+address = "0885C5BC"
+name = "item_mark_obtained"
+purpose = "Sets the id's bit in the bitset of game+0x4A0."
+confidence = "inferred"
+evidence = "Forwards to 08857CF0; called by the item list add in 0885ACA8."
+
+[[function]]
+module = "EBOOT"
+address = "0885C5CC"
+name = "item_is_obtained"
+purpose = "Tests the id's bit in the bitset of game+0x4A0."
+confidence = "inferred"
+evidence = "Forwards to 08857C98, the test matching 0885C5BC."
+
+[[function]]
+module = "EBOOT"
+address = "0885C5DC"
+name = "item_slots_shell_sort"
+purpose = "Shell-sorts an array of id/count pairs (gaps 1, 4, 13, ...) by id ascending, then by count descending."
+confidence = "inferred"
+evidence = "Gap sequence and comparisons in the code; ran only in shops from lobby_task 09AE75B0; item slots are read from the pair layout."
+
+[[function]]
+module = "EBOOT"
+address = "0885C6F0"
+name = "item_data_field_16_nonzero"
+purpose = "Returns whether short +0x16 of the item table entry for the id is nonzero."
+confidence = "inferred"
+evidence = "One line on DAT_0899d2ce (table base + 0x16); what the field means was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885C83C"
+name = "equip_get_data_byte"
+purpose = "Returns a byte of the entry for a kind (0-6) and id below 0x5DD from seven tables: +5 for kinds 0-4 (0x28-byte entries), +2 for kind 5 (0x18) and kind 6 (0x1C); 0 otherwise."
+confidence = "guess"
+evidence = "Table layout in the code; 'equip' is a reading of five same-sized tables plus two others, and what the byte means was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0885C968"
+name = "equip_get_name_text"
+purpose = "Returns a string for a kind (0-6) and id from the per-kind text group functions."
+confidence = "guess"
+evidence = "Each case calls a wrapper of 088514AC; 08851598 also supplies text in 08859D14; same 'equip' reading as 0885C83C."
+
+[[function]]
+module = "EBOOT"
+address = "0885CA50"
+name = "equip_get_data_entry"
+purpose = "Returns the table entry for a slot struct with kind at +1 and id at +2, or null for an unknown kind."
+confidence = "guess"
+evidence = "Same seven tables as 0885C83C; same 'equip' reading."
+
+[[function]]
+module = "EBOOT"
+address = "0885CB68"
+name = "table_8978594_entry_0x28"
+purpose = "Returns the 0x28-byte entry param_2 of the table selected by param_1 from the pointer list at PTR_DAT_08978594."
+confidence = "inferred"
+evidence = "One line; 08851D3C calls it with an index below 5 and tests the entry's first or second short."
+
+[[function]]
+module = "EBOOT"
+address = "0885CB98"
+name = "equip_get_price"
+purpose = "Returns a word of the entry for a kind (0-6) and id from the same seven tables: +8 for kinds 0-4, +4 for kinds 5 and 6; 9999999 for an unknown kind."
+confidence = "guess"
+evidence = "Table layout read; 'price' rests only on the 9999999 default and one call in shops from lobby_task 09AA66A8."
