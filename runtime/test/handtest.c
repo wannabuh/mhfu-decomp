@@ -37,12 +37,12 @@ typedef struct {
 static void randomise_upkeep(Ctx *c, uint32_t hunter);
 
 static const Case cases[] = {
-    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0},
-    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370},
-    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480},
-    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288},
-    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690},
-    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8},
+    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL},
+    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370, NULL},
+    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480, NULL},
+    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288, NULL},
+    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690, NULL},
+    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8, NULL},
     {"hunter_tick_upkeep 09A68FC8", f_game_task_09A68FC8, 0, 0, 0x09A68FC8, randomise_upkeep},
 };
 
@@ -308,7 +308,7 @@ int main(int argc, char **argv) {
     }
     stub_hunter = hunter;
     if (stub_mode)
-        record_method = LW(LW(LW(0x09A4F1A0u)) + 0x28);
+        record_method = LW(LW(LW(LW(0x09A4F1A0u))) + 0x28);
     memset(stub_poke, 0xFF, sizeof stub_poke);
     uint8_t *start = malloc(SNAP_SIZE), *generated = malloc(SNAP_SIZE);
     int failed = 0;
