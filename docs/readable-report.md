@@ -6,7 +6,7 @@ Run overnight 2026-11-03 to 04, on `auto/readable-code`. How to use all this: `d
 
 - **The view** (`build/read/`, regenerated from your ISO by `tools/readable/all.sh` in about 10 minutes): all 16,966 functions decompiled,
   no bad-instruction markers, about 814,000 lines, 4,999 gotos. Before: register-level C named by address.
-- **Names:** 5,878 functions named, plus 272 of them imports (included). Every one of the 3,763 functions seen running has a name,
+- **Names:** 5,878 entries, 272 of them imports. Every one of the 3,763 functions seen running has a name,
   directly or through identical code. 670 `confirmed`, 5,069 `inferred`, 139 `guess`; 47 honestly `unknown_`.
 - **Evidence:** `tools/whatran.py` over 22 traced recordings: what ran in which frames, and who called it.
 - **Vtables:** 519, read from RAM snapshots: they are filled in by code, so the game's files don't hold them.
@@ -39,12 +39,11 @@ Jump tables, VFPU operand order, branches and offsets have held up in every audi
 
 - Blind, before any naming: 21 functions our notes document, hidden from the namer. 19 clearly right, 2 partly, none confidently wrong (by my
   scoring against the notes).
-- A skeptic per batch, about 30-47 entries each, 372 in all: 299 right, 40 overclaimed, 8 wrong, and the rest noted (corrections applied, but
-  only to what was sampled). The errors were mostly game words spread from one caller, and details in the prose, rather than misread code.
+- A skeptic per batch, 26-47 entries each, 368 in all: 319 right, 40 overclaimed, 9 wrong (corrections applied, but only to what was sampled). The errors were mostly game words spread from one caller, and details in the prose, rather than misread code.
 - Audit 4, neutral: 21 right, 3 overclaimed, 1 wrong of 25, before corrections.
 
-Read that as: mechanics are reliable; a game word in an `inferred` name is a lead. **Unsampled names keep their errors**, at maybe a tenth to a
-fifth overclaiming.
+Read that as: mechanics are reliable; a game word in an `inferred` name is a lead. **Unsampled names keep their errors:** about one in eight sampled
+names overclaimed or was wrong, and the skeptics picked the strongest claims, so this isn't a neutral rate.
 
 **Carried names** (2,263, mostly stages) are the least checked. The first version wrongly carried names across same-shaped code that called
 different things (at least 4%). It was fixed to require the same callees, but the fix has not been audited, and same code reading different tables
