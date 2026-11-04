@@ -39,6 +39,11 @@
  * forward is forward as shown. The game knows nothing of it: the camera can go into walls, and what the game places
  * on the screen from its own camera (name tags) stays where it was.
  *
+ * Free look (controls.c's free_look held, Left Alt): in the hunt the mouse turns the picture alone - the game's camera,
+ * which the stick moves the hunter by, left where it is - so the hunter keeps going the same way while the camera
+ * looks about; let go, the picture turns back (in a tenth of a second or so). The game is given none of the mouse's
+ * motion meanwhile (recorded so). In the frames shown: with MHFU_FPS or at the native frame rate.
+ *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
 #include "hle.h"
 #include "savestate.h"
@@ -70,6 +75,10 @@ SAVED static float elevation;
 SAVED static int elevation_set;
 #define ELEVATION_LO (-20 * PI / 180)
 #define ELEVATION_HI (80 * PI / 180)
+
+/* Free look: how far the picture is turned from the game's camera (radians: yaw, and pitch up), not the game's */
+static float look_yaw, look_pitch;
+static int looking;
 
 static float clamp_elevation(float e) {
     return e < ELEVATION_LO ? ELEVATION_LO : e > ELEVATION_HI ? ELEVATION_HI : e;
@@ -340,6 +349,23 @@ void camera_update(float dx, float dy) {
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
 }
 
+/* present.c, before camera_update (not replaying): free look held - the mouse's motion (dx, dy) the picture's alone,
+ * taken from what the game is given; let go, the picture turned back towards the game's camera */
+void camera_free_look(int held, float *dx, float *dy) {
+    camera_sens();
+    looking = held && active && rt_camera_free && sens > 0;
+    if (looking) {
+        look_yaw = wrap(look_yaw - *dx * sens * PI / 180);
+        float p = look_pitch + *dy * sens * PI / 180;
+        look_pitch = p < -PI / 2 ? -PI / 2 : p > PI / 2 ? PI / 2 : p;
+        *dx = *dy = 0;
+        return;
+    }
+    float k = expf(-rt_frame_30ths() / 30.0f / 0.04f);
+    look_yaw = fabsf(look_yaw) < 1e-3f ? 0 : look_yaw * k;
+    look_pitch = fabsf(look_pitch) < 1e-3f ? 0 : look_pitch * k;
+}
+
 /* The stick, turned with the picture where the mouse orbits it: forward is then forward as shown */
 void camera_stick(uint8_t *lx, uint8_t *ly) {
     if (!orbiting || orbit_yaw == 0)
@@ -415,14 +441,17 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         a = (interpolating ? -(1 - t) * ty : 0) + orbit_yaw - dx * sens * PI / 180;
         b = (interpolating ? -(1 - t) * tp : 0) + orbit_pitch + dy * sens * PI / 180;
     } else {
-        a = axis_shown(&yaw_axis, t, interpolating, (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536);
+        /* (free look: the mouse's motion not read yet the picture's, as the rest of its turn) */
+        float game_dx = looking ? 0 : dx, game_dy = looking ? 0 : dy;
+        float look_a = look_yaw - (looking ? dx * sens * PI / 180 : 0), look_b = look_pitch + (looking ? dy * sens * PI / 180 : 0);
+        a = axis_shown(&yaw_axis, t, interpolating, (left - game_dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536) + look_a;
         if (elevation_set) {   /* the game's elevation at t, raised by the mouse's: up to it from the latest's */
             float game = interpolating ? pitch_axis.angle[0] + (pitch_axis.angle[1] - pitch_axis.angle[0]) * t
                                        : pitch_axis.angle[1];
-            b = clamp_elevation(game + elevation + dy * sens * PI / 180.0f) - pitch_axis.angle[1];
+            b = clamp_elevation(game + elevation + look_b + game_dy * sens * PI / 180.0f) - pitch_axis.angle[1];
         }
         else
-            b = axis_shown(&pitch_axis, t, interpolating, dy * sens * PI / 180.0f);
+            b = axis_shown(&pitch_axis, t, interpolating, game_dy * sens * PI / 180.0f) + look_b;
     }
     /* MHFU_CAMERA_LOG=file: each frame shown, its time, t and the yaw and pitch shown (for checking smoothness) */
     static FILE *log;
@@ -508,8 +537,11 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
         a = orbit_yaw - dx * sens * PI / 180;
         b = orbit_pitch + dy * sens * PI / 180;
     } else {
-        a = (left - dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536;
-        b = elevation_set ? clamp_elevation(elev + elevation + dy * sens * PI / 180.0f) - elev : 0;
+        float game_dx = looking ? 0 : dx;
+        float look_a = look_yaw - (looking ? dx * sens * PI / 180 : 0), look_b = look_pitch + (looking ? dy * sens * PI / 180 : 0);
+        a = (left - game_dx * sens * 65536.0f / 360.0f) * 2 * PI / 65536 + look_a;
+        b = elevation_set ? clamp_elevation(elev + elevation + look_b + (looking ? 0 : dy) * sens * PI / 180.0f) - elev
+                          : look_b;
     }
     if (a == 0 && b == 0)
         return 0;

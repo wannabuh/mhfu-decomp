@@ -122,6 +122,17 @@ static void write_poke(FILE *f, const Poke *k) {
 
 extern uint32_t rt_local_player;
 
+/* The runtime's own write of the hunter's memory, this frame (controls.c: the item bar's choice opened at once), as a
+ * poke: written as the frame's pokes are, and recorded - a replay writes it again */
+static FILE *record;
+void present_poke_hunter(uint32_t offset, char type, uint32_t value) {
+    Poke k = {frame, frame, offset, 1, type, value};
+    replay_poke = realloc(replay_poke, (replay_poke_n + 1) * sizeof *replay_poke);
+    replay_poke[replay_poke_n++] = k;
+    if (record)
+        write_poke(record, &k);
+}
+
 /* This frame's pokes (a scenario's: the game's memory written) */
 static void replay_pokes(void) {
     for (size_t i = 0; i < replay_poke_n; i++) {
@@ -255,7 +266,6 @@ static void replay_input(float *mx, float *my) {
         fprintf(stderr, "replay done: over to you\n");
 }
 
-static FILE *record;
 static unsigned long recorded_frame;
 
 static void end_record(void) {
@@ -370,6 +380,8 @@ void window_stick(uint8_t *lx, uint8_t *ly);
 void window_mouse(float *dx, float *dy);
 void camera_update(float dx, float dy);
 void camera_stick(uint8_t *lx, uint8_t *ly);
+void camera_free_look(int held, float *dx, float *dy);
+int controls_free_look(void);
 void window_show(const uint32_t *frame);
 uint32_t *window_pixels(void);
 
@@ -767,6 +779,8 @@ void present_frame(void) {
     if (camera_orbit_ready != orbit_drawn + 1)
         camera_orbit_ready = orbit_drawn + 1, camera_orbit_enable(orbit_drawn);
     rt_camera_free = frame >= camera_free_from();
+    if (!replaying())
+        camera_free_look(controls_free_look(), &mx, &my);
     camera_update(mx, my);
     if (!replaying())
         camera_stick(&ctrl_lx, &ctrl_ly);          /* (a replay has the stick as the game had it) */

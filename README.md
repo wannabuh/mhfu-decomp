@@ -43,12 +43,13 @@ Each action has its own key; the runtime presses the PSP buttons the game wants 
 |--------|------------------|---------|-----------------|
 | Move | W A S D | left stick | the analog stick |
 | Camera | mouse | right stick | (turns the camera) |
+| Free look (the camera turns, the hunter keeps going the same way) | Left Alt held | | - |
 | Attack / attack 2 | left / right mouse | Y / B | △ / ○ |
 | Special attack | middle mouse, E | RB | △ + ○ |
 | Roll / dodge | Space | A | × |
 | Sprint / guard | Shift | RT | R |
 | Interact (talk, gather, carve, open) | F | LT | ○ - with the weapon out, it is put away first |
-| Use item | R | X | □ - with the weapon out, it is put away first (sword and shield: used drawn) |
+| Use item | R | X | □ - with the weapon out, it is only put away (sword and shield: used drawn) |
 | Sheathe | X | D-pad down | □, only with the weapon out |
 | Next / previous item | wheel down / up, 3 / 1 | D-pad right / left | L held, then □ / ○ |
 | Reset camera | Tab | LB, L3 | L |

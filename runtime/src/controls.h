@@ -10,6 +10,7 @@ enum {
     A_ITEM_NEXT, A_ITEM_PREV, A_CAMERA_RESET, A_MAP, A_MENU, A_CONFIRM, A_BACK,
     A_UP, A_DOWN, A_LEFT, A_RIGHT,
     A_PSP_TRIANGLE, A_PSP_CIRCLE, A_PSP_CROSS, A_PSP_SQUARE, A_PSP_L, A_PSP_R,
+    A_FREE_LOOK,
     A_COUNT
 };
 
@@ -26,6 +27,7 @@ uint32_t controls_buttons(const bool *keys, SDL_MouseButtonFlags mouse, SDL_Game
 void controls_wheel(float y);               /* the wheel turned (up +) */
 void controls_pad_camera(SDL_Gamepad *pad, float dt, float sens, float *dx, float *dy);
 int controls_invert_y(void);
+int controls_free_look(void);               /* free look held (the mouse turns the picture alone: camera.c) */
 int controls_device(void);                  /* the last used: 0 the keyboard and mouse, 1 a gamepad */
 void controls_note_device(int device);
 const char *controls_action_name(int action);

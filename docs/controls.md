@@ -17,7 +17,10 @@ Found with RAM snapshots (`MHFU_SNAPSHOT`) around presses appended to `quest.rec
   Action numbers are each weapon class's own (the class above's put-away is `0x3EB`).
 - **Selected item**: hunter `+0x648`, the pouch slot shown on the item bar.
 - **Item bar**: L held for at least 10 30ths opens the bar's choice; with L still held, □ goes to the next item and ○
-  to the one before, a step per press. L for 8 or 9 30ths before □ does nothing.
+  to the one before, a step per press. L for 8 or 9 30ths before □ does nothing. The count is the hunter's `+0x61C`
+  (from 0 on the 30th L is pressed, +1 a 30th held; `09A6A94C` opens the choice at 10): the wheel's chord sets it to 9
+  a 30th after pressing L - a poke, recorded (`present_poke_hunter`) - so that the choice opens at once, then steps a
+  30th pressed, a 30th let go (checked: three steps, `0x08ADBD04` 1 to 4).
 - **Interact**: ○ with the weapon away (opens the supply box; talks, gathers, carves). With the weapon out ○ attacks.
 - **Use item**: □ with the weapon away; with it out, □ puts it away (sword and shield: uses the item drawn).
 - **Roll**: × (action 7, then 8). △ + ○ + × together does the same as × alone (no kick).

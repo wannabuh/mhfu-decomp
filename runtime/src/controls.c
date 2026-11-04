@@ -5,14 +5,13 @@
  * Most actions are a button or two held while their input is (attack: triangle; special: triangle + circle; sprint
  * and guard: R...). Where the PSP has one button do several things, an action of its own does one of them, the
  * buttons pressed for it by what the hunter is doing (his object, native.c's rt_local_player):
- *   - use item: square - with the weapon drawn (+0x410 bit 8), square puts it away first (but for weapons that use
- *     items drawn, the sword and shield: square does it at once, and the weapon stays out), then, the hunter free again
- *     (his action's kind, +0x685, 0), square again;
+ *   - use item: square - with the weapon drawn (+0x410 bit 8) it only puts it away, as square does (the sword and
+ *     shield: uses the item drawn), the item used with the next press;
  *   - sheathe: square, only with the weapon drawn (else it would use an item);
  *   - interact (talk, gather, carve, open a box): circle with the weapon away - drawn, it is put away first as for an
  *     item (circle with it drawn is an attack);
- *   - next and previous item: L held (a third of a second, for the bar's choice to open), then square (next) or
- *     circle (previous) with it - the item bar's own chord, a step for each turn of the wheel.
+ *   - next and previous item: L held (the bar's choice opened at once: item_buttons), then square (next) or circle
+ *     (previous) with it - the item bar's own chord, a step for each turn of the wheel.
  * The game takes a button only at its 30ths (native.c): what is pressed for an action is held for whole 30ths.
  *
  * In a menu (window.c's pointer, menu.c) the actions are the buttons they are made of (use item: square, interact:
@@ -81,6 +80,7 @@ static const struct { const char *name, *label; uint32_t buttons; } actions[A_CO
     [A_PSP_SQUARE] = {"psp_square", "PSP square", PSP_SQUARE},
     [A_PSP_L] = {"psp_l", "PSP L", PSP_L},
     [A_PSP_R] = {"psp_r", "PSP R", PSP_R},
+    [A_FREE_LOOK] = {"free_look", "Free look", 0},
 };
 
 /* An input: a key, a mouse button, the wheel, a gamepad's button or trigger (IN_*: controls.h) */
@@ -97,6 +97,7 @@ static const Default kb_defaults[] = {
     {A_SHEATHE, "X"}, {A_ITEM_NEXT, "Wheel Down, 3"}, {A_ITEM_PREV, "Wheel Up, 1"}, {A_CAMERA_RESET, "Tab"},
     {A_MAP, "M, C"}, {A_MENU, "Escape"}, {A_CONFIRM, "Return"}, {A_BACK, "Backspace"},
     {A_UP, "Up"}, {A_DOWN, "Down"}, {A_LEFT, "Left"}, {A_RIGHT, "Right"}, {A_PSP_TRIANGLE, "Q"},
+    {A_FREE_LOOK, "Left Alt"},
 };
 
 static const Default pad_defaults[] = {
@@ -413,26 +414,37 @@ static Steps item, smart;               /* the item bar's chord; use item / inte
 static int item_queue;                  /* the item bar's steps to go: + next, - previous */
 static int smart_action;
 
-/* The item bar's chord: L held a third of a second opens the bar's choice (the game wants it held 10 30ths), then
- * square (next) or circle (previous) with it for a step - two 30ths pressed, two let go - for each step queued; L
- * kept a little after the last (more turns of the wheel go on at once), then let go */
-#define ITEM_LEAD 11
+/* The item bar's chord: L, and once the game has seen it pressed its count of how long L is held (the hunter's +0x61C,
+ * counted from 0 at the press: at 10 the bar's choice opens) set to 9 - a poke, recorded (present.c) - so that the
+ * choice opens at the next 30th, not a third of a second later; then square (next) or circle (previous) with it for a
+ * step - a 30th pressed, a 30th let go - for each step queued; L kept a little after the last (more turns of the wheel
+ * go on at once), then let go */
+#define ITEM_POKE 1
+#define ITEM_LEAD 3
+#define ITEM_PRESS 1
 #define ITEM_LINGER 8
-static uint32_t item_buttons(double now) {
+void present_poke_hunter(uint32_t offset, char type, uint32_t value);
+static uint32_t item_buttons(double now, uint32_t h) {
     if (!item.on) {
         if (!item_queue)
             return 0;
         item.on = 1, item.stage = 0, item.t0 = now;     /* stage 0: the lead; 1: a step; 2: between, or lingering */
+        item.last = 0;
     }
     double t = now - item.t0;
     switch (item.stage) {
     case 0:
-        if (t < ITEM_LEAD)
+        if (t >= ITEM_POKE && !item.last && h) {
+            item.last = 1;              /* (poked) */
+            if (LW(h + 0x61C) < 9)
+                present_poke_hunter(0x61C, 'w', 9);
+        }
+        if (t < (h ? ITEM_LEAD : 11))
             return PSP_L;
-        item.stage = 2, item.t0 = now - 2, t = 2;
+        item.stage = 2, item.t0 = now - ITEM_PRESS, t = ITEM_PRESS;
         /* fall through */
     case 2:
-        if (t < 2)
+        if (t < ITEM_PRESS)
             return PSP_L;
         if (item_queue) {
             item.last = item_queue > 0 ? PSP_SQUARE : PSP_CIRCLE;
@@ -440,12 +452,12 @@ static uint32_t item_buttons(double now) {
             item.stage = 1, item.t0 = now;
             return PSP_L | item.last;
         }
-        if (t < 2 + ITEM_LINGER)
+        if (t < ITEM_PRESS + ITEM_LINGER)
             return PSP_L;
         item.on = 0;
         return 0;
     case 1:
-        if (t < 2)
+        if (t < ITEM_PRESS)
             return PSP_L | item.last;
         item.stage = 2, item.t0 = now;
         return PSP_L;
@@ -493,6 +505,8 @@ static uint32_t smart_buttons(double now, uint32_t h) {
 static void smart_start(int action, double now, uint32_t h) {
     if (smart.on)
         return;
+    if (action == A_USE_ITEM && hunter_drawn(h))
+        action = A_SHEATHE;             /* (drawn: put away only - the next press uses the item) */
     smart_action = action;
     smart.on = 1, smart.t0 = now;
     if (action == A_SHEATHE)
@@ -558,6 +572,9 @@ static uint32_t pad_menu_buttons(void) {
     return b;
 }
 
+static int free_look;
+int controls_free_look(void) { return free_look; }
+
 uint32_t controls_buttons(const bool *k, SDL_MouseButtonFlags m, SDL_Gamepad *p, int in_menu, uint8_t *lx,
                           uint8_t *ly) {
     keys = k, mouse = m, pad = p;
@@ -572,6 +589,7 @@ uint32_t controls_buttons(const bool *k, SDL_MouseButtonFlags m, SDL_Gamepad *p,
     static uint64_t before;
     uint64_t pressed = held & ~before;
     before = held;
+    free_look = !in_menu && (held >> A_FREE_LOOK & 1);
     int next = wheel_turns(A_ITEM_NEXT) + (int)((pressed >> A_ITEM_NEXT) & 1);
     int prev = wheel_turns(A_ITEM_PREV) + (int)((pressed >> A_ITEM_PREV) & 1);
 
@@ -599,13 +617,13 @@ uint32_t controls_buttons(const bool *k, SDL_MouseButtonFlags m, SDL_Gamepad *p,
     } else {
         if (next || prev) {
             item_queue += next - prev;
-            if (item_queue > 3) item_queue = 3;
-            if (item_queue < -3) item_queue = -3;
+            if (item_queue > 6) item_queue = 6;
+            if (item_queue < -6) item_queue = -6;
         }
         for (int a = A_INTERACT; a <= A_SHEATHE; a++)
             if (pressed >> a & 1)
                 smart_start(a, now, h);
-        b |= item_buttons(now) | smart_buttons(now, h);
+        b |= item_buttons(now, h) | smart_buttons(now, h);
     }
 
     /* the stick: the keys, then the gamepad's left stick */
