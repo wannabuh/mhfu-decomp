@@ -107,17 +107,48 @@ def import_args(main):
 
 
 def method_slot(m, a, start, reg):
-    """A call through `reg`: the vtable slot it was loaded from just before (lw reg, slot(x)), or -1 where it can't be told."""
+    """A call through `reg`: the vtable slot, if it was loaded from the vtable of the function's own `this` (lw reg, slot(v) after
+    lw v, 0(this)), or -1. Another object's vtable says nothing about what this class's methods take."""
     at = a - 4
-    while at >= start and at >= a - 32:
+    off, base = None, None
+    while at >= start and at >= a - 48:
         i = m.ins(at)
-        if i.getOpcodeName() == "lw" and (i.getRaw() >> 16 & 31) == reg:
-            off = i.getProcessedImmediate()
-            return ("slot", off) if 0 <= off < 0x400 else -1
-        if uses_defs(i)[1] >> reg & 1:
+        raw = i.getRaw()
+        rt, rs = raw >> 16 & 31, raw >> 21 & 31
+        if off is None:
+            if i.getOpcodeName() == "lw" and rt == reg:
+                off, base = i.getProcessedImmediate(), rs
+                if not 0 <= off < 0x400:
+                    return -1
+            elif uses_defs(i)[1] >> reg & 1:
+                return -1
+        elif i.getOpcodeName() == "lw" and rt == base:
+            if i.getProcessedImmediate() != 0:
+                return -1
+            return ("slot", off) if holds_this(m, at, start, rs) else -1
+        elif uses_defs(i)[1] >> base & 1:
             return -1
         at -= 4
     return -1
+
+
+def holds_this(m, at, start, reg):
+    """Does reg hold the a0 the function came in with, at `at`? a0 itself if nothing wrote it; an s-register a0 was moved into."""
+    copies = {A0}
+    for a in range(start, at, 4):
+        i = m.ins(a)
+        raw = i.getRaw()
+        dfn = uses_defs(i)[1]
+        rs, rt, rd = raw >> 21 & 31, raw >> 16 & 31, raw >> 11 & 31
+        copied = i.getOpcodeName() in ("move", "addu", "or") and ((rs in copies and rt == 0) or (rt in copies and rs == 0))
+        if i.isFunctionCall():
+            copies -= {A0}
+        for r in range(32):
+            if dfn >> r & 1:
+                copies.discard(r)
+        if copied:
+            copies.add(rd)
+    return reg in copies
 
 
 def build(m, f, starts, table):
