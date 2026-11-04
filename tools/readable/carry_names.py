@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Names carried to identical code: carry_names.py WORK VIEW. A function whose body is the same as a named function's, at least
+"""Names carried to identical code: carry_names.py WORK GEN (build/gen). A function whose body is the same as a named function's, at least
 MIN_LINES long, reading the same data and calling the same things, takes its name, purpose and at most `inferred`. Overlays repeat a lot: the stages
 especially. Writes tools/readable/names/carried.toml, which an entry of a function's own always outranks."""
 import collections
@@ -11,31 +11,50 @@ import sys
 import tomllib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MIN_LINES = 8
+MIN_LINES = 4           # (shorter, and being the same says little)
 
 
-def norm(text, module, addr):
-    """Calling the same things is part of being the same code: a call within the module counts by how far it is from this
-    function (overlays load at one base, with the same layout when they are copies), any other by what it calls."""
-    def call(m):
-        target = m.group(1)
-        if target == module:
-            return f"L{int(m.group(2), 16) - addr:x}"
-        return m.group(0)
-    text = re.sub(r"\bf_([A-Za-z0-9_]+?)_([0-9A-F]{6,8})\b", call, text)
-    text = re.sub(r"\b" + re.escape(module) + r"_", "M_", text)
-    text = re.sub(r"\bFUN_[0-9a-f]+\b|\bLAB_[0-9a-f]+\b|\bswitchD_\w+\b|\bcode_r0x\w+\b|\bcaseD_\w+\b", "X", text)
-    return hashlib.md5(text.encode()).hexdigest()
+START = re.compile(r"^void f_(\w+?)_([0-9A-F]{8})\(Ctx \*c\) \{")
+CODE_NEAR = re.compile(r"\bf_([A-Za-z0-9_]+?)_([0-9A-F]{8})\b")
 
 
-def body_of(text):
-    lines = [ln for ln in text.split("\n") if not ln.startswith("//")]
-    # the function's own name is on its signature line: not part of what it does
-    return "\n".join(lines[1:] if lines and not lines[0] else lines), len(lines)
+def norm(lines, module, addr):
+    """The generated code, as what it does: without its comments, its addresses as distances from its start, and what is only there for
+    the machine: return addresses and the fall-through call at its end. Calling the same things is part of being the same code: a call
+    within the module counts by how far it is from this function (overlays load at one base, with the same layout when they are copies), any
+    other by what it calls. Data addresses stay: reading the same data too. From the generated C, not the view, as a view's types and names
+    differ for the same code, and with them its text."""
+    out = []
+    for text in lines:
+        text = re.sub(r"/\*.*?\*/", "", text).strip()
+        if not text or text.startswith("if (rt_hand)") or text.startswith("if (rt_trace_all"):
+            continue
+        text = re.sub(r"c->r\[31\] = 0x[0-9A-Fa-f]+u;", "", text)
+        text = re.sub(r"\bL_([0-9A-F]{8})\b", lambda m: f"L{int(m.group(1), 16) - addr:x}", text)
+        text = re.sub(r"(rt_unreachable|rt_bad_jump|rt_break)\(c, .*", r"\1", text)
+        text = re.sub(r"\b(rt_gate\w*)\(c, .*", r"\1", text)
+
+        def call(m):
+            if m.group(1) == module:
+                return f"M{int(m.group(2), 16) - addr:x}"
+            return m.group(0)
+        out.append(CODE_NEAR.sub(call, text))
+    # the last line is falling through to whatever comes next
+    if out and (re.fullmatch(r"M[0-9a-f-]+\(c\); return;", out[-1]) or out[-1].startswith("rt_unreachable")):
+        out.pop()
+    return hashlib.md5("\n".join(out).encode()).hexdigest(), len(out), out
+
+
+def stub_name(code):
+    """A body of one line says nothing of what it is for, so it takes no other function's name: it is named for what it does."""
+    if not code or code == ["return;"]:
+        return "stub_noop"
+    m = re.fullmatch(r"c->r\[2\] = (?:0 \+ )?(0x[0-9A-Fa-f]+u|0); return;", code[0])
+    return f"stub_return_{int(m.group(1).rstrip('u'), 0):x}" if m else None
 
 
 def main():
-    work, view = sys.argv[1:]
+    work, gen = sys.argv[1:]
     named = {}
     for path in sorted(glob.glob(os.path.join(HERE, "names", "*.toml"))):
         if os.path.basename(path) in ("carried.toml", "imports.toml"):
@@ -44,19 +63,27 @@ def main():
             for e in tomllib.load(f).get("function", []):
                 named[(e["module"], int(e["address"], 16))] = e
     groups = collections.defaultdict(list)
-    for mod in sorted(os.listdir(view)):
-        d = os.path.join(view, mod)
-        if not os.path.isdir(d):
+    stubs = []
+    for path in sorted(glob.glob(os.path.join(gen, "*.c"))):
+        if os.path.basename(path).startswith(("tables", "names")):
             continue
-        for c in glob.glob(os.path.join(d, "*.c")):
-            addr = int(os.path.basename(c)[:-2], 16)
-            with open(c, errors="replace") as f:
-                text = f.read()
-            body, n = body_of(text)
-            sig_end = body.find("\n{")
-            code = body[sig_end:] if sig_end >= 0 else body
-            if n >= MIN_LINES:
-                groups[norm(code, mod, addr)].append((mod, addr))
+        cur, body = None, []
+        with open(path, errors="replace") as f:
+            for line in f:
+                m = START.match(line)
+                if m:
+                    cur, body = (m.group(1), int(m.group(2), 16)), []
+                elif cur and line.startswith("}"):
+                    h, n, code = norm(body, cur[0], cur[1])
+                    if n >= MIN_LINES:
+                        groups[h].append(cur)
+                    elif n <= 1 and cur not in named:
+                        stub = stub_name(code)
+                        if stub:
+                            stubs.append((cur, stub))
+                    cur = None
+                elif cur:
+                    body.append(line)
     out = []
     for keys in groups.values():
         have = [k for k in keys if k in named]
@@ -71,6 +98,8 @@ def main():
                 name = name.replace(src["module"], k[0])
             conf = "guess" if src["confidence"] == "guess" else "inferred"
             out.append((k, name, src["purpose"], conf, f"same code as {src['module']} {src['address']}"))
+    for k, name in stubs:
+        out.append((k, name, "Does nothing else: its whole body.", "confirmed", "the generated code, one line"))
     with open(os.path.join(HERE, "names", "carried.toml"), "w") as f:
         f.write("# Generated by carry_names.py: names carried to identical code. Edit the source entry, not this.\n")
         for (m, a), name, purpose, conf, ev in sorted(out):
