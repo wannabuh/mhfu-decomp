@@ -2,6 +2,19 @@
 
 Run overnight 2026-11-03 to 04, on `auto/readable-code`. How to use all this: `docs/readable.md`.
 
+## Since then (2026-11-04, the same day)
+
+The sections below describe the first run. Since it:
+
+- **Types:** every vtable a struct, with typed `self`, arguments, pointer fields and globals: 3,404 functions' files use a typed `self`. 1,122 fields
+  named by agents across `Object`, `HunterBase`, `Hunter`, `Monster`, `GameState`, `Camera`, `HudContext`, `QuestState` and `TextSystem`. A sample of 40:
+  none wrong, 5 overclaimed and corrected. `field_XXX` uses in the view went from about 83,000 to about 35,000.
+- **Code rewritten by hand:** 7 functions in `readable/` (stamina, both sprints, out of breath, the per-tick upkeep), `MHFU_HAND=0` running the
+  generated code instead. How they were checked: `docs/readable.md`. The largest, 890 generated lines, cost one agent about 220,000 tokens and 40 minutes.
+- **The suite is on Vulkan:** about 5 minutes, against 33. The cause of the renderer difference left open below is known: see `docs/testing.md`.
+- **The view's errors:** the audits found calls hiding their arguments (a state setter's target state), monster functions typed from other overlays' stale
+  vtables, and member function pointers shown as floats. Fixed at their source; what remains is listed in `docs/readable.md`.
+
 ## What there is now
 
 - **The view** (`build/read/`, regenerated from your ISO by `tools/readable/all.sh` in about 10 minutes): 16,965 of 16,966 functions decompiled in this run (`download_task 9A70370` came out empty; fixed since, and all 16,966 now do),

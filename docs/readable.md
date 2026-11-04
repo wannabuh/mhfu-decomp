@@ -36,8 +36,41 @@ for it. Traces show what ran, so "in traces" is never "only". A caller's module 
 - `inferred`: follows from the code and callers. Treat it as a lead: check it before relying on it.
 - `guess`: a plausible reading.
 
-`tools/readable/types.toml` holds structures; `gen_types.py` makes `build/read/mhfu_types.h`, its offsets checked at compile time.
-To add either, edit the file and run `tools/readable/all.sh`.
+`tools/readable/types.toml` holds structures and `fields/` their fields; `gen_types.py` makes `build/read/mhfu_types.h` and, for the build,
+`build/gen/mhfu_types.h`, offsets checked at compile time. To add either, edit the file and run `tools/readable/all.sh`.
+
+## Classes and fields
+
+`tools/readable/classes.py WORK TRACES SNAPSHOT...` works out the game's classes: what each function ran on (trace build, `*.args`), vtable
+slots, callers that all pass the same object, inheritance from constructors, fields from every load and store, pointer fields and globals
+from RAM snapshots. A vtable's entries outlive the overlay that filled them, so a slot in another overlay's region isn't counted. `[[global]]`
+in `types.toml` declares a structure with no vtable reached through a global (`g_game`, `g_camera`...).
+
+Fields are named in `tools/readable/fields/<Struct>.toml`. `decimal = true` shows a quantity in decimal in the view (`self->stamina < 76`, by
+`decimals.py`); ids and flags stay hex, to match notes and function names. `tools/readable/fieldlist.py` lists what the code does with each
+field, for naming them; its lists miss accesses through untyped pointers, so "no reader there" proves nothing.
+
+## Rewriting a function by hand
+
+`readable/*.c` holds game code rewritten readably. A function listed in `recomp/patches.py` HAND runs that instead, with the generated code
+still behind it: `MHFU_HAND=0` runs the generated code in the same build, so it can be compared and is one setting away.
+
+Write from the generated C (`build/gen/`), with the view as a reading aid: it has hidden arguments before. Keep the order of calls and writes,
+the signedness of comparisons, and call the same addresses, thunks included. Nothing has to be kept in a dead register or on the game's stack.
+No `static` state unless `SAVED`: a save state wouldn't hold it. Patches in the original (`rt_tick30`, `rt_time_scale`) become plain code.
+No thread may block beneath a hand-written function if save states are to survive rebuilds (the save-states work's contract).
+
+To trust one, all of these, as a first-try pass means little by itself:
+
+1. `build/handtest`, in a worktree generated with `RECOMP_TRACE_ALL=1` (not one you play), `stubs WORK/signatures.tsv`: every callee is a stub
+   that logs its arguments and returns the next random result, the same for both versions, and may change fields; RAM and the call sequence are
+   compared. Add a row to `cases` and the function's inputs to `randomise()`. Also without `stubs`, callees then running for real.
+2. Coverage (`HAND_FLAGS="-fprofile-instr-generate -fcoverage-mapping -mllvm -runtime-counter-relocation"`, `HAND_LDFLAGS=-fprofile-instr-generate`,
+   `LLVM_PROFILE_FILE=dir/%p-%c.profraw`, then `llvm-cov show ... --show-branches=count`): every branch both ways, or a reason it can't be.
+3. Bugs put in on purpose, one at a time. Each must be caught or shown to change nothing. Random inputs without stubs let real bugs past.
+4. `tools/suite.py`, and `tools/readable/trace.py` over the recordings with `TRACE_BIN=build/mhfu`: RAM hashes against the earlier runs.
+   Compare only the hashes both runs have: when a replay stops can add one at the end.
+5. Someone playing it: replays can't tell how it feels.
 
 ## What the view gets wrong
 
