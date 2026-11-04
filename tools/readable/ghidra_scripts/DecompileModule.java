@@ -116,9 +116,32 @@ public class DecompileModule extends GhidraScript {
         return k != null ? k[0] : "f_" + owner + "_" + hex;
     }
 
-    /** Structures from <work>/view-types.tsv (gen_types.py), and the functions that take one as `this`. */
+    /** Structures from <work>/view-types.tsv (gen_types.py), the arguments that are one, and globals that point at one. */
     private final Map<String, Structure> structs = new HashMap<>();
-    private final Map<String, String> thisTypes = new HashMap<>();
+    private final Map<String, String> argTypes = new HashMap<>();
+    private final List<String[]> globals = new ArrayList<>();
+
+    /** What an argument is: from this module's function at that address, else from all that have one there, if they agree. */
+    private Structure argType(String module, String hex, String reg, List<String> others) {
+        String t = argTypes.get(module + " " + hex + " " + reg);
+        if (t == null && !others.contains(module)) {
+            Set<String> found = new HashSet<>();
+            for (String o : others) found.add(argTypes.get(o + " " + hex + " " + reg));
+            if (found.size() == 1) t = found.iterator().next();
+        }
+        return t == null ? null : structs.get(t);
+    }
+
+    /** Globals that point at a class: typed and named, so what is reached through them reads as its fields. */
+    private void applyGlobals() throws Exception {
+        for (String[] g : globals) {
+            Address a = at(Long.parseLong(g[1], 16));
+            if (!currentProgram.getMemory().contains(a) || !structs.containsKey(g[2])) continue;
+            currentProgram.getListing().clearCodeUnits(a, a.add(3), false);
+            currentProgram.getListing().createData(a, new PointerDataType(structs.get(g[2]), 4));
+            createLabel(a, "g_" + g[2] + "_" + g[1], true);
+        }
+    }
 
     private DataType fieldType(String t) {
         switch (t) {
@@ -155,7 +178,9 @@ public class DecompileModule extends GhidraScript {
                 DataType t = fieldType(r[3]);
                 structs.get(r[1]).replaceAtOffset(Integer.parseInt(r[2], 16), t, t.getLength(), r[4], null);
             } else if (r[0].equals("P")) {
-                thisTypes.put(r[1] + " " + r[2], r[4]);
+                argTypes.put(r[1] + " " + r[2] + " " + r[3], r[4]);
+            } else if (r[0].equals("G")) {
+                globals.add(r);
             }
         }
     }
@@ -217,16 +242,17 @@ public class DecompileModule extends GhidraScript {
             List<Variable> params = new ArrayList<>();
             if (!p[1].isEmpty()) {
                 int n = 0;
-                String self = thisTypes.get(module + " " + hex);
+                List<String> others = owners.getOrDefault(addr, List.of());
                 for (String reg : p[1].split(",")) {
                     if (reg.equals("...")) continue;
                     DataType t = regType(reg);
                     // param_N when N is the Nth argument register; else say which, as an unread one was skipped
                     String pname = reg.matches("s\\d+") ? "stack_" + reg.substring(1)
                         : n < ARG_ORDER.size() && ARG_ORDER.get(n).equals(reg) ? "param_" + (n + 1) : "arg_" + reg;
-                    if (n == 0 && reg.equals("a0") && self != null) {
-                        t = new PointerDataType(structs.get(self), 4);
-                        pname = "self";
+                    Structure st = argType(module, hex, reg, others);
+                    if (st != null) {
+                        t = new PointerDataType(st, 4);
+                        if (reg.equals("a0")) pname = "self";
                     }
                     n++;
                     params.add(new ParameterImpl(pname, t, regStorage(reg), currentProgram));
@@ -299,6 +325,7 @@ public class DecompileModule extends GhidraScript {
         Map<Long, List<String>> owners = loadOwners(work);
         linkTargets(module, owners);
         applySignatures(work, module, owners);
+        applyGlobals();
         // Jump tables: the decompiler's own recovery, which gets the case labels right; funcs.py's table only as an
         // override where it fails (an override collapses repeated targets, and with them the labels)
         Map<String, String> tablesOf = new HashMap<>();

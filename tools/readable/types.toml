@@ -2,13 +2,13 @@
 # every offset checked at compile time, and the table the view applies. Types: u8 s8 u16 s16 u32 s32 f32, ptr, ptr:Name,
 # f32x3, f32x4. `size` only where confirmed; unknown spans stay padding, never guessed fields. `span` is how far offsets are
 # known to reach, kept generous: past it the decompiler prints self[1].field_X, which reads wrongly.
+# Every class classes.py finds reaches the view, as Class_<vtable> with field_<offset>; what is here names them. `base` says what a
+# struct's fields start from: a field goes on the highest class it means the same thing for.
 # Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess.
 
 [[struct]]
 name = "Object"
-span = 0x2000
-vtables = []
-functions = [["EBOOT", "08864634"]]
+vtables = ["089BAC64"]
 fields = [
   { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
   { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed", note = "bit 0 clears: deleted" },
@@ -20,33 +20,20 @@ fields = [
   { offset = 0x210, name = "place_before", type = "f32x3", confidence = "confirmed" },
   { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
   { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x299, name = "state", type = "u8", confidence = "confirmed" },
   { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred", note = "ticks in its state; monsters' in 60ths" },
   { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed", note = "member function pointer, 3 words" },
   { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
 ]
 
 [[struct]]
-name = "Hunter"
-span = 0x2000
-vtables = ["089BB3CC"]
-functions = [["game_task", "09A66198"], ["game_task", "09A665F0"]]
+name = "HunterBase"
+base = "Object"
+vtables = ["089BAECC"]
 fields = [
-  { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
-  { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed" },
-  { offset = 0x010, name = "rotation", type = "f32x4", confidence = "confirmed" },
-  { offset = 0x040, name = "position", type = "f32x3", confidence = "confirmed" },
-  { offset = 0x1C4, name = "next", type = "ptr", confidence = "confirmed" },
   { offset = 0x1E8, name = "weapon_class", type = "u8", confidence = "confirmed" },
   { offset = 0x1F4, name = "facing", type = "u32", confidence = "confirmed" },
-  { offset = 0x200, name = "place", type = "f32x3", confidence = "confirmed" },
-  { offset = 0x210, name = "place_before", type = "f32x3", confidence = "confirmed" },
-  { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
-  { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
-  { offset = 0x299, name = "state", type = "u8", confidence = "confirmed" },
   { offset = 0x2E4, name = "health", type = "s16", confidence = "inferred", note = "HUD +0x560 steps toward it; 08841AB4 tests it" },
-  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred" },
-  { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed" },
-  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
   { offset = 0x324, name = "motion_id", type = "u16", confidence = "inferred", note = "part 0's; 088D1DD0 copies it to +0x684" },
   { offset = 0x41C, name = "health_red_limit", type = "u16", confidence = "inferred", note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
   { offset = 0x41E, name = "health_max", type = "u16", confidence = "inferred", note = "100 + food + skill, capped at 150" },
@@ -56,3 +43,27 @@ fields = [
   { offset = 0x684, name = "motion_id_copy", type = "u16", confidence = "inferred", note = "copy of +0x324 (088D1DD0); docs/testing.md and ratecheck call it the action: its values are the weapons' moves" },
   { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred" },
 ]
+
+[[struct]]
+name = "Hunter"
+base = "HunterBase"
+vtables = ["089BB3CC"]
+
+[[struct]]
+name = "HunterLobby"
+base = "HunterBase"
+vtables = ["089BB05C"]
+
+[[struct]]
+name = "Monster"
+base = "Object"
+vtables = ["089BC098"]
+
+[[struct]]
+name = "Npc"
+base = "Object"
+vtables = ["089BB154"]
+
+[[struct]]
+name = "Stage"
+vtables = ["089BADFC"]

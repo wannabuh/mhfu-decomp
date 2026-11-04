@@ -21,6 +21,8 @@ def main():
     ap.add_argument("--compare")
     ap.add_argument("-j", type=int, default=4)
     ap.add_argument("--timeout", type=int, default=600)
+    ap.add_argument("--snapshots", help="DIR: also RAM every --every frames, as DIR/<name>-<frame>.bin (classes.py)")
+    ap.add_argument("--every", type=int, default=600)
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     todo, running = list(args.recs), []
@@ -41,6 +43,8 @@ def main():
                        MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"), MHFU_STATEDIR=os.path.join(d, "states"),
                        MHFU_RAM_HASH="300", MHFU_TRACE_ALL=os.path.abspath(os.path.join(args.out, name + ".trace")),
                        MHFU_TRACE_ARGS=os.path.abspath(os.path.join(args.out, name + ".args")))
+            if args.snapshots:
+                env["MHFU_SNAPSHOT"] = ",".join(str(n) for n in range(args.every, 40000, args.every))
             log = open(os.path.join(d, "log"), "w")
             running.append((name, d, subprocess.Popen(["nice", "-n", "5", BIN], cwd=d, env=env, stdout=log,
                                                       stderr=subprocess.STDOUT), time.time()))
@@ -68,6 +72,11 @@ def main():
                 print(f"{name}: {'done' if done else 'NOT DONE'} in {time.time() - t0:.0f}s, trace {size >> 10} KB{verdict}",
                       flush=True)
                 running.remove(r)
+                if args.snapshots:
+                    os.makedirs(args.snapshots, exist_ok=True)
+                    for snap in sorted(os.listdir(os.path.join(d, "build"))):
+                        if snap.startswith("ram-"):
+                            shutil.move(os.path.join(d, "build", snap), os.path.join(args.snapshots, f"{name}-{snap[4:]}"))
                 shutil.rmtree(d, ignore_errors=True)
         time.sleep(1)
 

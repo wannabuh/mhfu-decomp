@@ -54,6 +54,8 @@ class Flow:
         self.writes = collections.Counter()
         for a in range(self.start, self.end, 4):
             _u, d = uses_defs(m.ins(a))
+            if m.ins(a).getOpcodeName() == "lw" and (m.ins(a).getRaw() >> 21 & 31) == SP:
+                continue        # an s-register restored on the way out says nothing about its value in the body
             for r in range(32):
                 if d >> r & 1:
                     self.writes[r] += 1
@@ -62,7 +64,7 @@ class Flow:
         """entry: {register: fact}. visit(address, instruction, name, facts, is_delay) sees each instruction before it applies.
         A fact on a register written just once (after its copy) holds across labels: compilers keep `this` in s-registers."""
         facts = dict(entry)
-        stable = {}
+        stable = {r: v for r, v in entry.items() if not self.writes[r]}
         a = self.start
         while a < self.end:
             if a in self.leaders:
@@ -106,7 +108,7 @@ class Flow:
         elif name == "lw" and rs in facts and facts[rs][0] == "o":
             target = rt
             ptr = self.field_type(facts[rs][1], i.getProcessedImmediate())
-            out = ("o", ptr) if ptr else None
+            out = ("o", ptr) if ptr else ("p", facts[rs][1], i.getProcessedImmediate())
         elif name == "lw" and rs in facts and facts[rs][0] == "k":
             target = rt
             ptr = self.global_type(facts[rs][1] + i.getProcessedImmediate())
@@ -212,6 +214,13 @@ def main():
         if chain:
             base_of.setdefault(last, collections.Counter())[chain[-1]] += 1
     parent = {v: c.most_common(1)[0][0] for v, c in base_of.items()}
+    # An inlined destructor stores derived then base, the reverse of a constructor, so two classes can claim each other: the base
+    # is the one with a constructor that stores only itself
+    for v in list(parent):
+        p = parent.get(v)
+        if p and parent.get(p) == v:
+            alone = [k for k, vts in stored.items() if set(vts) == {v} and not any(c in stored for c in calls_this.get(k, []))]
+            del parent[v if alone else p]
 
     def ancestors(v):
         out, seen = [v], {v}
@@ -263,34 +272,73 @@ def main():
             this[key] = c
             how[key] = "slot"
 
-    # 3. Pointer fields and globals, from RAM: per class, offset -> classes pointed at
+    # 3. Pointer fields and globals, from RAM. An object reaches as far as its class's code does (objects can hold objects)
+    def scan_fields(flow_class):
+        fields = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+        examples = collections.defaultdict(lambda: collections.defaultdict(list))
+        pointer_used = set()
+        for key, x in funcs.items():
+            m = by_name[key[0]]
+            fl = flow_class(m, x, starts[m.name])
+            entry = {A0: ("o", this[key])} if key in this else {}
+
+            def visit(a, i, name, facts, key=key):
+                kind = LOADS.get(name) or STORES.get(name)
+                if not kind:
+                    return
+                rs = i.getRaw() >> 21 & 31
+                fact = facts.get(rs)
+                if fact and fact[0] == "p":
+                    pointer_used.add((fact[1], fact[2]))
+                if not fact or fact[0] != "o":
+                    return
+                off = i.getProcessedImmediate()
+                if not 0 <= off < MAX_FIELD:
+                    return
+                write = name in STORES
+                fields[fact[1]][off][(kind[0], kind[1], write)] += 1
+                ex = examples[fact[1]][off]
+                if len(ex) < 6:
+                    ex.append(f"{key[0]} {key[1]:x}")
+
+            fl.run(entry, visit)
+        return fields, examples, pointer_used
+
+    first, _ex, _p = scan_fields(Flow)
+    extent = {}
+    for v in vtables:
+        e = 0x10
+        for a in ancestors(v):
+            for off, c in first.get(a, {}).items():
+                e = max(e, off + max(k[1] for k in c))
+        extent[v] = e
+
     pointers = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    embedded = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
     global_ptr = collections.defaultdict(collections.Counter)
     instances = collections.Counter()
-    sizes = collections.defaultdict(list)
     for snap in snaps:
         with open(snap, "rb") as f:
             ram = f.read()
         words = struct.unpack(f"<{len(ram) // 4}I", ram[:len(ram) & ~3])
-        objs = {}
-        for i, w in enumerate(words):
-            if w in vtables:
-                objs[RAM + i * 4] = w
-        order = sorted(objs)
-        for n, at in enumerate(order):
-            cls = objs[at]
+        objs = {RAM + i * 4: w for i, w in enumerate(words) if w in vtables}
+        covered = bytearray(len(words))
+        for at, cls in objs.items():
             instances[cls] += 1
-            limit = order[n + 1] if n + 1 < len(order) else at + 0x4000
-            sizes[cls].append(limit - at)
             i0 = (at - RAM) // 4
-            for j in range(1, min((limit - at) // 4, MAX_FIELD // 4)):
+            n = extent[cls] // 4
+            covered[i0:i0 + n] = b"\1" * len(covered[i0:i0 + n])
+            for j in range(1, n):
+                if i0 + j >= len(words):
+                    break
                 w = words[i0 + j]
                 if w in objs:
                     pointers[cls][j * 4][objs[w]] += 1
-        # globals: below the heap, words that point at an object
-        for i in range(0, (0x09000000 - RAM) // 4):
+                elif w in vtables:
+                    embedded[cls][j * 4][w] += 1
+        for i in range(0, (0x09000000 - RAM) // 4):     # below the heap, outside any object
             w = words[i]
-            if w in objs:
+            if w in objs and not covered[i]:
                 global_ptr[RAM + i * 4][objs[w]] += 1
     field_ptr = {}
     for cls, offs in pointers.items():
@@ -298,11 +346,11 @@ def main():
             c = lub(seen)
             if c:
                 field_ptr[(cls, off)] = c
-    # a global: only outside any object, seen pointing at one class family in every snapshot it appears in
+    # a global: the same class family every time, in several snapshots
     global_type = {}
     for addr, seen in global_ptr.items():
         c = lub(seen)
-        if c and sum(seen.values()) >= max(1, len(snaps) - 1):
+        if c and sum(seen.values()) >= 3:
             global_type[addr] = c
 
     # 4. Code that never ran: callers that all pass one class in a0. Each caller's a0 tracked from its own `this`/fields.
@@ -345,31 +393,7 @@ def main():
             break
 
     # 5. Fields
-    fields = collections.defaultdict(lambda: collections.defaultdict(lambda: collections.Counter()))
-    examples = collections.defaultdict(lambda: collections.defaultdict(list))
-    for key, x in funcs.items():
-        m = by_name[key[0]]
-        fl = TypedFlow(m, x, starts[m.name])
-        entry = {A0: ("o", this[key])} if key in this else {}
-
-        def visit(a, i, name, facts, key=key):
-            kind = LOADS.get(name) or STORES.get(name)
-            if not kind:
-                return
-            rs = i.getRaw() >> 21 & 31
-            fact = facts.get(rs)
-            if not fact or fact[0] != "o":
-                return
-            off = i.getProcessedImmediate()
-            if not 0 <= off < MAX_FIELD:
-                return
-            write = name in STORES
-            fields[fact[1]][off][(kind[0], kind[1], write)] += 1
-            ex = examples[fact[1]][off]
-            if len(ex) < 6:
-                ex.append(f"{key[0]} {key[1]:x}")
-
-        fl.run(entry, visit)
+    fields, examples, pointer_used = scan_fields(TypedFlow)
 
     out = {
         "classes": {f"{v:08X}": {
@@ -377,9 +401,11 @@ def main():
             "slots": len(vtables[v]),
             "ctors": ctors.get(v, []),
             "instances": instances.get(v, 0),
-            "min_gap": min(sizes[v]) if sizes.get(v) else None,
+            "extent": extent[v],
+            "embedded": {f"{off:x}": f"{c.most_common(1)[0][0]:08X}" for off, c in sorted(embedded.get(v, {}).items())},
             "fields": {f"{off:x}": {"access": [[k[0], k[1], k[2], n] for k, n in sorted(c.items())],
                                     "pointer": f"{field_ptr[(v, off)]:08X}" if (v, off) in field_ptr else None,
+                                    "deref": (v, off) in pointer_used,
                                     "seen_in": examples[v][off]}
                        for off, c in sorted(fields.get(v, {}).items())},
             "pointer_only": {f"{off:x}": f"{p:08X}" for (w, off), p in sorted(field_ptr.items())
