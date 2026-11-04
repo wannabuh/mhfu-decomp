@@ -1,0 +1,271 @@
+[[function]]
+module = "lobby_task"
+address = "09A7D520"
+name = "lobby_array_8x84_shift_down_clear_field_420"
+purpose = "Copies entries 1 to 7 of an array of 8 0x84-byte entries down one place, then zeroes the first word of entry 7 and the word at +0x420."
+confidence = "inferred"
+evidence = "Eight copy blocks of 0x21 words; +0x420 is the step counter of its trace caller 09A7DA00, which calls it on the last step."
+
+[[function]]
+module = "lobby_task"
+address = "09A7DA00"
+name = "lobby_hunter_equipment_reload_step"
+purpose = "Runs one step, chosen by counter +0x420, of reloading hunter slot 0's equipment: compares and loads six part files and the weapon file into slot group 1, swaps file groups, rebuilds the model and equipment state, then refreshes the player record and shifts the array at the object's start."
+confidence = "inferred"
+evidence = "Calls hunter_files_load_part_forward, file_slots_load_group_slot6, file_slots_swap_groups, model_parts_setup_all and hunter_copy_equipment_from_game; flag mask 0x4 is set on the hunter around the swap step."
+
+[[function]]
+module = "lobby_task"
+address = "09A7E6D8"
+name = "lobby_clear_bytes_20_21"
+purpose = "Zeroes bytes +0x20 and +0x21 of the object passed."
+confidence = "inferred"
+evidence = "Two byte stores; callers seen pass global DAT_09b23798."
+
+[[function]]
+module = "lobby_task"
+address = "09A7E6E8"
+name = "shop_item_menu_tick"
+purpose = "Advances the item shop flow by step byte +0x20: sets up mode 0 and its stock list, waits on 09A9F1C0, runs the menu, starts 09A9F940 with 0xD or 2 by byte +0x480 of the object at +4, waits again, then copies the stored pouch to the active one and closes."
+confidence = "inferred"
+evidence = "Ran only in the shops recording; its callees build a priced item list and commit zenny trades."
+
+[[function]]
+module = "lobby_task"
+address = "09A7E858"
+name = "shop_menu_close_end_camera_focus"
+purpose = "Zeroes +0 and +2 of global DAT_09b22e70, sets its +0x1A to 0x14, ends the camera focus target and zeroes step byte +0x20."
+confidence = "inferred"
+evidence = "Final step of 09A7E6E8, calls camera_end_focus_target; 09AA1B18 also calls it in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09A7E8B8"
+name = "shop_item_menu_update_and_draw"
+purpose = "Runs the item shop's sub-state machine on byte +0x21 (tab select, tab animation, item list, quantity, confirm, and sub-state 10), commits the trade on confirm, draws both menu layers, and returns 3 when the tab select backs out, otherwise 2."
+confidence = "inferred"
+evidence = "Switch calls the input handlers, 09A7FE08 and the draw functions 09A80660 and 09A80A68."
+
+[[function]]
+module = "lobby_task"
+address = "09A7EB20"
+name = "shop_menu_tab_input"
+purpose = "Handles the tab level: button mask 0x4000 sets timer +0x18 to 6 and returns 0, mask 0x2000 returns 3, otherwise moves the cursor byte picked by sub-state (+0x24, +0x25 or +0x26) through 09A7BF60 and returns 2."
+confidence = "inferred"
+evidence = "Button tests and the sub-state to cursor byte mapping; the same bytes select the highlighted bar in 09A80B48."
+
+[[function]]
+module = "lobby_task"
+address = "09A7EC10"
+name = "shop_menu_tab_open_anim_tick"
+purpose = "Decrements timer +0x18; on reaching 0 clears row cursor +0x3C, resets the timer to 6 and returns 1, otherwise returns 0."
+confidence = "inferred"
+evidence = "Used for sub-state 4, whose bar positions 09A80B48 interpolates from this timer over 6 frames."
+
+[[function]]
+module = "lobby_task"
+address = "09A7EC70"
+name = "shop_item_list_input"
+purpose = "Handles the item list: mask 0x2000 steps page byte +0x22 back or returns 3, mask 0x4000 returns 0 if the entry's state is 0 or else 1, the cursor helpers move row +0x3C and page +0x32 and recompute index +0x40, mask 0x8000 advances +0x22, and mask 1 on tab 1 of mode 0 opens sub-state 10."
+confidence = "inferred"
+evidence = "Uses menu_cursor_move_vertical_wrap and menu_cursor_move_horizontal_wrap, index = row + page * 8, and entry fields +8 and +0xC."
+
+[[function]]
+module = "lobby_task"
+address = "09A7EF20"
+name = "shop_confirm_dialog_input"
+purpose = "Handles the two-option prompt on cursor +0x28: mask 0x4000 returns 0 on option 0 and 3 on option 1, mask 0x2000 moves to option 1 or returns 3 if already there, masks 0x80 and 0x20 pick options 0 and 1."
+confidence = "inferred"
+evidence = "Return 0 leads 09A7E8B8 to commit the trade with 09A7FE08; return 3 goes back to the list."
+
+[[function]]
+module = "lobby_task"
+address = "09A7F028"
+name = "shop_item_menu_set_tab_label_table"
+purpose = "Stores the address of table DAT_09b05300 in field +0xC."
+confidence = "inferred"
+evidence = "09A80B48 reads +0xC as an array of text ids for the bars it draws."
+
+[[function]]
+module = "lobby_task"
+address = "09A7F038"
+name = "shop_item_list_build"
+purpose = "Clears and fills the 0x10-byte list entries at +0x6C for the current tab: tab 1 from the 0x18 stored pouch slots at sell-side prices, tabs 0 and 2 from the 0xFFFF-ended stock list at +0x14 with halved prices when 09A7FDD8 is true; sets each entry's state, the message at +8, count +0x48 and page count +0x34."
+confidence = "inferred"
+evidence = "Reads game +0x43C8 slots and item table 0899D2C4/0899D2C8; 09A7F600 and 09A7FE08 use the entries as prices and ids."
+
+[[function]]
+module = "lobby_task"
+address = "09A7F600"
+name = "shop_quantity_input"
+purpose = "Handles the quantity prompt on field +0x44: mask 0x4000 sets the confirm prompt and returns 0, mask 0x2000 returns 3, mask 0x40 decrements to no less than 1, mask 0x10 increments if allowed, mask 0x80 sets 1, mask 0x20 raises it to the highest allowed."
+confidence = "inferred"
+evidence = "Bound checks through 09A7FA60 for each step; caller moves to the confirm sub-state on return 0."
+
+[[function]]
+module = "lobby_task"
+address = "09A7FA60"
+name = "shop_can_trade_quantity"
+purpose = "Returns 1 if the given quantity of an item can be traded on the current tab: tab 1 needs a stored pouch slot with enough, tab 2 needs item box room and enough money, tab 0 needs pouch room and enough money."
+confidence = "inferred"
+evidence = "Checks item_pouch_saved_room_for, item_box_room_capped, stored slots at game +0x43C8 and 09A80100."
+
+[[function]]
+module = "lobby_task"
+address = "09A7FCD0"
+name = "shop_set_quantity_prompt_text"
+purpose = "Sets message +8 to the text from DAT_09b0530A on tab 1 or from DAT_09b05308 on tabs 0 and 2."
+confidence = "inferred"
+evidence = "Called in 09A7E8B8 just before the quantity sub-state; 09A818B8 draws +8 in its window."
+
+[[function]]
+module = "lobby_task"
+address = "09A7FD50"
+name = "shop_select_stock_list"
+purpose = "Stores in +0x14 the list returned by 09A803F8, 09A803C0 or 09A802A0 for byte +0x480 of the object at +4 being 0x12, 0x04 or 0x01."
+confidence = "inferred"
+evidence = "09A7F038 reads +0x14 as item ids ending in 0xFFFF."
+
+[[function]]
+module = "lobby_task"
+address = "09A7FDD8"
+name = "shop_half_price_applies"
+purpose = "Returns 1 when byte +0x480 of the object at +4 is 4 and game byte +0x44BD is 3 or 4."
+confidence = "inferred"
+evidence = "09A7F038 and 09A80100 shift the buy price right by 1 when it is true."
+
+[[function]]
+module = "lobby_task"
+address = "09A7FE08"
+name = "shop_commit_item_trade"
+purpose = "Commits the selected entry at quantity +0x44: tab 1 adds zenny and removes the items, tab 2 pays and adds to the item box, tab 0 pays and marks ids in the 033D-035B range obtained or adds other items to the stored pouch; then copies the stored pouch to the active one."
+confidence = "confirmed"
+evidence = "Calls gamedata_add_zenny_clamped with + or - quantity * price, item_box_add, item_mark_obtained and item_pouch_saved_add_count; ran only in shops."
+
+[[function]]
+module = "lobby_task"
+address = "09A80078"
+name = "shop_menu_init_state"
+purpose = "Zeroes the 0x14-byte block in DAT_09b22e70 and the menu's cursor and flag fields, points +0x10 at the list storage at +0x6C, stores the active hunter at +0 and that hunter's +0x2F4 at +4."
+confidence = "inferred"
+evidence = "First step of 09A7E6E8; hunter_manager_get_slot with game byte +0x28."
+
+[[function]]
+module = "lobby_task"
+address = "09A80100"
+name = "shop_can_afford_quantity"
+purpose = "Returns 1 if quantity times the item's buy price, halved per unit when 09A7FDD8 is true, is within the game money field per 09A801E0."
+confidence = "inferred"
+evidence = "Reads the price from item table 0899D2C4 and calls 09A801E0."
+
+[[function]]
+module = "lobby_task"
+address = "09A801E0"
+name = "shop_money_at_least"
+purpose = "Returns 1 if the game field +0x696F0 is at least the amount passed in a1."
+confidence = "inferred"
+evidence = "Callers pass quantity * price; 09A90958 prints the same field in a window."
+
+[[function]]
+module = "lobby_task"
+address = "09A80200"
+name = "item_id_in_033f_035b"
+purpose = "Returns 1 if the id in a1 is in the range 0x33F to 0x35B."
+confidence = "confirmed"
+evidence = "Two range comparisons; callers pass list item ids."
+
+[[function]]
+module = "lobby_task"
+address = "09A80230"
+name = "item_id_is_033d_or_033e"
+purpose = "Returns 1 if the id in a1 is 0x33D or 0x33E."
+confidence = "confirmed"
+evidence = "Two equality comparisons; callers pass list item ids."
+
+[[function]]
+module = "lobby_task"
+address = "09A80260"
+name = "shop_list_rows_on_current_page"
+purpose = "Returns the row count of page +0x32 for 8 rows a page: 8 when the list +0x48 reaches past that page, otherwise count modulo 8."
+confidence = "confirmed"
+evidence = "Direct arithmetic; 09A7EC70 passes the result as the row cursor's limit."
+
+[[function]]
+module = "lobby_task"
+address = "09A802A0"
+name = "shop_stock_list_for_field_480_0x01"
+purpose = "Returns the entry of PTR_DAT_09b070a8 chosen by the first of f_overlay_9C19180 ids 10, 8, 7, 6, 5, 4, 2 that returns 1, giving index 7 down to 1, or 0 if none."
+confidence = "inferred"
+evidence = "Chain of calls and table return; 09A7FD50 uses it when byte +0x480 is 1."
+
+[[function]]
+module = "lobby_task"
+address = "09A80660"
+name = "shop_menu_draw_main_layer"
+purpose = "Sets the draw list from the argument and pushes 2D UI state, then below sub-state 6 draws only the bars, and from sub-state 6 unless flag mask 0x10 draws the view chosen by +0x29 and the message window unless flag mask 0x40, then the bars and cursor sprite unless +0x29 is 4."
+confidence = "inferred"
+evidence = "Calls 09A81220, 09A818B8, 09A80B48, menu_draw_zenny_window and menu_draw_equipment_compare_pair."
+
+[[function]]
+module = "lobby_task"
+address = "09A80A68"
+name = "shop_menu_draw_second_layer"
+purpose = "Sets the draw list from the argument and pushes 2D UI state, then calls 09A81180 when sub-state +0x21 is above 5 and view +0x29 is not 4 or 5."
+confidence = "inferred"
+evidence = "Called with 2 right after 09A80660 with 1 in 09A7E8B8."
+
+[[function]]
+module = "lobby_task"
+address = "09A80B48"
+name = "shop_menu_draw_tab_bars"
+purpose = "Draws the bar labels from table +0xC: all bars in sub-states 1 to 3, an interpolation over timer +0x18 between the list and the single selected bar in sub-states 4 and 5, otherwise only the selected bar."
+confidence = "inferred"
+evidence = "menu_draw_bar_with_end_cap and text_printf_at in loops up to count +0x27; selected index from +0x24, +0x25 or +0x26 by flag masks 0x2 and 0x1."
+
+[[function]]
+module = "lobby_task"
+address = "09A81180"
+name = "shop_menu_draw_second_layer_by_mode"
+purpose = "Calls the draw function for mode +0x23: 09A82F08 for 0, 09A838E0 for 1, 09A83CD8 for 2, and 09A844D8 or 09A84E08 for 3 depending on byte +0x25."
+confidence = "inferred"
+evidence = "Plain dispatch from 09A80A68."
+
+[[function]]
+module = "lobby_task"
+address = "09A81220"
+name = "shop_item_list_draw_page"
+purpose = "Draws the list frame, the page counter if there are pages, and up to 8 rows of page +0x32: a placeholder string for state 2 entries, otherwise name, price and icon, with text colour 10 for entries whose state is not 0."
+confidence = "inferred"
+evidence = "menu_list_draw and menu_draw_page_counter_with_arrows; row loop over 0x10-byte entries from +0x10."
+
+[[function]]
+module = "lobby_task"
+address = "09A81488"
+name = "shop_list_draw_row_icon"
+purpose = "Draws a list row's icon for mode +0x23 using the item or equipment icon routines, in modes 2 and 3 swapping to a fixed sprite when game_nibble_flag_test passes and field +0xF7A554 of DAT_08a632c0 has mask 0x10 set."
+confidence = "inferred"
+evidence = "Calls menu_draw_item_icon_weapon_check, menu_draw_equipment_icon and hud_draw_sprite_tinted_flipped with row coordinates; callers 09A81220 and 09A825B8."
+
+[[function]]
+module = "lobby_task"
+address = "09A818B8"
+name = "shop_draw_message_window"
+purpose = "Draws the window with message +8, replacing its last dollar sign with quantity * entry price, adds the confirm option text from cursor +0x28 when flag mask 0x8 is set, then calls 09A81A68."
+confidence = "inferred"
+evidence = "str_rchr with 0x24, libc_sprintf, str_cat and menu_draw_window_with_title."
+
+[[function]]
+module = "lobby_task"
+address = "09A81A68"
+name = "shop_draw_window_extras_by_mode"
+purpose = "Draws extras over the message window for mode +0x23 and sub-state +0x21, such as the quantity selector in sub-state 7 of modes 0 and 3, and calls 09A82078 under flag mask 0x4 or sub-state 0xB."
+confidence = "inferred"
+evidence = "Branches call 09A81E10, 09A82190, 09A82078 and text_printf_with_escapes_at; only caller seen is 09A818B8."
+
+[[function]]
+module = "lobby_task"
+address = "09A81E10"
+name = "shop_draw_quantity_selector"
+purpose = "Draws quantity +0x44 as two digit texts, a sprite when one more is allowed (09AA91F8 for mode 3, 09A7FA60 for mode 0), and a second sprite when the quantity is above 1."
+confidence = "inferred"
+evidence = "Digits from table DAT_09b04F08 by /10 and %10; two hud_draw_sprite_stretched_rgba_flipped calls."

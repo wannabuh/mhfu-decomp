@@ -1,0 +1,239 @@
+[[function]]
+module = "em20"
+address = "09D1A300"
+name = "em20_init_fields_then_set_state_00_01"
+purpose = "Runs 09D1A348 and then calls vtable +0x88 with group 0, state 1, mode 0."
+confidence = "inferred"
+evidence = "Body is those two calls; slot +0x74 of vtable 089BBBAC, called once in traces from entity_tick_stage0_init at frame 2250."
+
+[[function]]
+module = "em20"
+address = "09D1A348"
+name = "em20_init_fields_health_and_start_motion_01"
+purpose = "Sets masks 0x8, 0x10 and 0x100 in +0x572, starts type-table motion record 1, sets health +0x2E4 and max health +0x41E from entity_scaled_health_from_type_table, and writes starting values to +0x280, +0x3D0, +0x4B5, +0x4B6, +0x52D, +0x76A, +0x7B0..+0x7B8, +0x7C6..+0x7C9, +0x7DB, +0x7DC and +0x7E0."
+confidence = "inferred"
+evidence = "Direct field writes and named callees; ran once, called from 09D1A300."
+
+[[function]]
+module = "em20"
+address = "09D1A418"
+name = "em20_tick_apply_damage_result_then_run_state"
+purpose = "Per-frame update: ticks the alert timer and +0x576 countdown, clears or toggles byte +0x7C8, reduces +0x494 and +0x498 through 09AD3470, 09AD3558 and 09AD3638 when mask 0x20 of +0x638 is clear and +0x52D is not 1 by the mapped game +0x6AF10 value, counts down +0x7C6, switches on the code from entity_apply_pending_damage_and_choose_result_code to set states of groups 0, 4, 5 and 6 (for types 0x14 and 0x27 picking by health bands of max health), then for short +0x6AF12 values 0x277E and 0x27E5 may set a group 6 state and otherwise runs 09AD8378, and runs state dispatcher 09D1B538, a second time if +0x4B7 is set."
+confidence = "inferred"
+evidence = "Slot +0x7C of vtable 089BBBAC, called from entity_tick_stage1_active across frames 2250-8010; switch on the damage result code and tail call of 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D1B600"
+name = "em20_set_state_run_group_setup_and_remove_pickup_point"
+purpose = "Vtable +0x88 set-state: returns early for mode 3 or 4 when +0x6DB is 0, otherwise resets the type block, clears +0x7C8, removes the pickup point in +0x7C9 if one is set, redirects to group 3 state 7 when +0x6DB is set, the group is not 4 or 5 and the object is in state 3/9 or 3/4, then runs the setup for groups 0 to 4 or the inline setup for groups 5 to 7 (group 7 state 0x10 also sets +0x280 to 2 and height +0x204 from an area table)."
+confidence = "inferred"
+evidence = "Slot +0x88 of vtable 089BBBAC; calls pickup_point_remove and the per-group setups; many callers issue (group, state, mode) through this slot."
+
+[[function]]
+module = "em20"
+address = "09D1B888"
+name = "em20_set_state_group_00_setup"
+purpose = "Sets +0x4B0 to 1.0, runs a per-state helper for states 0x12 to 0x24 and 0x28 (10000 passed to 09AD8880), remaps state 0xB to 1 for types 0x14 and 0x27 and state 1 to 0x11 when +0x4B9 is 1, clears +0x5F2 for state 8, clears +0x280, then sets group 0 with the resulting state."
+confidence = "inferred"
+evidence = "Called from case 0 of 09D1B600; ends in entity_set_state_by_global_flag_and_mode with group 0."
+
+[[function]]
+module = "em20"
+address = "09D1BA88"
+name = "em20_set_state_group_01_setup_move_distance_and_timer"
+purpose = "Clears +0x280, sets +0x4B0 to 1.0 (0.8 for states 8, 0xC and 0xE), and for most states sets the move distance through object_init_move_distance_to_target when +0x50A is nonzero and timer +0x414 from +0x76C or +0x322; state 0 turns into state 6 when health is below max health times the type ratio, state 1 only sets +0x4B5 and states 9 and unlisted ones set no state, and the rest set group 1."
+confidence = "inferred"
+evidence = "Called from case 1 of 09D1B600; switch body and the final entity_set_state_by_global_flag_and_mode call with group 1."
+
+[[function]]
+module = "em20"
+address = "09D1BD98"
+name = "em20_set_state_group_02_setup_target_and_timer"
+purpose = "Sets +0x4B0 to 1.0 and per state may fill the target spec +0x504/+0x506/+0x508, resolve target +0x5D0, set speed +0x248 and set timer +0x414 from the distance to the target, changing state 1 to 0x12 when +0x6DB is set and speed is at least 50, redirecting states 8 and 0xD to state 0 when +0x6DB is set and +0x506 is not 3, then sets group 2; unlisted states set nothing."
+confidence = "inferred"
+evidence = "Called from case 2 of 09D1B600; calls monster_script_resolve_target_position and uses XZ distance from +0x200 to +0x5D0 for the timer."
+
+[[function]]
+module = "em20"
+address = "09D1C6D8"
+name = "em20_set_state_02_0e_or_02_0f_by_arg"
+purpose = "Sets +0x4B5 to 1 and +0x4B0 to 1.0, then calls vtable +0x88 with group 2 and state 0xF when the argument is 1 or state 0xE when it is 0; other values set no state."
+confidence = "confirmed"
+evidence = "The whole body; traces show it calling 09D1B600 from 09D1F580."
+
+[[function]]
+module = "em20"
+address = "09D1C890"
+name = "em20_run_state_group_00"
+purpose = "Calls the handler for state byte +0x299 of group 0, with no handler for states 0x1E, 0x20, 0x23, 0x25, 0x26, 0x27 or above 0x28."
+confidence = "confirmed"
+evidence = "Switch on +0x299 only; case 0 of the +0x298 switch in 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D1CBD8"
+name = "em20_state_00_01_play_motion_01_then_default_state"
+purpose = "State 0/1: on substate 0 clears +0x280 and mask 0x2 of +0x410 and starts motion table entry 1; on substate 1, when +0x6DB is set and mask 0x1 of +0xBC is clear, leaves through 09D1C6D0 to the default state."
+confidence = "inferred"
+evidence = "Substate switch on +0x1D5; 09D1C6D0 only calls 09D29270; ran across frames 2330-7980."
+
+[[function]]
+module = "em20"
+address = "09D1CE18"
+name = "em20_state_00_05_motion_18_layer_loop_and_sound"
+purpose = "State 0/5: starts motion table entry 0x18 plus motions 0x3E9 on layer 0 and 0x579 on layer 2, keeps layers 0 and 2 restarted through 09D1EB68, passes frame 0x20, value 0x2F and bone 0x23 of layer 1 to 09D2C670 which plays a sound, and leaves to the default state when mask 0x1 of +0xFC clears."
+confidence = "inferred"
+evidence = "Same substate shape as 09D1CF08; 09D2C670 calls entity_play_sound_3d_if_29a_matches_game at a motion frame."
+
+[[function]]
+module = "em20"
+address = "09D1CF08"
+name = "em20_state_00_06_motion_19_layer_loop_and_sounds"
+purpose = "State 0/6: starts motion table entry 0x19 plus motions 0x3E9 on layer 0 and 0x579 on layer 2, keeps layers 0 and 2 restarted through 09D1EB68, passes frame 0x20 value 0x20 and frame 0xA0 value 0x17 with bone 0x23 of layer 1 to 09D2C670 which plays a sound, and leaves to the default state when mask 0x1 of +0xFC clears."
+confidence = "inferred"
+evidence = "Differs from 09D1CE18 only in the motion entry and sound calls; ran only at frames 7980-8010 of misc."
+
+[[function]]
+module = "em20"
+address = "09D1D800"
+name = "em20_state_00_0f_motion_sequence_50_01_51_01"
+purpose = "State 0/0xF: plays motion table entries 0x50, 1, 0x51 and 1 in turn, moving on when mask 0x1 of +0xBC clears (after 0x50 and 0x51) or byte +0xBE reaches 0 (after each entry 1), then leaves to the default state."
+confidence = "inferred"
+evidence = "Substates 0-4 of +0x1D5 with these motion table calls."
+
+[[function]]
+module = "em20"
+address = "09D1EB68"
+name = "em20_restart_layer_motion_when_mask_1_clear"
+purpose = "When mask 0x1 of the layer's motion flag (+0xBC + layer * 0x40) is clear, starts on layer 0, 1 or 2 motion 0x3E9, 0x4B1 or 0x579 with blend 10 through entity_motion_play_id_on_layer."
+confidence = "inferred"
+evidence = "Full body; called each tick from 09D1CE18 and 09D1CF08 for layers 0 and 2."
+
+[[function]]
+module = "em20"
+address = "09D1EBF8"
+name = "em20_run_state_group_01"
+purpose = "Calls the handler for state byte +0x299 of group 1, sending states 4, 8, 0xB, 0xC, 0xD, 0xE and 0xF to 09D1EF78."
+confidence = "confirmed"
+evidence = "Switch on +0x299 only; case 1 of the +0x298 switch in 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D1ED30"
+name = "em20_state_01_00_motion_03_until_timer_or_move_distance_done"
+purpose = "State 1/0: starts motion table entry 3, then leaves to the default state when timer +0x414 falls below 1 (when +0x637 is 0) or object_advance_move_distance returns 1 (when +0x637 is set)."
+confidence = "inferred"
+evidence = "Substate switch; timer and move distance match the setup in 09D1BA88 case 0."
+
+[[function]]
+module = "em20"
+address = "09D1EED0"
+name = "em20_state_01_03_turn_toward_target_then_default_state"
+purpose = "State 1/3: starts a turn motion toward the target from struct 09D327D8, then when object_update_turn_motion_to_saved_yaw returns 1 clears mask 0x20000 through object_clear_flags_288 and leaves to the default state."
+confidence = "inferred"
+evidence = "Calls object_start_turn_motion_toward_target and object_update_turn_motion_to_saved_yaw with the same struct."
+
+[[function]]
+module = "em20"
+address = "09D1F3B8"
+name = "em20_run_state_group_02"
+purpose = "Calls the handler for state byte +0x299 of group 2, for states 0 to 0x18."
+confidence = "confirmed"
+evidence = "Switch on +0x299 only; case 2 of the +0x298 switch in 09D1B538."
+
+[[function]]
+module = "em20"
+address = "09D1F580"
+name = "em20_state_02_00_take_off_motion_12_curve_02"
+purpose = "State 2/0: starts motion table entry 0x12 and velocity curve 2 and clears +0x7D8, at layer 0 frame 38 sets +0x280 to 2, steps the curve, and when 09D22440 returns nonzero enters state 2/0xE."
+confidence = "inferred"
+evidence = "Sets +0x280 to 2, the value 09D1F678 clears when landing; goes on to state 2/0xE, which holds +0x280 at 2; ran frames 5030-7300 of misc."
+
+[[function]]
+module = "em20"
+address = "09D1F678"
+name = "em20_state_02_01_descend_and_land_with_camera_shake"
+purpose = "State 2/1: sets +0x280 to 2, motion table entry 0xF and a downward +0x244 worked out from the height above floor +0x2CC + 1000, moves each tick, and once below floor + +0x224 * 630 at layer 0 frame 10, 86 or 160 starts entry 0xB with a speed reaching the floor in 30 frames; after timer +0x414 starts entry 0x13, snaps height +0x204 to the floor, clears +0x280 and starts a camera shake, then leaves to the default state when mask 0x1 of +0xBC clears."
+confidence = "inferred"
+evidence = "Height compared with floor +0x2CC, final snap to +0x2CC, +0x280 back to 0 and camera_start_shake_from_object."
+
+[[function]]
+module = "em20"
+address = "09D20478"
+name = "em20_state_02_08_rise_leave_area_and_change_area"
+purpose = "State 2/8: sets +0x280 to 2, motion table entry 0xF and upward speed, aims +0x5D0 at the edge point toward area +0x2E0, climbs until reaching its height, then steers with speed 50 and entry 0xC until map_table_pos_within_inset_bounds returns 0 for the area, then moves to area +0x2E0 at the rectangle edge, starts a minimap pulse, and enters state 2/9 when +0x540 equals +0x2E0 or is -1, otherwise enters state 2/0xD (when +0x6DB is set first copying +0x540 to +0x2E0 and +0x504 and resolving the target); substate 5 repeats substate 4 when timer +0x414 runs out with +0x6DB set."
+confidence = "inferred"
+evidence = "Calls map_area_edge_point_toward_area_2e0, map_table_pos_within_inset_bounds, entity_move_to_area_2e0_at_rect_edge and minimap_start_monster_pulse."
+
+[[function]]
+module = "em20"
+address = "09D20778"
+name = "em20_state_02_09_steer_to_target_then_state_02_01"
+purpose = "State 2/9: sets +0x280 to 2, motion table entry 0xF, speed +0x248 of 80, yaw +0x1F4 straight at +0x5D0, +0x540 to -1, +0x7B4 to 0x100 and +0x7D8 to 1, then steers and moves each tick until XZ distance to +0x5D0 is at most 1000 or timer +0x414 falls below 0, enters state 2/1, and while +0x6DB is set repeats a vtable +0x88 call with unread arguments whenever the 600-frame timer runs out."
+confidence = "inferred"
+evidence = "Uses entity_steer_bank_height_speed_from_params and XZ distance check; the state 2/1 call has literal arguments (2, 1, 1)."
+
+[[function]]
+module = "em20"
+address = "09D21138"
+name = "em20_state_02_0e_motion_0f_with_keyframed_vertical_speed"
+purpose = "State 2/0xE: sets +0x280 to 2, starts motion table entry 0xF, clears +0x7D8, each tick applies keyframe table 1 of 09D22338 and when mask 0x1 of +0xBC clears re-enters state 2/0xE through 09D1C6D8, and keeps height +0x204 at or above floor +0x2CC."
+confidence = "inferred"
+evidence = "Full body; 09D22338 writes +0x244 from keyframes; the height clamp is at the end."
+
+[[function]]
+module = "em20"
+address = "09D216B8"
+name = "em20_state_02_12_level_angles_curve_09_then_state_02_01"
+purpose = "State 2/0x12: sets +0x280 to 2, starts motion table entry 0x5A and velocity curve 9, clears +0x7D8, each tick moves angles +0x1F0 and +0x1F8 toward 0 by rates +0x7B0 and +0x7B8 and steps the curve, when 09D22440 returns nonzero zeroes velocity, sets timer +0x414 to 300, starts entry 0xF and enters state 2/1, and in substate 2 repeats that entry and state change on timer expiry (the state only when +0x6DB is set), keeping height at or above floor +0x2CC."
+confidence = "inferred"
+evidence = "Substate switch; 09D1BD98 sends state 1 here when speed +0x248 is at least 50."
+
+[[function]]
+module = "em20"
+address = "09D22240"
+name = "em20_curve_start_by_id_and_zero_velocity"
+purpose = "Clears +0x7E8, stores curve id in +0x7EB, by id sets the use flags +0x7E9 (vertical) and +0x7EA (forward) and start position short +0x7EC, then zeroes velocity through object_zero_velocity_and_field_250."
+confidence = "inferred"
+evidence = "Flags and table id are read by 09D22440, 09D224F8 and 09D22628; only ids 2 and 9 seen in traces."
+
+[[function]]
+module = "em20"
+address = "09D22440"
+name = "em20_curve_step_and_move_when_field_280_is_2"
+purpose = "Runs the vertical (09D224F8) and forward (09D22628) keyframe curves that +0x7E9 and +0x7EA enable, returning their ORed codes, advances position +0x7EC by the int of +0x94, and when +0x280 is 2 moves through entity_add_rotated_velocity_to_position_then_add_250_to_velocity using yaw +0x1F4."
+confidence = "inferred"
+evidence = "Full body; the callees set +0x244 and +0x248 from tables indexed by curve id."
+
+[[function]]
+module = "em20"
+address = "09D224F8"
+name = "em20_curve_keyframes_set_field_244"
+purpose = "For curve id +0x7EB, walks 8-byte frame/value keyframes in table 09D324D0 to the first frame at or past position +0x7EC and sets +0x244 to the value slope per frame, returning 0; a keyframe frame of 0 lowers +0x244 by 1 while it is above -50 and returns 2, a negative frame zeroes position and +0x244 and returns 2; a null table or position 0 or 1 returns 0."
+confidence = "inferred"
+evidence = "Loop with interpolation (v1-v0)/((f1-f0)/+0x94)."
+
+[[function]]
+module = "em20"
+address = "09D22628"
+name = "em20_curve_keyframes_set_field_248"
+purpose = "For curve id +0x7EB, walks 8-byte frame/value keyframes in table 09D326B0 to the first frame at or past position +0x7EC and sets speed +0x248 to the value slope per frame, returning 0; a keyframe frame of 0 returns 4; a null table or position 0 or 1 returns 0."
+confidence = "inferred"
+evidence = "Same loop as 09D224F8 for +0x248 with a different table and end code."
+
+[[function]]
+module = "em20"
+address = "09D29270"
+name = "em20_set_default_state_00_01_or_02_02_by_field_280"
+purpose = "Sets +0x4B5 to 1 and calls vtable +0x88 with group 0 state 1 when +0x280 is 0, otherwise group 2 state 2, mode 0."
+confidence = "confirmed"
+evidence = "The whole body; called by state handlers through 09D1C6D0 in traces and calls 09D1B600."
+
+[[function]]
+module = "em20"
+address = "09D29300"
+name = "em20_motion_frame_cues_spawns_and_camera_shake"
+purpose = "Per-frame after a first tick that only sets +0x7C0: switches on motion id +0x324 (kept in +0x7C2) and at listed motion frames spawns class objects through 09B64A08, 09C8A530, 09C6F470 and 09C75600, starts camera shakes through 09D2C580, and for some cases also branches on mask 0x20 of +0x638, +0x7DB or +0x299 and scales some frames by +0x4B0, setting +0x7C8 to 1 in motion 0x453."
+confidence = "inferred"
+evidence = "Slot +0x80 of vtable 089BBBAC, called from entity_tick_by_stage; 186 motion_frame_reached calls and no direct sound call."

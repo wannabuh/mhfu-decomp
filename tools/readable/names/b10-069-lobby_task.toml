@@ -1,0 +1,231 @@
+[[function]]
+module = "lobby_task"
+address = "09A825B8"
+name = "item_equip_menu_draw_list"
+purpose = "When field +0x22 is 0, draws the page of 8 rows from the 0x10-byte entries at +0x10 (or an empty message when +0x29 is 2 and the count at +0x48 is 0), and when +0x29 is 2 and +0x25 is 0 also sets game_nibble flags 1 and 2 on each drawn entry whose flag 1 was clear."
+confidence = "inferred"
+evidence = "Paged menu_list_draw with row name, value text and 9A81488 icon; runs in shops only; nibble set is inside the row loop."
+
+[[function]]
+module = "lobby_task"
+address = "09A82F08"
+name = "item_equip_menu_draw_item_detail"
+purpose = "Draws the detail panel of the selected item entry, with page +0x22 (clamped to 1 when item_data_field_16_nonzero is false) choosing name and owned/box counts, description text, or 9A82270, plus the item icon and a line from byte 0899D2BA of its item record."
+confidence = "inferred"
+evidence = "Uses item_pouch_saved_count, item_box_total_count, item_box_room_capped and menu_draw_item_icon_weapon_check on the entry id at +0xC."
+
+[[function]]
+module = "lobby_task"
+address = "09A83CD8"
+name = "item_equip_menu_draw_equipment_detail"
+purpose = "Draws the detail panel of the selected equipment entry: with +0x4C mask 0x20 a window of up to 4 required-item rows from a table picked by +0x24, +0x25 and the kind; otherwise page +0x22 chooses f_EBOOT_8838640, the equipment compare pair, or a summary with name, box count and hints."
+confidence = "inferred"
+evidence = "menu_draw_equipment_icon, menu_draw_equipment_compare_pair, menu_draw_required_item_row, count of matching box entries via 9AA1760."
+
+[[function]]
+module = "lobby_task"
+address = "09A85528"
+name = "shop_equip_mode_create_preview_hunter"
+purpose = "Allocates and zeroes 0x1110 bytes, constructs a hunter with vtable 089BB0D8 into +0x9E0C, calls its vtable +0x10, then sets the preview-pending field +0x2B to 1 and clears +0x2C."
+confidence = "inferred"
+evidence = "hunter_construct then vtable overwrite; called on menu init state 0 of 9AA1B18; the object is later queued for rendering in 9A85C90."
+
+[[function]]
+module = "lobby_task"
+address = "09A85610"
+name = "item_equip_menu_preview_update_and_load_step"
+purpose = "Runs the preview step for stage +0x2C: stage 0 calls the preview hunter's vtable +0x14 when nothing is pending, stage 1 queues the selected entry's file load, and stages 1 and 2 wait for the loader at DAT_09b23790, then when the entry can be shown swap the hunter's parts to the entry and call 9AB5848 and 9AB5840 by the 8851E54 value, and clear +0x2B and +0x2C."
+confidence = "inferred"
+evidence = "Calls 9A7D3D8 or 9A7D470 then 9A7CAA8 poll; model_part_free_by_field_10f1 then 9AB54C8 with kind and id; 9AA2EE0 advances +0x2C."
+
+[[function]]
+module = "lobby_task"
+address = "09A85B48"
+name = "item_equip_menu_destroy_preview_hunter"
+purpose = "Frees the preview hunter's parts, calls its vtable +0x8 with 1, frees its memory and clears +0x9E0C, and unloads hunter manager slot 1 files."
+confidence = "inferred"
+evidence = "Mirror of 9A85528; called from the exit state of 9AA1B18 with heap free."
+
+[[function]]
+module = "lobby_task"
+address = "09A85BE8"
+name = "item_equip_menu_set_preview_pending"
+purpose = "Sets field +0x2B to the argument and clears the load stage +0x2C."
+confidence = "inferred"
+evidence = "Two stores; 9A85528 and 9A85C08 pass 1, the finished load in 9A85610 passes 0."
+
+[[function]]
+module = "lobby_task"
+address = "09A85BF8"
+name = "item_equip_menu_preview_load_active"
+purpose = "Returns whether the preview load stage +0x2C is nonzero."
+confidence = "inferred"
+evidence = "One comparison; 9AA2EE0 returns early on it unless the global byte +0x6ADDE is set."
+
+[[function]]
+module = "lobby_task"
+address = "09A85C08"
+name = "item_equip_menu_preview_unload_and_set_pending"
+purpose = "Frees the preview hunter's parts, unloads hunter manager slot 1 files, sets preview pending and clears field +0x9E1A."
+confidence = "inferred"
+evidence = "Calls model_part_free_by_field_10f1, hunter_manager_unload_files_for_slot and 9A85BE8(1)."
+
+[[function]]
+module = "lobby_task"
+address = "09A85C68"
+name = "ui_popup_queue_is_empty"
+purpose = "Returns 1 when ui_popup_queue_count_pending is 0."
+confidence = "inferred"
+evidence = "Single call with negated result; meaning rests on the callee's name."
+
+[[function]]
+module = "lobby_task"
+address = "09A85C90"
+name = "item_equip_menu_draw_preview_panel"
+purpose = "Draws the preview window and, when the entry count +0x48 is nonzero, either a pending prompt string or a queued render of the preview hunter or a no-preview message, plus a button bar whose label depends on the hunter's +0x10FD."
+confidence = "inferred"
+evidence = "hud_draw_window_style_40, render_queue_add_object_culled of +0x9E0C when 9AA6620 and 9AA6630 are both 0, strings otherwise."
+
+[[function]]
+module = "lobby_task"
+address = "09A86390"
+name = "quest_menu_reset_fields"
+purpose = "Zeroes the menu's fields +0x60 to +0x78 and sets +0x7C to 0xFFFF."
+confidence = "inferred"
+evidence = "Stores only; 9A98668 calls it before setting field_69 on the object that 9A863D0 runs."
+
+[[function]]
+module = "lobby_task"
+address = "09A863D0"
+name = "quest_menu_tick"
+purpose = "Per-frame state machine on +0x66 of the quest choosing dialogue: allocates tagged heap 0x19 and sets up on entry, runs row and quest selection, fee payment and further branches, and frees everything on exit, then updates dialogue text and calls 9A8BF30."
+confidence = "inferred"
+evidence = "Dispatches 9A879D0, 9A88628, 9A88BD0 and 9A876C8; runs just before quests start in small-hunt recordings (1300-1340)."
+
+[[function]]
+module = "lobby_task"
+address = "09A87360"
+name = "quest_menu_set_field_69"
+purpose = "Stores the argument byte in field +0x69, which selects the row layout and quest source of the menu."
+confidence = "inferred"
+evidence = "One store; 9A863D0, 9A87780 and 9A87B90 branch on +0x69 values 0 to 5."
+
+[[function]]
+module = "lobby_task"
+address = "09A87368"
+name = "quest_menu_update_dialogue_text"
+purpose = "Once state +0x66 is past 1, fetches the current dialogue text and calls dialogue_text_typewriter_update, with null text in states 0x12 and 0xA, nothing in the list states 2, 3, 6, 9 and 0x14 to 0x18, and in state 7 substituting +0x6C for the last dollar sign in the text."
+confidence = "inferred"
+evidence = "str_rchr 0x24 plus libc_sprintf of +0x6C, which 9A87D50 copies from the quest record's +4; state list read from the code."
+
+[[function]]
+module = "lobby_task"
+address = "09A87528"
+name = "quest_menu_mark_groups_all_flagged"
+purpose = "For each of 13 groups of 0x50 quest ids at +0x80, sets byte +0x8AD+group to 1 when the group has a nonzero id and quest_id_flag_test passes for every nonzero id, otherwise 0."
+confidence = "inferred"
+evidence = "Nested loop over stride 0xA0 groups calling quest_id_flag_test; called from state 0 of 9A863D0."
+
+[[function]]
+module = "lobby_task"
+address = "09A87608"
+name = "quest_menu_dialogue_wait_step"
+purpose = "Fetches the current dialogue text and, while substate +0x67 is 0 or 1, updates it and returns 1 and resets the substate when 9A9F5B0(dialogue, 2) is nonzero."
+confidence = "inferred"
+evidence = "dialogue_text_typewriter_update then 9A9F5B0; state 2 of 9A863D0 moves on when it returns 1."
+
+[[function]]
+module = "lobby_task"
+address = "09A876C8"
+name = "quest_menu_close_and_end_camera_focus"
+purpose = "Frees tagged heap 0x19 if +0x70 is set, frees savedata session buffers when +0x69 is 2 to 4 or above 5, closes the 9C2BA98 window, resets dialogue fields, ends camera focus and returns state +0x66 to 0."
+confidence = "inferred"
+evidence = "mem_tagged_heap_free_by_id, savedata_session_free_buffers, camera_end_focus_target; the exit of 9A863D0 states 0xB, 0xE, 0x13."
+
+[[function]]
+module = "lobby_task"
+address = "09A87780"
+name = "quest_menu_highest_unlocked_row"
+purpose = "Returns the highest allowed row: 0 when +0x69 is 5; for +0x69 under 2 a value 0 to 8 from a ladder of quest_id_flag_test ids; otherwise the global byte +0x44BC plus 2 for values 0 to 8, else 0."
+confidence = "inferred"
+evidence = "9A87BF8 accepts any row not above this value; ladder ids 0x2778 to 0x2BC1 and the +0x44BC mapping read in the code."
+
+[[function]]
+module = "lobby_task"
+address = "09A879D0"
+name = "quest_menu_row_select_input"
+purpose = "Handles input on the row list: mask 0x4000 converts the cursor to an absolute row by +0x69 and if not locked stores it in +0x6B and +0x5A and returns 0, mask 0x2000 returns 3, otherwise moves the cursor +0x62 and returns 2."
+confidence = "inferred"
+evidence = "input_get_buttons_unless_locked, sounds through 9A7BB50, and 9A87BF8 as the lock check."
+
+[[function]]
+module = "lobby_task"
+address = "09A87B90"
+name = "quest_menu_row_limit_for_field_69"
+purpose = "Returns a row limit by field +0x69: 6 for 0, 5 for 2, otherwise 3."
+confidence = "inferred"
+evidence = "Value table in the code; 9A879D0 adds 1 or 2 and passes it to the cursor move 9A7BF60."
+
+[[function]]
+module = "lobby_task"
+address = "09A87BF8"
+name = "quest_menu_row_is_locked"
+purpose = "Returns 0 when the row is at or below the highest unlocked row or is the row after the extra row (9 or 0xB) with +0x69 of 2 or more; for the extra row itself checks 9C19680 or 9C1AD10 by +0x69 and whether +0x8CA is 0; otherwise returns 1."
+confidence = "inferred"
+evidence = "9A879D0 plays sound 7 and stays on the list when this is nonzero."
+
+[[function]]
+module = "lobby_task"
+address = "09A87E08"
+name = "quest_menu_get_current_record"
+purpose = "Returns the address of the global quest record copy at 09B04040."
+confidence = "inferred"
+evidence = "Returns &DAT_09b04040, which 9A87E18 fills; callers read fee and id from it."
+
+[[function]]
+module = "lobby_task"
+address = "09A87E18"
+name = "quest_menu_copy_record_to_current"
+purpose = "Finds a quest record by id (id under 60000 through 9A88428, otherwise 9A88500), copies its fields into the global record at 09B04040, copies its 6 strings chosen by the index at DAT_08a632c0+0xF7A574 into the record's buffers, and fills in defaults and DUMMY strings when not found."
+confidence = "inferred"
+evidence = "String DUMMY, field copies, offset fixups from +0x74 or +0x78; caller 9A87D50 passes the selected id."
+
+[[function]]
+module = "lobby_task"
+address = "09A88428"
+name = "quest_table_find_by_id"
+purpose = "Walks the zero-terminated offset table at +0x70, with offsets relative to +0x74, and returns the record whose short +0x18 equals the id, or 0."
+confidence = "inferred"
+evidence = "Loop in the code; caller 9A87E18 uses it for ids under 60000."
+
+[[function]]
+module = "lobby_task"
+address = "09A885C8"
+name = "quest_flags_priority_index"
+purpose = "From the flags word at the argument returns 5 for mask 0x400000, else 4 for mask 0x10, else the highest set bit index of mask 0xF, else 0."
+confidence = "inferred"
+evidence = "Bit tests in the code; 9A8CB40 uses the result to index string table 09B05328."
+
+[[function]]
+module = "lobby_task"
+address = "09A88628"
+name = "quest_menu_quest_select_input"
+purpose = "Handles input on the quest list by substate +0x67: moves +0x60 with masks 0x20 and 0x80 and reloads the current record, cycles +0x6A with mask 0x8000, returns 3 on mask 0x2000; on mask 0x4000 either stores the quest id in global +0x6AF12 and +0x58 and returns 0, or shows a message when the requirement fails."
+confidence = "inferred"
+evidence = "Requirement check 9A888C8 on record +0x1D; wrap uses counts at +0x8BA indexed by +0x5A; state 6 of 9A863D0."
+
+[[function]]
+module = "lobby_task"
+address = "09A888C8"
+name = "quest_record_requirement_met"
+purpose = "Checks a requirement byte: values 1 to 8 pass if the global byte +0x44BC is at least that value or the second argument is 0 (0x15 acts like 3), 9 to 0x12 require a specific hunter weapon class +0x1E8, 0x13 requires 5 shorts at hunter +0x4F6 (stride 0xC) to be 0, and 0, 0x14 and unlisted values pass."
+confidence = "inferred"
+evidence = "Switch in the code; 9A88628 passes record byte +0x1D and whether the id is 60000 or more."
+
+[[function]]
+module = "lobby_task"
+address = "09A88BD0"
+name = "quest_menu_pay_fee"
+purpose = "If zenny at global +0x696F0 covers the current record's +4 value, stores it in global +0x47C, deducts it, plays sound 8 and returns 0; otherwise returns 1."
+confidence = "inferred"
+evidence = "gamedata_add_zenny_clamped with the negated value; 9A863D0 branches to a different dialogue on nonzero."

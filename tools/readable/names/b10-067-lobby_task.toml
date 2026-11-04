@@ -1,0 +1,351 @@
+[[function]]
+module = "lobby_task"
+address = "09A6DED0"
+name = "lobby_state_main_tick_net_sync_and_dispatch_requests"
+purpose = "Per-frame main state of the lobby task object: in net mode (global +0xF7A57C mask 0x1) checks the WLAN switch and may show a message and change state, syncs remote hunter slots 1-3 and sends net message 0xe on a 300-frame hunter timer, counts down manager timers, runs the scene update 09A6C280, then turns the request flags at +0x20 into the next state function at +0x2C and clears them."
+confidence = "inferred"
+evidence = "sceWlanGetSwitchState and net_build_and_send_message_by_type calls; if-chain over +0x20 masks storing member functions; caller 09A6D8E0 hands over to it"
+
+[[function]]
+module = "lobby_task"
+address = "09A71438"
+name = "lobby_state_stage_change_unload_hunters_and_stage"
+purpose = "Stepped state entered on request mask 0x1: fades sound and screen to black, cancels queued jobs and file loads, unloads hunter slots 1-5 and deletes all hunters, then at step 4 either goes to exit state 09A78618 when manager +0x24 is -1, or reads the 09B04078 table entry, unloads the stage if its id differs, writes the new id to global +0x6AF0E and stage manager +0x288, and moves to state 09A6D080."
+confidence = "inferred"
+evidence = "hunter_manager_delete_all, stage_mgr_unload and screen_fade_start_black steps; ran in shops, guild and misc, which change maps"
+
+[[function]]
+module = "lobby_task"
+address = "09A78618"
+name = "lobby_state_exit_teardown_by_mode"
+purpose = "Exit state: fades out, drains the job queue, destroys stage, hunter and object managers and frees their files, then by manager mode sets +0x11 and +0x18 on the task (0x1d gives 0xb, 0x1f gives 3, 0x29 gives 0xd), with extra network shutdown steps 4-7 when mode 0x29 is in net mode."
+confidence = "inferred"
+evidence = "Teardown calls in step 3; +0x18 values chosen from *DAT_09b22e70; runs for about 20 frames at the end of the lobby in quest recordings"
+
+[[function]]
+module = "lobby_task"
+address = "09A78AD0"
+name = "lobby_task_request_stage_change"
+purpose = "Sets request mask 0x1 in task field +0x20, and also mask 0x2 when param_2 is nonzero; the main state then leaves for a stage-change state."
+confidence = "inferred"
+evidence = "09A6DED0 turns mask 0x1 into 09A71438 or variants chosen by mask 0x2 and net mode"
+
+[[function]]
+module = "lobby_task"
+address = "09A78B10"
+name = "lobby_task_request_exit"
+purpose = "Sets request mask 0x4 in task field +0x20, which the main state turns into exit state 09A78618."
+confidence = "inferred"
+evidence = "09A6DED0 mask 0x4 branch stores 09A78618"
+
+[[function]]
+module = "lobby_task"
+address = "09A78C38"
+name = "lobby_stage_sound_tracks_load_step"
+purpose = "Per-call step: while the sound loader is idle, requests the next track file from the current stage's list (index at +0x24) and selects the track layout on the first entry; at the list's 0xffff end clears the remaining track buffers up to 0x15 and returns 1, otherwise returns 0."
+confidence = "inferred"
+evidence = "sound_request_track_file_load and sound_track_buffer_clear driven by a table picked with table_09ce4808_find_id on global +0x6AF0E"
+
+[[function]]
+module = "lobby_task"
+address = "09A78DE0"
+name = "lobby_stage_sound_slots_load_step"
+purpose = "Per-call step: while the sound loader is idle, processes the next 8-byte entry of the current stage's list (index at +0x24), clearing a sound bank when its second id is 0xffff or else queueing its ids on the slot; returns 1 at the 0xffff end, otherwise 0."
+confidence = "inferred"
+evidence = "sound_bank_clear_file_ids and sound_slot_queue_ids_request over a table picked with table_09ce4808_find_id"
+
+[[function]]
+module = "lobby_task"
+address = "09A79298"
+name = "lobby_asset_slot_1_load_for_id_0x0d_or_0x2e"
+purpose = "Starts an asset load into slot 1 of file 0x1519 for id 0xd or file 0x151b for id 0x2e; does nothing for other ids."
+confidence = "inferred"
+evidence = "asset_slot_start_load with two fixed file ids"
+
+[[function]]
+module = "lobby_task"
+address = "09A79300"
+name = "lobby_sound_state_set_ids_c_10_from_stage_table"
+purpose = "Sets sound state short +0xC and word +0x10 from the 09CE4948 table indexed by stage manager +0x288; when 09A795C8 returns 1, task field +0x74 value 2 forces +0xC to 0x19f8 and value 1 zeroes +0x10."
+confidence = "inferred"
+evidence = "Called with DAT_08a62eb0, read by sound_state_get_id_c; table index read from stage manager +0x288"
+
+[[function]]
+module = "lobby_task"
+address = "09A795C8"
+name = "lobby_field_6af18_is_ff_and_bitflag_0x02_clear"
+purpose = "Returns 1 when global byte +0x6AF18 is -1 and game bitflag 2 is clear, otherwise 0."
+confidence = "inferred"
+evidence = "Body reads only these two; meaning of the field is not shown here"
+
+[[function]]
+module = "lobby_task"
+address = "09A79878"
+name = "lobby_tick_bitflags_0xcb_0xcc_pending_messages"
+purpose = "When the screen fade is idle and the local hunter is in state group 0 with sub-state 0-2, clears game bitflag 0xcc and shows message index 0xc if it was set, and likewise bitflag 0xcb with message index 0x15."
+confidence = "inferred"
+evidence = "gamedata_bitflag_508_test and clear paired with 09A7B278; guarded by fade state and object_state_is"
+
+[[function]]
+module = "lobby_task"
+address = "09A799C0"
+name = "lobby_tick_stage_0x0d_game_sub_9c27710"
+purpose = "When the screen fade is idle and global stage id +0x6AF0E is 0xd, calls game_sub 09C27710 once."
+confidence = "inferred"
+evidence = "Single guarded call; the callee's purpose is not read"
+
+[[function]]
+module = "lobby_task"
+address = "09A79A38"
+name = "lobby_manager_init"
+purpose = "Zeroes the lobby manager's mode, timers and load-state fields, sets +0x12D94 and +0x12D96 to 0xffff, and sets byte +0x1C to 1 or 2 from game bitflags 0x1ab and 0x1ac (0 if neither)."
+confidence = "inferred"
+evidence = "Zero writes over the fields used by 09A7A678 and 09A7B2D0; runs once at frame 860-1030 from 09A6C0A8"
+
+[[function]]
+module = "lobby_task"
+address = "09A79B60"
+name = "lobby_update_hunter_facing_target_list"
+purpose = "Rebuilds the local hunter's target list at +0x2F4 from up to 0x14 objects of manager DAT_09b23b98 and other hunters on the stage, skipped or cleared in hunter states 0x1f and 0xd-0xe and when the manager is busy; picks a target using +0x484 masks 0x80 and 0x20, marks it with +0x2FE = 1 and plays sound cue 10 when the choice changes."
+confidence = "inferred"
+evidence = "Calls candidate test 09A79EF0 with range and angle limits; writes hunter +0x2F4 and target +0x2FE"
+
+[[function]]
+module = "lobby_task"
+address = "09A79EF0"
+name = "lobby_target_candidate_test_and_insert"
+purpose = "Clears the candidate's list fields, computes its angle relative to hunter +0x1F4 and its distance; if outside the angle limit param_5 or the range arg_f12 sets +0x2FC to 0xffff and returns 0, otherwise stores distance at +0x2F8, computes its bucket and inserts it in the list, returning 1."
+confidence = "inferred"
+evidence = "atan2-like VFPU sequence scaled to 0x10000 angle units, distance from +0x200 positions; calls 09A7A1C8 and 09A7A558"
+
+[[function]]
+module = "lobby_task"
+address = "09A7A1C8"
+name = "lobby_target_compute_angle_bucket"
+purpose = "Stores in candidate +0x2FC an angle bucket from relative angle param_4 and limit param_5 (three buckets per side), with one side's bucket order reversed when the hunter has a target at +0x2F4 and manager byte +0x12D90 is nonzero."
+confidence = "inferred"
+evidence = "Scale by 3/param_5, 5-minus-bucket branches keyed on +0x12D90"
+
+[[function]]
+module = "lobby_task"
+address = "09A7A558"
+name = "list_insert_sorted_by_field_2fc_field_2f8"
+purpose = "Inserts an object into a singly linked list through +0x2F4 at *arg_a1, ascending by short +0x2FC; ties sort by float +0x2F8 ascending when the key is below 3, descending otherwise."
+confidence = "confirmed"
+evidence = "Walk and splice code in the body"
+
+[[function]]
+module = "lobby_task"
+address = "09A7A678"
+name = "lobby_manager_mode_tick"
+purpose = "Per-frame dispatcher on manager mode *param_1: runs the mode's menu or dialog tick and changes mode on its result, with mode 0 opening a menu on button mask 0x8 and net checks first through 09A7C540."
+confidence = "inferred"
+evidence = "Long if-chain on *param_1 with sub-object ticks; called from the scene update 09A6C280 every frame"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B278"
+name = "lobby_hud_message_push_by_table_index"
+purpose = "For index 0 to 0x16, looks up a string id in the short table at 09B05390 and pushes that string to the HUD message queue."
+confidence = "inferred"
+evidence = "Bounds check, 09A7B890 lookup and hud_message_queue_push_string_ptr"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B2D0"
+name = "lobby_stage_file_heap_tag_0x05_load_step"
+purpose = "Stepped load: picks a file id from table 09B03FC0 by global +0xF7A574 and the stage table index of param_2; if different from +0x12D94 frees heap tag 5, allocates and queues the file, stores its pointer at +0x12D8C; returns 1 when loaded, unchanged or the id is -1."
+confidence = "inferred"
+evidence = "mem_tagged_heap_alloc and file queue vtable calls +0x18, +0x34, +0x38 with state at +0x12D92"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B490"
+name = "lobby_stage_file_heap_tag_0x05_free"
+purpose = "Frees heap tag 5 and resets the load state +0x12D92 and current id +0x12D94 to 0xffff."
+confidence = "inferred"
+evidence = "Same fields as the loader 09A7B2D0"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B4E0"
+name = "lobby_file_heap_tag_0x04_load_step"
+purpose = "Stepped load: picks a file id from table 09B04018 by global +0xF7A574; if different from +0x12D96 frees heap tag 4, allocates and queues the file; returns 1 when loaded or unchanged."
+confidence = "inferred"
+evidence = "mem_tagged_heap_alloc and file queue vtable calls with state at +0x12D93"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B650"
+name = "lobby_file_heap_tag_0x04_free"
+purpose = "Frees heap tag 4 and resets the load state +0x12D93 and current id +0x12D96 to 0xffff."
+confidence = "inferred"
+evidence = "Same fields as the loader 09A7B4E0"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B6A0"
+name = "lobby_file_0x50_heap_tag_0x0e_load_step"
+purpose = "Stepped load of file id 0x50 into heap tag 0xe, with state at +0x12D99; returns 1 once the file queue reports idle."
+confidence = "inferred"
+evidence = "Fixed id 0x50 with mem_tagged_heap_alloc and file queue vtable calls"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B798"
+name = "lobby_file_0x50_heap_tag_0x0e_free"
+purpose = "Frees heap tag 0xe and clears the load state +0x12D99."
+confidence = "inferred"
+evidence = "Same fields as the loader 09A7B6A0"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B890"
+name = "lobby_text_get_string_table_0x00"
+purpose = "Returns the string for id arg_a1 from offset table 0 through 09A7B820, or 0 for id 0xffff or a -1 offset."
+confidence = "inferred"
+evidence = "Calls 09A7B820(0, id); results passed to hud_message_queue_push_string_ptr and the dialog 09C2B830"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B8B0"
+name = "lobby_text_get_string_table_0x02"
+purpose = "Returns the entry for id arg_a1 from offset table 2 through 09A7B820, or 0 for id 0xffff or a -1 offset."
+confidence = "inferred"
+evidence = "Same callee as 09A7B890 with table 2; text use is inferred from that sibling"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B8D0"
+name = "table_09b04078_get_entry"
+purpose = "Returns the address of entry arg_a1 in the 0x14-byte records at 09B04078."
+confidence = "confirmed"
+evidence = "One line of address arithmetic"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B8F0"
+name = "lobby_mode_request_stage_change"
+purpose = "Stores the table index param_2 at manager +0x24, sets manager mode 0x10, and requests a stage change on the task with param_3 as the mask 0x2 option."
+confidence = "inferred"
+evidence = "09A71438 reads +0x24 as the 09B04078 index; calls 09A78AD0"
+
+[[function]]
+module = "lobby_task"
+address = "09A7B910"
+name = "lobby_mode_request_exit_set_field_6af18"
+purpose = "Sets manager +0x24 to -1 and mode 0x1d, stores param_2 in global byte +0x6AF18 and the net mode flag in +0x6AF19, and requests task exit."
+confidence = "inferred"
+evidence = "Calls 09A78B10; 09A78618 maps mode 0x1d to next value 0xb"
+
+[[function]]
+module = "lobby_task"
+address = "09A7BB50"
+name = "lobby_sound_play_by_cue_index"
+purpose = "Plays a fixed 2D sound for cue index 0 to 0x13, doing nothing for others."
+confidence = "inferred"
+evidence = "Switch with one sound_play_2d per case"
+
+[[function]]
+module = "lobby_task"
+address = "09A7BF60"
+name = "menu_cursor_step_wrapped"
+purpose = "Returns cursor param_2 moved by input mask 0x10 (back) or 0x40 (forward), wrapping within count param_3, and plays cue 1 when a mask is set and count is above 1."
+confidence = "inferred"
+evidence = "input_get_buttons_unless_locked, wrap arithmetic and 09A7BB50(1)"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C018"
+name = "str_sprintf_fmt_09b04210"
+purpose = "Formats into buffer arg_a2 with the format at 09B04210, passing arg_a1 and the remaining arguments."
+confidence = "confirmed"
+evidence = "Single libc_sprintf call"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C030"
+name = "lobby_set_field_12d91_unless_net_mode"
+purpose = "Sets manager byte +0x12D91 to 1 when global +0xF7A57C mask 0x1 is clear."
+confidence = "inferred"
+evidence = "Reader is 09A7C0A8; net mode reading comes from the same mask gating WLAN and net calls"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C0A8"
+name = "lobby_field_12d91_or_net_state_3_to_5"
+purpose = "Outside net mode returns whether manager byte +0x12D91 is set; in net mode returns whether net byte +0x12D5 is 3, 4 or 5."
+confidence = "inferred"
+evidence = "Body; 09AAD350 uses it to choose 09A7B200 over a stage change"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C540"
+name = "lobby_net_flag_0x400_enter_mode_0x11"
+purpose = "In net mode, when manager byte +0x12D98 is 0 and net byte +0x12D5 is not 5, and net flag mask 0x400 is set, clears net masks 0x400 and 0x200 and sets manager mode 0x11."
+confidence = "inferred"
+evidence = "Body; mode 0x11 in 09A7A678 shows a dialog and calls net function 0889A008"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C5E0"
+name = "lobby_clear_field_28"
+purpose = "Clears short +0x28 of its argument."
+confidence = "inferred"
+evidence = "Single write; object class not shown"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C818"
+name = "lobby_object_09b10088_register_and_reset"
+purpose = "Stores its argument as singleton DAT_09b10088 and sets its short +2 to 0xffff."
+confidence = "inferred"
+evidence = "Singleton write; 09A71438 compares +2 with the new stage id"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C918"
+name = "lobby_job_queue_register_and_reset"
+purpose = "Stores its argument as singleton DAT_09b23790 and resets it through 09A7C998."
+confidence = "inferred"
+evidence = "Singleton write plus reset call"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C998"
+name = "lobby_job_queue_reset"
+purpose = "Sets the state word of all 8 0x84-byte slots to 0 and clears +0x420 and byte +0x424."
+confidence = "inferred"
+evidence = "Writes at word stride 0x21; 09A7CAB8 allocates the first slot with state 0"
+
+[[function]]
+module = "lobby_task"
+address = "09A7C9C8"
+name = "lobby_job_queue_tick"
+purpose = "Runs the head slot by state: state 2 always through 09A7D958; states 1, 3, 4 and 5 through their handlers only when the file queue reports idle."
+confidence = "inferred"
+evidence = "Dispatch on *param_1; state 1 handler 09A7D698 replaces a hunter slot; called every frame by the scene update"
+
+[[function]]
+module = "lobby_task"
+address = "09A7CAA8"
+name = "lobby_job_queue_is_head_active"
+purpose = "Returns 1 when the head slot's state word is nonzero."
+confidence = "inferred"
+evidence = "One comparison; 09A78618 waits for it to read 0 after ticking the queue"
+
+[[function]]
+module = "lobby_task"
+address = "09A7D390"
+name = "lobby_job_queue_push_state_3"
+purpose = "Sets the first free slot's state to 3 (of 8 slots), with no other fields written; does nothing when full."
+confidence = "inferred"
+evidence = "Free-slot scan at word stride 0x21; state 3 runs 09A7DA00 in the tick"
+
+[[function]]
+module = "lobby_task"
+address = "09A7D4C0"
+name = "lobby_job_queue_clear_all_but_head"
+purpose = "Sets the state word of slots 1 to 7 to 0, leaving the head slot."
+confidence = "inferred"
+evidence = "Writes at +0x84 stride; called next to file_load_queue_cancel_all_but_head in 09A71438"

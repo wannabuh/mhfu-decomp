@@ -1,0 +1,239 @@
+[[function]]
+module = "lobby_task"
+address = "09A60A98"
+name = "class_089bb0d8_destructor"
+purpose = "Sets vtable 089BB0D8, runs hunter_destruct on the object, and calls object_delete_noop when the short second argument is above 0."
+confidence = "inferred"
+evidence = "Vtable slot +0x8 of 089BB0D8; writes its own vtable then calls hunter_destruct."
+
+[[function]]
+module = "lobby_task"
+address = "09A610C8"
+name = "lobby_state_is_0x2a_and_field_4_mask_0x1"
+purpose = "Returns 1 when the first word of the global at DAT_09b22e70 is 0x2a and the argument's ushort at +4 has mask 0x1 set, otherwise 0."
+confidence = "inferred"
+evidence = "Body is exactly this test; what state 0x2a and the mask mean was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A62F58"
+name = "char_arg_is_0_to_4"
+purpose = "Returns 1 when the low byte of its argument, read as a signed char, is 0 to 4, otherwise 0."
+confidence = "confirmed"
+evidence = "Body is only these comparisons; the UI caller in EBOOT 08835F7C uses the result to decide on drawing an extra text line."
+
+[[function]]
+module = "lobby_task"
+address = "09A63AC0"
+name = "lobby_save_current_stage_id_to_field_2"
+purpose = "Copies the stage id at DAT_089cc558+0x6af0e into the argument's short at +2."
+confidence = "inferred"
+evidence = "Caller 09A71438 passes DAT_09b10088; 09A6D080 skips stage loading when this copy equals the current id, and +0x6af0e selects the stage overlay and pack."
+
+[[function]]
+module = "lobby_task"
+address = "09A63AE0"
+name = "lobby_points_menu_reset_state"
+purpose = "Zeroes the menu's state byte +0, sub-state byte +1 and flags short +0x16."
+confidence = "inferred"
+evidence = "Caller 09A9B418 calls it just before setting lobby state 0x23, which runs 09A63AF0; these fields are the ones that menu uses."
+
+[[function]]
+module = "lobby_task"
+address = "09A63AF0"
+name = "lobby_state_23_points_menu_tick"
+purpose = "Per-frame step of lobby state 0x23: starts dialogue with the object at hunter +0x2f4, waits for it, runs the menu, picks a closing message, waits again, then copies the stored pouch to the active pouch and closes."
+confidence = "inferred"
+evidence = "Called from 09A7A678 on state 0x23; ran only in shops; state bytes 0 to 4 call the dialogue, menu and pouch_copy_stored_43c8_to_active."
+
+[[function]]
+module = "lobby_task"
+address = "09A63C28"
+name = "lobby_points_menu_close"
+purpose = "Sets the DAT_09b22e70 byte +2 and state word to 0 and its short +0x1a to 0x14, ends the camera focus target, and clears the menu's state byte."
+confidence = "inferred"
+evidence = "Called by 09A63AF0 at the last state, frame 2590 in shops; calls camera_end_focus_target."
+
+[[function]]
+module = "lobby_task"
+address = "09A63C88"
+name = "lobby_points_menu_set_tier_flags_and_pick_message"
+purpose = "Tests tiers 0xd, 0xb, 0xa, 8 down to 2 with 09C19180 and, at the first tier returning 1 whose bitflag is clear, sets that bitflag and those of all lower tiers and sets dialogue message 0x19; otherwise sets message 0x11."
+confidence = "inferred"
+evidence = "Nested gamedata_bitflag_508_test and _set chain over flags 0x196, 0x195, 0x167, 0x16e to 0x168; 09A9F940 stores the message id read by the dialogue update."
+
+[[function]]
+module = "lobby_task"
+address = "09A64390"
+name = "lobby_points_menu_update_and_draw"
+purpose = "Runs the menu's sub-state machine at byte +1 (top options, slide timers, two lists and their confirm steps, a dialogue step), then draws through 09A66550; returns 3 when backed out of the top options and 2 otherwise."
+confidence = "inferred"
+evidence = "Switch over sub-states 0 to 9 calling the input, timer and list functions; ran only in shops 2530-2580."
+
+[[function]]
+module = "lobby_task"
+address = "09A64748"
+name = "lobby_points_menu_top_options_input"
+purpose = "Reads buttons for the top options: mask 0x4000 plays sound 0 and returns 0, mask 0x2000 plays sound 3 and returns 3, otherwise moves the cursor byte +3 through 09A7BF60 and returns 2."
+confidence = "inferred"
+evidence = "Input tests and return codes in the body; 09A7BB50 is a switch of sound_play_2d calls."
+
+[[function]]
+module = "lobby_task"
+address = "09A647D8"
+name = "lobby_points_menu_timer_tick"
+purpose = "Decrements the short at +0x14 and returns whether it reached 0."
+confidence = "inferred"
+evidence = "Body; 09A64390 sets it to 6 and 09A66690 uses it over 6.0 to animate the options."
+
+[[function]]
+module = "lobby_task"
+address = "09A647F8"
+name = "lobby_points_menu_list_input"
+purpose = "Reads buttons for the first list: mask 0x2000 returns 3; mask 0x4000 returns 0 if the current row's status is 0, or plays sound 7 and returns 1 if not; otherwise moves row and page cursors, updates the index at +0xc and returns 2."
+confidence = "inferred"
+evidence = "Uses menu_cursor_move_vertical_wrap and _horizontal_wrap and row status at +0x20 with stride 0xc."
+
+[[function]]
+module = "lobby_task"
+address = "09A64940"
+name = "lobby_points_menu_build_list"
+purpose = "Clears 0x144 bytes at +0x160; for top option 0 walks the 0xffff-terminated id table DAT_09b02f78 through a jump table to fill rows and counts them, otherwise sets 8 rows to status 2 with no message; then sets the page count at +0xa for 8 rows a page."
+confidence = "inferred"
+evidence = "Table walk with jump table for ids below 0x1b; bundle shows 09A65AE8 and 09A65B48 called from it."
+
+[[function]]
+module = "lobby_task"
+address = "09A65550"
+name = "gamedata_points_696e8_at_least"
+purpose = "Returns whether the value at DAT_089cc558+0x696e8 is at least the argument, compared unsigned."
+confidence = "inferred"
+evidence = "Body; 09A67518 prints this field with the %7dpts format, and 09A65AE8 passes a row's cost."
+
+[[function]]
+module = "lobby_task"
+address = "09A65AE8"
+name = "lobby_points_menu_row_set_with_cost_check"
+purpose = "Fills a row with id, cost from table DAT_09b02f0a and status 0, or status 1 when the points at +0x696e8 are below the cost."
+confidence = "inferred"
+evidence = "Writes row words and calls 09A65550; 09A66C08 prints the same table value with a points format."
+
+[[function]]
+module = "lobby_task"
+address = "09A65B48"
+name = "lobby_points_menu_row_set_status_2"
+purpose = "Fills a row with id and cost from table DAT_09b02f0a and status 2, which 09A66C08 draws as eight copies of string DAT_09b04ed0 without cost or detail."
+confidence = "inferred"
+evidence = "Writes row words; the status 2 branch in 09A66C08."
+
+[[function]]
+module = "lobby_task"
+address = "09A66510"
+name = "lobby_points_menu_rows_on_current_page"
+purpose = "Returns the number of rows on the page at +8: 8, or the remainder of the count at +0x10 modulo 8 when the page is the last partial one."
+confidence = "inferred"
+evidence = "Arithmetic in the body; 09A647F8 passes it as the vertical cursor limit."
+
+[[function]]
+module = "lobby_task"
+address = "09A66550"
+name = "lobby_points_menu_draw"
+purpose = "Sets the UI layer and 2D render state and draws the parts for the sub-state: top options for 1 to 3, also the first list and message window for 4 and 5, also the second list, message window and 09A679B8 on a later layer for 7 to 9."
+confidence = "inferred"
+evidence = "Switch on byte +1 with text_set_draw_list and gpu_push_2d_ui_render_state; ran only in shops."
+
+[[function]]
+module = "lobby_task"
+address = "09A66690"
+name = "lobby_points_menu_draw_top_options"
+purpose = "Draws option bars and labels from the string ids at DAT_09b05d78: all with a cursor sprite in sub-state 1, all with the selected one interpolated over 6 steps towards a title position in sub-states 2 and 3, and the selected one alone otherwise."
+confidence = "inferred"
+evidence = "menu_draw_bar_with_end_cap and text_printf_at in three branches on byte +1, using the timer at +0x14."
+
+[[function]]
+module = "lobby_task"
+address = "09A66C08"
+name = "lobby_points_menu_draw_list_page"
+purpose = "Draws the points balance, list frame, page counter and up to 8 rows with status colours, names, costs and icons, plus a large icon, description and, for status 3, a centred string for the selected row."
+confidence = "inferred"
+evidence = "Calls 09A67518, menu_list_draw and menu_draw_page_counter_with_arrows and uses %7dpts, %7dpti and %7dpkt formats."
+
+[[function]]
+module = "lobby_task"
+address = "09A67320"
+name = "lobby_points_menu_draw_message_window"
+purpose = "Draws the message at +0x18 in a window with its last $ replaced by a number from the current row (cost, or table +0x160 value times byte +7 for other top options), draws a pack string chosen by byte +6 when flags +0x16 mask 0x1 is set, and calls 09A68310 in sub-state 8."
+confidence = "inferred"
+evidence = "str_rchr with 0x24, libc_sprintf, str_cat and menu_draw_window_with_title; flag mask 0x1 is set by 09A64390 during its confirm sub-states."
+
+[[function]]
+module = "lobby_task"
+address = "09A67518"
+name = "lobby_points_menu_draw_points_balance"
+purpose = "Draws a window and prints the value at DAT_089cc558+0x696e8 with a %7dpti, %7dpkt or %7dpts format chosen by 08a632c0+0xf7a574."
+confidence = "inferred"
+evidence = "Format string symbols and hud_draw_window_style_40; called by 09A66C08."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C0A8"
+name = "lobby_task_init"
+purpose = "One-time setup: resets sound, camera, GPU state and the DAT_09b22e70 object, clears and refills player records, sets byte +0x74 from 09A795C8 and bitflag 99, and installs 09A6C768 as phase function at +0x2c and 09A6C248 as tick at +4."
+confidence = "inferred"
+evidence = "Ran once just before each boot's lobby phases; calls player_records_clear and stores both member functions."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C248"
+name = "lobby_task_tick"
+purpose = "Calls game_tick_play_time and then the current member function with the task object."
+confidence = "inferred"
+evidence = "Traces show 09A6C768, 09A6D080, 09A6D640 and 09A6D8E0 called from it; 09A6C0A8 installs it."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C280"
+name = "lobby_update_world_and_ui_frame"
+purpose = "Runs one frame of objects, hunters, the lobby object, cameras, lights and stage objects, then the UI unless the lobby state is 0xd or takes the separate state 0x28 path, and draws indicators with 09A6C428."
+confidence = "inferred"
+evidence = "Sequence of objects_update, hunter_manager_call_88d2894_on_active, cameras_update and stage_objects_tick_and_remove_finished; ran every frame after boot in traces."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C428"
+name = "lobby_draw_indicator_sprites_and_sound_on_rise"
+purpose = "When 08a632c0+0xf7a57c has mask 0x1 set, draws up to three sprites, gated by mask 0x10 of +0xf7a554, for conditions selected by argument masks 0x1 and 0x2 in DAT_09a5256c and DAT_09a0b684 records, and plays sound 3,0x1b when one newly becomes true."
+confidence = "inferred"
+evidence = "Latches at +0x70, +0x71 and +0x72 compared with their previous values before sound_play_2d; what the conditions mean was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C768"
+name = "lobby_phase_reset_and_load_common_assets"
+purpose = "Stepped phase at +0x1c: resets game counters, object and hunter managers, chooses the stage id at +0x6af0e, shows the loading screen, loads asset slots, hunter files and sound banks, with a net setup branch when 08a632c0+0xf7a57c mask 0x1 is set, then constructs the quest object and goes to phase 09A6D080."
+confidence = "inferred"
+evidence = "game_reset_counters_and_flags, hunter_manager_reset, asset_slot_start_load, quest_object_construct and next member function; ran during boot in every listed recording."
+
+[[function]]
+module = "lobby_task"
+address = "09A6D080"
+name = "lobby_phase_load_stage"
+purpose = "Stepped phase: skips to 09A6D640 when the stage id matches the saved DAT_09b10088+2 copy, otherwise loads the stage overlay and pack, resets lights, then runs further stage and sound steps until the loading screen reports done."
+confidence = "inferred"
+evidence = "overlay_start_load, stage_mgr_load_from_pack and light_block_reset_and_load keyed on +0x6af0e; next member function 09A6D640."
+
+[[function]]
+module = "lobby_task"
+address = "09A6D640"
+name = "lobby_phase_net_record_steps_and_build_summary"
+purpose = "Stepped phase: clears the +0x28 byte and calls 09A7C5E0, optionally runs the record calls on DAT_09a0b684 when table byte +2 mask 0x1 and 08a632c0+0xf7a57c mask 0x1 allow, then builds the record summary, clears the DAT_09a5256c buffer, sends net message type 2 in the net case, and goes to 09A6D8E0."
+confidence = "inferred"
+evidence = "game_build_record_summary, clear_buffer_188_and_bytes_0_a728, net_build_and_send_message_by_type and next member function."
+
+[[function]]
+module = "lobby_task"
+address = "09A6D8E0"
+name = "lobby_phase_create_hunters_and_start_scene"
+purpose = "Step 0 creates hunters from records, resets camera and UI, hides the loading screen, starts the music and fade, and branches to special phases for stages 0xd, 0x2e, 0x8b and 0x42; step 1 runs 09A6DED0 until the fade state is 0 or 3 and then makes 09A6DED0 the phase."
+confidence = "inferred"
+evidence = "hunter_manager_create_hunters_from_records, camera_reset_for_scene, loading_screen_hide, screen_fade_start_black and the member function installs."

@@ -1,0 +1,255 @@
+[[function]]
+module = "lobby_task"
+address = "09A98668"
+name = "npc_kind_00_talk_select_or_reset_09b23920"
+purpose = "For talk target +0x480 value 0: sets session selector 1 to 4 from flags 0x2C, 0x17F, 4 and 0x180; then if condition 7 holds, overrides with the first of selectors 5 to 0x15 whose condition holds and flag is clear, or, if none, resets object DAT_09b23920, sets its mode (+0x69) to 0 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Case 0 of 09A95AA8, reached from talk start 09A95890 and the dry run 09A95A38; every test read. What the selectors say was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A98CE0"
+name = "npc_kind_00_talk_pick_line"
+purpose = "For +0x480 value 0: when session state is 0x24, maps selector 0 to 0x15 to a first text line in +0x3C (unknown selectors give 0) and calls the dry-run marker for all but selectors 0 and 2; otherwise uses the tier table fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Case 0 of 09A95D90; 09A9EF50 shows the text from index +0x3C and advances it."
+
+[[function]]
+module = "lobby_task"
+address = "09A98EE8"
+name = "npc_kind_01_talk_reset_09b23798_state_03"
+purpose = "For +0x480 value 1: clears bytes +0x20 and +0x21 of object DAT_09b23798 and sets session state +0 to 3."
+confidence = "inferred"
+evidence = "Whole body; case 1 of 09A95AA8. 09A7E6E8 steps DAT_09b23798 by its +0x20 and starts talk at step 0, but session state 3 was not traced."
+
+[[function]]
+module = "lobby_task"
+address = "09A98F20"
+name = "npc_kind_01_talk_pick_line_set_once_flags"
+purpose = "For +0x480 value 1: if flag 0x13 is clear and condition 100 is false, sets flag 0x13 and line 4; otherwise takes the highest tier from 10, 8, 7, 6, 5, 4, 2 whose own flag is clear, setting that flag and all lower flags in the chain (outside a dry run) and choosing lines 0x28, 0x24 or 0x20 by flag 0xEE, 0x1B, 0x16, 0x11, 0xC, 8; else line 0."
+confidence = "inferred"
+evidence = "Case 1 of 09A95D90; flag sets go through 09A9EEC8, which only writes when param_3 is 0."
+
+[[function]]
+module = "lobby_task"
+address = "09A99480"
+name = "npc_kind_02_talk_reset_09b23798_state_0a"
+purpose = "For +0x480 value 2: clears bytes +0x20 and +0x21 of object DAT_09b23798 and sets session state +0 to 0xA."
+confidence = "inferred"
+evidence = "Whole body; case 2 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A994B8"
+name = "npc_kind_02_talk_pick_line_set_once_flags"
+purpose = "For +0x480 value 2: if flag 0x18 is clear, sets it and line 6; otherwise tier 6, 4 or 2 whose flag (0x1B, 0x1A, 0x19) is clear sets that flag and the lower ones, with lines 0x14, 0xF, 0xB; else line 0."
+confidence = "inferred"
+evidence = "Case 2 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A996A0"
+name = "npc_kind_03_talk_select_or_reset_09b23798"
+purpose = "For +0x480 value 3: if flag 0x51 is set, sets the first of selectors 0x30 down to 0x22 whose tier or condition holds and whose flag is clear, some gated by flags 0x1C6 to 0x1C8; if flag 0x51 is clear or none match, clears +0x20 and +0x21 of DAT_09b23798 and sets session state +0 to 0xB."
+confidence = "inferred"
+evidence = "Case 3 of 09A95AA8; every test read."
+
+[[function]]
+module = "lobby_task"
+address = "09A99D28"
+name = "npc_kind_03_talk_pick_line_set_flag_51"
+purpose = "For +0x480 value 3: if flag 0x51 is clear, sets it and line 0xE; for session state 0x24, maps selectors 0x22 to 0x2F to a line, or to 0x53 when 09A9A160 finds a later selector's flag set, and selector 0x30 to 0x82 (others 0); other states use the tier table fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Case 3 of 09A95D90; calls 09A9A160 for all of selectors 0x22 to 0x2F."
+
+[[function]]
+module = "lobby_task"
+address = "09A9A160"
+name = "npc_kind_03_later_selector_flag_set"
+purpose = "Returns 1 if, for selector +4 from 0x22 to 0x2E, any flag later in the fixed order 0x53, 0x54, 0x55, 0x56, 0x57, 0x1BF, 0x58, 0x1C0, 0x59, 0x1C1, 0x1C2, 0x1C3, 0x1C4 than that selector's own is set; other selectors return 0."
+confidence = "inferred"
+evidence = "Switch read in full; the order matches the selector-to-flag pairs in 09A996A0. In traces called from 09A99D28."
+
+[[function]]
+module = "lobby_task"
+address = "09A9ADA0"
+name = "npc_kind_04_talk_select_or_reset_09b23798"
+purpose = "For +0x480 value 4: if flag 0x2B is set, sets selector 0x1F, 0x20 or 0x21 on condition 0x5A, 0x12 or 0x5B with flag 0x23, 0x24 or 0x2D clear; if flag 0x2B is clear or none match, clears +0x20 and +0x21 of DAT_09b23798 and sets session state +0 to 3."
+confidence = "inferred"
+evidence = "Case 4 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9AEF8"
+name = "npc_kind_04_talk_pick_line_by_game_byte_44bd"
+purpose = "For +0x480 value 4: if flag 0x2B is clear, sets it and line 0; for session state 0x24, selector 0x21, 0x20 or 0x1F gives line 0x11, 0xE or 0xA (others 0); other states use game global byte +0x44BD: 3 or 4 gives line 7, 0 gives line 9, any other value gives line 6."
+confidence = "inferred"
+evidence = "Case 4 of 09A95D90; the byte's meaning was not read."
+
+[[function]]
+module = "lobby_task"
+address = "09A9B068"
+name = "npc_kind_05_talk_reset_09b23c20_state_09"
+purpose = "For +0x480 value 5: clears bytes +1 to +3 and halfword +0xE of object DAT_09b23c20 and sets session state +0 to 9."
+confidence = "inferred"
+evidence = "Whole body; case 5 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9B0A0"
+name = "npc_kind_05_talk_pick_line_set_once_flags"
+purpose = "For +0x480 value 5: flag 99 set and 0x5F clear sets 0x5F and line 0x22; else with flag 7 set: flag 0x26 clear sets it and line 5, or, if flag 0x25 is set, tier 6, 5, 3 or 2 with clear flag 0x2A, 0x29, 0x28 or 0x27 sets it and lower ones and gives line 0x16, 0x14, 0x12 or 0x10, else line 0; with flag 7 clear: flag 0x5E clear sets it and line 0x1B, otherwise line 0x18."
+confidence = "inferred"
+evidence = "Case 5 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9B418"
+name = "npc_kind_06_select_line_or_open_points_menu"
+purpose = "For +0x480 value 6: tier 1 with flag 0x1C clear sets selector 0x1E; otherwise with flag 0x1C set, clears bytes +0, +1 and halfword +0x16 of DAT_09b10098 and sets session state +0 to 0x23; with tier 1 false and flag 0x1C clear, changes nothing."
+confidence = "inferred"
+evidence = "Case 6 of 09A95AA8; callee 09A63AE0 read."
+
+[[function]]
+module = "lobby_task"
+address = "09A9B4C0"
+name = "npc_kind_06_talk_pick_line_set_once_flags"
+purpose = "For +0x480 value 6: session state 0x24 with selector 0x1E gives line 6 (others 0); state 0x23 takes the first of tier 0xE, 0xB, 0xA, 7, condition 0x14, tier 5, tier 2 whose flag is clear, sets it and lower flags, with lines 0x3C, 0x37, 0x31, 0x1C, 0x1A, 0x17, 0x13, else line 0xF; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Case 6 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9BA80"
+name = "npc_kind_08_talk_select"
+purpose = "For +0x480 value 8: sets selector 0x17 if condition 0x24, condition 0x65 or flag 0xEF holds and flag 0xDB is clear; otherwise sets selector 0x16 if flag 1 is clear."
+confidence = "inferred"
+evidence = "Case 8 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9BB58"
+name = "npc_kind_08_talk_pick_line_set_flag_01"
+purpose = "For +0x480 value 8: session state 0x24 with selector 0x17 sets flag 1 and line 0x5D, selector 0x16 gives line 0x49, others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Case 8 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9BC08"
+name = "npc_kind_0d_talk_select"
+purpose = "For +0x480 value 0xD: sets selector 0x18 if flag 3 is clear."
+confidence = "inferred"
+evidence = "Whole body; case 0xD of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9BC50"
+name = "npc_kind_0d_talk_pick_line"
+purpose = "For +0x480 value 0xD: session state 0x24 with selector 0x18 gives line 0x67, other selectors 0; other states use fallback 09A95FE8; never calls the dry-run marker."
+confidence = "inferred"
+evidence = "Whole body; case 0xD of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9BCA8"
+name = "npc_kind_0e_talk_select"
+purpose = "For +0x480 value 0xE: sets selector 0x44 on condition 100 with flag 0x1C9 clear, 0x31 if flag 0x16F is clear, 0x34 if game +0x696D0 / 0x19 is below a value derived from +0x67788, 0x32 or 0x33 if game byte +0x6AC3B or +0x6AC3C is non-zero, else the first of selectors 0x35, 0x4C, 0x43, 0x4D, then 0x4B down to 0x36 whose tier or conditions hold and whose flag is clear; else unchanged."
+confidence = "inferred"
+evidence = "Case 0xE of 09A95AA8; ran in the guild recording; callee 09A9F8E8 read."
+
+[[function]]
+module = "lobby_task"
+address = "09A9C658"
+name = "npc_kind_0e_talk_pick_line"
+purpose = "For +0x480 value 0xE: session state 0x24 maps selectors 0x31 to 0x4D to a line, with some selectors (0x39, 0x3B, 0x3D, 0x3F, 0x41, 0x42, 0x45, 0x47, 0x49) giving line 0xC1 when 09A9CA28 returns 1 and others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Case 0xE of 09A95D90; ran in the guild recording."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D3C0"
+name = "npc_kind_0f_talk_select_or_reset_09b23920"
+purpose = "For +0x480 value 0xF: flag 10 clear sets selector 0x1A; otherwise resets DAT_09b23920, sets its mode +0x69 to 2 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Whole body; case 0xF of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D430"
+name = "npc_kind_0f_talk_pick_line"
+purpose = "For +0x480 value 0xF: session state 0x24 with selector 0x1A gives line 0xD, other selectors 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Whole body; case 0xF of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D488"
+name = "npc_kind_10_talk_select_or_reset_09b23920"
+purpose = "For +0x480 value 0x10: condition 0x24 false sets selector 0; else flag 0xB clear sets selector 0x1B; otherwise resets DAT_09b23920, sets its mode +0x69 to 3 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Whole body; case 0x10 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D528"
+name = "npc_kind_10_talk_pick_line"
+purpose = "For +0x480 value 0x10: session state 0x24 with selector 0x1B gives line 0x11, selector 0 gives 0xD, others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Whole body; case 0x10 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D590"
+name = "npc_kind_11_talk_select_or_reset_09b23920"
+purpose = "For +0x480 value 0x11: flag 0xC clear sets selector 0x1D; otherwise resets DAT_09b23920, sets its mode +0x69 to 5 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Whole body; case 0x11 of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D600"
+name = "npc_kind_11_talk_pick_line"
+purpose = "For +0x480 value 0x11: session state 0x24 with selector 0x1D calls the dry-run marker and gives line 0xD, others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Whole body; case 0x11 of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D6A0"
+name = "npc_kind_12_talk_pick_line_set_once_flags"
+purpose = "For +0x480 value 0x12: the first of tier 0xD, 0xB, 8, flag 0xEF, tier 7, 6, 5, 4, 2 whose flag (0x1D5, 0x1D4, 0x12, 0x1D3, 0x11, 0x10, 0xF, 0xE, 0xD) is clear sets that flag and the lower chain and gives line 0x27, 0x22, 0x19, 0x1D, 0x15, 0x11, 0xD, 9 or 4; else line 0."
+confidence = "inferred"
+evidence = "Case 0x12 of 09A95D90; flag sets go through 09A9EEC8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9E4F8"
+name = "npc_kind_1e_talk_select_or_reset_09b23920"
+purpose = "For +0x480 value 0x1E: condition 0x2B false sets selector 0; else flag 0x5C clear sets selector 0x1C; otherwise resets DAT_09b23920, sets its mode +0x69 to 4 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Whole body; case 0x1E of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9E598"
+name = "npc_kind_1e_talk_pick_line"
+purpose = "For +0x480 value 0x1E: session state 0x24 with selector 0x1C calls the dry-run marker and gives line 0x11, selector 0 gives 0xD, others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Whole body; case 0x1E of 09A95D90."
+
+[[function]]
+module = "lobby_task"
+address = "09A9E610"
+name = "npc_kind_1f_talk_select_or_reset_09b23920"
+purpose = "For +0x480 value 0x1F: 09C1AD10 false sets selector 0; otherwise the first of selectors 0x56 to 0x5F whose condition (09C1AD10, then 0x65 to 0x6D) holds and whose flag (0xBE to 0xC7) is clear; if none, resets DAT_09b23920, sets its mode +0x69 to 1 and session state +0 to 2."
+confidence = "inferred"
+evidence = "Whole body; case 0x1F of 09A95AA8."
+
+[[function]]
+module = "lobby_task"
+address = "09A9E998"
+name = "npc_kind_1f_talk_pick_line"
+purpose = "For +0x480 value 0x1F: session state 0x24 maps selectors 0x56 to 0x5F to lines 0x13, 0x19, 0x2B, 0x32, 0x38, 0x3F, 0x45, 0x4E, 0x57, 0x5E with the dry-run marker, selector 0 gives line 0xE, others 0; other states use fallback 09A95FE8."
+confidence = "inferred"
+evidence = "Whole body; case 0x1F of 09A95D90."

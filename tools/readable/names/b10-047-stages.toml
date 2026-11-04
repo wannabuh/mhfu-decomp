@@ -1,0 +1,263 @@
+[[function]]
+module = "stage001"
+address = "09D63180"
+name = "stage001_construct"
+purpose = "Runs stage_base_construct on the object and sets its vtable to 089BF7E4."
+confidence = "inferred"
+evidence = "Body is the base constructor call plus a vtable store; called from this module's static init 09D63880 in traces."
+
+[[function]]
+module = "stage001"
+address = "09D63218"
+name = "stage001_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 0D, three kind 13 and one kind 0C stage object from this module's data, then runs 88CACCC, which resets flash fields +0x3A0, +0x3A2 and the rectangles +0x414, +0x42C."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage001"
+address = "09D63358"
+name = "stage001_table_lookup_by_byte"
+purpose = "Returns the 4-byte entry at index (argument & 0xFF) of the table at 09D634E0."
+confidence = "inferred"
+evidence = "Mechanics read directly; signature fits vtable +0x3C in game_task 09A60298, which passes a byte from the quest data at 08A62D9C +0x4C +0x44 and hands the result to 9C94910."
+
+[[function]]
+module = "stage001"
+address = "09D63378"
+name = "stage001_returns_1_record_count"
+purpose = "Always returns 1, which game_task 09A60298 uses as the count of 0x20-byte records from vtable +0x44."
+confidence = "inferred"
+evidence = "Slot +0x40 is inferred: 09A60298 is the traced caller and uses its argument-less +0x40 call as a loop count."
+
+[[function]]
+module = "stage001"
+address = "09D633C0"
+name = "stage001_get_sound_emitter_count"
+purpose = "Returns byte +0x3F of the struct returned by vtable +0x28."
+confidence = "inferred"
+evidence = "Traced callers 88CA39C, 88CA558 and 88CA944 call +0xAC and +0xB0; this byte fits the +0xAC count of the 0x20-stride emitter table."
+
+[[function]]
+module = "stage001"
+address = "09D633E8"
+name = "stage001_get_sound_emitter_table"
+purpose = "Returns the word at +0x34 of the struct returned by vtable +0x28."
+confidence = "inferred"
+evidence = "Traced callers 88CA39C, 88CA558 and 88CA944 call +0xAC and +0xB0; this word fits the +0xB0 emitter table pointer."
+
+[[function]]
+module = "stage001"
+address = "09D63880"
+name = "stage001_static_init"
+purpose = "Constructs the stage001 object at 09D63910 with 09D63180 and registers 09D631B8 as its global destructor."
+confidence = "inferred"
+evidence = "Body is the constructor call and cxx_register_global_destructor; called from EBOOT 0890C41C in traces."
+
+[[function]]
+module = "stage004"
+address = "09D63218"
+name = "stage004_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 0C, one kind 0D and four kind 13 stage objects from this module's data, then runs 88CACCC, which resets flash fields +0x3A0, +0x3A2 and the rectangles +0x414, +0x42C."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage005"
+address = "09D63218"
+name = "stage005_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 0C, one kind 0D and four kind 13 stage objects from this module's data, then runs 88CACCC, which resets flash fields +0x3A0, +0x3A2 and the rectangles +0x414, +0x42C."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage021"
+address = "09D63220"
+name = "stage021_sound_update_drive_sound_0x11_at_fixed_pos_by_mode"
+purpose = "Stage vtable +0x20: when global +0x6AF14 mask 0x1 is clear, calls the sound dispatch (6, 0xC0, 0, 0) if global byte +0x2E is 5 to 8 and the sound query (6, 0xC0, 0) is nonzero, otherwise calls stage_latched_start_update_stop with parameter blocks chosen by whether sound_driver_get_mode is 2; then always runs stage_sound_emitters_update."
+confidence = "inferred"
+evidence = "Reached from 88CB004's vtable +0x20 sound update in traces; the shape follows base 88CA558, which drives sound 0x11 on group 6 and stops it for states 5 to 8."
+
+[[function]]
+module = "stage021"
+address = "09D633A0"
+name = "stage021_setup_objects_and_9c75518_entries"
+purpose = "Stage vtable +0x24: creates one kind 06 and two kind 13 stage objects, adds two entries from the data at 09D638A0 to the list at DAT_09D19860 +0x19030 with 9C75518 types 2 and 3, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; 9C75518 was read and links an allocated entry into that list."
+
+[[function]]
+module = "stage021"
+address = "09D634C0"
+name = "stage021_vslot_a4_returns_0"
+purpose = "Always returns 0, which makes the caller 88CB364 set field +0x444 to 0."
+confidence = "inferred"
+evidence = "Traced caller 88CB364 makes only one vtable call, +0xA4, and clears +0x444 when it returns 0."
+
+[[function]]
+module = "stage022"
+address = "09D63218"
+name = "stage022_setup_objects"
+purpose = "Stage vtable +0x24: creates two kind 13 stage objects from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage022"
+address = "09D632B0"
+name = "stage022_get_part_draw_tables"
+purpose = "Stage vtable +0x48: returns the fixed address 09D635B0, the data whose +4 and +8 tables list the parts to draw."
+confidence = "inferred"
+evidence = "Traced callers 88C7914, 88C7CDC and 88CAA00 all use vtable +0x48 for this data; 88CAA00 makes no other vtable call. The bundle's other vtable slots belong to other modules at this address."
+
+[[function]]
+module = "stage023"
+address = "09D63218"
+name = "stage023_setup_objects"
+purpose = "Stage vtable +0x24: creates four kind 13 stage objects from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage026"
+address = "09D63218"
+name = "stage026_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01 and one kind 13 stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage032"
+address = "09D63218"
+name = "stage032_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01 stage object and four kind 09 stage objects from the same data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage033"
+address = "09D63218"
+name = "stage033_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01 and one kind 17 stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage037"
+address = "09D63218"
+name = "stage037_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01 stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is a stage_object_create call."
+
+[[function]]
+module = "stage039"
+address = "09D63290"
+name = "stage039_draw_group_2_texture_flipbook"
+purpose = "Part draw slot: emits GE texture offsets from counter field +0x1C0 as a 4 by 8 grid cell (order reversed while mask 0x20 is clear), draws model group 2 with +0x70, then resets both offsets to 0."
+confidence = "inferred"
+evidence = "Writes GE commands 0x4A and 0x4B around model_draw_group; 88CB004 advances +0x1C0 and 88C7CDC calls part slots with this signature."
+
+[[function]]
+module = "stage040"
+address = "09D63218"
+name = "stage040_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01 stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is a stage_object_create call."
+
+[[function]]
+module = "stage066"
+address = "09D63218"
+name = "stage066_setup_objects"
+purpose = "Stage vtable +0x24: unless 9A795C8 returns 1 and byte +0x74 of DAT_09A0FF04 is 1, creates a kind 00 object and sets up 9CB6728 and 9CB67F8; then always creates four kind 18 and one kind 13 stage object and runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by lobby_task 09A6D080 in traces; the condition and creation calls were read."
+
+[[function]]
+module = "stage066"
+address = "09D63370"
+name = "stage066_draw_groups_0b_0c_when_global_696f4_zero"
+purpose = "Part draw slot: when global +0x696F4 is 0, draws model group 0xB, emits alpha test command 0xDBFF0006, draws group 0xC and emits alpha test command 0xDBFF8007."
+confidence = "inferred"
+evidence = "9C1B968 tests that global; 88CAA00 also emits 0xDBFF0006 as an alpha test command, and 88C7CDC calls part slots in traces."
+
+[[function]]
+module = "stage085"
+address = "09D63218"
+name = "stage085_setup_objects"
+purpose = "Stage vtable +0x24: creates three kind 13 and fourteen kind 18 stage objects from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by lobby_task 09A6D080 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage092"
+address = "09D63218"
+name = "stage092_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 00 stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is a stage_object_create call."
+
+[[function]]
+module = "stage097"
+address = "09D63180"
+name = "stage097_construct"
+purpose = "Runs stage_base_construct on the object, sets its vtable to 089C3E64 and clears the once-only byte +0x460."
+confidence = "inferred"
+evidence = "Body is the base constructor call plus these stores; 09D633A0 uses +0x460 as its once-only latch; called from 09D63880 in traces."
+
+[[function]]
+module = "stage097"
+address = "09D63218"
+name = "stage097_setup_objects"
+purpose = "Stage vtable +0x24: creates five kind 07 and one kind 0D stage objects from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage097"
+address = "09D633A0"
+name = "stage097_state_update_create_objects_once_on_byte_75c_mask_80"
+purpose = "Per-frame state: the first time quest_byte_75c_mask_80_is_set(DAT_08A62D9C, 0) returns 1 with byte +0x460 still 0, creates an object through 88C3948 and a kind 07 object and sets +0x460; then always runs stage_state_update."
+confidence = "inferred"
+evidence = "Reached from 88CA908's member function call in traces and runs over a frame range; body read directly."
+
+[[function]]
+module = "stage099"
+address = "09D63218"
+name = "stage099_setup_objects"
+purpose = "Stage vtable +0x24: creates four kind 13 stage objects whose fourth argument comes from the halfwords at 09D637C0 to 09D637C6, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage099"
+address = "09D63360"
+name = "stage099_draw_part_if_group_36_object_listed"
+purpose = "Part draw slot: when stage_has_listed_object_of_group_36 returns 1, calls vtable +0x64 with the model, param_3 + 2 and the byte at param_3."
+confidence = "inferred"
+evidence = "Called from part dispatcher 88C7CDC in traces; condition and forwarded call read directly."
+
+[[function]]
+module = "stage100"
+address = "09D63218"
+name = "stage100_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 13 and one kind 0D stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by game_task 09A62F70 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage139"
+address = "09D63218"
+name = "stage139_setup_objects"
+purpose = "Stage vtable +0x24: creates one kind 01, five kind 13, one kind 18 and one kind 1F stage object from this module's data, then runs 88CACCC, which resets flash fields and rectangles."
+confidence = "inferred"
+evidence = "Called once through vtable +0x24 by lobby_task 09A6D080 in traces; the body is stage_object_create calls."
+
+[[function]]
+module = "stage139"
+address = "09D63388"
+name = "stage139_state_update"
+purpose = "Per-frame state that only forwards to stage_state_update."
+confidence = "inferred"
+evidence = "Body is the single call; reached from 88CA908's member function call in traces."
