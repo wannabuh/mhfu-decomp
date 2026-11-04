@@ -1,0 +1,223 @@
+[[function]]
+module = "game_task"
+address = "09AD36A8"
+name = "object_update_flag_546_from_health_ratio"
+purpose = "Sets byte +0x546 when health +0x2E4 is below max health +0x41E times the type's ratio and the object is outside its type's listed area ids (with +0x4B9 == 1), clears it if the quest-table lookup finds the type, the type's group table byte is 0, or +0x298 >= 5, and otherwise leaves it unchanged."
+confidence = "inferred"
+evidence = "Compares +0x2E4 with +0x41E * f_game_task_9AD85C0; walks a 0xFFFF-terminated area list comparing remapped ids with +0x29A; only writes +0x546."
+
+[[function]]
+module = "game_task"
+address = "09AD38F8"
+name = "object_add_meter_56e_by_health_band"
+purpose = "Adds param_2 times a float picked by 10% health band (or by +0x494/+0x4A4 for types 0x34 and 0x55) from the type table to meter +0x56E, clamps at +0x570 and sets mask 0x400 on +0x638 when full; types 0x36, 0x3C, 0x40, 0x41 can double the amount and type 0x35 can skip."
+confidence = "inferred"
+evidence = "Eleven-way percent bands index floats at type table pointer +0x10; clamp and mask 0x400 are direct. What the meter means is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AD3C10"
+name = "object_reset_slot_580_from_type_table"
+purpose = "For slot param_2 below 9 whose byte +0x57C+slot*8 is nonzero, writes the type table's short into +0x580+slot*8, then hands the same value to the scaling setter."
+confidence = "inferred"
+evidence = "Reads short array from the per-type pointer at DAT_09bb8c64 and calls f_game_task_9AD3C88."
+
+[[function]]
+module = "game_task"
+address = "09AD3C88"
+name = "object_set_slot_580_scaled_by_tables"
+purpose = "Writes param_3 times a table float into short +0x580+slot*8, the float chosen by the type's byte, global DAT_08a62d9c +0x116 and object +0x4BC; does nothing unless the global mask 0x20000000 test passes or slot's bit is set in +0x572."
+confidence = "inferred"
+evidence = "Nested lookup through DAT_09bc7f80 with +0x4BC*0x10+0xC; guarded by f_game_task_9AD8438 and 1 << slot on +0x572."
+
+[[function]]
+module = "game_task"
+address = "09AD3EF8"
+name = "object_set_flag_1000_if_area_point_in_cone"
+purpose = "Unless excluded by +0x35E, +0x4C0, +0x6DB, a long list of types or +0x522 mask 0x10, sets mask 0x1000 on +0x638 when any of 32 point records at manager DAT_09c122b0 +0x188 in the same area is within its radius of the vec at param_2[0] and within the bearing window param_2[2] +/- param_2[3]."
+confidence = "inferred"
+evidence = "Distance check against record +0x10, area check of record +0x18 against +0x29A, bearing from f_game_task_9AC8BF0 in a wrapped u16 range."
+
+[[function]]
+module = "game_task"
+address = "09AD41E8"
+name = "object_test_pair_against_area_point_list_108"
+purpose = "Returns 1 if any of 32 records at manager DAT_09c122b0 +0x108, in the object's area and with mask 0x1 at record +0x16, passes f_game_sub_9C36588 with its radius against the 80-byte shape built by f_game_sub_9C34548 from param_2[1] and param_2[0]; else 0."
+confidence = "inferred"
+evidence = "Loop and filters are direct; the two helpers look like a shape build and an overlap test but were not read."
+
+[[function]]
+module = "game_task"
+address = "09AD42B8"
+name = "object_is_inside_area_point_list_108"
+purpose = "Returns 1 if the object's place +0x200 is within the radius (+0x10) of any of 32 records at manager DAT_09c122b0 +0x108 that match its area +0x29A and have mask 0x1 at record +0x16; else 0."
+confidence = "inferred"
+evidence = "vsub, vdot, vsqrt against place +0x200 compared to record +0x10; same record filters as f_game_task_9AD41E8."
+
+[[function]]
+module = "game_task"
+address = "09AD4A40"
+name = "object_run_slot_mask_entries_from_table_9bce9e0"
+purpose = "If the object is in the game's area, for each slot bit in param_2 finds the first of 0x3E table entries matching the type, slot and the slot's byte +0x582; then calls f_game_sub_9C58E68 at a bone-relative point if the entry names a bone, calls f_game_task_9AD8048 with the entry's id if any, and sets +0x481 if entry byte 3 is 1."
+confidence = "inferred"
+evidence = "0x20-byte entries at DAT_09bce9e0; object_get_bone_matrix and vtfm3 build the point. What the slots stand for is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AD4C58"
+name = "object_call_vtable_e8_for_positive_shorts_3b8"
+purpose = "For each of 8 shorts at +0x3B8 that is above zero, calls the object's vtable +0xE8 with the index."
+confidence = "confirmed"
+evidence = "The whole body is this loop."
+
+[[function]]
+module = "game_task"
+address = "09AD4D80"
+name = "object_clear_fields_544_546_53d_in_listed_area"
+purpose = "When +0x544 is 1 and +0x545 equals the type's group table byte, clears +0x546, +0x544, +0x545 and +0x53D if the type has no area list, or (with +0x4B9 == 1) if the object's remapped area +0x29A is in that list."
+confidence = "inferred"
+evidence = "Same area list and remap tables as f_game_task_9AD36A8; four byte clears on a match."
+
+[[function]]
+module = "game_task"
+address = "09AD5028"
+name = "object_reset_meter_56e_from_type_table"
+purpose = "Sets +0x570 from the first short of the type table's pointer (or 0xFFFF if none), zeroes +0x56E and +0x56C, clears mask 0x20 on +0x638, calls vtable +0x8C, then clears mask 0x400 on +0x638."
+confidence = "inferred"
+evidence = "+0x570 and mask 0x400 are the limit and full flag of f_game_task_9AD38F8; ran once per load in traces."
+
+[[function]]
+module = "game_task"
+address = "09AD50C0"
+name = "object_restore_xz_when_no_hunter_in_area"
+purpose = "Clears mask 0x80 on +0x638; unless global +0x422 is set with the object in the game's area, and with +0x4B9 == 1, when no hunter slot (type not 0xC, flags mask 0x1) shares its area and (+0x298, +0x299) differ from (param_2, param_3), sets mask 0x80 and copies +0x210/+0x218 into place x and z."
+confidence = "inferred"
+evidence = "Loop over hunter_manager_get_slot comparing +0x29A; writes +0x200 and +0x208 from +0x210 and +0x218."
+
+[[function]]
+module = "game_task"
+address = "09AD51E8"
+name = "object_tick_timer_576_or_set_flags_10_and_4bb_80"
+purpose = "When +0x6DB is set and the object is in the game's area, counts down byte +0x576; once it is zero and +0x280, +0x298, +0x292, +0x52D, +0x523 and f_game_task_9AC9740 mask 0x80 all allow it, sets mask 0x10 on +0x638 and mask 0x80 on +0x4BB."
+confidence = "inferred"
+evidence = "Direct field tests and writes; the meaning of the flags is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AD52E0"
+name = "object_select_look_target_and_update"
+purpose = "Calls the look update with tracking off when +0x410 mask 0x2 is clear or +0x542 is 0xFF, or with tracking on toward the vec +0x620 (if +0x611 is set) or the point f_game_task_9ABA0C8 gives for +0x542; does nothing without hunter slot 0."
+confidence = "inferred"
+evidence = "Three calls to f_game_task_9AD53C8; with param_3 0 the callee ignores the point it is passed, so hunter 0's place is not actually aimed at."
+
+[[function]]
+module = "game_task"
+address = "09AD53C8"
+name = "object_update_look_yaw_toward_point"
+purpose = "With param_3 set, computes target yaw +0x5F8 from an offset point on the object to param_2 minus +0x1F4 (with param_3 0, target is 0), runs a state machine in +0x610 that adjusts turn speed +0x60C from type table limits, steps current yaw +0x5FA toward the target, then spreads it into +0x5FC..+0x608."
+confidence = "inferred"
+evidence = "atan-style VFPU code producing 65536-per-turn angles, wraparound compares, calls f_game_task_9AD5CF0; which body part turns is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AD5CF0"
+name = "object_spread_look_yaw_into_fields_5fc_608"
+purpose = "Splits yaw param_3 into four shares (1/2, 1/4, 1/8, 1/16 plus 1/64), caps each at the type table's +0x10..+0x16 limit passing the excess to the next share, and moves the four angles +0x5FC, +0x600, +0x604, +0x608 toward them with steps derived from speed param_2."
+confidence = "inferred"
+evidence = "Shift-based shares and cascade of limits; separate wraparound paths for yaw above and below 0x8000."
+
+[[function]]
+module = "game_task"
+address = "09AD63C8"
+name = "object_carry_hunters_on_body_quads"
+purpose = "For types 7, 0x32, 0x37, 0x3A, 0x48 (the last two only at motion ids 0x3F4, 0x3F6, 0x42A), moves same-area hunters with state +0x29C of 1 or 3 along with the object's body part, ray tests them against per-part quads from table DAT_09bcfb38, and on a hit places the hunter there, records object and part in +0x3F0/+0x3F1, and on a new contact zeroes velocity and starts a state (+0x29C 1 or 3); clears +0x29C when no hit or when hunter +0x298 is 2, 3 or 4."
+confidence = "inferred"
+evidence = "Writes hunter +0x200 from part matrices at +0x190 (stride 0x250), +0x3E0 delta, f_game_task_9AD6F28 tests with a vertical segment from the hunter's place."
+
+[[function]]
+module = "game_task"
+address = "09AD7850"
+name = "object_tick_pickup_point_630_timer"
+purpose = "If +0x630 holds an index, lowers +0x631 to the count in record DAT_09a4f1a0+index*0x20 (+0x16) and counts down +0x632, removing the point when either runs out; every 0x40 ticks calls f_game_sub_9C6F5B8 id 0x15 above the record's position with a value that shrinks below 900 ticks."
+confidence = "inferred"
+evidence = "Calls f_game_task_9AD7D88 which is pickup_point_remove for +0x630; the called sub's effect was not read."
+
+[[function]]
+module = "game_task"
+address = "09AD7D88"
+name = "object_remove_pickup_point_630"
+purpose = "Removes the pickup point at index +0x630 from manager DAT_08a62d9c and sets +0x630 to 0xFF."
+confidence = "inferred"
+evidence = "Body is pickup_point_remove and the store; that callee's name comes from earlier work."
+
+[[function]]
+module = "game_task"
+address = "09AD7DE8"
+name = "object_type_allowed_by_camera_scene_or_set_276"
+purpose = "Returns 1 unless global +0x422 is set; then with +0x638 mask 0x2 returns 1, with an active camera scene record allows only the types listed for ids 0x14A, 0x15B, 0x15C, 0x164, 0x165, 0x166 and otherwise sets +0x276 to 1 and returns 0, and with no such record returns 0 for types 0xA and 0x4A and 1 for others."
+confidence = "inferred"
+evidence = "camera_scene_active_record_has_mask_1 and id from f_EBOOT_88CDCC8 compared to the type byte +0x1E8."
+
+[[function]]
+module = "game_task"
+address = "09AD8348"
+name = "object_clear_fields_3cf_613"
+purpose = "Clears byte +0x3CF (via its setter) and byte +0x613."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD8378"
+name = "object_tick_timer_778_then_call_9ab4c68"
+purpose = "Counts down short +0x778; at zero, if +0x4B5 is set, calls f_game_task_9AB4C68 and clears +0x4B5."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD83C8"
+name = "object_band_from_field_4bc"
+purpose = "Returns 0 when byte +0x4BC is 0..15, 1 when 16..23, and 2 otherwise."
+confidence = "confirmed"
+evidence = "The whole body is these range tests."
+
+[[function]]
+module = "game_task"
+address = "09AD8438"
+name = "global_8a62d9c_28_has_mask_20000000"
+purpose = "Returns whether the word at DAT_08a62d9c +0x28 has mask 0x20000000 set."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD85C0"
+name = "object_type_ratio_scaled_by_4bc_band"
+purpose = "Returns the type's float from table DAT_09bb8bb8, unchanged for band 0, times 0.6 for band 1 and times 0.5 for band 2 of +0x4BC."
+confidence = "inferred"
+evidence = "Direct code; f_game_task_9AD36A8 uses the result as a fraction of max health, other callers were not read."
+
+[[function]]
+module = "game_task"
+address = "09AD8688"
+name = "object_field_5f0_or_5f2_set"
+purpose = "Returns 1 if byte +0x5F0 or byte +0x5F2 is nonzero, else 0."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD8878"
+name = "object_set_field_3cf"
+purpose = "Stores the low byte of param_2 into byte +0x3CF."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD8948"
+name = "object_check_638_mask_2_with_param_and_6db"
+purpose = "Returns 0 only when +0x638 has mask 0x2, the low byte of param_2 is 0 and +0x6DB is nonzero; otherwise 1."
+confidence = "confirmed"
+evidence = "The whole body; ran only in fight2 in traces."

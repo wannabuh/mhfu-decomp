@@ -1,0 +1,175 @@
+[[function]]
+module = "game_task"
+address = "09AE1460"
+name = "entity_vt290_substate_pick_motion_by_angle_76a"
+purpose = "Sub-state body: on first step sets the angle at +0x76A (via f_game_task_9AD9ED0 with table DAT_09bd4628, or +0x1F4 plus 0x4000 when param_2 is set) and starts motion 2, 4 or 5 by its difference from +0x1F4, with flag 0x20000 at +0x288 for the within 0x1000 case; then waits for f_game_task_9AD9EE0 to return 1, clears that flag and calls f_game_task_9AE0BD0."
+confidence = "inferred"
+evidence = "Step byte +0x1D5 and the 16-bit angle subtraction in the body; ran from sub-states 0 and 6 of f_game_task_9AE1BC8 with param_2 0 and 1; the calls to f_game_task_9AC5328 as motion starts are read from their use, not their body."
+
+[[function]]
+module = "game_task"
+address = "09AE1BC8"
+name = "entity_vt290_dispatch_substate_299"
+purpose = "Calls one handler chosen by the sub-state byte +0x299 (0 to 6), sub-states 0 and 6 sharing f_game_task_9AE1460 with param_2 0 and 1."
+confidence = "inferred"
+evidence = "Plain switch on +0x299; in traces called by f_game_task_9AE3AA0, which the vtable 089BC290 tick runs."
+
+[[function]]
+module = "game_task"
+address = "09AE3680"
+name = "entity_vt290_tick_react_to_9ac7a08_code_and_run_state"
+purpose = "Per-frame method: counts down the short at +0x7AC, sets a new state through vtable +0x88 according to the code f_game_task_9AC7A08 returns, calls f_game_task_9AD8378 and f_game_task_9AD8348, then runs f_game_task_9AE3AA0, a second time if +0x4B7 is set (clearing it)."
+confidence = "inferred"
+evidence = "Vtable 089BC290 +0x7C; ran over a span of frames in misc; +0x88 calls compared against +0x298 and +0x299 show it sets state; the codes' meanings were not read."
+
+[[function]]
+module = "game_task"
+address = "09AE3B58"
+name = "entity_vt290_method_80_run_motion_cues_after_first_call"
+purpose = "On its first call only sets the byte +0x7A0 to 1; on later calls with +0x7A0 equal to 1 runs f_game_task_9AE3BA0."
+confidence = "inferred"
+evidence = "Vtable 089BC290 +0x80; body is the +0x7A0 gate and one call."
+
+[[function]]
+module = "game_task"
+address = "09AE3BA0"
+name = "entity_vt290_motion_frame_cues_9c6f470"
+purpose = "Copies the motion id +0x324 to +0x7A6, then for motions 0x3F6, 0x3F7, 0x3F8, 0x427 and 0x42F calls f_game_sub_9C6F470 with fixed arguments when the motion reaches set frames."
+confidence = "inferred"
+evidence = "Chain of motion id tests with motion_frame_reached; what f_game_sub_9C6F470 does was not read, so the name stays on the mechanics."
+
+[[function]]
+module = "game_task"
+address = "09AE3FF8"
+name = "entity_vt290_motion_keyed_sound_cues"
+purpose = "Copies the motion id +0x324 to +0x7A6 and, per motion id (some split by the byte +0x1E8), calls f_game_task_9ACB620 with a frame-like number and a cue id, many ids from sound_pick_random_variant; also first reloads +0x40C from table_089aa344_lookup_column_for_id when object_29a_matches_game_6af0e holds."
+confidence = "inferred"
+evidence = "Vtable 089BC290 +0x18 called from EBOOT 08864634; sound_pick_random_variant results go in the same argument as the literal ids; the second argument as a frame is by likeness with f_game_task_9AF11E8, not read in f_game_task_9ACB620."
+
+[[function]]
+module = "game_task"
+address = "09AE5678"
+name = "entity_vt38c_init_fields_and_health"
+purpose = "Initialises the entity's fields: calls f_game_task_9AC8FE0 and f_game_task_9AD3208, sets health +0x2E4 and max health +0x41E from f_game_task_9AC9120, zeroes the +0x7E6 to +0x7FC group, and sets +0x2A8 to 450.0 if the byte +0x1E8 is 8, else 250.0 (f_game_task_9ACF600 runs only when it is not 8)."
+confidence = "inferred"
+evidence = "Run once at frame 1580 of quest-q8 from f_game_task_9AE57C0, the method at vtable 089BC38C +0x74; the body is mostly field writes."
+
+[[function]]
+module = "game_task"
+address = "09AE57C0"
+name = "entity_vt38c_init_place_and_enter_state_2_0"
+purpose = "Runs f_game_task_9AE5678, then if the game global's +0x6AF12 short is 0 places the entity at x = byte +0x1E4 * 1500 + 5000, y 0, z 9000 with +0x280 set to 0, otherwise sets +0x280 to 4; in both cases enters state 2,0 through vtable +0x88."
+confidence = "inferred"
+evidence = "Vtable 089BC38C +0x74; ran once in quest-q8 at frame 1580; writes to +0x200, +0x204 and +0x208 seen in the body."
+
+[[function]]
+module = "game_task"
+address = "09AE58A8"
+name = "entity_vt38c_tick_react_to_9ac7a08_code_run_state_clamp_height"
+purpose = "Per-frame method: may switch +0x280 mode via f_game_task_9AE94A8 or f_game_task_9AE94E8 when +0x29A matches the game's +0x6AF0E, sets a new state through vtable +0x88 by the code from f_game_task_9AC7A08, has a special case when game +0x6AF12 is 0x2784, runs f_game_task_9AE64E8 (twice if +0x4B7 is set), and with +0x410 mask 0x40 or 0x20 and a matching +0x29A clamps y +0x204 and rewrites +0x2CC against +0x2A0 and +0x2A8 by the +0x280 mode."
+confidence = "inferred"
+evidence = "Vtable 089BC38C +0x7C; ran over frames 1590-2300 of quest-q8; the +0x88 calls set state, and the meaning of the codes and the height fields were not read."
+
+[[function]]
+module = "game_task"
+address = "09AE64E8"
+name = "entity_vt38c_dispatch_state_298"
+purpose = "Copies state bytes +0x298 and +0x299 to +0x460 and +0x461, then calls one handler chosen by +0x298 (0 to 7)."
+confidence = "confirmed"
+evidence = "Switch on +0x298 in the body; called from the vtable 089BC38C +0x7C tick over quest-q8 frames 1590-2300; case 2 is the sub-state dispatcher f_game_task_9AF0C50."
+
+[[function]]
+module = "game_task"
+address = "09AE65B0"
+name = "unknown_entity_vt38c_method_40_calls_9c899e0_9c57ca0"
+purpose = "Calls f_game_sub_9C899E0 with (param_1, 0x22, 0) and f_game_sub_9C57CA0 with (param_1, 0)."
+confidence = "guess"
+evidence = "Vtable 089BC38C +0x40; ran at frame 1580 of quest-q8 from f_game_task_9AC5AA8 in the same frame as the init method; neither callee was read."
+
+[[function]]
+module = "game_task"
+address = "09AE6778"
+name = "entity_vt38c_rotate_four_bones_by_angle_fields_7ee"
+purpose = "Sets scale 1.0 on four bone nodes at +0x5590, +0x57E0, +0x5A30 and +0x2500 of the object at +0x190, then multiplies each node's matrix by two rotations made from the 16-bit angles at +0x7EE/+0x7F0, +0x7F2/+0x7F4, +0x7F6/+0x7F8 and +0x7FA/+0x7FC."
+confidence = "inferred"
+evidence = "bone_set_scale calls, angle-to-radian arithmetic and vmmul_t on each node's +0x150 matrix; vtable 089BC38C +0x84; the +0x7EE-side angles are eased by f_game_task_9AF1320."
+
+[[function]]
+module = "game_task"
+address = "09AE6CA0"
+name = "entity_vt38c_motion_frame_cues"
+purpose = "Copies the motion id +0x324 to +0x794 and, by motion id, calls f_game_task_9AF1828 with a mode number and fires f_game_task_9AF1A90, f_game_sub_9C6F470, f_game_sub_9C8A530 or f_game_task_9ACD490 at set motion frames, then always calls f_game_task_9AF17D0."
+confidence = "inferred"
+evidence = "Vtable 089BC38C +0x80; long chain of motion id tests with motion_frame_reached; none of the callees' meanings were read."
+
+[[function]]
+module = "game_task"
+address = "09AE8280"
+name = "entity_vt38c_set_state"
+purpose = "Vtable state setter taking major state, sub-state and a third value: returns without changing state when +0x6DB is 0 and the third value's low byte is 3 or 4, otherwise calls f_game_task_9AC74B0 and either the major state's setup function (0 to 3) or does per-sub-state preparation and calls f_game_task_9AC8790 (4 to 7)."
+confidence = "inferred"
+evidence = "Vtable 089BC38C +0x88; callers pass state pairs that the tick compares with +0x298 and +0x299; f_game_task_9AC8790 itself was not read."
+
+[[function]]
+module = "game_task"
+address = "09AE8888"
+name = "entity_vt38c_enter_state_2_adjust_substate"
+purpose = "Setup for major state 2: per sub-state runs preparation calls, remaps sub-state 6 to 8 and, for 10 and 0xB with +0x6DB set, picks 9, 0xB or the given sub-state from the angle to the point at +0x5D0 and another from f_game_task_9AE8B90, and stores a value from the horizontal distance to +0x5D0 in +0x414; then calls f_game_task_9AC8790 with major 2."
+confidence = "inferred"
+evidence = "Case 2 of f_game_task_9AE8280; the vsub_t, vdot_t and vsqrt_s use x and z only; f_game_task_9AC8BF0 as an angle comes from masking its result with 0xFFFF and comparing with +0x1F4."
+
+[[function]]
+module = "game_task"
+address = "09AE94E8"
+name = "entity_vt38c_set_mode_280_to_4_enter_state_2_0"
+purpose = "Sets +0x4B0 to 1.0, +0x280 to 4 and +0x4B5 to 1, clears mask 0x2 in +0x410 and enters state 2,0 through vtable +0x88."
+confidence = "inferred"
+evidence = "Short body all field writes and the +0x88 call; called from state 2 handlers and from the tick f_game_task_9AE58A8; what mode 4 means was not read."
+
+[[function]]
+module = "game_task"
+address = "09AEAB88"
+name = "entity_vt38c_state2_0_motion_100_wait_6db_then_reenter"
+purpose = "State 2,0: on first step clears mask 0x2 in +0x410, calls f_game_task_9AC5328 with 100 and sets +0x280 to 4; then waits for +0x6DB nonzero and mask 0x1 clear in the short at +0xBC, and calls f_game_task_9AE94E8, which re-enters state 2,0."
+confidence = "inferred"
+evidence = "Case 0 of f_game_task_9AF0C50; step byte +0x1D5; the body names only mechanics, +0x6DB and +0xBC were not traced to their setters."
+
+[[function]]
+module = "game_task"
+address = "09AEADA8"
+name = "entity_vt38c_state2_run_9ad9ed0_table_09bd5cf4_then_reset_state"
+purpose = "State 2,3 and 2,0x1A: on first step clears mask 0x2 in +0x410, sets +0x280 to 4, calls f_game_task_9AD9ED0 with table DAT_09bd5cf4 and, if DAT_09a4f1ac +0x88 is 0, f_game_task_9AF19D8 with 8.0; then when f_game_task_9AD9EE0 returns 1 calls f_game_task_9AE94E8; with param_2 equal to 1 (2,0x1A) also sets +0x523, +0x4B4, +0x35E and +0x2BA every frame."
+confidence = "inferred"
+evidence = "Cases 3 and 0x1A of f_game_task_9AF0C50; step byte +0x1D5; the same 9AD9ED0 then 9AD9EE0 pairing appears in f_game_task_9AE1460."
+
+[[function]]
+module = "game_task"
+address = "09AEB060"
+name = "entity_vt38c_state2_motion_67_velocity_and_check_at_frame_30"
+purpose = "State 2,5 and 2,0x1B: on first step clears mask 0x2 in +0x410, sets +0x280 to 4, calls f_game_task_9AC5328 with 0x67, zeroes velocity and sets +0x248 to 30.0 and +0x258 to 10.0; at motion frame 30 builds a vector at +0x7B0, passes it to f_game_task_9AC8DF8, caps +0x248 at 100.0, and if f_game_task_9AD9B10 with (0x40, 2) returns 1 calls f_game_task_9AE94E8; also calls f_game_task_9AF1908 with 8.0; with param_2 equal to 1 sets +0x523, +0x4B4, +0x35E and +0x2BA every frame."
+confidence = "inferred"
+evidence = "Cases 5 and 0x1B of f_game_task_9AF0C50; motion_frame_reached at frame 30; the callees were not read."
+
+[[function]]
+module = "game_task"
+address = "09AF0C50"
+name = "entity_vt38c_state2_dispatch_substate_299"
+purpose = "For major state 2, calls one handler chosen by +0x299 (0 to 0x1E), some shared with a flag argument (3 and 0x1A, 5 and 0x1B, 0xE and 0x1E); sub-state 0x17 does nothing."
+confidence = "confirmed"
+evidence = "Switch on +0x299 in the body; it is case 2 of f_game_task_9AE64E8, in traces over quest-q8 frames 1590-2300."
+
+[[function]]
+module = "game_task"
+address = "09AF11E8"
+name = "entity_call_9acb710_at_motion_frame"
+purpose = "Tests motion_frame_reached at frame param_2, scaling a frame of 2.0 by +0x4B0 when that is not 1.0, and if reached calls f_game_task_9ACB710 with param_3, param_4 and param_5."
+confidence = "inferred"
+evidence = "Whole body read; in traces called by f_game_task_9AF1D28; the (float) on param_2 is read as a register bit copy."
+
+[[function]]
+module = "game_task"
+address = "09AF1320"
+name = "entity_vt38c_ease_angle_7ee_entry_toward_target"
+purpose = "For entry param_2, moves the 16-bit angle at +0x7EE + 4*n over a 20-frame counter at +0x806 + n, using the mode byte at +0x7E7 + 2*n: mode 2 moves toward the table value DAT_09bd6148[n], mode 1 toward 0, and mode 0 starts one of them when the byte +0x79F is 2 or 3 (table value) or 1 (zero) and the angle is not already there."
+confidence = "inferred"
+evidence = "Whole body read; in traces called by f_game_task_9AF17D0; the same offsets are zeroed by f_game_task_9AE5678 and the +0x7EE-side angles are read by f_game_task_9AE6778."

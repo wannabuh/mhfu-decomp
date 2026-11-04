@@ -1,0 +1,247 @@
+[[function]]
+module = "game_task"
+address = "09AF14B8"
+name = "object_channel_keyframe_timer_step"
+purpose = "Steps one of four indexed channels: state byte +0x7E6+2i goes 0 idle, 1 countdown (+0x7DE+2i), then 2 or 3 walking a keyframe table by tick +0x7FE+2i and adding its deltas to short +0x7F0+4i, with mode byte +0x79F choosing the tables and the next state."
+confidence = "inferred"
+evidence = "Read state machine; tables DAT_09bd6070/09bd6118 hold 4-byte end-tick and delta rows; what the channel value drives is not read."
+
+[[function]]
+module = "game_task"
+address = "09AF17D0"
+name = "object_channels_step_all"
+purpose = "For channel indexes 0 to 3 calls the keyframe timer step 09AF14B8 and then 09AF1320."
+confidence = "inferred"
+evidence = "Fixed loop of four over both calls; called from 09AE6CA0 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AF1828"
+name = "object_set_mode_79f_adjusted_by_health"
+purpose = "Stores the argument in mode byte +0x79F, then changes mode 1 to 2 when health +0x2E4 is at or below max health +0x41E times a type-table ratio, and mode 3 to 0 when health is above it."
+confidence = "inferred"
+evidence = "Compares health with max health times the 09AD85C0 ratio; the mode is read by 09AF14B8."
+
+[[function]]
+module = "game_task"
+address = "09AF1908"
+name = "object_spawn_9c671a8_kind2_at_height_2a0_throttled"
+purpose = "When object +0x29A matches game +0x6AF0E, game +0x1C has mask 0x3 clear and +0x204 is at least +0x2A0 minus +0x2A8 minus 100, calls 09C671A8 with kind 2 at x/z of the object and height +0x2A0, scaled by the float argument times +0x220."
+confidence = "inferred"
+evidence = "Conditions and arguments read; 09C671A8 takes a slot from pool DAT_09d19860 and what it shows was not established."
+
+[[function]]
+module = "game_task"
+address = "09AF19D8"
+name = "object_spawn_9c671a8_kind5_at_height_2a0_with_sound"
+purpose = "When object +0x29A matches game +0x6AF0E, calls 09C671A8 with kind 5 at x/z of the object and height +0x2A0, scaled by the float argument times +0x220, and plays sound 0x1A at bone 6."
+confidence = "inferred"
+evidence = "Same setup as 09AF1908 without the throttle; 09ACB710 reaches sound_play_3d through 09ACB4E0."
+
+[[function]]
+module = "game_task"
+address = "09AF1A90"
+name = "unknown_dispatch_9b64d30_or_9b65230_by_1e8_is_8"
+purpose = "Forwards its argument to 09B64D30 when byte +0x1E8 is 8, otherwise to 09B65230."
+confidence = "inferred"
+evidence = "Two-way branch only; the callees were not read."
+
+[[function]]
+module = "game_task"
+address = "09AF1D28"
+name = "object_089bc38c_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BC38C: refreshes +0x40C from table_089aa344 (column 2 for +0x1E8 type 8, else 1) when +0x29A matches the game, copies motion id +0x324 to +0x794, and plays each sound listed for that motion at its motion frame and bone."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09AF11E8, which tests motion_frame_reached and reaches sound_play_3d."
+
+[[function]]
+module = "game_task"
+address = "09AF9C10"
+name = "object_089bc584_init"
+purpose = "Slot +0x74 of vtable 089BC584: sets +0x35E and +0x2BA to 99, calls 09AC8730(0,0), starts a motion by +0x46C, copies position and angle into +0x2D0, +0x320 and +0x7B0.., sets health and max health to 200, +0x220..+0x228 to 1.0, and calls virtual slot +0xF4."
+confidence = "inferred"
+evidence = "Runs once at one frame per recording from 09AC5AA8; stores read directly."
+
+[[function]]
+module = "game_task"
+address = "09AF9D60"
+name = "object_089bc584_update"
+purpose = "Slot +0x7C of vtable 089BC584: forces +0x35E and +0x2BA to 99, runs 09AF9DF8 (twice when +0x4B7 is set, clearing it) and then turns angle +0x1F4 with 09AFACD8."
+confidence = "inferred"
+evidence = "Runs every tick over the object's lifetime in traces; 09AF9DF8 leads to the +0x299 dispatcher 09AFBD68."
+
+[[function]]
+module = "game_task"
+address = "09AF9EB0"
+name = "object_is_within_500_of_hunter_in_game_slot"
+purpose = "Returns 1 when the hunter in manager slot game +0x28 exists, object +0x29A matches game +0x6AF0E and the hunter's +0x29A, and the distance between their positions is at most 500; otherwise 0."
+confidence = "confirmed"
+evidence = "hunter_manager_get_slot, then vsub/vdot/vsqrt of +0x200 against 500.0."
+
+[[function]]
+module = "game_task"
+address = "09AFACD8"
+name = "object_turn_angle_1f4_toward_angle_320"
+purpose = "Moves 16-bit wrapping angle +0x1F4 toward +0x320 by the shorter way, snapping when within the step; step is 0x71C in state group 0 state 3, otherwise 0xFA4."
+confidence = "confirmed"
+evidence = "Wrapping subtract with the 0x8000 half-turn test; object_state_is(0,3) picks the step."
+
+[[function]]
+module = "game_task"
+address = "09AFAD70"
+name = "object_089bc584_state0_random_motions_until_hunter_552"
+purpose = "State 0 of 09AFBD68: if the nearby hunter's +0x552 is nonzero, clears +0x790 and calls 09AC8730(0,3); otherwise loops motion 1, waiting a random 60 to 187 ticks in +0x414 and then usually playing one of three table motions until its flag at +0xBC mask 0x1 clears."
+confidence = "inferred"
+evidence = "Substate +0x1D5 machine with math_rng_next; table DAT_09bd8f20; hunter +0x552 meaning not read."
+
+[[function]]
+module = "game_task"
+address = "09AFBD68"
+name = "object_089bc584_dispatch_state_299"
+purpose = "Saves +0x298 and +0x299 into +0x460 and +0x461, then calls the handler for state +0x299, cases 0 to 0xB."
+confidence = "inferred"
+evidence = "Switch on +0x299; reached from 09AF9DF8 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AFBE70"
+name = "object_on_motion_frame_play_sound_at_bone"
+purpose = "When the motion reaches the given frame (a frame of 2 is scaled by +0x4B0 if that is not 1.0), reads the bone's position and passes the sound id, bone and position to object_play_sound_if_29a_matches."
+confidence = "confirmed"
+evidence = "motion_frame_reached, skeleton_get_bone +0x100..+0x108, then the named sound call."
+
+[[function]]
+module = "game_task"
+address = "09AFBF50"
+name = "object_on_motion_frame_call_889eac4_dispatch_then_play_sound_at_position"
+purpose = "When the motion reaches the given frame (a frame of 2 is scaled by +0x4B0 if that is not 1.0), calls unknown_sound_dispatch_889eac4_or_889ee80 with +0x5F6 and 0x10, then plays the sound id at the object's position through 09ACB4E0."
+confidence = "inferred"
+evidence = "motion_frame_reached then both calls; 09ACB4E0 reaches sound_play_3d."
+
+[[function]]
+module = "game_task"
+address = "09AFC1C0"
+name = "object_089bc584_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BC584: refreshes +0x40C from table_089aa344 when +0x29A matches the game, copies motion id +0x324 to +0x7A6, and fires the sounds listed for motions 0x3EA to 0x3F6 at their motion frames."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09ACB620, 09AFBF50 and 09AFBE70, all motion-frame sound helpers."
+
+[[function]]
+module = "game_task"
+address = "09AFC9D0"
+name = "object_089bc77c_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BC77C: refreshes +0x40C from table_089aa344 when +0x29A matches the game, and fires the sounds listed for motion id +0x324 at their motion frames."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09ACB620, which tests motion_frame_reached and reaches sound_play_3d."
+
+[[function]]
+module = "game_task"
+address = "09AFD2D0"
+name = "object_089bc878_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BC878: refreshes +0x40C from table_089aa344 when +0x29A matches the game, copies motion id +0x324 to +0x796, and fires the sounds listed for motions 0x3EA and 0x3EB."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09ACB620, which tests motion_frame_reached and reaches sound_play_3d."
+
+[[function]]
+module = "game_task"
+address = "09AFD3F8"
+name = "object_089bc974_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BC974: refreshes +0x40C from table_089aa344 (column 2 for +0x1E8 type 0x50, else 1) when +0x29A matches the game, copies motion id +0x324 to +0x796, and fires listed sounds at motion frames plus a throttled sound through 09B15270 on some motions."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09ACB620; 09B15270 plays when game +0x1C modulo 0x13 is 0."
+
+[[function]]
+module = "game_task"
+address = "09AFD958"
+name = "object_089bca70_motion_sound_events"
+purpose = "Per-tick slot +0x18 of vtable 089BCA70: copies motion id +0x324 to +0x7E4, refreshes +0x40C from table_089aa344 column 2 when +0x29A matches the game, and fires the sounds listed for that motion at their frames, skipping motion 0x3E9 for type 0x1B in state 6/2."
+confidence = "inferred"
+evidence = "Switch on motion ids calling 09B1C998, which tests motion_frame_reached and plays through 09ACB4E0 at a bone."
+
+[[function]]
+module = "game_task"
+address = "09AFE798"
+name = "object_089bc680_init_health_scale_by_type"
+purpose = "Sets health and max health from the type table 09AC9120 and scale +0x220..+0x228 by byte +0x1E8 and variant +0x4AE (types 0xC and 0x46 use variant tables, others 1.0), then copies position to +0x7A0.. and clears +0x280, +0x414, +0x4B5, +0x7E0 and +0x7E1 among other setup."
+confidence = "inferred"
+evidence = "Stores read directly; called from the +0x74 slot 09AFE968 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AFE968"
+name = "object_089bc680_init_start_state_by_counter"
+purpose = "Slot +0x74 of vtable 089BC680: runs 09AFE798, starts motion 0xB with a random third argument, then uses the low two bits of a counter that 09AB37D0 increments at DAT_09c122b0+0x1210 to pick starting state 0/1, 0/5, 0/6 or 0/7 through virtual slot +0x88."
+confidence = "inferred"
+evidence = "Ran once at one frame per recording; slot +0x88 arguments match cases of the 09AFF6A8 state switch."
+
+[[function]]
+module = "game_task"
+address = "09AFEA70"
+name = "object_request_code_545_priority_90_unless_7e1"
+purpose = "Calls 09AD1070 with the code argument and priority 0x90, which stores the code in +0x545 and sets +0x544 and mask 0x10 of +0x638; code 2 is skipped when +0x7E1 is set."
+confidence = "inferred"
+evidence = "Read this body and 09AD1070; what reads +0x545 was not read."
+
+[[function]]
+module = "game_task"
+address = "09AFEAB8"
+name = "object_set_7e1_if_same_29a_type46_variant2_in_group_4_or_5"
+purpose = "For an object of +0x1E8 type 0x46 whose +0x4AE is not 2, scans the 20-entry list at DAT_09c122b0+0x1220 and sets +0x7E1 when another entry with the same +0x29A is type 0x46, +0x4AE 2, with +0x298 equal to 4 or 5."
+confidence = "inferred"
+evidence = "Loop and conditions read; no distance is tested."
+
+[[function]]
+module = "game_task"
+address = "09AFEB90"
+name = "object_089bc680_update"
+purpose = "Slot +0x7C of vtable 089BC680: updates +0x7E0 and its entry at +0x7C0 in the list at DAT_09c122b0, scans the 20-entry list to request codes, turns the 09AC7A08 result (which also subtracts damage from health) into state changes, forces special states by game +0x6AF12 and flag tests, and runs the state dispatcher 09AFF600."
+confidence = "inferred"
+evidence = "Body read; codes go through 09AFEA70, state changes through virtual slot +0x88; meaning of game +0x6AF12 values 0xC352, 0x2714, 0x28A1 not read."
+
+[[function]]
+module = "game_task"
+address = "09AFF600"
+name = "object_089bc680_dispatch_state_group_298"
+purpose = "Calls the handler for byte +0x298, cases 0 to 7, with case 2 empty."
+confidence = "inferred"
+evidence = "Switch only; called twice from 09AFEB90 when +0x4B7 is set."
+
+[[function]]
+module = "game_task"
+address = "09AFF6A8"
+name = "object_089bc680_group0_dispatch_state_299"
+purpose = "Handler of group 0 in 09AFF600: saves +0x298 and +0x299 into +0x460 and +0x461, then calls the handler for state +0x299, cases 1 to 0xD, with case 0 empty."
+confidence = "inferred"
+evidence = "Switch on +0x299, reached from case 0 of 09AFF600."
+
+[[function]]
+module = "game_task"
+address = "09AFF7C0"
+name = "object_089bc680_state_0_1_motion1_then_next"
+purpose = "State 0/1: starts motion 1 unless motion id +0x324 is already 0x3E9, then when +0xBC mask 0x1 clears calls 09B04AF0 to choose the next state."
+confidence = "inferred"
+evidence = "Substate +0x1D5 machine; case 1 of 09AFF6A8; 09B04AF0 calls virtual slot +0x88."
+
+[[function]]
+module = "game_task"
+address = "09AFFC98"
+name = "object_089bc680_state_0_5_motion4_timed_then_next"
+purpose = "State 0/5: starts motion 4 and counts +0x414 down from 180 to 270 ticks, chosen by the low two bits of +0x322, then calls 09B04AF0 to choose the next state."
+confidence = "inferred"
+evidence = "Substate +0x1D5 machine with timer (+0x322 mask 0x3) * 0x1E + 0xB4; case 5 of 09AFF6A8."
+
+[[function]]
+module = "game_task"
+address = "09AFFD18"
+name = "object_089bc680_state_0_6_motion5_then_next"
+purpose = "State 0/6: starts motion 5, then when +0xBC mask 0x1 clears calls 09B04AF0 to choose the next state."
+confidence = "inferred"
+evidence = "Substate +0x1D5 machine; case 6 of 09AFF6A8."
+
+[[function]]
+module = "game_task"
+address = "09AFFD80"
+name = "object_089bc680_state_0_7_motion6_then_next"
+purpose = "State 0/7: starts motion 6, then when +0xBC mask 0x1 clears calls 09B04AF0 to choose the next state."
+confidence = "inferred"
+evidence = "Substate +0x1D5 machine; case 7 of 09AFF6A8."

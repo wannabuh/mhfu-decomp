@@ -1,0 +1,335 @@
+[[function]]
+module = "game_task"
+address = "09AC7A08"
+name = "entity_apply_pending_damage_and_choose_result_code"
+purpose = "Each tick while field +0x285 is set, subtracts summed pending damage from health (capped at max health), runs the 9-slot counters at +0x580, may set the alert mode through 09AC93B0 and clamp health to 1000 for some types, and returns a code: 0, 1 at zero health, 2 when already at zero with +0x285 clear, or others from +0x3CA/+0x3CF and 09AC85F8."
+confidence = "inferred"
+evidence = "Writes health at +0x2E4 from 09AC8450's sums and returns numeric codes; what callers do with each code was not read."
+
+[[function]]
+module = "game_task"
+address = "09AC8450"
+name = "entity_sum_pending_damage_and_add_buildups"
+purpose = "Scales the 8 shorts at +0x3B8 by the float at +0x384, adding positive results to *param_2 and negated negative ones to *param_3, records the largest slot in +0x286, sets +0x3C8 from a type-table slot, calls 09AD38F8 with the total unless +0x638 has mask 0x20, and feeds +0x38C..+0x394 to the five buildup functions when +0x4C0 < 1."
+confidence = "inferred"
+evidence = "Runs from a popo hit recording and fights; 09AC7A08 subtracts param_2's total from health and adds param_3's."
+
+[[function]]
+module = "game_task"
+address = "09AC85F8"
+name = "entity_pick_code_from_buildup_mask_522"
+purpose = "Returns 0 unless +0x3CA is other than 8 and 0xC and the +0x522 mask (minus mask 0x4 and the bit picked by +0x521) is non-zero; then returns 1 after calling 09AD0A98 when +0x280 is 2 (or 1 for types 0x36, 0x3C, 0x40, 0x41), else 4 for mask 0x8, 2 for mask 0x1, 5 for mask 0x10, 3 for mask 0x2."
+confidence = "inferred"
+evidence = "Bits read here are the ones set by the buildup functions 09ACC170..09ACC3B8; 09AC7A08 maps the code onward."
+
+[[function]]
+module = "game_task"
+address = "09AC8730"
+name = "entity_set_state_randomize_322"
+purpose = "Stores a new random number in +0x322, then sets the state pair +0x298/+0x299 through 09AC88E8."
+confidence = "inferred"
+evidence = "Calls math_rng_next and 09AC88E8 and nothing else."
+
+[[function]]
+module = "game_task"
+address = "09AC8790"
+name = "entity_set_state_by_global_flag_and_mode"
+purpose = "With mask 0x1 clear at DAT_08a632c0+0xF7A57C, randomizes +0x322 and sets the state; with it set, param_4 (0..4) selects calling 09AD1F60 (which queues state data when +0x638 mask 0x2 is set), 09AC88E8, or both, some of them gated on +0x6DB."
+confidence = "inferred"
+evidence = "Branches read in the code; the meaning of the global flag and +0x6DB is not shown here."
+
+[[function]]
+module = "game_task"
+address = "09AC88E8"
+name = "entity_set_state_mark_4b7"
+purpose = "Clears +0x769, sets the state through 09AC8918, then sets +0x4B7 to 1."
+confidence = "inferred"
+evidence = "Three-line wrapper; 09AC8918 writes the state pair."
+
+[[function]]
+module = "game_task"
+address = "09AC8918"
+name = "entity_set_state_reset_fields"
+purpose = "Writes the state pair +0x298/+0x299, clears +0x1D5..+0x1D7, clears +0x1A8..+0x1BE unless the new state is (1,8), (1,2) or (1,10), runs the +0x3F4 setter, masks +0x288 down to 0x100100 and clears +0x28C."
+confidence = "inferred"
+evidence = "Direct writes in the body; +0x299 is the known state field."
+
+[[function]]
+module = "game_task"
+address = "09AC8AE0"
+name = "entity_call_vtable_74"
+purpose = "Tail-calls the object's vtable slot +0x74."
+confidence = "confirmed"
+evidence = "Single indirect jump through the vtable."
+
+[[function]]
+module = "game_task"
+address = "09AC8AF0"
+name = "entity_update_field_5d0_then_call_vtable_88"
+purpose = "Passes +0x5D0 to 09AD11A0 when +0x6DB is 0 or to 09AB9170 otherwise, then calls vtable slot +0x88 with the remaining arguments."
+confidence = "inferred"
+evidence = "Whole body read; the two callees were not read."
+
+[[function]]
+module = "game_task"
+address = "09AC8B78"
+name = "entity_reset_fields_if_638_mask_10"
+purpose = "When +0x638 has mask 0x10, clears that bit and +0x4B5, +0x4C1, +0x778, +0x500, sets +0x4CC from 09ABAB90 and sets +0x534, +0x535, +0x53A, +0x53B, +0x53E, +0x540 to all ones."
+confidence = "inferred"
+evidence = "Direct writes in the body."
+
+[[function]]
+module = "game_task"
+address = "09AC8BF0"
+name = "math_angle16_xz_between_points"
+purpose = "Returns a 16-bit angle from the XZ delta arg_a1 - arg_a2: an inlined arctangent of (-dz, dx), converted to 65536 units per turn, minus 0x4000."
+confidence = "inferred"
+evidence = "Uses x and z only and ends by scaling by 65536/2pi; 09ACCBF8 feeds it own position and hunter position."
+
+[[function]]
+module = "game_task"
+address = "09AC8DF8"
+name = "entity_add_rotated_velocity_to_position"
+purpose = "Builds a rotation matrix from three angles got through 09ABA078 and param_2, rotates the velocity at +0x240, and adds it to the place at +0x200."
+confidence = "inferred"
+evidence = "Identity plus three rotate calls, vtfm3 of a velocity copy, add to +0x200."
+
+[[function]]
+module = "game_task"
+address = "09AC8EE0"
+name = "entity_add_rotated_velocity_to_position_then_add_250_to_velocity"
+purpose = "Same rotated velocity move as 09AC8DF8, then adds the vector at +0x250 to the velocity at +0x240."
+confidence = "inferred"
+evidence = "Same matrix build and vtfm3; last three lines add +0x250 to +0x240."
+
+[[function]]
+module = "game_task"
+address = "09AC8FE0"
+name = "entity_start_motion_from_type_table"
+purpose = "Reads the 8-byte record param_2 from the per-type table at 09BD3880, and for each motion slot (+0x1A2) the record selects, sets the motion id at +0x324, clears +0x32C and +0x334, fetches motion data through vtable +0x20 and calls motion_player_change_blended; also sets +0x63C from the record's byte 7."
+confidence = "inferred"
+evidence = "Motion id is byte + 1000 + 200 per slot; calls motion_player_change_blended."
+
+[[function]]
+module = "game_task"
+address = "09AC9120"
+name = "entity_scaled_health_from_type_table"
+purpose = "Returns entry param_2 of a per-type short table (stride 0x1D0) multiplied by the float at +0 of a record chosen by the type, DAT_08a62d9c+0x116 and +0x4BC."
+confidence = "inferred"
+evidence = "Caller 09ADA990 stores the result in both health +0x2E4 and max health +0x41E."
+
+[[function]]
+module = "game_task"
+address = "09AC91C0"
+name = "entity_init_damage_slots_from_type_table"
+purpose = "For the 9 slots at +0x57C (stride 8), marks active those whose per-type table value is positive, stores the value at +0x580 and calls 09AD3C88, clears the others; the table's tenth short goes to +0x4C2."
+confidence = "inferred"
+evidence = "Vtable slot +0xF4; +0x580 is what 09AC7A08 decrements by damage and +0x4C2 is the mode it switches on."
+
+[[function]]
+module = "game_task"
+address = "09AC9280"
+name = "entity_quest_scale_float_4"
+purpose = "Returns the float at +4 of the record used by 09AC9120, multiplied by DAT_09BC2DAC+0x44 for type 0x59."
+confidence = "inferred"
+evidence = "Caller 09AC6B60 stores it in +0x380; what +0x380 does was not read."
+
+[[function]]
+module = "game_task"
+address = "09AC9318"
+name = "entity_pending_damage_scale_from_quest_table"
+purpose = "Returns the float at +8 of the record used by 09AC9120, multiplied by DAT_09BC2DAC+0x48 for type 0x59."
+confidence = "inferred"
+evidence = "Caller 09AC6B60 stores it in +0x384, the float 09AC8450 multiplies pending damage by."
+
+[[function]]
+module = "game_task"
+address = "09AC93B0"
+name = "entity_set_alert_mode"
+purpose = "If +0x4B9 differs from param_2, sets it (and timer +0x4BE when param_3 > 0) and masks +0x4C1 with 0xC0; on mode 0 also clears +0x513, +0x503, the per-hunter +0x688, +0x554, +0x514, clears mask 0x1 of +0x111C on hunters in bitmask +0x4BA, and clears +0x4BA."
+confidence = "inferred"
+evidence = "Mode 1 is set when 09AC7A08 applies damage and +0x4BE counts down in 09AC9910; alert is a reading of that, not shown by a string."
+
+[[function]]
+module = "game_task"
+address = "09AC94D8"
+name = "entity_add_pickup_point_from_type_table"
+purpose = "Fills a stack record from a table at 09CD90B0 (type-1, stride 0x34; first value picked by DAT_08a62d9c+0x4C or 6, value 0x405 for type 0x46 with the quest flag), calls pickup_point_add at the place or at bone +0x502, and keeps the index in +0x510."
+confidence = "inferred"
+evidence = "Calls pickup_point_add; run from a state function in 09B02600 and 09B0A888."
+
+[[function]]
+module = "game_task"
+address = "09AC9658"
+name = "entity_track_pickup_point_remove_at_zero_16"
+purpose = "With a pickup point in +0x510, removes it if its +0x16 field is 0, otherwise moves it to the entity place or bone +0x502 and returns that field; returns -1 when there is none or it was removed."
+confidence = "inferred"
+evidence = "Calls pickup_point_set_position and 09AC9708; caller 09B02600 advances its state when the result is < 1."
+
+[[function]]
+module = "game_task"
+address = "09AC9708"
+name = "entity_remove_pickup_point"
+purpose = "Removes the pickup point indexed by +0x510 and sets +0x510 to 0xFF."
+confidence = "confirmed"
+evidence = "Calls pickup_point_remove and writes 0xFF; nothing else in the body."
+
+[[function]]
+module = "game_task"
+address = "09AC9740"
+name = "entity_4c1_has_bit_at_or_above_lowest_of_mask"
+purpose = "Finds the lowest set bit of param_2's low 8 bits and returns 1 if +0x4C1 has that bit or any higher one; returns 0 when param_2 has none."
+confidence = "confirmed"
+evidence = "The loop builds the mask from the lowest bit up to bit 7 and tests +0x4C1."
+
+[[function]]
+module = "game_task"
+address = "09AC9910"
+name = "entity_tick_alert_timer"
+purpose = "In mode +0x4B9 == 1 with +0x6DB set, caps +0x4BE at 900 when +0x503 is 0, decrements it, and at zero either holds at 0 (when +0x280 is 2 and type is not 0x50) or sets mode 0; for listed types with no active hunter sharing +0x29A also calls 09ABAFF0 and sets +0x4B5."
+confidence = "inferred"
+evidence = "Timer countdown read in the code; calls 09AC93B0(0,0) at expiry."
+
+[[function]]
+module = "game_task"
+address = "09AC9BC8"
+name = "entity_set_field_6de_1_over_2"
+purpose = "Sets +0x6DE to 1 for param 1, or to 2 for param 2 unless it already holds 1."
+confidence = "confirmed"
+evidence = "Whole body is these two branches."
+
+[[function]]
+module = "game_task"
+address = "09AC9C08"
+name = "entity_update_hunter_mask_503_from_513"
+purpose = "For each of 4 hunters, a set bit in +0x513 sets the bit in +0x503 and reloads its +0x514 timer from the type table; otherwise a set +0x503 bit counts its timer down and clears at zero. Returns +0x503."
+confidence = "inferred"
+evidence = "Bit and timer logic read; +0x513 is set by the sight check 09AC9CB8."
+
+[[function]]
+module = "game_task"
+address = "09AC9CB8"
+name = "entity_update_hunter_sight_mask_513"
+purpose = "Unless +0x4B6 is set, takes an eye point and direction by type (bone position plus forward angle), then for each hunter in the same +0x29A sets the +0x513 bit if within the range, height and half-angle from the record at +0x644 and a line-of-sight query 09C404C0 passes (newly set in mode +0x4B9 == 0 also calls 09AD2AF8); otherwise clears it. Hunter mask 0x200 at +0x111C clears +0x514, +0x503 and +0x554 instead."
+confidence = "inferred"
+evidence = "Range, height and angle comparisons plus a query from the eye point to the hunter point, tail read in full; 'sight' is a reading of that."
+
+[[function]]
+module = "game_task"
+address = "09ACB4E0"
+name = "entity_play_sound_3d_if_29a_matches_game"
+purpose = "If object_29a_matches_game_6af0e holds and param_2 is not -1, offsets param_2 for types 0x50, 0x3E, 0x3D, 0x1E, 0x23, 0x10, 0x0D and calls sound_play_3d using +0x5F6, +0x40C and +0x5F4; else returns 0."
+confidence = "inferred"
+evidence = "Direct call to sound_play_3d with the type offsets."
+
+[[function]]
+module = "game_task"
+address = "09ACB620"
+name = "entity_play_sound_at_bone_on_motion_frame"
+purpose = "When motion_frame_reached returns true for frame param_2 (frame 2 is scaled by +0x4B0 when that is not 1.0), plays sound param_3 at bone param_4 through 09ACB4E0 using per-type table bytes."
+confidence = "inferred"
+evidence = "Calls motion_frame_reached, object_get_bone_position and 09ACB4E0."
+
+[[function]]
+module = "game_task"
+address = "09ACB710"
+name = "entity_play_sound_at_bone"
+purpose = "Plays sound param_2 at bone param_3 through 09ACB4E0 with per-type table bytes, passing param_3 + param_4 as the argument 09ACB620 passes its bone in."
+confidence = "inferred"
+evidence = "Same call as 09ACB620 without the frame test."
+
+[[function]]
+module = "game_task"
+address = "09ACC040"
+name = "entity_interpolate_type_value_by_field_274"
+purpose = "Returns a value from +0x274 and two per-type table values: 0 at 0 or 100 or when the first table value is 0, the first value below 50, falling to near 0 by 100, rising from 0 to the second value between 100 and 200, the second value from 200."
+confidence = "inferred"
+evidence = "Piecewise arithmetic read; caller 09AB2A58 stores it at +0x5F4."
+
+[[function]]
+module = "game_task"
+address = "09ACC120"
+name = "entity_init_buildup_thresholds_from_type_table"
+purpose = "Copies five per-type table shorts to +0x44A, +0x444, +0x450, +0x456 and +0x566, the thresholds the five buildup functions compare against."
+confidence = "inferred"
+evidence = "Same fields compared in 09ACC170..09ACC3B8; run at spawn frames."
+
+[[function]]
+module = "game_task"
+address = "09ACC170"
+name = "entity_add_buildup_44c_set_522_mask_1"
+purpose = "With threshold +0x44A positive and param_2 non-zero: unless +0x522 has mask 0x1, adds param_2 to +0x44C and reloads +0x44E from the type table; sets mask 0x1 once +0x44C reaches the threshold."
+confidence = "inferred"
+evidence = "Direct logic; 09AC8450 passes +0x38E. Which status it is was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACC1F8"
+name = "entity_add_buildup_446_set_522_mask_2"
+purpose = "With threshold +0x444 positive and param_2 non-zero: unless +0x522 has mask 0x2, adds param_2 to +0x446 and reloads +0x448 from the type table; sets mask 0x2 once +0x446 reaches the threshold."
+confidence = "inferred"
+evidence = "Direct logic; 09AC8450 passes +0x38C. Which status it is was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACC280"
+name = "entity_add_buildup_388_set_522_mask_4"
+purpose = "With threshold +0x450 positive and param_2 non-zero, adds to +0x388; first reaching it resets +0x388 and +0x452, sets +0x522 mask 0x4 and loads +0x454 from the type table; while mask 0x4 is set it clamps +0x388 below the threshold."
+confidence = "inferred"
+evidence = "Direct logic; 09AC8450 passes +0x390. Which status it is was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACC330"
+name = "entity_add_buildup_458_set_522_mask_8"
+purpose = "With threshold +0x456 positive and param_2 non-zero: unless +0x522 has mask 0x8, adds param_2 to +0x458 and reloads +0x45A from the type table; sets mask 0x8 once +0x458 reaches the threshold."
+confidence = "inferred"
+evidence = "Direct logic; 09AC8450 passes +0x392. Which status it is was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACC3B8"
+name = "entity_add_buildup_440_set_522_mask_10"
+purpose = "With threshold +0x566 positive and param_2 non-zero: unless +0x522 has mask 0x10, adds param_2 to +0x440 and reloads +0x442 from the type table; sets mask 0x10 once +0x440 reaches the threshold."
+confidence = "inferred"
+evidence = "Direct logic; 09AC8450 passes +0x394. Which status it is was not read."
+
+[[function]]
+module = "game_task"
+address = "09ACC448"
+name = "entity_vfunc_70_return_1"
+purpose = "Default vtable slot +0x70: returns 1."
+confidence = "confirmed"
+evidence = "Body is return 1; listed in several vtables at +0x70."
+
+[[function]]
+module = "game_task"
+address = "09ACC450"
+name = "id_group_same_first_id"
+purpose = "Returns 1 if id_group_table_first_id gives the same low byte for both ids."
+confidence = "confirmed"
+evidence = "Whole body is the two lookups and the compare."
+
+[[function]]
+module = "game_task"
+address = "09ACCB18"
+name = "entity_flag_hunters_over_threshold_688"
+purpose = "For each hunter in mask +0x6D8 whose +0x688 reached the threshold chosen by +0x6DA, when 09AC9740(0x10) is 0, mode +0x4B9 is not 1 and +0x523 is 0: sets +0x4B5, +0x4BB mask 0x10, the +0x6D9 bit, and clears +0x688."
+confidence = "inferred"
+evidence = "Direct logic; +0x6D8 is set by 09ACCBF8 and +0x688 is cleared there."
+
+[[function]]
+module = "game_task"
+address = "09ACCBF8"
+name = "entity_update_hunter_distance_angle_and_range_masks"
+purpose = "For each active hunter in the same +0x29A, not in hunter +0x298 == 3: stores 3D distance (+0x658), XZ distance (+0x668) and angle (+0x698); within the +0x644 record's range sets the +0x6D8 bit, may set the +0x503 bit and timer by sector, and for the first range band of +0x678..+0x684 it falls in calls 09AD2AF8 and 09ACD0F8. Out of range clears the bit and +0x688."
+confidence = "inferred"
+evidence = "Direct writes; vtable slot +0x90; the callees of the bands were not read."
+
+[[function]]
+module = "game_task"
+address = "09ACD0A0"
+name = "entity_hunter_angle_sector_index"
+purpose = "Returns the first of 4 sector half-widths at +0x6A0 for which hunter param_2's angle at +0x698 lies within that half-width of the yaw at +0x1F4, or 4 when none match."
+confidence = "inferred"
+evidence = "Modular 16-bit compare in a loop; 09ACCBF8 indexes a distance table with the result."

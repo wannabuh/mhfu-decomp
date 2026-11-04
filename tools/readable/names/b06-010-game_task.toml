@@ -1,0 +1,303 @@
+[[function]]
+module = "game_task"
+address = "09AC03D8"
+name = "script_op38_if_cond_9ac04f0"
+purpose = "Behaviour-script opcode 0x38: subcode 0 skips to the next 0x38 subcode 1 or 2 when 9AC04F0 returns 0, subcode 1 skips past subcode 2, subcode 2 does nothing."
+confidence = "inferred"
+evidence = "Dispatched on byte 0x38 by interpreter 9AB4C68; skip loops read in the code; the condition's meaning is unknown."
+
+[[function]]
+module = "game_task"
+address = "09AC04F0"
+name = "unknown_global_a4f1a0_table_entry_at_byte_290_has_mask_20"
+purpose = "Gets a pointer through a virtual call (+0x28) on the object held at DAT_09a4f1a0 and tests mask 0x20 on the table entry there (+0xC) indexed by this object's byte +0x290; returns 0 if either pointer is null."
+confidence = "inferred"
+evidence = "Mechanics read directly ((byte & 0x3f) >> 5 != 0 is mask 0x20); what the table holds is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC07C8"
+name = "script_op3e_switch_on_field_53e_remapped"
+purpose = "Behaviour-script opcode 0x3E, a switch: subcode 0 compares halfword +0x53E against a counted list of big-endian 16-bit case values, both remapped through tables 09CE5108 and 09CE5320, entering the matching case; subcodes 1 and 2 skip to subcode 3, which ends the block."
+confidence = "inferred"
+evidence = "Dispatched on 0x3E by 9AB4C68; case loop and skips to 0x3E subcode 3 read in the code; meaning of +0x53E unknown."
+
+[[function]]
+module = "game_task"
+address = "09AC1458"
+name = "script_op4d_compute_position_into_5d0"
+purpose = "Behaviour-script opcode 0x4D: calls 9AB9170 to write a position into the vector at +0x5D0 and continues at the pointer it was given."
+confidence = "inferred"
+evidence = "Dispatched on 'M' by 9AB4C68; 9AB9170 stores xyz through its second argument, here +0x5D0."
+
+[[function]]
+module = "game_task"
+address = "09AC1578"
+name = "script_op51_if_byte_280_is_4"
+purpose = "Behaviour-script opcode 0x51: subcode 0 skips to the next 0x51 subcode 1 or 2 unless byte +0x280 equals 4, subcode 1 skips past subcode 2, subcode 2 does nothing."
+confidence = "confirmed"
+evidence = "Dispatched on 0x51 by 9AB4C68; comparison and skip loops read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC2B78"
+name = "script_op63_if_field_4ae_has_operand_mask"
+purpose = "Behaviour-script opcode 0x63: subcode 0 reads a one-byte mask operand and skips to the next 0x63 subcode 1 or 2 when halfword +0x4AE has none of those bits, subcode 1 skips past subcode 2, subcode 2 does nothing."
+confidence = "confirmed"
+evidence = "Dispatched on 0x63 by 9AB4C68; mask test and skip loops read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC33C8"
+name = "entity_script_table_30_get_entry"
+purpose = "Returns word N of the pointer table at +0x30 of the data block held in +0x4C8, or 0 if the block has no such table."
+confidence = "inferred"
+evidence = "Mechanics read directly; in traces 9AB6788 (a script opcode handler) returns the result, so the entries look like script pointers."
+
+[[function]]
+module = "game_task"
+address = "09AC3498"
+name = "entity_script_table_28_get_entry"
+purpose = "Returns word N of the pointer table at +0x28 of the data block held in +0x4C8, or 0 if the block has no such table."
+confidence = "inferred"
+evidence = "Mechanics read directly; 9AB7230 stores entry 0 in +0x4E4 and can return it as the script start pointer."
+
+[[function]]
+module = "game_task"
+address = "09AC3550"
+name = "script_op7c_if_game_6af10_remapped_is_09_0a_or_16"
+purpose = "Behaviour-script opcode 0x7C: subcode 0 remaps game byte +0x6AF10 through table 09CE4908 (0xFFFF keeps the raw value) and skips to the next 0x7C subcode 1 or 2 unless the result is 9, 10 or 0x16; subcode 1 skips past subcode 2, subcode 2 does nothing."
+confidence = "confirmed"
+evidence = "Dispatched on 0x7C by 9AB4C68; remap, comparisons and skip loops read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC3798"
+name = "script_op79_switch_on_vfunc_dc"
+purpose = "Behaviour-script opcode 0x79, a switch: subcode 0 calls virtual +0xDC with a byte operand and compares the result against a counted list of byte case values, entering a match and skipping to subcode 2 or 3 once a case value exceeds it; subcodes 1 and 2 skip to subcode 3, which ends the block."
+confidence = "inferred"
+evidence = "Dispatched on 'y' by 9AB4C68; case loop read in the code; what virtual +0xDC returns is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC3970"
+name = "script_op76_switch_with_selector_0"
+purpose = "Behaviour-script opcode 0x76, shaped like the 0x79 switch but decompiled with a selector of 0: subcode 0 enters on a first case value of 0 or an empty list, otherwise skips to subcode 2 or 3; subcodes 1 and 2 skip to subcode 3, which ends the block."
+confidence = "guess"
+evidence = "Same layout as 09AC3798; Ghidra removed unreachable blocks here, so the constant selector may be a decompiler artefact."
+
+[[function]]
+module = "game_task"
+address = "09AC3CA8"
+name = "script_op77_if_global_a4f1a0_id_has_remap_entry"
+purpose = "Behaviour-script opcode 0x77: subcode 0 skips to the next 0x77 subcode 1 or 2 when table 09CE4908 holds -1 for the id read at DAT_09a4f1a0 + 0x284; subcode 1 skips past subcode 2, subcode 2 does nothing."
+confidence = "inferred"
+evidence = "Dispatched on 'w' by 9AB4C68; the byte offset of the id depends on the global's type, which the view does not settle."
+
+[[function]]
+module = "game_task"
+address = "09AC4518"
+name = "script_op7b_84_increment_field_322"
+purpose = "Behaviour-script opcodes 0x7B and 0x84: adds 1 to halfword +0x322; the interpreter itself advances past the opcode."
+confidence = "confirmed"
+evidence = "9AB4C68 calls it for both 0x7B and 0x84 and steps one byte; the body is the single increment."
+
+[[function]]
+module = "game_task"
+address = "09AC47B0"
+name = "entity_ctor"
+purpose = "Constructs the entity base class: runs object_ctor, installs vtable 089BC098, sets byte +0x1E9 to 1, +0x408 to 5, and clears +0x640 and +0x40C."
+confidence = "inferred"
+evidence = "Calls object_ctor and installs the vtable that destructor 09AC4800 also restores; ran only on one early frame per recording in traces."
+
+[[function]]
+module = "game_task"
+address = "09AC4800"
+name = "entity_dtor_flags_nodes_owned_by_it"
+purpose = "Destructor at vtable 089BC098 +0x8: restores the vtable, walks the node list at DAT_09D19860 + 0x19030 setting mask 2 at +0x48 on nodes whose +0xC points to this object, runs object_dtor, and calls object_delete_noop when the flag argument is positive."
+confidence = "inferred"
+evidence = "Vtable slot +0x8, object_dtor call and the list walk read in the code; what mask 2 does to a node is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC48C0"
+name = "entity_reset_defaults"
+purpose = "Vtable +0x10 reset: runs object_reset_defaults, zeroes the stage bytes +0x1D4..+0x1D7, flags +0x638, byte +0x280, words +0x6A8..+0x6D4 and byte +0x6DC, sets +0x6DB to 1, and copies game halfword +0x6AF0E into +0x29A."
+confidence = "inferred"
+evidence = "Calls object_reset_defaults and is the +0x10 slot of the per-type vtables; writes read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC4950"
+name = "entity_tick_by_stage"
+purpose = "Vtable +0x38 per-frame update: copies bone matrices, then branches on stage byte +0x1D4 to init (0), the active tick (1), the last tick before removal (2) or removal (3); stages 1 and 2 also set +4 mask 4 unless +0x29A equals game +0x6AF0E and +0x638 has mask 0x8000, and are skipped apart from setting mask 4 when gate 9AD7DE8 returns 0."
+confidence = "inferred"
+evidence = "Ran throughout hunts from EBOOT 08864634; stage branches and the flag writes read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC4E30"
+name = "entity_draw"
+purpose = "Vtable +0xC draw: uploads lights and the world and skin matrices, then for each mesh with its enable byte at +0x2FF set writes GE commands chosen by type +0x1E8 and byte +0x230, and emits the mesh when virtual +0x70 allows it (calling virtual +0x6C first); restores GE state and lights after."
+confidence = "inferred"
+evidence = "Calls gpu_set_world_matrix, skeleton_update_skin_matrices and gpu_emit_model_mesh and appends to the display-list pointer DAT_089CC120."
+
+[[function]]
+module = "game_task"
+address = "09AC5230"
+name = "entity_get_type_values_scaled_by_xz_scale"
+purpose = "Vtable +0x34: outputs scale +0x220 times the type table value at 09BB8AF4 and scale +0x228 times the one at 09BB8AF8, indexed by type +0x1E8."
+confidence = "inferred"
+evidence = "Multiplications read directly; 09AC7768 writes +0x220 and +0x228 as scale; what the two table values mean is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC52A0"
+name = "entity_update_matrices_and_skeleton"
+purpose = "Runs object_update_world_matrix, virtual +0x84, skeleton_update_bone_roots at unit scale, and 09AC5718 to copy bone matrices to the skeleton at +0x194."
+confidence = "inferred"
+evidence = "Four calls read directly; called each frame from entity_tick_by_stage."
+
+[[function]]
+module = "game_task"
+address = "09AC5300"
+name = "entity_motion_update_if_field_190_set"
+purpose = "Calls motion_update_layers when pointer +0x190 is non-null."
+confidence = "inferred"
+evidence = "Body is the single guarded call; the role of +0x190 is not shown beyond this guard."
+
+[[function]]
+module = "game_task"
+address = "09AC5328"
+name = "entity_motion_play_table_entry"
+purpose = "Starts the motion of an entry in the 8-byte-per-entry table at +0x640 on each layer up to count +0x1A2: resolves motion id as 1000 + entry byte + 200 per layer, blend and start frame from arguments, entry or +0x63C, stores them at +0x324, +0x334 and +0x32C, gets the motion from virtual +0x20 and calls motion_player_change_blended; +0x638 mask 1 redirects to table 09BD39F0 once."
+confidence = "inferred"
+evidence = "Writes motion id +0x324 and calls motion_player_change_blended per layer; em20 is among the callers in traces."
+
+[[function]]
+module = "game_task"
+address = "09AC5620"
+name = "entity_motion_play_id_on_layer"
+purpose = "Starts a given motion id on one layer, storing it at +0x324, half the blend at +0x334 and the start value at +0x32C, with blend forced to 0 when the id is unchanged or the layer's id was 0; gets the motion from virtual +0x20 and calls motion_player_change_blended."
+confidence = "inferred"
+evidence = "Per-layer writes and the motion_player_change_blended call read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC56E0"
+name = "entity_set_type_and_motion_table"
+purpose = "Stores the type id in byte +0x1E8 and sets layer count +0x1A2 from table 09BCDD50 and motion table pointer +0x640 from table 09BD3880, both indexed by the type."
+confidence = "inferred"
+evidence = "Three writes read directly; 09AC5328 reads +0x1A2 as the layer count and +0x640 as its table."
+
+[[function]]
+module = "game_task"
+address = "09AC5718"
+name = "entity_copy_type_bone_matrices_to_skeleton_194"
+purpose = "Picks a bone by type +0x1E8 (0x30, 0x11, otherwise 0x2B), then copies 0x40-byte blocks from that bone to the structure at +0x194: +0x90 to both +0x90 and +0x2E0, and +0x2E0 to +0x530; does nothing when +0x194 is null."
+confidence = "inferred"
+evidence = "skeleton_get_bone call and copy loops read in the code; the role of the structure at +0x194 is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC59D0"
+name = "entity_copy_bone_matrices_to_global_table"
+purpose = "For types 7, 0x32, 0x37, 0x3A and 0x48 with +0x638 mask 0x8000, copies the 0x40-byte block at +0xD0 of each 0x250-byte entry of +0x190, count +0x1A4, into the table at DAT_09C122B0 + 0x210."
+confidence = "inferred"
+evidence = "Type checks and copy loop read in the code; called first in entity_tick_by_stage; that the blocks are matrices follows from their size and siblings."
+
+[[function]]
+module = "game_task"
+address = "09AC5AA8"
+name = "entity_tick_stage0_init"
+purpose = "First-frame setup: advances stage +0x1D4, sets byte +0x4BC via the quest record, resets runtime fields, clears motion ids +0x324..+0x32A, loads type parameters and flags, enables all 32 mesh bytes from +0x2FF, calls virtuals +0xF4 and +0x40, sets owner bytes +0x6DB/+0x6DC when +0x638 has mask 2, and sets the +0x260 place."
+confidence = "inferred"
+evidence = "Ran on one early frame per recording in traces, from stage 0 of entity_tick_by_stage; calls read in the code."
+
+[[function]]
+module = "game_task"
+address = "09AC5C30"
+name = "entity_tick_stage1_active"
+purpose = "Per-frame update of stage 1: updates the owner slot, ticks counters and many timers, runs the timed handlers keyed on byte +0x521, sets script-request bits in +0x4BB, runs virtuals +0x90, +0xEC and +0x7C, updates motion, calls 9C417E0 and 9C3EE98 which fills +0x2CC, and copies +0x2CC into height +0x204 unless +0x280 is 2 or 4 (and subject to owner and +0x29A checks)."
+confidence = "inferred"
+evidence = "Calls and writes read in the code; ran throughout hunts; many callees are unnamed, so the summary is partial."
+
+[[function]]
+module = "game_task"
+address = "09AC69B0"
+name = "entity_tick_stage2_then_set_stage3"
+purpose = "One tick of stage 2: runs counters, 9AD7D88, a reduced timer and motion update, 9C417E0 and 9C3EE98, clears +0x638 mask 0x8000, and sets stage +0x1D4 to 3."
+confidence = "inferred"
+evidence = "Writes stage 3 in its body; ranges in traces match 09AC6B10; what triggers stage 2 is not in this view."
+
+[[function]]
+module = "game_task"
+address = "09AC6B10"
+name = "entity_tick_stage3_remove_and_advance_quest_queue"
+purpose = "Stage 3: calls quest_on_monster_removed, 09AC9708, object_clear_flag1_set_state_fn and quest_monster_queue_advance_cursor."
+confidence = "inferred"
+evidence = "Four calls read directly; runs after stage 2 in traces (camp, fight1)."
+
+[[function]]
+module = "game_task"
+address = "09AC6B60"
+name = "entity_reset_runtime_fields_from_type_table"
+purpose = "Resets a large block of per-entity fields to defaults and refills others from the type table 09BB8AF0 (scale +0x270/+0x220..+0x228, fields +0x494..+0x4A8), sets +0x638 mask 0x8000 and clears several other masks, and resets timers and counters."
+confidence = "inferred"
+evidence = "Long run of clears and table reads indexed by type +0x1E8; called from stage 0 init and 9ADA440 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AC6FF8"
+name = "entity_update_owner_hunter_slot"
+purpose = "With +0x638 mask 2: if not owner (+0x6DB 0), takes ownership when the +0x6DC slot's presence byte (game +0x30, stride 0x8C) is 0 and the first present slot is the local one (game +0x28); if owner, hands +0x6DC to another present hunter when the local hunter no longer qualifies (byte +0x2A4, +0x29A mismatch or game +0x2E 7), calling 9ACD858 with code 4, then 9AC7358, and clearing DAT_09C122B0 + 0x1278."
+confidence = "inferred"
+evidence = "hunter_manager_get_slot loops over four slots read in the code; 'owner' is a reading of how +0x6DB and +0x6DC are used."
+
+[[function]]
+module = "game_task"
+address = "09AC7478"
+name = "entity_set_type_block_644"
+purpose = "Sets +0x644 to the address of 0x20-byte block N at offset 0x20 of this type's 0x1D0-byte table entry (09BB8B10 + type * 0x1D0 + N * 0x20)."
+confidence = "inferred"
+evidence = "One write read directly; who reads +0x644 is not shown."
+
+[[function]]
+module = "game_task"
+address = "09AC74B0"
+name = "entity_load_type_block_648_678"
+purpose = "Copies 0x20-byte block N at 09BB8B50 + type * 0x1D0 into +0x648..+0x654 and +0x678..+0x684, and four halfwords from 09BCF290 into +0x6A0..+0x6A6."
+confidence = "inferred"
+evidence = "Copies read directly; em20 09D1B600 and game_task 09AE8280 are callers in traces, so it can run after init."
+
+[[function]]
+module = "game_task"
+address = "09AC7550"
+name = "entity_set_flags_638_from_type_table"
+purpose = "Sets or clears +0x638 masks 2, 4 and 8 from type-table word 09BB8B0C masks 1, 4 and 8 respectively."
+confidence = "inferred"
+evidence = "Bit tests read directly (shift by 0x1D and 0x1C test masks 4 and 8)."
+
+[[function]]
+module = "game_task"
+address = "09AC7620"
+name = "entity_tick_timers_468_2ba_35e_3d2"
+purpose = "Vtable +0x3C: decrements nonzero halfwords +0x468, +0x2BA and +0x35E, and when +0x6DB is set and byte +0x3D0 is neither 0 nor -1 counts down +0x3D2, clearing +0x3D0 when it is already 0."
+confidence = "inferred"
+evidence = "Countdowns read directly; called from EBOOT 08865934 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AC7768"
+name = "object_apply_scale_percent_274"
+purpose = "Sets scale +0x220, +0x224 and +0x228 to base +0x270 times halfword +0x274 divided by 100."
+confidence = "inferred"
+evidence = "Arithmetic read directly; called from both EBOOT 0886A8AC and game_task; 'scale' is a reading from three equal components set from a base and a divide by 100."
+
+[[function]]
+module = "game_task"
+address = "09AC77C8"
+name = "entity_find_type_matching_point_in_radius"
+purpose = "When DAT_09C122B0 byte +0x80 is set and +0x4B4 is 0, scans its 32 record pointers (skipping the excluded one and those whose +0x18 differs from +0x29A) for one whose category byte +0x16 allows this type and whose distance from +0x200 is within its radius (+0x10); copies its position to +0x5E0 and returns 1, else returns 0."
+confidence = "inferred"
+evidence = "Loop, type lists per category and vsub_t/vdot_t distance test read in the code; what the records are is not shown."
