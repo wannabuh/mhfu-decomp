@@ -230,7 +230,7 @@ static void weapon_action(Ctx *c, Hunter *self, uint32_t state_flags) {
         return;
     }
     switch (weapon_class) {
-    case 0: call1(c, hunter_weapon0_enter_state_14_set_111c_mask_800_09BA31B0, self_addr); break;
+    case 0: call1(c, hunter_weapon0_enter_state_14_set_111c_mask_800, self_addr); break;
     case 1:
     case 5: call2(c, f_game_task_09BA40C0, self_addr, 1); break;
     case 2: call1(c, f_game_task_09BA6590, self_addr); break;
@@ -239,7 +239,7 @@ static void weapon_action(Ctx *c, Hunter *self, uint32_t state_flags) {
     case 6: call1(c, hunter_weapon6_enter_state_0f_set_111c_mask_800, self_addr); break;
     case 7: call1(c, f_game_task_09BAE028, self_addr); break;
     case 8: call1(c, f_game_task_09BB0830, self_addr); break;
-    case 9: call1(c, hunter_weapon0_enter_state_14_set_111c_mask_800_09BB4DC0, self_addr); break;
+    case 9: call1(c, f_game_task_09BB4DC0, self_addr); break;
     case 10: call1(c, f_game_task_09BB6AE0, self_addr); break;
     default: break;
     }
