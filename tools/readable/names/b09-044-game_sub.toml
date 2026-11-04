@@ -1,0 +1,151 @@
+[[function]]
+module = "game_sub"
+address = "09CC4378"
+name = "class_089be550_draw"
+purpose = "Sets alpha test reference from byte +0x58 and, with +0x28 mask 0x1, disables depth writes; builds a world matrix at position +0x40 with Y-axis rotation chosen by +0x28 (mask 0x100 yaw toward the point at DAT_089cbd04 +0xCB0/+0xCB8, else mask 0x200 a turn per +0x54 of counter +0x60); sets texture offset from counters +0x5C/+0x60 (atlas grids by mask 0x8, 0x10, 0x20, otherwise scroll over periods +0x50/+0x54, reversed by masks 0x2/0x4, V skipped with mask 0x200); draws group byte +0x5A of model +0x2C, then restores those GE states."
+confidence = "inferred"
+evidence = "Vtable +0xC called from render_pass in traces; GE commands 0xDB, 0xE7, 0x4A/0x4B, gpu_set_world_matrix_scaled, model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CC4CD8"
+name = "class_089be550_queue_draw_if_handler_matches"
+purpose = "If the member function handler at +0x1C equals the static one at 09CF8EF0, inserts the object in the depth-sorted render queue at position +0x40, layer 7 with +0x28 mask 0x80, else layer 6."
+confidence = "inferred"
+evidence = "Vtable +0x10 called by stage_objects_call_vfunc_10_all in traces; member_fn_not_equal result 0 guards render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09CC4D88"
+name = "class_089be550_reset_counters_step_and_set_handler"
+purpose = "Zeroes counters +0x5C and +0x60, calls its own vtable +0x18, and sets the handler at +0x1C to the static member function at 09CF8F00 if that is set."
+confidence = "inferred"
+evidence = "Direct field writes; called through 09CBAC70, which runs the handler at +0x1C, and it calls vtable +0x18 (09CC4E08 in traces)."
+
+[[function]]
+module = "game_sub"
+address = "09CC4E08"
+name = "class_089be550_advance_texture_counters"
+purpose = "Advances counters +0x5C and +0x60 by one: with +0x28 mask 0x38 clear they wrap at +0x50 and +0x54; with it set they run unwrapped, and with +0x28 mask 0x40 also set they advance only while the halfword at DAT_089cc558 +0x1C has mask 0x1 clear."
+confidence = "inferred"
+evidence = "Body read in full; class_089be550_draw turns these counters into texture offsets. Called from 09CBAC70 and 09CC4D88 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CC6B98"
+name = "class_089be5d0_setup"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, sets the handler at +0x1C to the static member function at 09CF9050 if that is set, stores record pointer param_2 at +0x34, and picks a random 0 or 1 for byte +0x38."
+confidence = "confirmed"
+evidence = "Called by stage_object_create_kind_17 in traces and named there as the setup of vtable 089BE5D0; every write read in the body."
+
+[[function]]
+module = "game_sub"
+address = "09CC6C50"
+name = "class_089be5d0_draw"
+purpose = "Builds a world matrix at position +0x60 with Y rotation from angle halfword +0x3C, and draws from model +0x2C the group numbered by the record's first halfword (via +0x34) plus byte +0x3A, low 8 bits."
+confidence = "inferred"
+evidence = "Vtable +0xC called from render_pass in traces; gpu_set_world_matrix_scaled then model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CC6D88"
+name = "class_089be5d0_queue_draw_if_handler_matches"
+purpose = "If the member function handler at +0x1C equals the static one at 09CF9020, inserts the object in the depth-sorted render queue, layer 5, at position +0x60."
+confidence = "inferred"
+evidence = "Vtable +0x10 called by stage_objects_call_vfunc_10_all in traces; member_fn_not_equal result 0 guards render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09CC6E10"
+name = "class_089be5d0_start_leg_toward_other_record_point"
+purpose = "Toggles endpoint index byte +0x38, places base position +0x50 at that endpoint of the record at +0x34 (vec4s at +0x10 and +0x20), sets yaw +0x3C toward the other endpoint, randomises wobble amplitude +0x40, phase +0x3E, period byte +0x39 and float +0x64, calls vtable +0x18, and sets the handler at +0x1C from the static at 09CF9030 if set."
+confidence = "inferred"
+evidence = "Normalised XZ difference of the two record points through an atan2-style VFPU sequence, plus 0x4000; 09CC7180 moves along that yaw and its target is the same other point."
+
+[[function]]
+module = "game_sub"
+address = "09CC7180"
+name = "class_089be5d0_move_to_record_point_with_y_wobble"
+purpose = "Increments phase +0x3E and rewrites byte +0x3A with its old value masked by 3; if position +0x60 is within XZ distance 100 of the record point not selected by +0x38, sets the handler at +0x1C from the static at 09CF9040 if set; otherwise moves base +0x50 by 10 along yaw +0x3C, copies it to +0x60, and adds amplitude +0x40 times a sine of the phase over 2 * byte +0x39 to Y."
+confidence = "inferred"
+evidence = "math_point_in_y_cylinder with radius 100 and no Y limit, then sin/cos of +0x3C times 0x41200000 (10.0); as decompiled the +0x3A increment is overwritten, so the frame value never advances past its masked value."
+
+[[function]]
+module = "game_sub"
+address = "09CC7508"
+name = "class_089be5f0_draw"
+purpose = "Disables depth writes and, by flag halfword of the record at +0x34, sets texture offset from frame +0x38 (mask 0x1 a 4x4 grid, else mask 0x8 V only) and, with mask 0x2, alpha test and group alpha from byte +0x3A; builds a world matrix from the record's scale at +0x10 and position at +0x20, with mask 0x4 yawed toward the point at DAT_089cbd04 +0xCB0/+0xCB8; draws the record's group byte +0x2 of model +0x2C, then restores those GE states."
+confidence = "inferred"
+evidence = "Vtable +0xC called from render_pass in traces; GE commands 0xE7, 0xDB, 0x4A/0x4B, model_group_set_alpha, gpu_set_world_matrix_scaled, model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CC7AB0"
+name = "class_089be5f0_queue_draw_if_handler_matches"
+purpose = "If the member function handler at +0x1C equals the static one at 09CF9060, inserts the object in the depth-sorted render queue, layer 7, at the position at +0x20 of the record at +0x34."
+confidence = "inferred"
+evidence = "Vtable +0x10 called by stage_objects_call_vfunc_10_all in traces; member_fn_not_equal result 0 guards render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09CC7B38"
+name = "class_089be5f0_randomise_frame_step_and_set_handler"
+purpose = "Sets frame +0x38 to a random 0-15 and alpha byte +0x3A to 0xFF, calls its own vtable +0x18, and sets the handler at +0x1C to the static at 09CF9070 if set."
+confidence = "inferred"
+evidence = "Direct field writes; class_089be5f0_draw reads +0x38 and +0x3A. Called through 09CBAC70 and it calls vtable +0x18 (09CC7BD8 in traces)."
+
+[[function]]
+module = "game_sub"
+address = "09CC7BD8"
+name = "class_089be5f0_step_frame_and_alpha_by_record_flags"
+purpose = "By the flag halfword of the record at +0x34: mask 0x1 advances frame +0x38 by one modulo 16, mask 0x8 increments it, and mask 0x2 sets alpha byte +0x3A to a random 0x40-0x7F."
+confidence = "inferred"
+evidence = "Body read in full; class_089be5f0_draw uses the same flags with +0x38 and +0x3A."
+
+[[function]]
+module = "game_sub"
+address = "09CCBA58"
+name = "class_089be6f0_setup"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, sets the handler at +0x1C to the static at 09CF9238 if set, and stores param_2 as flags +0x28, param_3 as group halfword +0x38, vec4 *param_4 at +0x60 and vec4 *param_5 at +0x70."
+confidence = "confirmed"
+evidence = "Called by stage_object_create_kind_21 in traces and named there as the setup of vtable 089BE6F0; every write read in the body."
+
+[[function]]
+module = "game_sub"
+address = "09CCBB28"
+name = "class_089be6f0_draw_with_alpha_field_40"
+purpose = "Sets alpha test and disables depth writes, builds a world matrix at position +0x50 from the 3x3 at DAT_089cbd04 +0xC80 (scaled by float +0x40 with +0x28 mask 0x1), sets group +0x38 of model +0x2C to white diffuse and ambient and alpha +0x40 * 255, draws it, and restores those GE states."
+confidence = "inferred"
+evidence = "Vtable +0xC called from render_pass in traces; GE commands 0xDB, 0xE7, model_group_set_diffuse/ambient/alpha, model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09CCBD40"
+name = "class_089be6f0_queue_draw_if_handler_matches"
+purpose = "If the member function handler at +0x1C equals the static one at 09CF9208, inserts the object in the depth-sorted render queue, layer 7, at position +0x50."
+confidence = "inferred"
+evidence = "Vtable +0x10 called by stage_objects_call_vfunc_10_all in traces; member_fn_not_equal result 0 guards render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09CCBDC8"
+name = "class_089be6f0_start_cycle_pick_position_and_duration"
+purpose = "Sets position +0x50 to +0x60, with +0x28 mask 0x4 offset per axis by a random amount within +/- half of the vector at +0x70; zeroes phase byte +0x34 and counter +0x3A, sets duration +0x3C to 300, 360, 420 or 480, random direction bytes +0x35 and +0x36, float +0x40 to 1.0, and the handler at +0x1C from the static at 09CF9218 if set."
+confidence = "inferred"
+evidence = "Direct field writes with math_rng_next; 09CCBFC0 reads every one of these fields. Called through 09CBAC70 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CCBFC0"
+name = "class_089be6f0_step_drift_then_fade_then_remove_or_set_handler"
+purpose = "Phase 0: counts +0x3A up to +0x3C, setting float +0x40 to |cos| of the count and drifting position +0x50 by a random amount each tick in the directions of bytes +0x35/+0x36, then enters phase 1 with count 10. Phase 1: decays +0x40 by a tenth each tick; at count 0 it clears mask 0x1 of flags +4 (which removes the object), or with +0x28 mask 0x2 sets the handler at +0x1C from the static at 09CF9228 instead."
+confidence = "inferred"
+evidence = "Body read in full; stage_objects_tick_and_remove_finished removes objects whose +4 mask 0x1 is clear; class_089be6f0_draw_with_alpha_field_40 uses +0x40 as alpha."
+
+[[function]]
+module = "game_sub"
+address = "09CFB680"
+name = "crt_static_init_09cfb890_register_destructor"
+purpose = "Sets DAT_09cfb898 to the address 09CFB890 and registers 09C1AD68 as destructor of the object 09CFB890 with list node 09CFB880."
+confidence = "inferred"
+evidence = "Called once before boot ends from crt_run_init_functions_and_add_range in traces; cxx_register_global_destructor with (object, function, node)."

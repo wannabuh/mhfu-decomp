@@ -24,7 +24,8 @@ Ghidra lives outside the repository (`GHIDRA`, default `~/projects/mhfu-ghidra/g
 
 Traces come from a build that logs every function (`RECOMP_TRACE_ALL=1`, `make TRACE_HOOK=tools/readable/trace_hook.c`, kept in a
 worktree of its own) replaying recordings (`tools/readable/trace.py`). A new recording of something not yet covered adds evidence
-for it. Traces show what ran, so "in traces" is never "only".
+for it. Traces show what ran, so "in traces" is never "only". A caller's module can be mislabelled where overlays share addresses
+(`whatran.py` picks one running in that span): confirm a surprising caller by searching `build/read`.
 
 ## Names and types
 

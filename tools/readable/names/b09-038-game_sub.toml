@@ -1,0 +1,103 @@
+[[function]]
+module = "game_sub"
+address = "09C78EF8"
+name = "record_init_random_table_pair_and_vec3"
+purpose = "Sets short +0x32 to -9 and short +0x30 to a random value masked 0x1F, copies one of 5 float pairs from table 09CEB8F8 to +0x0/+0x4, sets +0x8 to 1.0, and fills +0x10/+0x14/+0x18 with random floats, +0x14 never negative."
+confidence = "inferred"
+evidence = "Body is plain; called from 09C76A90's case 0xC for non-first records; the fields' game meaning is not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C7B688"
+name = "class_089bdf10_spawn_bone_relative_if_owner_29a_matches"
+purpose = "If the owner passes object_29a_matches_game_6af0e, creates a 089BDF10 object, links it on the manager's list and sets kind +0x24, owner +0xC, scale +0x3C and sound switch +0x330; kind 6 keeps the position as given with a random angle, other kinds take angle owner +0x360 minus 0x8000 and, by owner +0x1E9, store the position in the local space of a bone (+0x1E9 0: bone 10, zero for kinds 8 and 9; 1: bone param_2 unless it is -1), leave it zero (+0x1E9 2, bone 2) or keep it as given with +0x2B 0xFF."
+confidence = "inferred"
+evidence = "Calls class_089bdf10_create_type_10; inverts the bone matrix and transforms position minus bone origin; 09C7D518 undoes it when +0x2B is not 0xFF."
+
+[[function]]
+module = "game_sub"
+address = "09C7BCA8"
+name = "class_089bdf10_spawn_at_position_random_angle_if_owner_29a_matches"
+purpose = "If object_29a_matches_game_6af0e returns 1 for the owner, creates a 089BDF10 object, links it on the manager's list and sets kind +0x24, owner +0xC, scale +0x3C, sound switch +0x330, the position as given, a random angle +0x3A and +0x2B 0xFF; sets +0x2A to 1 when param_5 is 6 to 0x11 or 0x22 to 0x25, else to 0 with owner +0x1E8 copied to +0x40 when owner +0x1E9 is 1."
+confidence = "inferred"
+evidence = "Same creation path as 09C7B688 without a bone transform; the param_5 comparison chain."
+
+[[function]]
+module = "game_sub"
+address = "09C7C028"
+name = "class_089bdf10_method_10_draw_element"
+purpose = "Draws element param_2 by kind +0x24: builds a matrix from the element's scale, angle and position, for kinds other than 0xE multiplies it by the matrix at DAT_089CBD04 +0xC80, picks a model group and texture offset (GE commands 0x4A/0x4B), tints some kinds from table 09CD3488 via id byte +0x40, and calls model_draw_group_tinted between depth-write commands 0xE7."
+confidence = "inferred"
+evidence = "Vtable 089BDF10 +0x10; writes GE words to display list DAT_089CC120 and calls model_draw_group_tinted."
+
+[[function]]
+module = "game_sub"
+address = "09C7CF40"
+name = "class_089bdf10_state_start_alloc_elements_and_sound"
+purpose = "Vtable +0x1C: installs the member function from DAT_09CEC7B8 at +0x4C and clears timer +0x38, plays the kind's sound for kinds 2, 5, 6 (and 8 when flags +0x48 lack mask 2 and +0x2B is not 0xFF), returns at once for kinds 3 and 4, then allocates table 09CEC6F0's count of elements at +0x60 and initialises each by kind; if an owner is set and +0x48 has mask 2, installs the member function from DAT_09CEC7C8 instead."
+confidence = "inferred"
+evidence = "Calls entity_manager_alloc_element_run with tag 0x10, spawn_manager_slot_set_owner and 09C7F070; reached through 09C56F68, the +0x4C caller."
+
+[[function]]
+module = "game_sub"
+address = "09C7D518"
+name = "class_089bdf10_state_update_elements"
+purpose = "Vtable +0x20: per-call update; clears mask 0x10 of +0x48 and installs another member function at +0x4C when +0x48 has mask 2, the owner fails object_29a_matches_game_6af0e, timer +0x38 passes the kind's limit, or a bone-attached kind 3 or 4 finds owner +0x1D4 is 3 or +0x48 mask 2; for bone-attached kinds 0 and 0x10 spawns 089BDCE0 objects at frames listed in tables 09CEC6B0/6D0/6E8, with a sound at the first; then advances each element by kind."
+confidence = "inferred"
+evidence = "Timer against table 09CEC718, frame list loop, class_089bdce0_spawn_at_position_with_angle_and_scale calls, element loop at +0x60 with stride 0x50."
+
+[[function]]
+module = "game_sub"
+address = "09C7F070"
+name = "class_089bdf10_play_kind_sound_if_field_330"
+purpose = "When byte +0x330 is nonzero, plays a sound with sound_play_3d at param_2 chosen by kind +0x24: 0x95 for 8, 0x63 for 6, 0x64/0x65 for 2 and 5 with +0x2A 1 by the high nibble of +0x29 (0/0x10), and for 0 and 0x10 0x6E when table 09CEC6A0's value at the low nibble of +0x29 is at most 0.5, else 0x6F (high nibble 0x10) or 0x6E (high nibble 0)."
+confidence = "inferred"
+evidence = "Direct sound_play_3d calls; callers are 089BDF10 methods 09C7CF40 and 09C7D518; +0x330 is set by the spawners."
+
+[[function]]
+module = "game_sub"
+address = "09C7F520"
+name = "class_089bdf38_spawn_at_position_no_owner"
+purpose = "Creates a linked 089BDF38 object through 09C85798 with kind param_3 and angle param_2, then sets scale +0x3C, owner +0xC to 0, byte +0x1A2 to param_4 and copies 4 words of position to +0x10."
+confidence = "inferred"
+evidence = "09C85798 calls class_089bdf38_create_type_11 and fx_base_init; in traces called from class_089bcd64_motion_frame_events."
+
+[[function]]
+module = "game_sub"
+address = "09C7F6E0"
+name = "class_089bdf38_method_10_call_member_fn_1a4"
+purpose = "Vtable +0x10: calls the member function at +0x1A4 when it is set."
+confidence = "confirmed"
+evidence = "Whole body is member_fn_is_set then member_fn_call; 09C7F7D8 installs 09C82AF0, a function that calls model_draw_group_tinted, in that field."
+
+[[function]]
+module = "game_sub"
+address = "09C7F730"
+name = "class_089bdf38_method_14_call_member_fn_1b0"
+purpose = "Vtable +0x14: calls the member function at +0x1B0 when it is set."
+confidence = "confirmed"
+evidence = "Whole body is member_fn_is_set then member_fn_call; in traces called from node_mgr_09d19860_call_slot_14_flagged."
+
+[[function]]
+module = "game_sub"
+address = "09C7F770"
+name = "class_089bdf38_method_1c_dispatch_on_field_24"
+purpose = "Vtable +0x1C: by byte +0x24 calls 09C84CD8 for 0x22, the object's vtable +0x24 for 8, and 09C7F7D8 for anything else."
+confidence = "confirmed"
+evidence = "Whole body is the three-way branch."
+
+[[function]]
+module = "game_sub"
+address = "09C7F7D8"
+name = "class_089bdf38_init_elements_and_install_member_fns"
+purpose = "Adjusts position, angle or +0x2A/+0x2B by kind +0x24 (random offsets, owner bone offsets), clears timer +0x38, initialises and allocates table 09CED988's count of elements at +0x60, runs 09C814C0 once, then installs 09C814C0 at +0x4C, 09C82AF0 at +0x1A4 and 09C84B88 at +0x1B0."
+confidence = "inferred"
+evidence = "Kind chain before LAB_09C800EC, entity_manager_alloc_element_run with tag 0x11, and the three PTR_ member function stores at the end."
+
+[[function]]
+module = "game_sub"
+address = "09C814C0"
+name = "class_089bdf38_state_update_elements"
+purpose = "Per-call update: sets mask 0x10 of +0x48 and advances timer +0x38; while under table 09CED9D0's limit for the kind, runs each element's frame counter and computes its keyframed values by kind; past the limit, or for kind 0xE when owner +0x1D4 is 3 or +0x48 has mask 2, clears mask 0x10 and installs 09C84C20, which releases the elements; kind 5 with +0x1A2 1 calls 09C60F48 at timer 6."
+confidence = "inferred"
+evidence = "Installed at +0x4C by 09C7F7D8; math_keyframe_lerp_vec3 with table 09CED878; PTR_f_game_sub_9C84C20 stores on both exits."

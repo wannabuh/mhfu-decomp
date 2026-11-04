@@ -1,0 +1,207 @@
+[[function]]
+module = "game_sub"
+address = "09CB31B8"
+name = "class_089be208_start_elements_by_kind"
+purpose = "Unless the owner +0xC is set with +0x48 mask 0x2 (then it only sets member fn +0x4C from DAT_09cf8150), caches a source position or owner bone matrix by kind +0x24, calls 9CB6508, fills table-counted 0x60-byte elements from +0x60 and reserves a manager slot for each, then sets +0x361 = 1 and member fn +0x4C from DAT_09cf8160."
+confidence = "inferred"
+evidence = "Vtable 089BE208 +0x1C run through dispatcher 9C56F68; per-element slot reservation via 9C337F0; element count from DAT_09cf8020[kind]."
+
+[[function]]
+module = "game_sub"
+address = "09CB4558"
+name = "class_089be208_tick_elements_by_kind"
+purpose = "Counts timer +0x38 and, past the kind's limit in DAT_09cf8048 (1000 = no limit), clears +0x48 mask 0x10 and switches member fn +0x4C; otherwise sets mask 0x4 on each element slot's +4 flags, runs kind-specific sounds, owner bone and motion id +0x324 checks that can also end it, updates elements, and sets +0x48 mask 0x10."
+confidence = "inferred"
+evidence = "Vtable 089BE208 +0x20 run through 9C56F68; timer compare, member fn writes and motion id lists in the code; only part of the body read."
+
+[[function]]
+module = "game_sub"
+address = "09CB60A0"
+name = "class_089be208_release_slots"
+purpose = "If +0x361 is 1, releases the manager slot of each table-counted element, then calls base 9C57068, which clears +0x48 mask 0x1 and releases the slots at +0x44."
+confidence = "inferred"
+evidence = "Vtable 089BE208 +0x24; 9C33970 clears slot used bytes in the manager at DAT_09d19860."
+
+[[function]]
+module = "game_sub"
+address = "09CB63B8"
+name = "class_089be208_element_init_at_matrix"
+purpose = "Copies a matrix's translation to the element, sets element +6 and +7 to 1 and scale +0x40 from object +0x3C, then by element byte +4 (0 to 3) multiplies +0x40 by DAT_09cf75d0[object +0x2B] for 2 and 3, randomises +0x4A for 0 to 2, sets +0x50, and sets +0x48 = 0x8000 for odd param_4 with 0 or 1."
+confidence = "inferred"
+evidence = "Field writes in the code; called for kind 8 in 9CB31B8 and 9CB4558, with the bone matrix read for that kind."
+
+[[function]]
+module = "game_sub"
+address = "09CB6508"
+name = "class_089be208_play_start_sound_by_kind"
+purpose = "Plays a start sound chosen by kind +0x24: kinds 0x11, 8, 4 and 0 with no check on +0x24 alone (9C557E0 has its own object check), kind 10 only when owner byte +0x1E8 is 7 or 0, and kind 6 only when +0x360 is 1 and +0x29 is 2."
+confidence = "inferred"
+evidence = "Calls sound_play_3d and 9C557E0, whose only effect is a sound_play_3d gated on the object check; called from 9CB31B8 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CB6728"
+name = "class_089be230_init_waypoint_tables"
+purpose = "Stores the waypoint count in global DAT_09d1a1c0, zeroes that many occupancy bytes at DAT_09d1a1c8, and stores three table pointers: positions (DAT_09d1a1e8), model groups per sequence (DAT_09d1a1f0) and the count-by-count connection bytes (DAT_09d1a1f8)."
+confidence = "inferred"
+evidence = "Uses of the globals in 9CB7EB8, 9CB8040 and 9CB80E0; stage066 09D63218 passes count 5 and three tables just before creating the object."
+
+[[function]]
+module = "game_sub"
+address = "09CB67F8"
+name = "class_089be230_create_and_link"
+purpose = "Allocates a class 089BE230 object through 9C30B18, runs base init 9C56FD8, and links it at the head of the manager's list at +0x19030 (next +4, prev +8), incrementing count +0x19034; does nothing if allocation fails."
+confidence = "inferred"
+evidence = "9C30B18 sets vtable 089BE230; list writes in the code; called from stage066 09D63218 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CB6898"
+name = "class_089be230_draw"
+purpose = "Sets byte +3 of the model group's material entries to 0xFF for entry 0 and entry +0x64 and 0 for the others, builds a matrix from uniform scale +0x78, yaw +0x6E and position +0x10, sets diffuse and ambient from bytes +0x88 to +0x8A, and draws model group +0x62."
+confidence = "inferred"
+evidence = "Vtable 089BE230 +0x10; calls model_group_set_diffuse, model_group_set_ambient and model_draw_group; ran in misc and shops."
+
+[[function]]
+module = "game_sub"
+address = "09CB6A80"
+name = "class_089be230_start"
+purpose = "Sets scale +0x78 to 1.2, places the object through 9CB80E0, picks colour +0x88 from DAT_09cf81d0 on a 1 in 8 roll and else -1, reserves slot +0x44, then on failure switches member fn +0x4C from DAT_09cf8238, or on success sets +0x48 mask 0x10, runs tick slot +0x20 once and switches member fn +0x4C from DAT_09cf8248."
+confidence = "inferred"
+evidence = "Vtable 089BE230 +0x1C run once in misc and shops through 9C56F68; RNG and slot calls in the code."
+
+[[function]]
+module = "game_sub"
+address = "09CB6C48"
+name = "class_089be230_tick_waypoint_state_machine"
+purpose = "Runs state +0x24 with substate +0x28: 0 waits and can start turning (state 4) or sequence 4, 4 turns with a vertical bob, 1 picks a connected waypoint and moves out and up, 3 moves to the target, 2 moves in and lowers to the waypoint height with sounds and sequence changes; then advances the sequence through 9CB7F30 and copies position +0x10 to slot +0x44 +0x10."
+confidence = "inferred"
+evidence = "Vtable 089BE230 +0x20; states read in the code; RNG picks and waypoint table DAT_09d1a1e8; ran every tick in misc and shops."
+
+[[function]]
+module = "game_sub"
+address = "09CB7C40"
+name = "class_089be230_offset_from_target_at_random_octant"
+purpose = "Stores a random 0 to 7 in +0x6E, sets target +0xA0 to the position plus 20 up, moves the position up 20 and out 40 in the opposite octant, and sets velocity +0x90 to +0x98 from param scale with x and z signs pointing back to the target."
+confidence = "inferred"
+evidence = "Arithmetic in the code; called from 9CB6C48 when state 3 arrives, with scale +0x78."
+
+[[function]]
+module = "game_sub"
+address = "09CB7EB8"
+name = "class_089be230_set_sequence"
+purpose = "Stores sequence index +0x68, model group +0x62 from table DAT_09d1a1f0, sequence pointer +0x74 from DAT_09cf8220, resets step +0x66, and loads entry +0x64 and timer +0x65 from the first pair, or 0 and 0xFF when the pointer is null."
+confidence = "inferred"
+evidence = "Pair format matches the stepping in 9CB7F30; +0x62 and +0x64 are read by draw 9CB6898."
+
+[[function]]
+module = "game_sub"
+address = "09CB7F30"
+name = "class_089be230_advance_sequence"
+purpose = "Unless timer +0x65 is -1, counts it down and at the end loads the next pair; on an end marker (-1) sequence 4 changes to sequence 2 with state 1, sequence 3 changes to sequence 0 with state 0 and sets wait +0x6A (random 0xE10 to 0x1517 at waypoint 0, else 0x3C), and other sequences reset entry +0x64 to 0."
+confidence = "inferred"
+evidence = "Pair stepping and state writes in the code; called each tick from 9CB6C48 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CB8040"
+name = "class_089be230_pick_random_connected_waypoint"
+purpose = "Rolls until it finds a waypoint whose occupancy byte is 0 and whose connection byte from current waypoint +0x60 is 1, frees the old waypoint's occupancy, and stores and marks the new one; it never returns if no such waypoint exists."
+confidence = "inferred"
+evidence = "Loop over DAT_09d1a1c8 and DAT_09d1a1f8 in the code."
+
+[[function]]
+module = "game_sub"
+address = "09CB80E0"
+name = "class_089be230_place_at_random_waypoint"
+purpose = "Picks a waypoint through 9CB8040, copies its position to +0x10, sets +0x84 to 20.0, state and substate 0, wait +0x6A to 1 to 5 times 0x1E, timer +0x6C to 0x1E, a random octant yaw +0x6E, and sequence 0."
+confidence = "inferred"
+evidence = "Field writes in the code; called from start 9CB6A80 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09CB81C0"
+name = "class_089be230_destructor"
+purpose = "Restores vtable 089BE230, decrements live count DAT_09d1a1b8, calls base destructor 9C56F20, and calls 9C56FD0 when param_2 is above 0."
+confidence = "inferred"
+evidence = "Vtable 089BE230 +0x8; 9C30B18 increments the same count; runs at the end of misc and shops."
+
+[[function]]
+module = "game_sub"
+address = "09CBA5E0"
+name = "class_089be2d0_init"
+purpose = "Sets +4 to 3, clears +8 and +0xC, sets member fn +0x1C from DAT_09cf85f8, and stores data pointer param_2 at +0x34."
+confidence = "inferred"
+evidence = "Called by EBOOT 088C354C right after it allocates the object with vtable 089BE2D0."
+
+[[function]]
+module = "game_sub"
+address = "09CBA670"
+name = "class_089be2d0_draw_group_with_uv_scroll"
+purpose = "Sets GE words 0xE7 and 0xDB, builds a world matrix from an identity or, with data mask 0x1, the matrix at DAT_089cbd04 +0xCC0, then data scale, rotation and position, emits texture offsets 0x4A and 0x4B from counters +0x38 and +0x3A over periods +0x40 and +0x42, draws the data's model group, and resets the offsets and 0xE7."
+confidence = "inferred"
+evidence = "Vtable 089BE2D0 +0xC; the display list writes and model_draw_group are in the code; GE meaning of 0x4A and 0x4B from the GE command set."
+
+[[function]]
+module = "game_sub"
+address = "09CBAAE8"
+name = "class_089be2d0_queue_draw_when_fn_matches"
+purpose = "Inserts the object into render queue list 7, depth sorted at data +0x10, with last argument 1, only when member fn +0x1C equals DAT_09cf85d8."
+confidence = "inferred"
+evidence = "Vtable 089BE2D0 +0x10; member_fn_not_equal returning 0 gates render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09CBAB70"
+name = "class_089be2d0_start_uv_counters"
+purpose = "Zeroes counters +0x38 and +0x3A, calls vtable slot +0x18, and sets member fn +0x1C from DAT_09cf85e8."
+confidence = "inferred"
+evidence = "Vtable 089BE2D0 +0x14; run once through dispatcher 9CBAC70 at the start of the object's frames."
+
+[[function]]
+module = "game_sub"
+address = "09CBABF0"
+name = "class_089be2d0_advance_uv_counters"
+purpose = "Increments +0x38 modulo data +0x40 and +0x3A modulo data +0x42."
+confidence = "inferred"
+evidence = "Vtable 089BE2D0 +0x18; draw 9CBA670 turns the same counters and periods into texture offsets."
+
+[[function]]
+module = "game_sub"
+address = "09CBAC30"
+name = "class_089be2d0_destructor"
+purpose = "Writes vtables 089BE2D0, 089BE2F0 and 089BDC48 in turn on a non-null object, with no free in the body."
+confidence = "inferred"
+evidence = "Vtable 089BE2D0 +0x8; vtable chain down the class hierarchy; runs at the end of the recordings."
+
+[[function]]
+module = "game_sub"
+address = "09CBAC70"
+name = "object_call_member_fn_field_1c"
+purpose = "If the member function stored at +0x1C is set, calls it on the object."
+confidence = "confirmed"
+evidence = "member_fn_is_set and member_fn_call in the body; shared by vtables 089BE2D0, 089BE310 and others at slot +0x1C, and traces show it calling slots +0x14 and +0x18."
+
+[[function]]
+module = "game_sub"
+address = "09CBAD28"
+name = "class_089be310_init"
+purpose = "Sets +4 to 3, clears +8 and +0xC, sets member fn +0x1C from DAT_09cf8628, stores flags param_2 at +0x28 and data pointer param_3 at +0x34."
+confidence = "inferred"
+evidence = "Called by EBOOT 088C3640 right after it allocates the object with vtable 089BE310; draw 9CBADC8 reads +0x28 as flags and +0x34 as data."
+
+[[function]]
+module = "game_sub"
+address = "09CBADC8"
+name = "class_089be310_draw_group_by_level_field_3c"
+purpose = "Sets GE state, emits a dither preset unless flags +0x28 mask 0x2, builds a matrix of scale 1.25 times the rotation at DAT_089cbd04 +0xC80 at position +0x40, sets white material, applies +0x3C times 255 as model alpha or, with flags mask 0x1, as GE word 0xE0 and ambient, emits texture offset from +0x38 over data +0x16, draws data group +0x14 and restores GE state."
+confidence = "inferred"
+evidence = "Vtable 089BE310 +0xC; display list writes and model_group_set_alpha in the code; ran in the first frames of hunts."
+
+[[function]]
+module = "game_sub"
+address = "09CBB170"
+name = "class_089be310_queue_draw_when_fn_matches"
+purpose = "Inserts the object into render queue list 7, depth sorted at +0x40, with last argument 0, only when member fn +0x1C equals DAT_09cf8608."
+confidence = "inferred"
+evidence = "Vtable 089BE310 +0x10; member_fn_not_equal returning 0 gates render_queue_insert_depth_sorted."

@@ -1,0 +1,159 @@
+[[function]]
+module = "game_sub"
+address = "09C671A8"
+name = "class_089bddd0_spawn_at_position"
+purpose = "Allocates a class 089BDDD0 object through node_mgr_09d19860, runs fx_base_init, stores type +0x24, colour selector +0x2B, position +0x10, scale +0x3C and +0x240..+0x248, copies the optional param_4 vector to +0x250 (zero if null), clears owner +0xC, and pushes it at the head of the list at manager +0x19030, counting it in +0x19034."
+confidence = "inferred"
+evidence = "Field writes and list push in the body; allocator sets vtable 089BDDD0; game_sub 09C74E48 calls it with several type values."
+
+[[function]]
+module = "game_sub"
+address = "09C67548"
+name = "class_089bddd0_method10_draw_element"
+purpose = "Draws element param_2+0x20 of the object: picks an RGB by +0x2B (values 0 to 3), builds a matrix from the element's keyframed scale, position and a per-type rotation (types 0 and 1,2,5,6,8,9,10 also multiplied by the 3x3 at DAT_089cbd04+0xC80), emits display-list words around it, and calls model_draw_group_tinted with alpha from element +0x98, or the colour at element +0x90 when element +0xA4 is nonzero."
+confidence = "inferred"
+evidence = "Slot +0x10 reached through spawn_manager_slot_call_owner_method_10; the body ends in model_draw_group_tinted with words written to DAT_089cc120."
+
+[[function]]
+module = "game_sub"
+address = "09C67B20"
+name = "class_089bddd0_method14_queue_visible_elements"
+purpose = "For each element (count from DAT_09ce96b0 by type +0x24, stride 0x50) whose node at +0x60 exists and has flag mask 0x4 clear, calls render_queue_insert_depth_sorted with list 7 and the node's +0x10 position."
+confidence = "inferred"
+evidence = "Short loop in the body; slot +0x14 reached from node_mgr_09d19860_call_slot_14_flagged."
+
+[[function]]
+module = "game_sub"
+address = "09C67BB8"
+name = "class_089bddd0_method1c_alloc_and_randomize_elements"
+purpose = "Clears timer +0x38, adjusts position for types 0 and 6, gives each element randomised start values by type, allocates each element's node with entity_manager_alloc_element_run(mgr,1,8,0) and sets its index and owner, calls the type 0x07 sound function, and sets member function +0x4C from DAT_09ce9710."
+confidence = "inferred"
+evidence = "Slot +0x1C reached from class_089bb194_tick_call_member_fn_4c_if_set; loop over the DAT_09ce96b0 count with math_rng_next and the allocator."
+
+[[function]]
+module = "game_sub"
+address = "09C67EE8"
+name = "class_089bddd0_method20_tick_elements_keyframes"
+purpose = "If +0x48 mask 0x8 is set, clears mask 0x10 and sets member function +0x4C from DAT_09ce9720; otherwise counts timer +0x38 and past the DAT_09ce96c8 limit clears mask 0x10 and sets +0x4C from DAT_09ce9730; within the limit it sets mask 0x10, hides each element node (mask 0x4), advances its frame +0xA2, and for elements in range lerps keyframes from DAT_09ce9680 into scale +0x70 and alpha +0x98, adds spin, and writes and unhides the node position; type 6 takes x,z from owner bone 2 on the first frame."
+confidence = "inferred"
+evidence = "Slot +0x20 reached from class_089bb194_tick_call_member_fn_4c_if_set; calls math_keyframe_lerp_vec3 and math_keyframe_lerp_float per element."
+
+[[function]]
+module = "game_sub"
+address = "09C68378"
+name = "class_089bddd0_method24_free_elements_and_release"
+purpose = "Frees each element's node at +0x60 (stride 0x50, count from DAT_09ce96b0 by type) with entity_manager_free_element_run, then calls fx_base_release_render_nodes."
+confidence = "inferred"
+evidence = "Short body; slot +0x24 reached from class_089bb194_tick_call_member_fn_4c_if_set."
+
+[[function]]
+module = "game_sub"
+address = "09C68410"
+name = "class_089bddd0_play_sound_0x2c_if_type_0x07"
+purpose = "When type +0x24 is 7, plays sound_play_3d bank 1 id 0x2C at the object's +0x10 position."
+confidence = "inferred"
+evidence = "One conditional call; called by method +0x1C in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C6F018"
+name = "class_089bde98_spawn_for_object_if_29a_matches"
+purpose = "If object_29a_matches_game_6af0e passes, gets a position and value from 09C72AF0, calls 09C74E48 with scale 1.0, and unless its low byte is 1 allocates a class 089BDE98 object with that position and scale 1.0, runs 09C72800 and pushes it on the manager +0x19030 list."
+confidence = "inferred"
+evidence = "Body; in traces called from hunter_motion_frame_triggers and hunter_on_motion_frame_call_9c6f018."
+
+[[function]]
+module = "game_sub"
+address = "09C6F168"
+name = "class_089bde98_spawn_for_object_with_scale_and_field_2e0"
+purpose = "As the scale 1.0 spawner but takes scale in arg_f12 and passes param_5 and param_4 to 09C72AF0, stores the low half of param_4 in the new object's +0x2E0; its +0x1E9 test leads to two identical calls of 09C74E48."
+confidence = "inferred"
+evidence = "Body; in traces called from hunter_motion_frame_triggers and hunter_tick_motion_spawn_cues_and_peer_10fe_bits."
+
+[[function]]
+module = "game_sub"
+address = "09C6F470"
+name = "class_089bde98_spawn_for_object_scaled_by_field_220"
+purpose = "If object_29a_matches_game_6af0e passes, gets a position and value from 09C74548, calls 09C74E48, and unless its low byte is 1 allocates a class 089BDE98 object, runs 09C73958, sets scale +0x3C to arg_f12 times object +0x220 and pushes it on the manager list; returns the last of those results, 0 if the allocation failed."
+confidence = "inferred"
+evidence = "Body; in traces called from em20 09D29300 and entity_bc194_motion_frame_events, runs in fight2 and misc."
+
+[[function]]
+module = "game_sub"
+address = "09C6F5B8"
+name = "class_089bde98_spawn_at_position_no_owner"
+purpose = "Allocates a class 089BDE98 object at position param_1 with type param_2, scale arg_f12 and owner +0xC cleared, pushes it on the manager +0x19030 list, and returns fx_base_init's result, or 0 if the allocation failed."
+confidence = "inferred"
+evidence = "Field writes and list push; 09C72800 is not called, so the owner stays 0."
+
+[[function]]
+module = "game_sub"
+address = "09C6F6E8"
+name = "class_089bde98_spawn_at_position_unless_09c74e48_nonzero"
+purpose = "Gets a value and adjusted height from fx_lookup_type_value_and_place_above_ground with no object, calls 09C74E48 with no object, and when its low byte is 0 spawns the class 089BDE98 object through 09C6F5B8; returns that result or 09C74E48's."
+confidence = "inferred"
+evidence = "Three-call body; in traces called from class_089bc680_method80_motion_frame_triggers and class_089bcd64_call_9c6f6e8_at_bone_height_2cc."
+
+[[function]]
+module = "game_sub"
+address = "09C6F820"
+name = "class_089bde98_method10_draw_element"
+purpose = "Draws element param_2+0x20 of the object: starts with a tint from game_6af0e_lookup_table_09cd34a8_word, picks a draw parameter, tint and matrix by type +0x24 from the element's keyframed scale and rotation and the 3x3 at DAT_089cbd04+0xC80 in the cases read, and ends in model_draw_group_tinted with alpha set from a float, writing display-list words around it."
+confidence = "inferred"
+evidence = "Slot +0x10 reached through spawn_manager_slot_call_owner_method_10; switch and model_draw_group_tinted, with part of the switch read only in the bundle's excerpt."
+
+[[function]]
+module = "game_sub"
+address = "09C70A50"
+name = "class_089bde98_method14_queue_visible_elements"
+purpose = "For each element (count from DAT_09ceb098 by type +0x24, stride 0x50) whose node at +0xA0 exists and has flag mask 0x4 clear, calls render_queue_insert_depth_sorted with list 7 and the node's +0x10 position."
+confidence = "inferred"
+evidence = "Short loop in the body; slot +0x14 reached from node_mgr_09d19860_call_slot_14_flagged."
+
+[[function]]
+module = "game_sub"
+address = "09C70AF0"
+name = "class_089bde98_method1c_alloc_and_randomize_elements"
+purpose = "Clears timer +0x38, randomises angle +0x3A for types 0x13,0x14,0x15,0x1A,0x1D,0x28, shifts position by a rotated offset for type 9, runs the per-type start sound function, gives each element start values by type, allocates each element's node with entity_manager_alloc_element_run(mgr,1,0xD,0) and sets its index and owner, and sets member function +0x4C from DAT_09ceb250."
+confidence = "inferred"
+evidence = "Slot +0x1C reached from class_089bb194_tick_call_member_fn_4c_if_set; loop over the DAT_09ceb098 count with math_rng_next and the allocator."
+
+[[function]]
+module = "game_sub"
+address = "09C71428"
+name = "class_089bde98_method20_tick_elements_keyframes"
+purpose = "With game +0x6AF14 mask 0x1 set and type 0x23, ends when struct_get_field_6c(DAT_09cfb998) exceeds 2 by clearing +0x48 mask 0x10 and setting member function +0x4C from DAT_09ceb260; otherwise sets mask 0x10, adds to angle +0x3A for some types, counts timer +0x38 and past the DAT_09ceb0f0 limit clears mask 0x10 and sets +0x4C from DAT_09ceb270; within the limit it hides each element node, advances its frame and lerps keyframes from DAT_09ceaf70 per type, with type 0xD taking position and angle from owner bone 2."
+confidence = "inferred"
+evidence = "Slot +0x20 reached from class_089bb194_tick_call_member_fn_4c_if_set; math_keyframe_lerp_vec3 per element, with the end of the body read only in the bundle's excerpt."
+
+[[function]]
+module = "game_sub"
+address = "09C72498"
+name = "class_089bde98_method24_free_elements_and_release"
+purpose = "Frees each element's node at +0xA0 (stride 0x50, count from DAT_09ceb098 by type) with entity_manager_free_element_run, then calls fx_base_release_render_nodes."
+confidence = "inferred"
+evidence = "Short body; slot +0x24 reached from class_089bb194_tick_call_member_fn_4c_if_set."
+
+[[function]]
+module = "game_sub"
+address = "09C72530"
+name = "class_089bde98_play_start_sound_by_type"
+purpose = "Plays a sound for four types: 0x23 calls hunter_play_own_bank_sound_if_29a_matches with id 0xC when owner +0x1E8 is 7; 0x1A plays bank 0 id 0x1A when owner +0x1E6 or object +0x40 equals game +0x28; 0x13 plays id 8 from bank owner +0x1E6 plus 2 when +0x2E0 is 1; 0x0F plays id 7 from that bank."
+confidence = "inferred"
+evidence = "sound_play_3d calls in the body; called by method +0x1C in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C726B8"
+name = "fx_lookup_type_value_snap_y_to_grid_214"
+purpose = "Returns 0 if table DAT_09ceb1f8 is 0 for type param_3; otherwise takes height from object +0x2CC when an object is given, queries collision_grid_214_height_at_xz and with a hit no more than 18 below sets position height to the hit plus 5 and returns the table value; without one, raises the height by 5 and returns the table value if DAT_09cd3378 at game +0x6AF0E is 0x0A or 0x0E, else returns 0, restoring the position when param_4 mask 0x4 is set."
+confidence = "inferred"
+evidence = "Body; in traces called by 09C6F6E8, 09C72AF0 and 09C74548, whose result goes to 09C74E48."
+
+[[function]]
+module = "game_sub"
+address = "09C72800"
+name = "class_089bde98_init_from_owner_by_type"
+purpose = "Sets type +0x24 from param_4, angle +0x3A from owner +0x1F4 and owner +0xC, then by type: 0x1A copies owner +0x5C9 to +0x40; 0x16 computes +0x3A from the direction of owner bone param_3 plus 0x4000; 0x0D stores param_3 in +0x29; 0x0A sets scale +0x3C to 0.7; 0,3,4,9,0x12,0x14 set +0x29 to 0 when the low half of param_3 is 8, else 1."
+confidence = "inferred"
+evidence = "Body; in traces called by the two class 089BDE98 spawners for objects."
