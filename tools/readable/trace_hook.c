@@ -4,7 +4,7 @@
  * and its arguments and writes none, so a replay runs as without it (tools/readable/replaycheck.py checks that).
  *
  * MHFU_TRACE_ARGS=<file> writes what each function was handed: for an argument register a0-a3 holding a pointer into RAM, the
- * word it points at, if that could be a vtable, once per (module, function, register, word), as 16-byte records. So a function's
+ * word it points at if that could be a vtable and 0 if not, once per (module, function, register, word), as 16-byte records. So a function's
  * `this` is known from what it ran on (tools/readable/classes.py). */
 #include <stdint.h>
 #include <stdio.h>
@@ -49,7 +49,7 @@ static void trace_args(Ctx *c, int module, uint32_t fn) {
             continue;
         uint32_t word = LW(p);
         if (word < RAM_LOW || word >= RAM_HIGH || (word & 3))
-            continue;
+            word = 0;       /* a pointer to something that can't be an object: once, so helpers aren't taken for methods */
         uint32_t module_reg = (uint32_t)module << 8 | (uint32_t)r;
         uint32_t h = (fn * 2654435761u ^ word * 40503u ^ module_reg * 97u) & (ARG_SLOTS - 1);
         int probes = 0;

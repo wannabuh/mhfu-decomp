@@ -11,7 +11,7 @@ import time
 
 ROOT = os.path.expanduser("~/projects/mhfu-recomp")
 ISO = os.path.expanduser("~/Games/psp/mhfu.iso")
-BIN = os.path.expanduser("~/projects/mhfu-ghidra/tracebuild/build/mhfu")
+BIN = os.environ.get("TRACE_BIN", os.path.expanduser("~/projects/mhfu-ghidra/typebuild/build/mhfu"))
 
 
 def main():
