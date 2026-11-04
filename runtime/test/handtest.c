@@ -48,10 +48,14 @@ static const Case cases[] = {
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
 #define MAX_CALLS 128
-typedef struct { uint32_t fn, a[8], f[8], stack0; } Call;     /* a0-a3 t0-t3, f12-f19: only those the callee reads, others 0; stack0 below */
+/* a0-a3 t0-t3, f12-f19: only those the callee reads, others 0; stack0 below; a hash of the hunter as the callee finds it, so a write on
+ * the wrong side of a call shows even if the stub does nothing with it */
+typedef struct { uint32_t fn, a[8], f[8], stack0, hunter_hash; } Call;
+#define HUNTER_HASHED 0x1200u
 #define NINE_ARGUMENTS 0x08883988u      /* the one callee so far with an argument at its sp+0 */
 #define STUB_RECORD 0x09FF8000u         /* what a call returning a pointer to a record gets */
 #define RECORD_TYPE 0x3C
+#define REGEN_EFFECT_TEST 0x088DAE98u
 static int stubbing;            /* within the function under test */
 static int running;             /* it is running, stubs or not */
 static uint32_t target;         /* it: not a stub */
@@ -61,8 +65,10 @@ static uint8_t stub_slot[MAX_CALLS];        /* the same for the local player's s
 static uint8_t stub_record_type[MAX_CALLS];
 static uint32_t record_method;              /* the method returning that pointer: *(*(*0x09A4F1A0)) slot 0x28 */
 static const struct { uint16_t offset; uint8_t size; uint8_t in_game; } *pokable;   /* a callee may set one of these */
-static int16_t stub_poke[MAX_CALLS];        /* an index in them, or -1 */
-static int32_t stub_poke_value[MAX_CALLS];
+#define MAX_POKES 16
+static int npokes;                          /* how many at each call, this time */
+static uint16_t stub_poke[MAX_CALLS][MAX_POKES];   /* indexes in them */
+static int32_t stub_poke_value[MAX_CALLS][MAX_POKES];
 static uint32_t stub_hunter;
 static Call calls[2][MAX_CALLS];
 static int ncalls[2], current;
@@ -132,6 +138,10 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         }
         if (fn == NINE_ARGUMENTS)
             call->stack0 = LW(c->r[29]);
+        uint32_t hash = 2166136261u;
+        for (uint32_t o = 0; o < HUNTER_HASHED; o += 4)
+            hash = (hash ^ LW(stub_hunter + o)) * 16777619u;
+        call->hunter_hash = hash;
         if (bound >= 0) {
             c->r[2] = 0;
             return 1;
@@ -142,15 +152,19 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
             c->r[2] = STUB_RECORD;
             SB(STUB_RECORD + RECORD_TYPE, stub_record_type[n]);
         }
-        if (pokable && stub_poke[n] >= 0) {
-            uint32_t at = (pokable[stub_poke[n]].in_game ? LW(GAME_POINTER) : stub_hunter) + pokable[stub_poke[n]].offset;
-            if (pokable[stub_poke[n]].size == 1)
-                SB(at, stub_poke_value[n]);
-            else if (pokable[stub_poke[n]].size == 2)
-                SH(at, stub_poke_value[n]);
+        for (int i = 0; pokable && i < npokes; i++) {
+            uint32_t at = (pokable[stub_poke[n][i]].in_game ? LW(GAME_POINTER) : stub_hunter) + pokable[stub_poke[n][i]].offset;
+            int32_t value = stub_poke_value[n][i];
+            if (pokable[stub_poke[n][i]].size == 1)
+                SB(at, value);
+            else if (pokable[stub_poke[n][i]].size == 2)
+                SH(at, value);
             else
-                SW(at, stub_poke_value[n]);
+                SW(at, value);
         }
+        /* regeneration's last test, otherwise hardly ever passed */
+        if (pokable && fn == REGEN_EFFECT_TEST && c->r[5] == 0x20 && (stub_record_type[n] & 1))
+            c->r[2] = 1;
         if (stub_stamina[n] != 0x7FFF)
             SH(stub_hunter + 0x55A, stub_stamina[n]);
         if (stub_slot[n] != 0xFF)
@@ -338,7 +352,6 @@ int main(int argc, char **argv) {
     stub_hunter = hunter;
     if (stub_mode)
         record_method = LW(LW(LW(LW(0x09A4F1A0u))) + 0x28);
-    memset(stub_poke, 0xFF, sizeof stub_poke);
     uint8_t *start = malloc(SNAP_SIZE), *generated = malloc(SNAP_SIZE);
     int failed = 0;
     for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
@@ -355,6 +368,7 @@ int main(int argc, char **argv) {
                 cases[k].randomise_more(c, hunter);
                 quiet = PICK(0, 4, 8, 16, 32, 128);
                 pokable = (const void *)upkeep_fields;
+                npokes = PICK(0, 0, 1, 4, MAX_POKES);
             }
             if (cases[k].small_a1)
                 a1 = rnd() % 3;
@@ -369,14 +383,14 @@ int main(int argc, char **argv) {
                 if (cases[k].randomise_more) {
                     /* low bytes, low halves and whole words told apart */
                     results[n] = PICK(0, 0, 1, 1, 1, 2, 3, 0x100, 0x101, 0x10000, 0x10002, 0x8000, 0xFFFF, 0x1FFFF, -1);
-                    stub_poke[n] = -1;
-                    stub_poke_value[n] = (int32_t)PICK(0, 0, 1, 2, 3, 10, 100, 150, -1, 0x10);
                     if (quiet && rnd() % quiet) {
                         results[n] = 0;
                         stub_stamina[n] = 0x7FFF;
                         stub_slot[n] = 0xFF;
-                    } else if (rnd() % 4 == 0) {
-                        stub_poke[n] = (int16_t)(rnd() % (sizeof upkeep_fields / sizeof upkeep_fields[0]));
+                    }
+                    for (int m = 0; m < npokes; m++) {
+                        stub_poke[n][m] = (uint16_t)(rnd() % (sizeof upkeep_fields / sizeof upkeep_fields[0]));
+                        stub_poke_value[n][m] = (int32_t)PICK(0, 0, 1, 2, 3, 10, 100, 150, -1, 0x10);
                     }
                 }
             }
@@ -429,9 +443,9 @@ int main(int argc, char **argv) {
                 printf("%s: calls differ\n", cases[k].name);
                 for (int m = 0; m < 2; m++)
                     for (int n = 0; n < ncalls[m] && n < MAX_CALLS; n++)
-                        printf("  %s %d: %08X(%08X %08X %08X %08X; t0 %08X t1 %08X sp+0 %08X; f12 %08X f13 %08X)\n", m ? "hand" : "generated", n, calls[m][n].fn,
+                        printf("  %s %d: %08X(%08X %08X %08X %08X; t0 %08X t1 %08X sp+0 %08X; f12 %08X f13 %08X; hunter %08X)\n", m ? "hand" : "generated", n, calls[m][n].fn,
                                calls[m][n].a[0], calls[m][n].a[1], calls[m][n].a[2], calls[m][n].a[3], calls[m][n].a[4], calls[m][n].a[5], calls[m][n].stack0,
-                               calls[m][n].f[0], calls[m][n].f[1]);
+                               calls[m][n].f[0], calls[m][n].f[1], calls[m][n].hunter_hash);
             }
             if (!same) {
                 bad++;
