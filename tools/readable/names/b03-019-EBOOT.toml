@@ -1,0 +1,247 @@
+[[function]]
+module = "EBOOT"
+address = "0888B1C0"
+name = "camera_script_run_opcodes"
+purpose = "Interprets the scripted-camera bytecode at +0xE0 until a wait or stop: opcodes set anchor modes, start and end points (+0xA0/+0xB0 eye, +0xC0/+0xD0 target), angle shorts, easing and duration, loop marks; returns 0 on a wait, -1 on opcode 0x2A, 1 on an unknown opcode or an abort flag at +0x139."
+confidence = "inferred"
+evidence = "Opcode switch stepping by the length byte; 0x26/0x27 save the pc and count +0x94 down; calls the eye/target loaders and interpolator; 888AFEC fills the pc from a table by id."
+
+[[function]]
+module = "EBOOT"
+address = "0888B600"
+name = "spline_eval_cubic"
+purpose = "Evaluates a cubic with vec4 coefficients by Horner's rule: ((a*t+b)*t+c)*t+d into the output vector."
+confidence = "inferred"
+evidence = "Scale by t then 8897BD8 with the next coefficient, three times; 888B7FC passes the coefficient table 888C3AC builds; 8897BD8 read as a vector add from its use."
+
+[[function]]
+module = "EBOOT"
+address = "0888B6AC"
+name = "camera_path_resolve_point_b"
+purpose = "Picks a point by mode byte +4: 0 copies the input point, 1 transforms +0x290 by the followed object's matrix, 2 adds the offset at +0x29C to its place; then byte +3 restores the input X/Z (1) or Y (0)."
+confidence = "inferred"
+evidence = "Mode branches read DAT_089cbd04+0xA84 fields +0x10..+0x40 and +0x200; twin of 888D0A8 using later fields of the same record."
+
+[[function]]
+module = "EBOOT"
+address = "0888B7FC"
+name = "camera_path_eval_first_path_at_progress"
+purpose = "Builds the spline from the record's first point list (+0x20, count byte +0x280) and evaluates the segment index in global +0xAA0 at the fraction in +0xA9C times that segment's length."
+confidence = "inferred"
+evidence = "888C3AC then 888B600 with coefficient table DAT_08a62EC0; t scaled by the point's fourth float, which 888C3AC uses as the interval."
+
+[[function]]
+module = "EBOOT"
+address = "0888B884"
+name = "camera_path_find_nearest_segment"
+purpose = "Finds the node of the record's second point list (+0x100, count byte +0x260) nearest a position and returns the start index of the segment on the nearer side, clamped to count-2."
+confidence = "inferred"
+evidence = "Loop of vsub/vdot/vsqrt keeping the minimum, then compares neighbouring distances; the index range is the same list 888B994 uses."
+
+[[function]]
+module = "EBOOT"
+address = "0888B994"
+name = "camera_path_project_point_onto_second_path"
+purpose = "Builds the spline from the second point list (+0x100) and finds the closest parameter to a position on the current segment (state byte +8), stepping one segment forward or back on overrun; writes t to state +0; returns 0 with t=0 when there are no roots, else 1."
+confidence = "inferred"
+evidence = "888C3AC, 888BC40, 888BB40 chain; the sign from 888BB40 picks segment index +1 or -1."
+
+[[function]]
+module = "EBOOT"
+address = "0888BB40"
+name = "spline_pick_root_in_segment"
+purpose = "From a list of root parameters, writes the first inside 0..segment length (+0xC) and returns 0; otherwise writes the nearer end and returns -1 for before the start or 1 for past the end."
+confidence = "confirmed"
+evidence = "Code compares each root with 0 and +0xC and tracks the smallest overshoot; its only caller passes the roots of 888BC40."
+
+[[function]]
+module = "EBOOT"
+address = "0888BC40"
+name = "spline_segment_closest_param_roots"
+purpose = "Solves for the parameters where a cubic segment is closest to a point by the real roots of the derivative of squared distance (degree 5, falling to 3 or 1 when the leading coefficients vanish); param_5 0 uses XZ only; returns the root count."
+confidence = "inferred"
+evidence = "Polynomial coefficients 3aa, 5ab, 4ac+2bb, 3(bc+ae), 2be+cc, ce match the derivative; 888DA60/888DD14 are read as root solvers from this use; roots kept when the imaginary part is under 0.001."
+
+[[function]]
+module = "EBOOT"
+address = "0888C294"
+name = "math_remap_clamped_from_record"
+purpose = "Maps a value from the range at +8..+0xC linearly to +0x10..+0x14, clamped at both ends; returns the midpoint of the outputs when the input range is empty."
+confidence = "confirmed"
+evidence = "Whole function is that arithmetic."
+
+[[function]]
+module = "EBOOT"
+address = "0888C318"
+name = "camera_path_lerp_float_key"
+purpose = "Linearly interpolates between consecutive floats index and index+1 of the table at +0x200."
+confidence = "inferred"
+evidence = "Code is the lerp; path-record reading from caller 8888B98 sharing the spline helpers."
+
+[[function]]
+module = "EBOOT"
+address = "0888C344"
+name = "camera_path_lerp_angle_key"
+purpose = "Interpolates between consecutive signed 16-bit angles index and index+1 of the table at +0x240 in fixed point and returns the result in radians."
+confidence = "inferred"
+evidence = "Multiplier 9.58738e-05 is 2*pi/65536; 16.16 t times the short difference; path-record reading from caller 8888B98."
+
+[[function]]
+module = "EBOOT"
+address = "0888C3AC"
+name = "spline_build_cubic_coeffs"
+purpose = "Builds per-segment cubic coefficients for x, y, z into the global table DAT_08a62EC0 (0x10 floats per segment) from a list of points whose fourth float is the interval to the next, solving tangents with the tridiagonal solver."
+confidence = "inferred"
+evidence = "Fills tridiagonal rows, calls 888C794 once per axis, then writes Hermite-to-power-basis terms using 1/h, 1/h^2, 1/h^3."
+
+[[function]]
+module = "EBOOT"
+address = "0888C794"
+name = "math_solve_tridiagonal"
+purpose = "Solves a tridiagonal linear system of size n by forward elimination and back substitution (Thomas algorithm), into the first argument, from sub-diagonal, diagonal, super-diagonal and right-hand side arrays."
+confidence = "confirmed"
+evidence = "Code is the Thomas algorithm with an unrolled back-substitution; called once per axis by 888C3AC."
+
+[[function]]
+module = "EBOOT"
+address = "0888D004"
+name = "camera_filter_button_input"
+purpose = "Copies the global button words +0xA70/+0xA72 into the camera's own +0x124/+0x126: unfiltered when 888D600 allows, only mask 0x100 when DAT_08a62d80+0x74 is zero, else zero; also zero when global bytes +0xA8D or +0x961 are set."
+confidence = "inferred"
+evidence = "Called at the start of 8886E50; +0x126 is tested with masks 0x50 and 0x200 by camera functions and +0xA72 with mask 1 by 888AFEC; button reading is from those masks."
+
+[[function]]
+module = "EBOOT"
+address = "0888D0A8"
+name = "camera_path_resolve_point_a"
+purpose = "Picks a point by mode byte +4: 0 uses the absolute point at +0x2C, 1 transforms +0x38 by the followed object's matrix, 2 adds the offset at +0x44 to its place; then byte +3 restores the +0x2C X/Z (1) or Y (0)."
+confidence = "inferred"
+evidence = "Same shape as 888B6AC with fields +0x2C/+0x38/+0x44 and DAT_089cbd04+0xA84."
+
+[[function]]
+module = "EBOOT"
+address = "0888D1BC"
+name = "camera_step_height_offset_for_ground_drop"
+purpose = "Each call raises the eye height offset +0xD8 by 20 (max 300) when 9C3DF10 finds a result between +0xA0 and bone 20 of the followed object and the ground at +0xA0 is over 150 above the ground at +0xB0, else lowers it by 20 (min 0); returns it."
+confidence = "inferred"
+evidence = "Caller 8886E50 adds the result to the eye Y; 0x2F40 is bone 20's translation at 0x250 per bone; 9C3DB00 read as ground height from 888EAF8 keeping the eye above it plus 30."
+
+[[function]]
+module = "EBOOT"
+address = "0888D2B4"
+name = "camera_ray_hit_far_from_point_e0"
+purpose = "Casts from +0xF0 to +0xE0 with collision mask 0x8009 and returns 1 only if there is a hit more than 50 units from +0xE0 in XZ."
+confidence = "inferred"
+evidence = "9C3E3D0 returns a hit flag and point, the same mask as the eye collision casts; zeroed Y before vdot/vsqrt; ran only in fight1 5050-5310."
+
+[[function]]
+module = "EBOOT"
+address = "0888D36C"
+name = "camera_update_blocked_timer_and_yaw"
+purpose = "Runs the 60-tick timer byte +0x12B, reset by 888D2B4 reporting a hit and cancelled by button mask 0x50 on +0x126; on starting it, when +0x12D is zero, stores the atan2 of the followed object's field +0x210 minus place into angle short +0x120."
+confidence = "inferred"
+evidence = "Timer set to 0x3C (60); inline VFPU asin sequence scaled by 10430.378 (32768/pi); the VFPU part decompiled badly so the angle detail is less sure."
+
+[[function]]
+module = "EBOOT"
+address = "0888D600"
+name = "camera_full_input_allowed"
+purpose = "Returns 1 only when +0x131 is negative and none of the blocks apply: DAT_089cbd0c+0x554, 8830F74, followed +0x614 mask 2, +0x564, flag 888D708, or +0x1E8 of 1 or 5 with +0x410 mask 8 and +0x614 mask 0x8000."
+confidence = "inferred"
+evidence = "888D004 passes all buttons only when this returns 1; field meanings not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888D708"
+name = "camera_followed_flag_mask_80000_set"
+purpose = "Returns whether the followed object has mask 0x80000 set in its +0x288 flag word."
+confidence = "confirmed"
+evidence = "Calls 8865C88 on DAT_089cbd04+0xA84 with 0x80000; that helper masks +0x288."
+
+[[function]]
+module = "EBOOT"
+address = "0888D734"
+name = "camera_latch_followed_high_above_ground"
+purpose = "Latch in +0xD5/+0xD6: with the followed object's +0x280 at 2, its Y over 10 below field +0x214 and over 300 above the ground for 4 ticks it turns on, and returns 1 until 15 ticks pass at level 0 (+0x280 not 2) or level 2 (Y below +0x214-10 but not over 300 above ground); off at once when +0x298 is 2."
+confidence = "inferred"
+evidence = "Level 0-3 computed from the fields, counters 4 and 15; 8886E50 swaps a camera parameter table to DAT_08933d1c while it returns 1; why the game wants it is not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888E1F8"
+name = "math_dot_xz"
+purpose = "Dot product of two vectors using X and Z only."
+confidence = "confirmed"
+evidence = "Whole function is a[0]*b[0]+a[2]*b[2]."
+
+[[function]]
+module = "EBOOT"
+address = "0888E324"
+name = "camera_blend_begin"
+purpose = "Starts a blend of n ticks: sets active byte +0x9C, counter +0x94 to n-1 and +0x190 to 1/n."
+confidence = "inferred"
+evidence = "Fields are the ones 888E3DC consumes; only caller is 888E350."
+
+[[function]]
+module = "EBOOT"
+address = "0888E350"
+name = "camera_blend_begin_from_table"
+purpose = "When global byte +0xA8B is set, looks up the id in global +0xA94 in the 16 (id, ticks) byte pairs at param_2+0x1C, default 15 ticks, and starts a blend; 0 or 1 ticks clears active byte +0x9C instead."
+confidence = "inferred"
+evidence = "Code reads that table and calls 888E324; caller 8886E50 passes the camera struct."
+
+[[function]]
+module = "EBOOT"
+address = "0888E3DC"
+name = "camera_blend_step_weight"
+purpose = "Returns the eased (quadratic in-out) remaining blend weight from counter +0x94 times +0x190, decrements the counter, and clears active byte +0x9C at zero."
+confidence = "inferred"
+evidence = "Pow with exponent 2 on each half around 0.5; same fields as 888E324."
+
+[[function]]
+module = "EBOOT"
+address = "0888E494"
+name = "camera_should_set_yaw_from_followed"
+purpose = "Decides whether the camera takes its angle from the followed object: true for 88DA324 with byte +300 set, for 9A6EE48, or for +0x1E8 of 10 with button mask 0x200 and +0x480 mask 0x200 and +0x410 mask 8 and +0x298 not 2 or 6; false for 884FA5C(game, 1) or +0x552 set."
+confidence = "inferred"
+evidence = "8886E50 on true writes camera short from followed +0x1F4 minus 0x8000; 88DA324 tests state values 0x27-0x2B, 0x77, 0x78 with unread meaning."
+
+[[function]]
+module = "EBOOT"
+address = "0888E5B8"
+name = "camera_ground_height_retry_raised"
+purpose = "Returns the ground height at a point; if that is below the object's Y (+0x204) returns instead the height found from 150 units above the point."
+confidence = "inferred"
+evidence = "Two 9C3DB00 calls with Y+150; caller 8886E50 adds a parameter and raises the eye to it."
+
+[[function]]
+module = "EBOOT"
+address = "0888E788"
+name = "camera_script_load_eye_point"
+purpose = "Reads a 1/4096 fixed point vec3 from the script op and places it per anchor mode +0xE9: 0 followed object's matrix, 1 its place, 2 its bone +0xEB, 3 the object from 888E218's matrix, 4 relative to +0xC0."
+confidence = "inferred"
+evidence = "Script ops 2 and 3 call it with +0xA0 and +0xB0; 888EAF8 raycasts from the +0xC0/+0xD0 blend to this blend, and clamps this one above ground."
+
+[[function]]
+module = "EBOOT"
+address = "0888E8E8"
+name = "camera_script_load_target_point"
+purpose = "Reads a 1/4096 fixed point vec3 from the script op and places it per anchor mode +0xEA: 0 followed object's matrix, 1 its place, 2 its bone +0xEC, 3 the object from 888E218's matrix, 4 unchanged."
+confidence = "inferred"
+evidence = "Script ops 5 and 6 call it with +0xC0 and +0xD0; same anchor code as 888E788 with no relative case."
+
+[[function]]
+module = "EBOOT"
+address = "0888EA44"
+name = "camera_script_copy_start_to_end_by_mask"
+purpose = "For each mask bit copies a start value to its end value: 1 +0xA0 to +0xB0, 2 +0xC0 to +0xD0, 4 +0x104 to +0x106, 8 +0x108 to +0x10A, 0x10 +0x110 to +0x112, 0x20 +0x118 to +0x11A, 0x40 +0x120 to +0x122, 0x80 +0x128 to +0x12A."
+confidence = "inferred"
+evidence = "Script op 0x24; start and end from 888EAF8 weighting by counter/total counting down, so the first of each pair weighs fully at the start."
+
+[[function]]
+module = "EBOOT"
+address = "0888EAF8"
+name = "camera_script_apply_interpolation"
+purpose = "Computes the eased fraction from +0x94/+0x96 (mode +0x138, exponent +0x134), blends eye +0x00 and target +0x10 from their start/end points (mode +0xE8: 1 both directly, 0 one directly and the other as a rotated offset from it), keeps the eye clear of collision and above ground, and blends further angle fields with an oscillation."
+confidence = "inferred"
+evidence = "Script ops 0x27 and 0x28 call it; cast 9C3ABA8 mask 0x8009 radius 28 from target to eye and ground+30 clamp, skipped when +0x13B is set by op 0x2B; tail read only in part."

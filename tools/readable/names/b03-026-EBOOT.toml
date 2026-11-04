@@ -1,0 +1,455 @@
+[[function]]
+module = "EBOOT"
+address = "088C12BC"
+name = "unknown_calls_089cbd04_with_table_pair"
+purpose = "Passes an index's entries from the tables at 089B4F90 and 089B4FC0 to f_EBOOT_88158D8 on DAT_089cbd04; index 2 goes to f_EBOOT_8815D64 instead."
+confidence = "guess"
+evidence = "Mechanics read only; neither callee nor the tables are visible here."
+
+[[function]]
+module = "EBOOT"
+address = "088C1344"
+name = "unknown_apply_game_record_40_41_to_slot_object"
+purpose = "Maps bytes +0x40 and +0x41 of the indexed 0x8C-byte record in the game global through f_EBOOT_8852954, then calls vtable +0x20 and +0x24 of the object f_EBOOT_88DCEBC returns for that index."
+confidence = "guess"
+evidence = "Mechanics read only; ran once late in startup, meaning of the record not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088C13E8"
+name = "unknown_calls_on_09a4f204_09a4f210_game_global"
+purpose = "Calls two functions on DAT_09a4f204, one on DAT_09a4f210 with 7, and one on the game global."
+confidence = "guess"
+evidence = "Only a call sequence; run once from cont_task and lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088C2B54"
+name = "cipher_set_key_word"
+purpose = "Stores a 16-bit key word in the context at +0xAA0, using the table at 089B5008 when the given word is 0."
+confidence = "inferred"
+evidence = "Called in a loop of 4 on the source's first words by the decrypt routine 088C2BE0."
+
+[[function]]
+module = "EBOOT"
+address = "088C2B94"
+name = "cipher_next_key_word"
+purpose = "Steps one of the four 16-bit generators (word = word * multiplier table 089B5008 % modulus table 089B5018) and returns the new word."
+confidence = "inferred"
+evidence = "Modular multiply on the +0xAA0 words; its result is XORed into data by 088C2CE0."
+
+[[function]]
+module = "EBOOT"
+address = "088C2BE0"
+name = "cipher_decrypt_and_verify_salted_digest"
+purpose = "Decrypts a buffer whose first four words are the key and whose bytes 8..0x20 hold a size and 0x14-byte digest, appends a 16-byte salt to the body, checks the digest, and returns the size or 0 on failure or a size of 0x6800 or more."
+confidence = "inferred"
+evidence = "Salt string Vd6gh8F30wA86Ex5, 0x18-byte header read into adjacent size and digest locals, compare of 0x14 bytes."
+
+[[function]]
+module = "EBOOT"
+address = "088C2CE0"
+name = "cipher_xor_range"
+purpose = "XORs 16-bit words from source plus an offset into destination plus an offset with key words chosen by the source position."
+confidence = "inferred"
+evidence = "Loop XORs each word with 088C2B94's result, generator index (offset & 7) >> 1."
+
+[[function]]
+module = "EBOOT"
+address = "088C2D74"
+name = "cipher_transform_sbox_xor_tail_seed"
+purpose = "Transforms a buffer through a byte table and a 32-bit XOR stream seeded from its last 4 bytes; those bytes are substituted twice, and the seed is read before that when param_5 is 0 and after it otherwise."
+confidence = "inferred"
+evidence = "Each body byte substituted, XORed with 088C2F88's stream, substituted again; caller 088C022C is the checksum thread's work."
+
+[[function]]
+module = "EBOOT"
+address = "088C2F48"
+name = "cipher_seed_stream"
+purpose = "Splits a 32-bit seed into the stream words at +0xAA8 and +0xAAC, replacing a zero low word with 0x215F and a zero high word with 0xDFA3."
+confidence = "inferred"
+evidence = "Replacement values are the multipliers 088C2F88 uses, so zero seeds don't stick the generators."
+
+[[function]]
+module = "EBOOT"
+address = "088C2F88"
+name = "cipher_next_stream_dword"
+purpose = "Steps the two generators (+0xAA8 * 0x215F % 0xFF8F, +0xAAC * 0xDFA3 % 0xFFEF) and returns high word from the second plus the first."
+confidence = "inferred"
+evidence = "Arithmetic read in full; result XORed into the buffer by 088C2D74."
+
+[[function]]
+module = "EBOOT"
+address = "088C3010"
+name = "checksum_thread_main"
+purpose = "Thread body: runs f_EBOOT_88C022C on the owner's buffer pointer and mode byte, stores its result at +0x4A89, clears the busy byte +0x4A88 and deletes itself."
+confidence = "confirmed"
+evidence = "Entry passed to sceKernelCreateThread named checkSumThread in 088C30B8; ends in sceKernelExitDeleteThread."
+
+[[function]]
+module = "EBOOT"
+address = "088C30B8"
+name = "checksum_thread_start"
+purpose = "Sets the busy byte +0x4A88 and mode byte +0x4A8A, picks buffer +0x94C or +0x950 by param_3, and starts the checkSumThread."
+confidence = "confirmed"
+evidence = "String checkSumThread passed to sceKernelCreateThread, started with the owner's pointer."
+
+[[function]]
+module = "EBOOT"
+address = "088C3138"
+name = "stage_mgr_construct"
+purpose = "Records the manager in DAT_09a4f1a0 and zeroes its buffer fields +0xA2B4..+0xA2C0, setting +0x28A to 0xFFFF."
+confidence = "inferred"
+evidence = "Runs at frame 0 from 089B9678; same fields used by the stage manager functions after it."
+
+[[function]]
+module = "EBOOT"
+address = "088C31D0"
+name = "stage_mgr_init_arena_and_buffer"
+purpose = "Sets up the 0xA000-byte arena at +0x28C, obtains a 320000-byte buffer from pool 6 of DAT_089cbd00 into +0xA2BC, and resets the manager's state fields including the object list."
+confidence = "inferred"
+evidence = "Arena handle +0xA28C is what the object creators allocate from; +0xA2BC is the base 088C70D8 bumps from."
+
+[[function]]
+module = "EBOOT"
+address = "088C3290"
+name = "stage_mgr_release_buffer"
+purpose = "Calls f_EBOOT_8898748 on DAT_09a0b680 with 1, clears +0xA2B8, releases pool 6 of DAT_089cbd00 and resets the bump offset +0xA2C0."
+confidence = "inferred"
+evidence = "Same pool id as 088C31D0's request; runs when the task ends the session."
+
+[[function]]
+module = "EBOOT"
+address = "088C32E8"
+name = "stage_current_call_vfunc_14"
+purpose = "Calls vtable +0x14 of the current stage if it exists and its field +0x50 is nonzero."
+confidence = "inferred"
+evidence = "Read directly; run every frame next to 088C33E8 from the same game_task and lobby_task sites."
+
+[[function]]
+module = "EBOOT"
+address = "088C3324"
+name = "stage_current_pass_to_884cb24"
+purpose = "Passes the current stage to f_EBOOT_884CB24 on DAT_089cc11c with 3 and 1 if its field +0x50 is nonzero."
+confidence = "inferred"
+evidence = "Read directly; the callee's meaning isn't shown, run every frame."
+
+[[function]]
+module = "EBOOT"
+address = "088C3364"
+name = "stage_objects_call_vfunc_10_all"
+purpose = "Calls vtable +0x10 on every object in the list at +0xA2E0, then sets byte +0x3D4 of the current stage if manager byte +0xA3E9 is 1."
+confidence = "inferred"
+evidence = "List walk via +0x14 next; run every frame from the same site as 088C3324."
+
+[[function]]
+module = "EBOOT"
+address = "088C33E8"
+name = "stage_objects_tick_and_remove_finished"
+purpose = "Calls vtable +0x1C on every listed object and removes and destroys any whose flags mask 0x1 is then clear."
+confidence = "inferred"
+evidence = "Per-frame list walk; 088C7184 called for objects whose +4 flag mask 0x1 is clear."
+
+[[function]]
+module = "EBOOT"
+address = "088C349C"
+name = "stage_objects_destroy_all"
+purpose = "Calls vtable +8 with 1 on every listed object, returns each to the arena and empties the list."
+confidence = "inferred"
+evidence = "Walk over +0xA2E0 with f_EBOOT_8859C40; run at stage changes from game_task and lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088C354C"
+name = "stage_object_create_kind_00"
+purpose = "Allocates a 0x3C-byte object with vtable 089BE2D0 and +0x18 = 0, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CBA5E0."
+confidence = "inferred"
+evidence = "Called from stage overlays; arena alloc, list push and refs read directly."
+
+[[function]]
+module = "EBOOT"
+address = "088C3640"
+name = "stage_object_create_kind_01"
+purpose = "Allocates a 0x50-byte object with vtable 089BE310 and +0x18 = 1, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CBAD28."
+confidence = "inferred"
+evidence = "Called from many stage overlays; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C3B5C"
+name = "stage_object_create_kind_06"
+purpose = "Allocates a 0x60-byte object with vtable 089BE3B0 and +0x18 = 6, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CBD218."
+confidence = "inferred"
+evidence = "Called from stage021; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C3C54"
+name = "stage_object_create_kind_07"
+purpose = "Allocates a 0x54-byte object with vtable 089BE3D0 and +0x18 = 7, lists it, points +0x2C at stage +0x50 or +0x1D0 by param_2 and +0x30 at +0x70, and calls its setup 9CBDEF8 with the other arguments."
+confidence = "inferred"
+evidence = "Called from stage097; same creator pattern with a selector."
+
+[[function]]
+module = "EBOOT"
+address = "088C3F18"
+name = "stage_object_create_kind_09"
+purpose = "Allocates a 0x70-byte object with vtable 089BE410 and +0x18 = 9, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CBF0E0."
+confidence = "inferred"
+evidence = "Called from stage032; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C4200"
+name = "stage_object_create_kind_0c"
+purpose = "Allocates a 0x70-byte object with vtable 089BE470 and +0x18 = 0xC, lists it and calls its setup 9CC04A0 with all arguments, leaving +0x2C and +0x30 unset."
+confidence = "inferred"
+evidence = "Called from stage overlays and game_sub; same creator pattern without the refs."
+
+[[function]]
+module = "EBOOT"
+address = "088C435C"
+name = "stage_object_create_kind_0d"
+purpose = "Allocates a 0xA0-byte object with vtable 089BE490 and +0x18 = 0xD, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CC0C50."
+confidence = "inferred"
+evidence = "Called from stage overlays; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C493C"
+name = "stage_object_create_kind_13"
+purpose = "Allocates a 0x70-byte object with vtable 089BE550 and +0x18 = 0x13, lists it, points +0x2C at stage +0x50 or +0x1D0 by param_8 and +0x30 at +0x70, and calls its setup 9CC4290."
+confidence = "inferred"
+evidence = "Called from many stage overlays; same creator pattern with a selector."
+
+[[function]]
+module = "EBOOT"
+address = "088C4D94"
+name = "stage_object_create_kind_17"
+purpose = "Allocates a 0x70-byte object with vtable 089BE5D0 and +0x18 = 0x17, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CC6B98."
+confidence = "inferred"
+evidence = "Called from stage033; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C4E8C"
+name = "stage_object_create_kind_18"
+purpose = "Allocates a 0x3C-byte object with vtable 089BE5F0 and +0x18 = 0x18, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CC7478."
+confidence = "inferred"
+evidence = "Called from stage066, stage085 and stage139; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C5574"
+name = "stage_object_create_kind_1f"
+purpose = "Allocates a 0x3C-byte object with vtable 089BB25C and +0x18 = 0x1F, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup lobby_task 9AF7F20."
+confidence = "inferred"
+evidence = "Called from stage139; same creator pattern, setup in lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088C5764"
+name = "stage_object_create_kind_21"
+purpose = "Allocates a 0x80-byte object with vtable 089BE6F0 and +0x18 = 0x21, lists it, points +0x2C and +0x30 at stage +0x1D0 and +0x70, and calls its setup 9CCBA58."
+confidence = "inferred"
+evidence = "Called from 088CB004 repeatedly during play; same creator pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088C6A3C"
+name = "stage_mgr_activate_from_table"
+purpose = "Makes the table entry at 089B505C indexed by ushort +0x288 the current stage, calls its vtable +0x10 and clears the 0x100 latch bytes."
+confidence = "inferred"
+evidence = "Stores the table pointer in param_1[0], which the rest of the manager uses as the current stage."
+
+[[function]]
+module = "EBOOT"
+address = "088C6A90"
+name = "stage_mgr_deactivate_current"
+purpose = "Calls vtable +0x18 of the current stage and clears the current stage pointer."
+confidence = "inferred"
+evidence = "Pairs with 088C6A3C; called from the same task sites at stage changes."
+
+[[function]]
+module = "EBOOT"
+address = "088C6AC8"
+name = "stage_get_field_444"
+purpose = "Returns field +0x444 of the current stage."
+confidence = "inferred"
+evidence = "One-line getter; the field's meaning isn't shown."
+
+[[function]]
+module = "EBOOT"
+address = "088C6B84"
+name = "stage_mgr_clear_latch_bytes"
+purpose = "Zeroes the 0x100 bytes at +0xA2E8 that 088C6BCC uses as per-index latches."
+confidence = "inferred"
+evidence = "Loop zeroes 8 bytes per step until the offset passes 0xFF; 088C6BCC tests and sets those bytes."
+
+[[function]]
+module = "EBOOT"
+address = "088C6BCC"
+name = "stage_latched_start_update_stop"
+purpose = "Tests f_EBOOT_8883FF0 on DAT_08a62eac and tracks the result in latch byte +0xA2E8+param_6: on a rise calls f_EBOOT_8883B54, while true calls f_EBOOT_8884748, on a fall calls f_EBOOT_8885494."
+confidence = "guess"
+evidence = "Three-way latch read directly; start, update and stop are a reading of the shape, callees not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088C6DF8"
+name = "stage_mgr_load_from_pack"
+purpose = "Resets the arena and sets up the current stage from sections of a pack: 0, 1 and 2 go to stage +0x50, +0x70 and +0x1D0, 3 to f_EBOOT_88CAEC8; with param_3 = 1 sections 4 and 5 go to two other systems; then sets the loaded byte +0xA3E8."
+confidence = "inferred"
+evidence = "f_EBOOT_88B89B0(pack, n) for n 0..5, data DMA-copied into the bump buffer; 088C7764 reads the byte."
+
+[[function]]
+module = "EBOOT"
+address = "088C7064"
+name = "stage_mgr_unload"
+purpose = "Resets the arena, bump offset and +0xA2B8, clears flags mask 0x2 on the current stage, and clears the loaded byte +0xA3E8."
+confidence = "inferred"
+evidence = "Undoes what 088C6DF8 set; runs from the task teardown sites."
+
+[[function]]
+module = "EBOOT"
+address = "088C70D8"
+name = "stage_mgr_bump_alloc_16"
+purpose = "Rounds a size up to 16 and returns the next block from the buffer at +0xA2BC, advancing offset +0xA2C0, with no limit check."
+confidence = "inferred"
+evidence = "Arithmetic read in full; the base is the buffer obtained in 088C31D0."
+
+[[function]]
+module = "EBOOT"
+address = "088C7130"
+name = "stage_objects_push_front"
+purpose = "Puts an object at the head of the doubly linked list at +0xA2E0, using its +0x10 prev and +0x14 next."
+confidence = "inferred"
+evidence = "Pointer updates read in full; called by every stage_object_create function."
+
+[[function]]
+module = "EBOOT"
+address = "088C7184"
+name = "stage_objects_remove_and_destroy"
+purpose = "Unlinks an object from the list at +0xA2E0, calls its vtable +8 with 1 and returns it to the arena."
+confidence = "inferred"
+evidence = "List unlink then f_EBOOT_8859C40; called by 088C33E8 for finished objects."
+
+[[function]]
+module = "EBOOT"
+address = "088C722C"
+name = "table_09ce4808_find_id"
+purpose = "Searches the short array of group arg_a1 in the table at 09CE4808 (8-byte count and pointer entries) for an id, returning its position or 0xFFFF."
+confidence = "confirmed"
+evidence = "Linear search read in full."
+
+[[function]]
+module = "EBOOT"
+address = "088C7280"
+name = "stage_get_volumes_for_field_284"
+purpose = "Returns the current stage's vtable +0x2C result for manager field +0x284, used as the array of 0x34-byte volume records."
+confidence = "inferred"
+evidence = "088C72B0 walks the result as records with shape, position, radius and height."
+
+[[function]]
+module = "EBOOT"
+address = "088C7298"
+name = "stage_get_volume_count_for_field_284"
+purpose = "Returns the current stage's vtable +0x30 result for manager field +0x284, used as the count of volume records."
+confidence = "inferred"
+evidence = "088C72B0 uses the low byte as its loop limit."
+
+[[function]]
+module = "EBOOT"
+address = "088C72B0"
+name = "stage_find_volume_containing_point"
+purpose = "Returns the first 0x34-byte record whose height range holds the point and whose shape holds it too: shape 0 a circle by radius on X and Z, shape 1 a test by f_game_sub_9C36858; otherwise 0."
+confidence = "inferred"
+evidence = "Y range check against +8 and +0x14, squared XZ distance against +0x10 squared; called each frame from game_task."
+
+[[function]]
+module = "EBOOT"
+address = "088C7764"
+name = "stage_mgr_is_loaded"
+purpose = "Returns byte +0xA3E8, set at the end of 088C6DF8 and cleared by 088C7064 and 088C31D0."
+confidence = "inferred"
+evidence = "One-line getter; setters are in this file."
+
+[[function]]
+module = "EBOOT"
+address = "088C7814"
+name = "stage_base_construct"
+purpose = "Runs base constructor f_EBOOT_88614DC, sets vtables 089BADFC at +0 and 089BAC48 at +0x1F0, and zeroes fields +0x300..+0x32E."
+confidence = "inferred"
+evidence = "Called from stage overlays' 09D63180; 089BADFC holds the part draw slots."
+
+[[function]]
+module = "EBOOT"
+address = "088C7914"
+name = "stage_draw_parts_model_50"
+purpose = "Sets the matrix of sub-object +0x50, then for each 8-byte entry of the table at vtable +0x48's +4 emits alpha, depth test and depth write commands and dispatches on the entry's kind to draw that part, skipping entries with mask 0x1 when game global byte +0x422 is set."
+confidence = "inferred"
+evidence = "Writes GE words 0xDB, 0xDE, 0xE7 to DAT_089cc120; kinds go to slots +0x54..+0x98 or f_EBOOT_886171C."
+
+[[function]]
+module = "EBOOT"
+address = "088C7CDC"
+name = "stage_draw_parts_model_1d0"
+purpose = "Same as the +0x50 pass for sub-object +0x1D0, using the table at vtable +0x48's +8 and count +2, with a fuller set of part kinds."
+confidence = "inferred"
+evidence = "Same GE words and dispatch as 088C7914 on piVar +0x74, a switch over kinds 0..0x13."
+
+[[function]]
+module = "EBOOT"
+address = "088C8114"
+name = "stage_part_draw_rotating"
+purpose = "Draws one part with a temporary matrix: translation from the entry and rotation about the X, Y or Z axis (mask 0x1, 0x2, 0x4) by (ushort +0x1C0 % period) / period of a turn, reversed with mask 0x8; then restores the matrix."
+confidence = "inferred"
+evidence = "Part kind 2, vtable slot +0x54; identity row of each vrot pair gives the axis."
+
+[[function]]
+module = "EBOOT"
+address = "088C8360"
+name = "stage_part_draw_translated"
+purpose = "Draws one part with a temporary identity matrix plus translation from the entry, then restores the matrix."
+confidence = "inferred"
+evidence = "Part kind 3, vtable slot +0x58; vmidt with translation from param_3[0..2]."
+
+[[function]]
+module = "EBOOT"
+address = "088C83F0"
+name = "stage_part_draw_fixed_rotation"
+purpose = "Draws one part with a temporary matrix: translation from the entry and rotation about X, Y or Z (mask 0x1, 0x2, 0x4) by the entry's angle in radians; then restores the matrix."
+confidence = "inferred"
+evidence = "Part kind 4, vtable slot +0x5C; same matrix build as 088C8114, angle from entry +4."
+
+[[function]]
+module = "EBOOT"
+address = "088C8760"
+name = "stage_part_draw_tex_scroll_linear"
+purpose = "Draws one part with texture offsets U and V set to (ushort +0x1C0 % period) / period, inverted with mask 0x8, then resets both to 0."
+confidence = "inferred"
+evidence = "Part kind 6, slot +0x64; GE words 0x4A and 0x4B are the texture offsets."
+
+[[function]]
+module = "EBOOT"
+address = "088C88FC"
+name = "stage_part_draw_tex_scroll_sine"
+purpose = "Draws one part with texture offsets U and V each set to base + amplitude * sin of ushort +0x1C0 scaled by the entry's rate and period, then resets both to 0."
+confidence = "inferred"
+evidence = "Part kind 7, slot +0x68; vsin result written to GE words 0x4A and 0x4B."
+
+[[function]]
+module = "EBOOT"
+address = "088C9380"
+name = "stage_part_draw_tex_flipbook"
+purpose = "Draws one part with texture offsets stepping through grid cells by ushort +0x1C0: mask 0x100 a 4x4 grid, mask 0x200 8 by 4, mask 0x400 8x8; then resets both to 0."
+confidence = "inferred"
+evidence = "Part kind 0xB, slot +0x78; low bits times 0.25 or 0.125 written to GE words 0x4A and 0x4B."
+
+[[function]]
+module = "EBOOT"
+address = "088C9B00"
+name = "stage_part_draw_y_rotation_tex_scroll"
+purpose = "Draws one part rotated about Y by 16-bit angle ushort +0x1C2 with translation from the entry, with texture U from that angle and V from (ushort +0x1C0 % period) / period, then resets offsets and matrix."
+confidence = "inferred"
+evidence = "Part kind 0x10, slot +0x8C; angle * 360 / 65536 used for both, GE words 0x4A and 0x4B."

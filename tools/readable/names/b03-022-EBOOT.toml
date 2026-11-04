@@ -1,0 +1,519 @@
+[[function]]
+module = "EBOOT"
+address = "08897B84"
+name = "audio_get_channel_rest_length"
+purpose = "Returns sceAudioGetChannelRestLength for the channel id stored at table index param_1 (DAT_08a8c618), or error 0x80440010 when the index is 4 or more."
+confidence = "confirmed"
+evidence = "Direct import call behind a 4-entry bounds check."
+
+[[function]]
+module = "EBOOT"
+address = "08897BD8"
+name = "math_vec4_add"
+purpose = "Writes the component-wise sum of two 4-float vectors to the output."
+confidence = "confirmed"
+evidence = "A single vadd_q whose result is stored to param_1."
+
+[[function]]
+module = "EBOOT"
+address = "08897BF4"
+name = "math_acos"
+purpose = "Arc cosine in radians, using vasin directly below sqrt(1/2) and the sqrt(1-x*x) form above it."
+confidence = "inferred"
+evidence = "pi/2 * (1 - vasin) with VFPU constants 3 (sqrt 1/2) and 8 (pi/2); twin of 08897C50."
+
+[[function]]
+module = "EBOOT"
+address = "08897C50"
+name = "math_asin"
+purpose = "Arc sine in radians, using vasin directly below sqrt(1/2) and the sqrt(1-x*x) form with the input's sign above it."
+confidence = "inferred"
+evidence = "pi/2 * vasin with VFPU constants 3 (sqrt 1/2) and 8 (pi/2)."
+
+[[function]]
+module = "EBOOT"
+address = "08897D28"
+name = "math_floor"
+purpose = "Rounds a float down to a whole number and returns it as a float."
+confidence = "confirmed"
+evidence = "vf2id (round down) followed by vi2f, both with scale 0."
+
+[[function]]
+module = "EBOOT"
+address = "08897D4C"
+name = "math_pow"
+purpose = "Returns arg_f12 raised to arg_f13 as exp2(log2(x) * y)."
+confidence = "confirmed"
+evidence = "vlog2, vmul, vexp2 in sequence."
+
+[[function]]
+module = "EBOOT"
+address = "08897D7C"
+name = "math_mat4_from_quat"
+purpose = "Builds a 4x4 rotation matrix from a quaternion, with an identity last row and column."
+confidence = "inferred"
+evidence = "Product of two swizzled and negated copies of the input by vmmul, the usual quaternion-to-matrix form; same callers as 08897DE0."
+
+[[function]]
+module = "EBOOT"
+address = "08897DE0"
+name = "math_quat_from_axis_angle"
+purpose = "Builds a quaternion from an axis (normalised here) and an angle: xyz = axis * sin(angle/2), w = cos(angle/2)."
+confidence = "inferred"
+evidence = "Angle times VFPU constant 6 (1/pi) fed to vsin/vcos, which take units of pi/2, so half the angle; axis scaled by vrsq of its length squared."
+
+[[function]]
+module = "EBOOT"
+address = "08898350"
+name = "singleton_09a44da0_construct"
+purpose = "Stores its object address in the global DAT_09a44da0 and does nothing else."
+confidence = "inferred"
+evidence = "Called once at frame 0 with a fixed address from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "088983B0"
+name = "singleton_09a1dc2c_construct"
+purpose = "Stores its object address in the global DAT_09a1dc2c and clears the object's byte +0."
+confidence = "inferred"
+evidence = "Called once at frame 0 with a fixed address from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "088983C4"
+name = "singleton_09a0b684_construct"
+purpose = "Stores its object address in the global DAT_09a0b684 and clears the object's byte +4."
+confidence = "inferred"
+evidence = "Called once at frame 0 with a fixed address from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "088983E8"
+name = "singleton_08a62d80_construct"
+purpose = "Stores its object address in the global DAT_08a62d80 and clears the object's byte +0x74."
+confidence = "inferred"
+evidence = "Called once at frame 0 with a fixed address from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "0889842C"
+name = "singleton_089cc554_construct"
+purpose = "Stores its object address in the global DAT_089cc554 and sets its vtable through three successive values, ending at DAT_089baccc."
+confidence = "inferred"
+evidence = "Three vtable writes in a row is an inlined inherited constructor; called from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "088984B8"
+name = "singleton_08a8b308_construct_with_heap"
+purpose = "Stores its object address in the global DAT_08a8b308, zeroes the first four words and sets up a 0x14000-byte heap over the object's own buffer at +0x10, with the heap header at +0x14010."
+confidence = "inferred"
+evidence = "Calls mem_heap_init(p + 0x14010, p + 0x10, 0x14000); called from the constructor list 089B9444."
+
+[[function]]
+module = "EBOOT"
+address = "08898590"
+name = "mem_tagged_heap_init"
+purpose = "Sets up a heap over the object's buffer at +0x30 with the given size and marks all 0x200 slots of its id table (at +0x83C030, 12 bytes each) empty with id -1 and pointer 0."
+confidence = "inferred"
+evidence = "mem_heap_init plus the table loop; the only caller passes size 0x83C000, which ends just where the table starts."
+
+[[function]]
+module = "EBOOT"
+address = "08898694"
+name = "mem_tagged_heap_alloc"
+purpose = "Allocates 16-byte-aligned memory from the heap and records id, pointer and size in a free table slot; returns the pointer, or 0 if no slot or no memory."
+confidence = "inferred"
+evidence = "0889885C finds the slot, mem_heap_alloc_aligned(heap, size, 0x10) allocates, then the three fields are stored."
+
+[[function]]
+module = "EBOOT"
+address = "08898748"
+name = "mem_tagged_heap_free_by_id"
+purpose = "Frees every table entry with the given id and marks those slots empty."
+confidence = "inferred"
+evidence = "Loop over all 0x200 slots calling mem_heap_free on each match, with no early exit."
+
+[[function]]
+module = "EBOOT"
+address = "088987D4"
+name = "mem_tagged_heap_free_by_pointer"
+purpose = "Frees the first table entry whose stored pointer equals the argument and marks its slot empty."
+confidence = "inferred"
+evidence = "Compares slot +0x83C034 with param_2, calls mem_heap_free and returns."
+
+[[function]]
+module = "EBOOT"
+address = "0889885C"
+name = "mem_tagged_heap_find_free_slot"
+purpose = "Returns the index of the first table slot with id -1, or -1 if the table is full."
+confidence = "inferred"
+evidence = "Linear scan of 0x200 slots; only caller is mem_tagged_heap_alloc."
+
+[[function]]
+module = "EBOOT"
+address = "08898898"
+name = "mem_tagged_heap_find_by_id"
+purpose = "Returns the pointer of the first table entry with the given id, or 0 if there is none."
+confidence = "inferred"
+evidence = "Linear scan of 0x200 slots comparing the id field and returning the pointer field."
+
+[[function]]
+module = "EBOOT"
+address = "0889D8A8"
+name = "net_build_and_send_message_by_type"
+purpose = "Unless flag mask 0x1 at DAT_08a632c0+0xF7A57C is clear or byte +0x12D5 is 0, 1 or 5, builds a message whose body and length depend on type param_3 (some copy from the quest global) and sends it to the 6-byte address param_2, or to an all-0xFF address when param_2 is 0."
+confidence = "inferred"
+evidence = "6-byte address filled with 0xFF for no target is the broadcast MAC form; called from game_task and lobby_task; the send functions 088B099C and 088B09D0 were not read."
+
+[[function]]
+module = "EBOOT"
+address = "0889E848"
+name = "sound_engine_init"
+purpose = "Prints the Capcom Sound Engine banner, creates the sound semaphores and vtimer, registers 0889F9C4 as the driver callback, and stores param_1 for the later RPC 0x309 init."
+confidence = "confirmed"
+evidence = "String 'Capcom Sound Engine for'; calls 0889EEA0 and 0889EF40; caller is sound_driver_open at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "0889E8F8"
+name = "sound_rpc_dispatch"
+purpose = "Routes an RPC by function number: 1 to the command handler, 100 to the status handler, 0x309 initialises the driver state and starts the vtimer; 0x65 and others do nothing."
+confidence = "inferred"
+evidence = "Its two handlers print 'Unknown SIF RPC command' with COMM and STAT; only 0889F018 is the vtimer start."
+
+[[function]]
+module = "EBOOT"
+address = "0889E984"
+name = "sound_engine_core_init"
+purpose = "Prints the sound engine CORE banner, initialises the core modules and clears the mono mix setting through 0889EE40(0)."
+confidence = "confirmed"
+evidence = "String 'Capcom Sound Engine CORE V'; 0889EE40 queues command 0x10000009, whose handler 088A0BFC sets DAT_09a0d27c."
+
+[[function]]
+module = "EBOOT"
+address = "0889E9D4"
+name = "sound_api_tick"
+purpose = "Forwards to sound_core_tick."
+confidence = "inferred"
+evidence = "One-call wrapper; caller is sound_driver_tick."
+
+[[function]]
+module = "EBOOT"
+address = "0889E9DC"
+name = "sound_set_output_mode"
+purpose = "Stores mode 0, 1 or 2 in DAT_089b20ac; mode 0 turns the mono mix on (0889EE40(1)) and modes 1 and 2 turn it off."
+confidence = "inferred"
+evidence = "0889EE40 queues 0x10000009, 088A0BFC stores it in DAT_09a0d27c, and 0889FD08 averages left and right when that is set. Modes 1 and 2 are not told apart here."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA4C"
+name = "sound_load_spumap_data"
+purpose = "Forwards data to the loader that checks for the 8-byte SPUMAPDT magic and resets the 16-entry slot tables."
+confidence = "inferred"
+evidence = "Via 0889EC78 and 088A4B5C to 088A47C4, which compares with string 'SPUMAPDT'."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA5C"
+name = "sound_map_get_slot_value"
+purpose = "Returns entry param_1 of the 16-entry table DAT_09a0ebc4, or error 0x80000001 for an index of 16 or more."
+confidence = "inferred"
+evidence = "Via 0889EC88 and 088A4BE8 to 088A49D0; the caller sound_slot_set_pointers adds the result to a base address."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA64"
+name = "sound_map_set_slot_value"
+purpose = "Stores param_2 at index param_1 of the 16-entry table DAT_09a0ec50; an index of 16 or more prints an error."
+confidence = "inferred"
+evidence = "Via 0889EC90 to 088A4BF0; the caller sound_slot_set_pointers passes its slot's first pointer."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA7C"
+name = "sound_build_header_from_pointer_list"
+purpose = "Writes a header to param_1 from a magic value and fixed fields, adding up field +0x10 of the param_3 entries listed at param_2; its positive result makes the caller set the slot's flag mask 0x1."
+confidence = "guess"
+evidence = "Via 0889ECB0 to 088A4CB0, only whose start was read; the caller is sound_slot_set_flag_1_if_library_accepts."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA84"
+name = "sound_queue_channel_fade"
+purpose = "Queues driver command 0x1000000B with a channel number (0xFF kept, otherwise masked to 4 bits), a 7-bit value and a third word."
+confidence = "inferred"
+evidence = "Via 0889EE48 to 088A6628; the only callers are sound_fade_in_channels and sound_fade_out_channels."
+
+[[function]]
+module = "EBOOT"
+address = "0889EACC"
+name = "sound_api_update_matching_voices"
+purpose = "Builds a match condition from three values (-1 meaning unset for the first and skipped for the others), adds settings from param_4 and sends it as driver command 0x10000003, which updates the matching voices."
+confidence = "inferred"
+evidence = "Via 0889EE90 to 088A6BA0; 088A0360 handles 0x10000003 by writing voice fields."
+
+[[function]]
+module = "EBOOT"
+address = "0889EADC"
+name = "sound_api_play_with_params"
+purpose = "Masks the first two arguments to 16 bits and forwards to sound_core_play_with_params."
+confidence = "inferred"
+evidence = "One-call wrapper; caller is sound_slot_play_with_params."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAE8"
+name = "sound_any_voice_matches"
+purpose = "Builds a match condition from three values, using mask 0x2 when the first is -1 and mask 0x4 otherwise, with masks 0x20 and 0x40 for the others, and returns 1 if the status query's result is above 0."
+confidence = "inferred"
+evidence = "Via 0889EC50 and 088A6CC4 to RPC status 0x20000002, handled by 088A16A4 calling 088A0820, one of the callers of the voice matcher 088A01D8."
+
+[[function]]
+module = "EBOOT"
+address = "0889EB84"
+name = "sound_core_init_modules"
+purpose = "Runs five module initialisers, clears the tick counter DAT_09a0b6ac and fills the 16 words after it with -1."
+confidence = "inferred"
+evidence = "Only caller is sound_engine_core_init at frame 0; 0889EC14 increments the same counter."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC14"
+name = "sound_core_tick"
+purpose = "Calls 088A600C and 088A5D38, then increments the tick counter DAT_09a0b6ac."
+confidence = "inferred"
+evidence = "Reached from sound_driver_tick through sound_api_tick throughout every recording."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC50"
+name = "sound_query_matching_voices_bool"
+purpose = "Sends the match condition through 088A6CC4 and returns 1 if the result is above 0, otherwise 0."
+confidence = "inferred"
+evidence = "Maps a signed result to 0 or 1; only caller is sound_any_voice_matches."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECB8"
+name = "sound_core_play_with_params"
+purpose = "Copies the fields of a params struct selected by its mask word into a local copy (the field at mask 0x800 defaulting to 100) and passes it to 088A6100 with the two ids."
+confidence = "inferred"
+evidence = "Bit loop over param_3[0]; 088A6100 looks up by the two ids; the caller chain ends in sound_slot_play_with_params."
+
+[[function]]
+module = "EBOOT"
+address = "0889EEA0"
+name = "sound_create_semaphores"
+purpose = "Creates a kernel semaphore for each named entry of the 11-entry table starting at CsePspSndDrvBgn and stores the id in the entry."
+confidence = "confirmed"
+evidence = "sceKernelCreateSema in a loop over the table with string 'CsePspSndDrvBgn'."
+
+[[function]]
+module = "EBOOT"
+address = "0889EF04"
+name = "sound_signal_semaphore"
+purpose = "Signals the semaphore at the given table index by 1."
+confidence = "confirmed"
+evidence = "sceKernelSignalSema on the id field of the table 0889EEA0 fills."
+
+[[function]]
+module = "EBOOT"
+address = "0889EF20"
+name = "sound_wait_semaphore"
+purpose = "Waits on a kernel semaphore; the decompiled view hides which one."
+confidence = "inferred"
+evidence = "Calls sceKernelWaitSema; its caller 088A4004 also runs the driver callback; pairs with sound_signal_semaphore."
+
+[[function]]
+module = "EBOOT"
+address = "0889EF40"
+name = "sound_create_vtimer"
+purpose = "Creates the CsePspVTimer virtual timer, sets its period to 0x411A microseconds (about 1/60 s) and installs 0889F03C as its handler, printing an error if creation fails."
+confidence = "confirmed"
+evidence = "String 'CsePspVTimer' and calls to sceKernelCreateVTimer and sceKernelSetVTimerHandlerWide."
+
+[[function]]
+module = "EBOOT"
+address = "0889F018"
+name = "sound_start_vtimer"
+purpose = "Starts the sound virtual timer."
+confidence = "confirmed"
+evidence = "sceKernelStartVTimer on the id 0889EF40 stored."
+
+[[function]]
+module = "EBOOT"
+address = "0889F03C"
+name = "sound_vtimer_handler"
+purpose = "Counts a timer tick, signals sound semaphores 2 and 0 and returns the stored period for rescheduling."
+confidence = "confirmed"
+evidence = "Installed as the handler by 0889EF40, which passes the struct holding the counter and the 0x411A period."
+
+[[function]]
+module = "EBOOT"
+address = "0889F07C"
+name = "sound_cmd_queue_init"
+purpose = "Clears the 0x1000-byte buffer and resets the command queue's head, tail and count, with a capacity of 0x40 entries."
+confidence = "inferred"
+evidence = "Same fields as the push and pop in 0889F0D8 and 0889F1CC."
+
+[[function]]
+module = "EBOOT"
+address = "0889F0D8"
+name = "sound_cmd_queue_push"
+purpose = "With thread dispatch suspended, copies a command into the next 0x40-byte queue slot; returns the new count, 0x8000001A if full or 0x80000019 if the queue number is not 0."
+confidence = "confirmed"
+evidence = "String 'MoveRpcDataToQ: Queue is full'."
+
+[[function]]
+module = "EBOOT"
+address = "0889F1CC"
+name = "sound_cmd_queue_pop"
+purpose = "With thread dispatch suspended, copies the oldest 0x40-byte command to param_2; returns the new count, 0x8000001B if empty or 0x80000019 if the queue number is not 0."
+confidence = "inferred"
+evidence = "Mirror of the push on the same head, tail and count; only caller drains commands in 0889F9C4."
+
+[[function]]
+module = "EBOOT"
+address = "0889F288"
+name = "sound_voice_lists_init"
+purpose = "Links all 32 voice list nodes into the free list (count 0x20) and leaves the active list empty, each node pointing to its voice state."
+confidence = "inferred"
+evidence = "Two sentinel-ended lists; nodes get 0889F744's pointer; 0889F544 moves nodes from one to the other."
+
+[[function]]
+module = "EBOOT"
+address = "0889F4BC"
+name = "sound_active_voice_first"
+purpose = "Sets the shared iteration cursor to the active list's first node and returns its voice state, or 0 if the list is empty."
+confidence = "inferred"
+evidence = "Used with 0889F4F0 as a begin and next pair by every voice loop."
+
+[[function]]
+module = "EBOOT"
+address = "0889F4F0"
+name = "sound_active_voice_next"
+purpose = "Moves the shared cursor to the next node and returns its voice state, or 0 at the end of the list."
+confidence = "inferred"
+evidence = "Stops at the sentinel node, whose next pointer is 0."
+
+[[function]]
+module = "EBOOT"
+address = "0889F544"
+name = "sound_voice_alloc"
+purpose = "Moves the first free list node to the end of the active list and returns its voice state, or 0 if none is free."
+confidence = "inferred"
+evidence = "Unlink from the list with count DAT_09a0c72c, link before the tail of the list with count DAT_09a0c71c."
+
+[[function]]
+module = "EBOOT"
+address = "0889F5D8"
+name = "sound_voice_free"
+purpose = "Finds the active list node for the given voice state and moves it to the end of the free list."
+confidence = "inferred"
+evidence = "Reverse move of sound_voice_alloc; called by 088A00D0 for voices in state 7."
+
+[[function]]
+module = "EBOOT"
+address = "0889F6A0"
+name = "sound_voice_states_init"
+purpose = "Calls 088A4184, zeroes the 32 voice states of 0x48 bytes and stores in each one's +0x10 the control block from 088A4248."
+confidence = "inferred"
+evidence = "Loop of 0x20 over DAT_09a0c978; 0889FD08 writes volume and pitch through field +0x10."
+
+[[function]]
+module = "EBOOT"
+address = "0889F744"
+name = "sound_voice_state_by_index"
+purpose = "Returns the address of voice state index & 0x1F in the 0x48-byte array DAT_09a0c978."
+confidence = "confirmed"
+evidence = "A single indexed address computation."
+
+[[function]]
+module = "EBOOT"
+address = "0889F764"
+name = "sound_rpc_handle_command"
+purpose = "Queues a recognised driver command (0x10000000 to 0x1000000D, except 0x10000005) with interrupts suspended and writes the result to arg_a2; 0x30000000 writes 0, and other non-zero values print an error."
+confidence = "confirmed"
+evidence = "String 'Unknown SIF RPC command (COMM)' and the call to sound_cmd_queue_push."
+
+[[function]]
+module = "EBOOT"
+address = "0889F8F4"
+name = "sound_rpc_handle_status"
+purpose = "Handles status requests: 0x20000002 fills the reply from a voice match query (088A16A4), 0x20000001 calls 088A1554; other values print an error."
+confidence = "confirmed"
+evidence = "String 'Unknown SIF RPC command (STAT)'."
+
+[[function]]
+module = "EBOOT"
+address = "0889F9A0"
+name = "sound_driver_init_state"
+purpose = "Stores param_1 in DAT_09a0d278 and runs 088A1200, which initialises the command queue and voice lists; returns 0."
+confidence = "inferred"
+evidence = "Via 088A0BEC to 088A1200, listed as the caller of 0889F07C, 0889F288 and 0889F6A0; reached by RPC 0x309."
+
+[[function]]
+module = "EBOOT"
+address = "0889F9C4"
+name = "sound_thread_update"
+purpose = "Runs 088A0958 and the voice update, then pops up to 0x40 queued commands and runs each one's handler (0x10000000 to 0x1000000D)."
+confidence = "inferred"
+evidence = "Registered by sound_engine_init; string 'Unknown command'; caller 088A4004 also waits on a semaphore."
+
+[[function]]
+module = "EBOOT"
+address = "0889FB94"
+name = "sound_voices_update"
+purpose = "For each active voice: advances its age counter, lowers byte +0xC by 0x10 down to 0, calls 088A0A9C on +0x38 and +0x40, writes its volume and pitch, moves state through the duration and release checks, and stops a voice when its control block +8 shares a mask with 088A3560's result; then frees finished voices."
+confidence = "inferred"
+evidence = "Walks the active list; calls 0889FD08, 088A00B0 and 088A00D0, with states 1, 3, 4, 5 and 7 set here."
+
+[[function]]
+module = "EBOOT"
+address = "0889FD08"
+name = "sound_voice_write_volume_pan_pitch"
+purpose = "Computes a voice's left and right volume (averaged when the mono mix DAT_09a0d27c is on) and pitch as base rate * 2^(cents/1200) scaled against 44100 and capped at 0x3FFF, and writes them to its control block with mask flags 0x400 and 0x4."
+confidence = "inferred"
+evidence = "Volume to 0xFFF, pan centred at 0x40, division by 1200.0 and by 0xAC44."
+
+[[function]]
+module = "EBOOT"
+address = "088A00B0"
+name = "sound_voice_stop_control_block"
+purpose = "Calls 088A4344 on the voice's control block at +0x10."
+confidence = "inferred"
+evidence = "Every seen caller sets the voice's state to 7, the state 088A00D0 frees, right after this call."
+
+[[function]]
+module = "EBOOT"
+address = "088A00D0"
+name = "sound_voices_free_finished"
+purpose = "Walks the active voices and frees each one in state 7, setting its state to 0."
+confidence = "inferred"
+evidence = "Takes the next voice before calling sound_voice_free on the current one."
+
+[[function]]
+module = "EBOOT"
+address = "088A014C"
+name = "sound_match_flags_translate"
+purpose = "Converts a request's condition flags word into the mask 088A01D8 tests: 0x1 stays 0x1, then at most one of 0x2 to 0x2, 0x8 to 0x4 or 0x4 to 0x80, and 0x10, 0x20, 0x40, 0x80 to 0x8, 0x10, 0x20, 0x40."
+confidence = "inferred"
+evidence = "Read directly; the callers 088A072C and 088A0820 also call the matcher 088A01D8."
+
+[[function]]
+module = "EBOOT"
+address = "088A01D8"
+name = "sound_voice_matches_conditions"
+purpose = "Returns 1 if a voice's identifying fields equal the request's for every condition in the mask, otherwise 0."
+confidence = "confirmed"
+evidence = "String 'CheckConditions: Match UNKNOWN C'; compares param_1 bytes against the request one bit at a time."
+
+[[function]]
+module = "EBOOT"
+address = "088A0360"
+name = "sound_voices_apply_command_to_matching"
+purpose = "For each active voice matching the conditions, applies command param_3: 0x10000003 writes the volume, pan and pitch settings selected by mask, 0x10000001 stops it if in state 1 and otherwise sets state 3, and 0x10000002 stops it; a voice whose byte +0x1B exceeds the request's byte +3 is skipped and makes the return 0."
+confidence = "inferred"
+evidence = "Uses the first and next pair with 088A01D8; constants are command numbers from 0889F9C4; 0x10000003's fields are the inputs of 0889FD08."

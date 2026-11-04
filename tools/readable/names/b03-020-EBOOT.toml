@@ -1,0 +1,407 @@
+[[function]]
+module = "EBOOT"
+address = "0888F6A0"
+name = "camera_tilt_to_keep_followed_object_in_frame"
+purpose = "Stores target minus eye at camera +0x30, and when 0888FACC accepts a bone of the followed object, rebuilds the view from eye, target and roll, measures the bone against the frustum's lower edge (built from half fov at +0x88 and the constant 136), and if it lies past that edge rotates the +0x30 vector by the angle and writes eye + result as the new target at +0x10."
+confidence = "inferred"
+evidence = "Look-at matrix, tan(fov/2)*136 edge vectors, positive dot gate, axis-angle rotation of the view vector; called only by camera_hunt_controller."
+
+[[function]]
+module = "EBOOT"
+address = "0888FACC"
+name = "camera_followed_object_bone_below_and_ahead"
+purpose = "Writes bone 0x14 of the object at DAT_089cbd04 +0xA84 to the output; returns 0 if the camera +4 height is not above that bone's height, 1 if the bone is ahead along the camera's +0x30 vector, otherwise tries bone 2 for the same ahead test."
+confidence = "inferred"
+evidence = "object_get_bone_position with 0x14 then 2, height compare, dot with camera +0x30."
+
+[[function]]
+module = "EBOOT"
+address = "0888FBD4"
+name = "camera_update_field_131_from_object_query"
+purpose = "Sets camera +0x133 when game flags +0x6AF14 lack mask 1 and the object at DAT_089cbd04 +0xA84 has +0x298 == 2 with +0x299 of 2, 5, 7 or 0xE; unless that is set, queries game_task 09A6F7B0 for a signed value, stores it in +0x131, with +0x132 as a 3-call countdown before a non-negative value replaces a negative +0x131."
+confidence = "inferred"
+evidence = "Code reads directly; +0x132 reset to 3 on a negative result; meaning of the queried value not established."
+
+[[function]]
+module = "EBOOT"
+address = "0888FCE4"
+name = "camera_object_angle_within_quarter_turn_of_field_120"
+purpose = "Returns 1 when camera byte +0x12D is nonzero, or when the followed object's +0x1F4 minus short +0x120 is within a quarter turn (16-bit angle under 0x4000 or above 0xC000), otherwise 0."
+confidence = "inferred"
+evidence = "Masked 0xFFFF subtraction compared to 0x4000 and 0xC001; object from DAT_089cbd04 +0xA84."
+
+[[function]]
+module = "EBOOT"
+address = "0888FDFC"
+name = "main_init_systems"
+purpose = "Startup called from main_loop: records the main thread id, sets language, creates the priority timer and threads, starts the CheckExitGame thread, runs the subsystem initialisers, and loads utility modules 0x100 and 0x101."
+confidence = "inferred"
+evidence = "Runs at frame 0 only, sequence of init calls, sceKernelGetThreadId stored at +0xF7F024, CheckExitGame string."
+
+[[function]]
+module = "EBOOT"
+address = "08890020"
+name = "thread_check_exit_game_entry"
+purpose = "Body of the CheckExitGame thread: creates a callback on 08890060, registers it as the exit callback and sleeps in callback-processing delay forever."
+confidence = "confirmed"
+evidence = "Passed to sceKernelCreateThread with the name CheckExitGame; sceKernelRegisterExitCallback in the loop's setup."
+
+[[function]]
+module = "EBOOT"
+address = "08890080"
+name = "math_rng_seed_two_streams"
+purpose = "Sets random streams 0 and 1 (shorts at +0xF7A56C and +0xF7A56E) to the low byte of the argument."
+confidence = "inferred"
+evidence = "Same fields math_rng_next steps; called from boot_task_step_init_globals."
+
+[[function]]
+module = "EBOOT"
+address = "088900A0"
+name = "math_rng_seed_stream_2_from_game_field_44be"
+purpose = "Copies short +0x44BE of the game global into +0xF7A570 of the object at DAT_08a632c0, the short math_rng_next uses as stream 2."
+confidence = "inferred"
+evidence = "Offset is 0xF7A56C + 2*2; meaning of game +0x44BE not read; ran once at frame 860-1010."
+
+[[function]]
+module = "EBOOT"
+address = "088900C4"
+name = "math_rng_next"
+purpose = "Steps the chosen 16-bit random stream as x = x * 176 % 0xFF53, treating a zero state as 1, and returns the new value."
+confidence = "inferred"
+evidence = "(x*8 + x*3)*16 % 0xFF53 on an indexed short; many callers across the game."
+
+[[function]]
+module = "EBOOT"
+address = "08890144"
+name = "overlay_start_load"
+purpose = "Starts loading an overlay file id to the address of slot arg from table DAT_089cbb90: through the loader at DAT_089cc554 vtable +0x34, or, when 088DE014 finds the id in DAT_09a4f210, through 088DDD9C followed by a data cache writeback."
+confidence = "inferred"
+evidence = "Called in pairs with overlay_finish_load from tasks; 088DDD9C path and the loader vtable take the same destination."
+
+[[function]]
+module = "EBOOT"
+address = "088901F8"
+name = "overlay_finish_load"
+purpose = "Gets a size through the loader vtable +0x18, passes the slot's address to 0890DEBC (which clears the area past that size by header +0x14 and calls 0890C41C on header +0x18 and +0x1C), records the id in the short at +0xF7A580 per slot and invalidates the instruction cache."
+confidence = "inferred"
+evidence = "sceKernelIcacheInvalidateAll on the load address, 0890DEBC read; same table DAT_089cbb90 as overlay_start_load."
+
+[[function]]
+module = "EBOOT"
+address = "08890284"
+name = "overlay_slot_has_id"
+purpose = "Returns whether the id recorded for a slot at +0xF7A580 equals the given id."
+confidence = "inferred"
+evidence = "Compares the short overlay_finish_load writes."
+
+[[function]]
+module = "EBOOT"
+address = "088902A8"
+name = "main_apply_language_to_impose"
+purpose = "Maps the game language index at +0xF7A574 to a system language code, sets +0xF7A578 (0 for indices 0 and 6, otherwise 1) and calls sceImposeSetLanguageMode."
+confidence = "confirmed"
+evidence = "Switch over +0xF7A574 ending in sceImposeSetLanguageMode."
+
+[[function]]
+module = "EBOOT"
+address = "088903BC"
+name = "main_get_system_language_code"
+purpose = "Returns the system language code for the game language index at +0xF7A574, with the same table as main_apply_language_to_impose."
+confidence = "inferred"
+evidence = "Identical switch mapping without the impose call."
+
+[[function]]
+module = "EBOOT"
+address = "08890430"
+name = "main_start_priority_changer_thread"
+purpose = "Creates the priorityChanger thread on 08890494 with priority 0x28, stores its id at +0xF7F020 and starts it with the address of DAT_08a632c0 as argument."
+confidence = "confirmed"
+evidence = "String priorityChanger and sceKernelCreateThread/StartThread."
+
+[[function]]
+module = "EBOOT"
+address = "08890494"
+name = "thread_priority_changer_entry"
+purpose = "Thread body: each time it wakes, if game flags +0x6AF14 have mask 0x200, sets the thread at +0xF7F024 to priority 0x26 and, when +0xF7F034 is set, the thread at +0xF7F030 to 0x27, with dispatch and interrupts suspended; then sleeps."
+confidence = "confirmed"
+evidence = "Entry of the priorityChanger thread; sceKernelChangeThreadPriority between suspend and resume calls."
+
+[[function]]
+module = "EBOOT"
+address = "08890544"
+name = "main_lower_thread_priorities_and_wake_changer"
+purpose = "Sets the thread at +0xF7F024 to priority 0x30 and, when +0xF7F034 is set, the thread at +0xF7F030 to 0x31, then wakes the priorityChanger thread."
+confidence = "inferred"
+evidence = "sceKernelChangeThreadPriority and sceKernelWakeupThread on +0xF7F020; called from the vtimer handler."
+
+[[function]]
+module = "EBOOT"
+address = "088905B0"
+name = "main_create_change_thread_vtimer"
+purpose = "Creates the ChangeThreadVTimer and stores it at +0xF7F028."
+confidence = "confirmed"
+evidence = "String ChangeThreadVTimer and sceKernelCreateVTimer."
+
+[[function]]
+module = "EBOOT"
+address = "088905EC"
+name = "main_arm_change_thread_vtimer"
+purpose = "From the vblank handler, sets 0889064C as the handler of the vtimer at +0xF7F028, starts it and clears the counter at +0xF7F02C."
+confidence = "inferred"
+evidence = "sceKernelSetVTimerHandlerWide and sceKernelStartVTimer; called by vblank_handler."
+
+[[function]]
+module = "EBOOT"
+address = "0889064C"
+name = "main_change_thread_vtimer_handler"
+purpose = "VTimer handler: calls main_lower_thread_priorities_and_wake_changer, counts calls at +0xF7F02C and returns 0x411A (16666) on the first call to run again, then 0."
+confidence = "inferred"
+evidence = "Installed by main_arm_change_thread_vtimer; return value is the re-arm delay in the handler convention."
+
+[[function]]
+module = "EBOOT"
+address = "08890718"
+name = "main_init_language_from_system"
+purpose = "Reads system parameter 8 and maps it to the game language index (5 to 5, 3 to 4, 4 to 2, 2 to 3, otherwise or on failure 1), storing it at +0xF7A574 and in DAT_09a1dc90 and DAT_0899bf40, then calls main_apply_language_to_impose."
+confidence = "inferred"
+evidence = "sceUtilityGetSystemParamInt(8); the mapping is the inverse of the table in main_apply_language_to_impose."
+
+[[function]]
+module = "EBOOT"
+address = "088907D8"
+name = "text_system_init"
+purpose = "Initialises a 0x28000 heap, opens the font, derives even cell sizes and the cell counts at +0x114..+0x11E (cells across and down a 256 pixel page, per page, times 3), then calls text_init_font_pages_and_lists."
+confidence = "inferred"
+evidence = "mem_heap_init, font open callee, divisions of 0x100 by the cell size; argument DAT_08a632c8 is the object of the text functions here."
+
+[[function]]
+module = "EBOOT"
+address = "088908FC"
+name = "text_init_font_pages_and_lists"
+purpose = "Allocates VRAM image slots 3, 4 and 5 as 256x256 format 4, copies the 0x40 shorts of DAT_08931bdc into each slot's buffer, points the six entry lists at +0x140 into the object, then calls the reset and colour table setup."
+confidence = "inferred"
+evidence = "vram_alloc_image_slot three times; six pointers 0x600 apart (128 entries of 12 bytes)."
+
+[[function]]
+module = "EBOOT"
+address = "08890B38"
+name = "text_reset_glyph_cache"
+purpose = "Fills the 0xFFF0 shorts at +0x2628 with 0xFFFF, zeroes the 0x1B0 bytes at +0x22968 and clears counters +0x158, +0x15A and +0x162."
+confidence = "inferred"
+evidence = "+0x162 is the cached glyph count in text_preload_string_glyphs, capped by the cell count; 0x1B0 bytes are the per-cell counters decremented each frame."
+
+[[function]]
+module = "EBOOT"
+address = "08890BBC"
+name = "text_begin_frame"
+purpose = "Clears the six entry and six icon counts and the string pool offset, decrements the nonzero bytes of +0x22968, and sets position 0, size 0x14, colour 0, list 0 and other defaults."
+confidence = "inferred"
+evidence = "Runs every frame from main_loop; fields are the ones the text print functions read."
+
+[[function]]
+module = "EBOOT"
+address = "08890C94"
+name = "text_set_color_table_entry"
+purpose = "Stores a colour in the table at +0x168 (negative index selects +0x164), swapping the low and third bytes of the colour and taking the top byte from the alpha argument."
+confidence = "inferred"
+evidence = "Bit swizzling; the table is read in text_draw_inline_icons by colour index."
+
+[[function]]
+module = "EBOOT"
+address = "08890CE0"
+name = "text_init_color_table"
+purpose = "Fills colour table entries 0 to 0x1D from DAT_08931c5c with alpha 0, 0x1E and 0x1F from it with alpha 0xFF, and 0x20 to 0x2F with zero."
+confidence = "inferred"
+evidence = "Three loops over text_set_color_table_entry."
+
+[[function]]
+module = "EBOOT"
+address = "08890DE8"
+name = "text_set_char_size"
+purpose = "Sets the character advance +0x12C and height +0x12D, and the line height +0x15F to that height."
+confidence = "inferred"
+evidence = "text_print_with_escapes advances x by +0x12C and y by +0x15F."
+
+[[function]]
+module = "EBOOT"
+address = "08890DFC"
+name = "text_set_position"
+purpose = "Sets the text cursor x +0x120 and y +0x122."
+confidence = "inferred"
+evidence = "Fields are copied into entries; text_print_with_escapes treats them as x and y."
+
+[[function]]
+module = "EBOOT"
+address = "08890E08"
+name = "text_set_draw_list"
+purpose = "Sets the current entry list +0x12F, clamped to 0..5."
+confidence = "inferred"
+evidence = "Clamp matches six lists; +0x12F indexes the list pointers at +0x140."
+
+[[function]]
+module = "EBOOT"
+address = "08890E38"
+name = "text_set_color"
+purpose = "Sets the current colour index byte +0x12E."
+confidence = "inferred"
+evidence = "Colour argument of text_printf_at_colored; passed to the icon queue as the colour index."
+
+[[function]]
+module = "EBOOT"
+address = "08890E40"
+name = "text_set_line_height"
+purpose = "Sets the line height byte +0x15F alone."
+confidence = "inferred"
+evidence = "text_print_with_escapes adds +0x15F to y on a new line."
+
+[[function]]
+module = "EBOOT"
+address = "08890E48"
+name = "text_measure_width_units"
+purpose = "Sums width units over a UTF-8 string: 1 where 08894874 is nonzero, otherwise 2."
+confidence = "inferred"
+evidence = "str_read_utf8_char loop with 08894874; same 1/2 mapping as text_char_width_class."
+
+[[function]]
+module = "EBOOT"
+address = "08890F70"
+name = "text_measure_width_units_with_escapes"
+purpose = "Calls text_measure_width_units on the string, then walks each ~ with the escape parser in mode 1 and adds its adjustment, tracking the 0x800 toggle that turns the adjustment off."
+confidence = "inferred"
+evidence = "str_str for the marker, 08894B0C in mode 0 and 1, 0x800 toggles the flag; marker matches the 0x7E check in text_print_with_escapes."
+
+[[function]]
+module = "EBOOT"
+address = "088911A0"
+name = "text_queue_wide_string"
+purpose = "If the current list has room (under 0x80), appends a 12-byte entry with cursor, size and colour, and copies a 16-bit string into the pool at +0x22CF8, capping the pool offset at 0x2FFE."
+confidence = "inferred"
+evidence = "Short string copy; entry fields match the printf variants."
+
+[[function]]
+module = "EBOOT"
+address = "088912BC"
+name = "text_queue_wide_string_at"
+purpose = "Sets the cursor and queues a 16-bit string."
+confidence = "inferred"
+evidence = "Calls text_set_position then text_queue_wide_string."
+
+[[function]]
+module = "EBOOT"
+address = "0889134C"
+name = "text_printf"
+purpose = "Formats into a 0x300 buffer, and when the list has room appends an entry and stores the text at the pool through 08894754, at the current cursor."
+confidence = "inferred"
+evidence = "Variadic; 08893C6C takes buffer, size, format, va list; the entry pointer is the pool at +0x22CF8."
+
+[[function]]
+module = "EBOOT"
+address = "08891474"
+name = "text_printf_at"
+purpose = "text_printf with the cursor set from x and y first."
+confidence = "inferred"
+evidence = "text_set_position then the same body."
+
+[[function]]
+module = "EBOOT"
+address = "088915B0"
+name = "text_printf_at_colored"
+purpose = "text_printf with cursor and colour index set first."
+confidence = "inferred"
+evidence = "text_set_position and text_set_color then the same body."
+
+[[function]]
+module = "EBOOT"
+address = "0889198C"
+name = "text_print_with_shadow"
+purpose = "Prints a string at x+dx, y+dy in one colour, then at x, y in another, through the format at DAT_089ad394."
+confidence = "inferred"
+evidence = "Two text_printf_at_colored calls with an offset and different colours; lists draw in order, so the offset copy sits behind."
+
+[[function]]
+module = "EBOOT"
+address = "08891A28"
+name = "text_draw_list"
+purpose = "For a list index below 6, stores it at +0x15D, sets up with 08892FB0 and draws each entry with 0889377C, then if the list has icons draws them with text_draw_inline_icons and calls 088930A0."
+confidence = "inferred"
+evidence = "Loop over 12-byte entries from text_draw_frame; counts at +0x134 and +0x13A."
+
+[[function]]
+module = "EBOOT"
+address = "08891B5C"
+name = "text_char_width_class"
+purpose = "Returns 0 for a null or empty string, otherwise 1 or 2 for its first UTF-8 character by 08894874 (nonzero gives 1)."
+confidence = "inferred"
+evidence = "text_print_with_escapes advances half the size for 1 and the whole size for 2."
+
+[[function]]
+module = "EBOOT"
+address = "08891E0C"
+name = "text_preload_string_glyphs"
+purpose = "Clears +0x22608 (0x360 bytes), decodes each character of a string, skips space-like code points and newline, passes each to 08893198 while +0x162 is under the cell limit, counting successes, and finishes with 08893390."
+confidence = "inferred"
+evidence = "Skips 0xA, 0x20, 0xA0, 0x2002, 0x2003, 0x3000; limit is the cell total computed in text_system_init."
+
+[[function]]
+module = "EBOOT"
+address = "08891F1C"
+name = "str_count_utf8_chars_without_newlines"
+purpose = "Counts decoded UTF-8 characters in a string, not counting newlines."
+confidence = "inferred"
+evidence = "Loop with str_read_utf8_char, skipping 0xA without counting."
+
+[[function]]
+module = "EBOOT"
+address = "08892004"
+name = "text_printf_with_escapes"
+purpose = "Formats into a 0x300 buffer and prints it with text_print_with_escapes at the current cursor, with no character limit."
+confidence = "inferred"
+evidence = "08893C6C then 088921FC with -1."
+
+[[function]]
+module = "EBOOT"
+address = "088920A8"
+name = "text_printf_with_escapes_at"
+purpose = "Sets the cursor, formats and prints through text_print_with_escapes with no character limit."
+confidence = "inferred"
+evidence = "text_set_position, 08893C6C, 088921FC with -1."
+
+[[function]]
+module = "EBOOT"
+address = "08892148"
+name = "text_printf_with_escapes_at_colored"
+purpose = "Sets cursor and colour, formats and prints through text_print_with_escapes with no character limit."
+confidence = "inferred"
+evidence = "text_set_position, text_set_color, 08893C6C, 088921FC with -1."
+
+[[function]]
+module = "EBOOT"
+address = "088921FC"
+name = "text_print_with_escapes"
+purpose = "Lays out a string up to a character limit (negative for none), splitting at newlines into text_printf runs and handling ~ escapes by the 08894B0C code: 0x800 toggles literal text, 0x400 queues an icon, 0x200 splices an expansion into the string, 0x100 changes colour."
+confidence = "inferred"
+evidence = "Switch on the code masked with 0xFF00; x advance by width class, y by +0x15F; limit decrements per character."
+
+[[function]]
+module = "EBOOT"
+address = "08892708"
+name = "text_get_char_at_index"
+purpose = "Finds the character at a counted index of a string with ~ escapes, copies it to the output and stores the following pointer; returns 1 for width class 2, otherwise 0, 2 for an icon code, 4 at end of string, or the result of 08894F7C for an expansion."
+confidence = "inferred"
+evidence = "Counter compared with the index, escape parser modes 0 and 2, same 0x800/0x400/0x200/0x100 codes."
+
+[[function]]
+module = "EBOOT"
+address = "08892A88"
+name = "text_draw_inline_icons"
+purpose = "Writes GE commands that bind the texture from 08898898 and draw each queued 8-byte icon as a two-vertex sprite, with UV size from table DAT_08931d1c by its id, tinted from the colour table for ids 10 and 11 and white otherwise."
+confidence = "inferred"
+evidence = "Entries written by 08895220 from the 0x400 escape; prim command 0x04060002 per entry; called from text_draw_list."
+
+[[function]]
+module = "EBOOT"
+address = "08892E7C"
+name = "text_open_system_font"
+purpose = "Creates a font library with sceFontNewLib, finds and opens the optimum font, and stores the library, index, font handle and font info at the start of the object."
+confidence = "confirmed"
+evidence = "sceFontNewLib, sceFontFindOptimumFont, sceFontOpen and sceFontGetFontInfo in sequence."

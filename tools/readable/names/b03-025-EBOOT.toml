@@ -1,0 +1,335 @@
+[[function]]
+module = "EBOOT"
+address = "088A713C"
+name = "task_load_overlays_46_4c_step"
+purpose = "Task vtable step with a state at +0x1C: requests overlay file 0x46 for slot 1, waits and installs it, clears byte +0x2FBDC of DAT_089cc554 when mask 0x1 of field +0xF7A57C on DAT_08a632c0 is set, then does the same for file 0x4C in slot 2 unless already installed, and finally refreshes the three-word descriptor at +4."
+confidence = "inferred"
+evidence = "88901F8 installs an overlay into a slot and invalidates the icache, 8890284 compares the slot's id, 8890144 requests the file; runs once at about frame 880."
+
+[[function]]
+module = "EBOOT"
+address = "088AB514"
+name = "unknown_post_message_category_10_by_kind"
+purpose = "When mask 0x1 of field +0xF7A57C on DAT_08a632c0 is set, fills a stack message whose payload depends on the kind in param_2 (1, 8 or 12 bytes, kind 2 and 3 reading the player record at DAT_089cc558 +0x8C*index) and posts it with category 10."
+confidence = "guess"
+evidence = "88AB4DC writes a header of size+4, kind and category 10 and forwards it through 88A72F0 to 88A9E28; what the receiver does was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088ACD88"
+name = "system_init_callback_table_and_psid"
+purpose = "Sets DAT_09a1dcf8 to -1, clears the 0x40-byte callback table at 09a1dcb8, sets DAT_09a1dcfc and DAT_09a1dcfd to 1, and copies the 16-byte OpenPSID into the 0x80-byte buffer at 09a1dd04 with its length in DAT_09a1dd00."
+confidence = "inferred"
+evidence = "sceOpenPSIDGetOpenPSID call; 88AD064 fills the same table; runs at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088AD00C"
+name = "system_register_exit_and_power_callbacks"
+purpose = "Creates the kernel callbacks with handlers 88ACE0C and 88ACE74 and registers them as the exit callback and, under the name power, the power callback."
+confidence = "confirmed"
+evidence = "sceKernelRegisterExitCallback, scePowerRegisterCallback and the string power in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088AD064"
+name = "callback_table_add"
+purpose = "Stores a function and argument pair in the first free of the 8 slots at 09a1dcb8; does nothing if all are taken."
+confidence = "inferred"
+evidence = "Loop over 8 pairs; 88ADD3C passes 88ADEF0 as the function. What calls the table was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088ADD3C"
+name = "system_callbacks_init"
+purpose = "Runs the callback table and PSID init and the exit and power registration, adds 88ADEF0 with param_1 to the callback table, and clears bytes +0xC and +0xD of param_1."
+confidence = "inferred"
+evidence = "Calls 88ACD88, 88AD00C and 88AD064 in order; runs at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088B8548"
+name = "file_loader_init_edram_range_and_rofs_sema"
+purpose = "Stores the EDRAM start and end at +0x29300 and +0x29304, clears flags +0x29308, and creates the semaphore fakeRofsSema into +0x2931C."
+confidence = "confirmed"
+evidence = "sceGeEdramGetAddr, sceGeEdramGetSize and the string fakeRofsSema in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088B85CC"
+name = "file_load_queue_init"
+purpose = "Clears the status short of all 128 entries of 0x20 bytes starting at +4, and zeroes the indexes at +0x1004 and +0x1008 and the field +0x100C."
+confidence = "inferred"
+evidence = "Same entry layout as the read worker 884DE3C, which calls 88B85F8 to retire entries."
+
+[[function]]
+module = "EBOOT"
+address = "088B85F8"
+name = "file_load_queue_pop_head"
+purpose = "Clears the status of the entry at the head index +0x1004, advances the head modulo 128 and zeroes field +0x100C."
+confidence = "inferred"
+evidence = "Called from the read worker 884DE3C; index masked with 0x7F."
+
+[[function]]
+module = "EBOOT"
+address = "088B8624"
+name = "file_load_queue_head_is_busy"
+purpose = "Returns whether the entry at the head index has a nonzero status."
+confidence = "inferred"
+evidence = "Reads status at head index +0x1004; vtable 089BAD70 +0x8."
+
+[[function]]
+module = "EBOOT"
+address = "088B863C"
+name = "file_load_queue_contains_file_id"
+purpose = "Returns 1 if any of the 128 entries has status 1 and the id short at entry +2 equal to param_2."
+confidence = "inferred"
+evidence = "Linear scan; 8890144 passes an overlay file id through method +0x34 of the same object, and the worker reads files from entries."
+
+[[function]]
+module = "EBOOT"
+address = "088B8688"
+name = "file_load_queue_contains_tag"
+purpose = "Returns 1 if any of the 128 entries has status 1 and the byte at entry +0x18 equal to param_2."
+confidence = "inferred"
+evidence = "Linear scan comparing the byte that 88B87B0 also filters by; what the tag stands for was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088B871C"
+name = "file_load_queue_cancel_all_but_head"
+purpose = "With thread dispatch suspended, clears the status of every entry but the head, writes 1 through every entry's done-flag pointer at entry +0x14 including the head's, and resets the tail index +0x1008 to just after the head or to the head if idle."
+confidence = "inferred"
+evidence = "Loop over 128 entries between sceKernelSuspendDispatchThread and Resume; called from lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088B87B0"
+name = "file_load_queue_cancel_by_tag"
+purpose = "With thread dispatch suspended, if the head is busy, signals the done flag of the head when its tag byte matches, then walks later entries removing matching ones through 88B88F8 and signalling their done flags, and recomputes the tail index +0x1008."
+confidence = "inferred"
+evidence = "Tag byte at entry +0x18, done pointer at entry +0x14; walk stops at the first idle entry; called from game_task."
+
+[[function]]
+module = "EBOOT"
+address = "088B89A8"
+name = "offset_table_entry_count"
+purpose = "Returns the first word of a table, its entry count."
+confidence = "inferred"
+evidence = "Only use is the bound check in 88B89B0."
+
+[[function]]
+module = "EBOOT"
+address = "088B89B0"
+name = "offset_table_get_entry"
+purpose = "Returns the table base plus the offset stored at +4+index*8, or 0 when the index is at or past the count or the offset is 0."
+confidence = "inferred"
+evidence = "Bounds check against the first word and base-relative offset; many callers across modules."
+
+[[function]]
+module = "EBOOT"
+address = "088B8A58"
+name = "loading_screen_draw"
+purpose = "When active byte +0x2930C is set, queues GE commands for a full-screen sprite (skipped with flag mask 0x4, darker colour with mask 0x1 or 0x2), a row of 24-pixel glyph sprites chosen by language from table 089b2bf4 and bobbing through table 089b2c20, plus an extra UI draw with mask 0x1 and a centred string from +0x29314 with mask 0x2."
+confidence = "inferred"
+evidence = "Shown by 88B96D8 and hidden by 88B97A0 around slot model loading in the save menu (88BC7F0, 88C0E58) and from the overlay tasks; loading meaning comes from those callers."
+
+[[function]]
+module = "EBOOT"
+address = "088B96D8"
+name = "loading_screen_show"
+purpose = "Sets active byte +0x2930C, resetting the animation index +0x29310 on first activation, and sets flag mask 0x4 for mode 3, mask 0x2 with the string pointer in +0x29314 for mode 2, or mask 0x1 for mode 1."
+confidence = "inferred"
+evidence = "Sets exactly the flags 88B8A58 draws from; save menu calls mode 3 before loading slot models."
+
+[[function]]
+module = "EBOOT"
+address = "088B97A0"
+name = "loading_screen_hide"
+purpose = "Clears active byte +0x2930C and the flags at +0x29308."
+confidence = "inferred"
+evidence = "Pairs with 88B96D8; same callers."
+
+[[function]]
+module = "EBOOT"
+address = "088B97BC"
+name = "task_0b_ctor"
+purpose = "Constructs task type 0xB: base vtable then 089BAD8C, descriptor at +4, stores itself in DAT_09a44d9c, clears +0x34 and +0x5C, and clears mask 0x1 of DAT_089cc558 +0x6AF14."
+confidence = "inferred"
+evidence = "Case 0xB of factory 8895644; ran from about frame 1450 in hunt recordings, not in guild."
+
+[[function]]
+module = "EBOOT"
+address = "088B9910"
+name = "task_0b_tick"
+purpose = "Counts frames in +0x30, calls 8850FB8 on the game global when 88567B4 returns 0, then runs the shared task update 88971A0."
+confidence = "inferred"
+evidence = "vtable 089BAD8C +0xC, ran through the whole hunt in the recordings."
+
+[[function]]
+module = "EBOOT"
+address = "088B996C"
+name = "task_load_overlays_47_4c_step"
+purpose = "Task 0xB's step with a state at +0x34: requests overlay file 0x47 for slot 1 (first calling 884D754 when mask 0x8 of DAT_089cc558 +0x6AF14 is set), waits and installs it, then the same for file 0x4C in slot 2 unless already installed, and refreshes the descriptor at +4."
+confidence = "inferred"
+evidence = "Same overlay calls as 88A713C; vtable 089BAD8C +0x10; ran near frame 1450."
+
+[[function]]
+module = "EBOOT"
+address = "088B9B0C"
+name = "task_02_ctor"
+purpose = "Constructs task type 2: base vtable then 089BADA0, descriptor at +4, and clears fields +0x1C and +0x20."
+confidence = "inferred"
+evidence = "Case 2 of factory 8895644; ran at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088B9BF8"
+name = "task_load_overlays_3f_4b_step"
+purpose = "Task 2's step with a state at +0x1C: sets byte DAT_089cc558 +0x494, requests overlay file 0x3F for slot 1 unless installed, waits and installs it, then the same for file 0x4B in slot 2, and refreshes the descriptor at +4."
+confidence = "inferred"
+evidence = "Same overlay calls as 88A713C; vtable 089BADA0 +0x10; ran at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088BA2A0"
+name = "savedata_system_init"
+purpose = "Sets +0x97C to -1, clears 8 bytes at +0x980, and registers the memory stick callback."
+confidence = "inferred"
+evidence = "Calls 88C0198; same offsets are reset in the save menu; runs at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088BA2E0"
+name = "save_menu_draw_two_option_choice"
+purpose = "Draws the strings of ids DAT_089ac6a4 and DAT_089ac6a6 side by side, centred on x+0xE and x+0x5B, colouring the option picked by param_3 when param_4 is set, and draws a highlight box on it."
+confidence = "inferred"
+evidence = "88BC7F0 and 88BE550 pass byte +4, toggled by the left and right button masks, with a confirm branch on it."
+
+[[function]]
+module = "EBOOT"
+address = "088BA494"
+name = "save_menu_draw_message"
+purpose = "Draws the message of id param_3 at x,y through 8827918 with values 0xE and 0x10."
+confidence = "inferred"
+evidence = "8851680 looks up the text; only the two save menu functions call it, mostly with x 0xF0."
+
+[[function]]
+module = "EBOOT"
+address = "088BA54C"
+name = "save_menu_draw_message_at"
+purpose = "Passes 0x10 to 8890E40 and prints the message of id param_3 at x,y with 88920A8."
+confidence = "inferred"
+evidence = "Called by 88BC7F0 inside the box at 0xA8,0xD0 with ids 0x19 and 0xC."
+
+[[function]]
+module = "EBOOT"
+address = "088BA5BC"
+name = "save_menu_draw_window"
+purpose = "Sets the UI draw mode byte +0x534 to 0xB, sets text size 0xE by 0xE, and draws a box at x,y,w,h through 882DCA0 with last argument 0xFF."
+confidence = "inferred"
+evidence = "Callers follow it with text inside the same rectangle."
+
+[[function]]
+module = "EBOOT"
+address = "088BA664"
+name = "save_menu_draw_centered_prompt"
+purpose = "Draws the string of id DAT_089ad170 centred on x 0xF0 at the given y."
+confidence = "inferred"
+evidence = "x is 0xF0 minus half the width from 8890F70; used on states that wait for button mask 0x4000 or a timer; text itself not read."
+
+[[function]]
+module = "EBOOT"
+address = "088BA760"
+name = "savedata_session_init"
+purpose = "Stores flags in +0x990 and param_3 in +0x950, and unless flag mask 0x80 is set allocates heap group 0x19 buffers of 0x16A100 at +0x94C, 0x7000 at +0x10 and 0x3E800 at +0x14; mask 0x10 sets byte +0x9A3; clears the session state fields."
+confidence = "inferred"
+evidence = "88BF858 hands exactly these buffers and sizes to sceUtilitySavedata."
+
+[[function]]
+module = "EBOOT"
+address = "088BA860"
+name = "savedata_session_free_buffers"
+purpose = "Frees heap group 0x19 through 8898748."
+confidence = "inferred"
+evidence = "Same group that 88BA760 allocates; callers are the same overlay tasks."
+
+[[function]]
+module = "EBOOT"
+address = "088BC7F0"
+name = "save_menu_load_game_tick"
+purpose = "Per-frame state machine of the game-load menu: starts the savedata load, handles errors, prepares slot hunter models, lets the player pick one of 3 slots and confirm, then copies the slot into the game global at +0x4A0 and the header at +0x6ADD8, and rewrites default hunter and Felyne names for the current language."
+confidence = "inferred"
+evidence = "Copies 0x6A938-byte slots; name tables starting Arthur and Felyne indexed by language; returns 1 after loading and 2 otherwise; ran about frames 670 to 880."
+
+[[function]]
+module = "EBOOT"
+address = "088BE550"
+name = "save_boot_check_tick"
+purpose = "Per-frame state machine at boot: loads the save through the utility, copies its header into the game global, shows message and two-option prompts for errors, handles a second load through 88C14C8 and 88C0420 when the first returns 0x80110307 or 0x80110309, and returns 1 or 2 when finished."
+confidence = "inferred"
+evidence = "Called by demo_task only, frames 60 to 160; same screen helpers as 88BC7F0 with no slot picking."
+
+[[function]]
+module = "EBOOT"
+address = "088BF858"
+name = "savedata_start_utility"
+purpose = "Fills the utility parameter block at +0x18 with mode param_2, game ULUS10391, file MHP2NDG.BIN, title Game Data, the buffers from +0x94C, +0x10 and +0x14 and 16 fixed bytes at +0x5F4, starts sceUtilitySavedataInitStart, and sets the busy byte +0x970 and DAT_08a62d84 +0x17."
+confidence = "confirmed"
+evidence = "sceUtilitySavedataInitStart and the strings ULUS10391, MHP2NDG.BIN and Game Data in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088C0084"
+name = "utility_dialogs_update"
+purpose = "Each frame drives the savedata and message dialog utilities while their busy bytes +0x970 and +0x971 are set: update at status 2, shutdown at status 3, and at status 0 clear the busy byte and DAT_08a62d84 +0x17."
+confidence = "confirmed"
+evidence = "sceUtilitySavedataGetStatus, sceUtilityMsgDialogGetStatus and their update and shutdown calls; ran throughout all recordings."
+
+[[function]]
+module = "EBOOT"
+address = "088C0198"
+name = "memstick_register_event_callback"
+purpose = "Clears +0x978, creates the kernel callback MSSample with handler 88C0200, and registers it with sceIoDevctl on fatms0: with code 0x2415821."
+confidence = "inferred"
+evidence = "sceKernelCreateCallback and the devctl call; runs at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088C0200"
+name = "memstick_event_callback"
+purpose = "Kernel callback that sets byte +0x978 of its argument to 1 on event 1 and 0 on event 2."
+confidence = "inferred"
+evidence = "Passed to sceKernelCreateCallback by 88C0198; event meaning taken from the memory stick registration, not traced."
+
+[[function]]
+module = "EBOOT"
+address = "088C022C"
+name = "savedata_decrypt_and_verify"
+purpose = "Decrypts the 0x16A100-byte save with 88C2D74, hashes it with a 20-character string put in place of the stored region, compares 20 bytes, and on a match processes the six 0x6810-byte blocks at +0x142300 through 88C2BE0 and 88C03CC using a heap group 0x17 buffer; returns 1 on a match and 0 otherwise."
+confidence = "inferred"
+evidence = "88C2D74 runs byte substitution and XOR over the buffer; salt string 3Nc94Hq1zOLh8d62Sb69 and 0x14-byte compare."
+
+[[function]]
+module = "EBOOT"
+address = "088C0940"
+name = "save_menu_draw_slot_list"
+purpose = "Draws a window per save slot with either an empty-slot line or a formatted line and the string from slot +0x1000, using a time from +0x4FC8 as h:mm, and draws the highlight on the slot selected in +8."
+confidence = "confirmed"
+evidence = "Format strings %d %s and %d %s %4d:%02d %s %s %5dz with the stride 0x6B100; ran only in the menu frames."
+
+[[function]]
+module = "EBOOT"
+address = "088C0E58"
+name = "save_menu_prepare_slot_hunters_step"
+purpose = "Steps through +0x998: calls 88DDBD8 with 7 and 0x151C and waits on 88DDF10, then for each of 3 used slots copies save fields into the player record at DAT_089cc558 +0x8C*slot waits for 88DBBBC to return 1, then on the object from 88DB608 calls methods +0x20 and +0x24 and sets flag mask 0x4; returns true when +0x998 reaches 5."
+confidence = "inferred"
+evidence = "88C1178 then acts on the same slot objects; the save menu calls 88B96D8 before and 88B97A0 after it."
+
+[[function]]
+module = "EBOOT"
+address = "088C1178"
+name = "save_menu_update_slot_hunter_preview"
+purpose = "For each used slot clears flag mask 0x4 on the selected object and sets it on the others, sets the selected object's +0x1F4 from +0x9A0 or steps it back toward 0 by 0x1000 when +0x9A0 is 0, then runs the update and draw calls."
+confidence = "inferred"
+evidence = "Caller changes +0x9A0 with the analogue stick."

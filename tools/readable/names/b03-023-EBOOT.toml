@@ -1,0 +1,440 @@
+[[function]]
+module = "EBOOT"
+address = "088A072C"
+name = "sound_find_voice_to_steal"
+purpose = "Among voices in state 1 or 2 that match a request's conditions, returns the one with the lowest priority byte +0x1B, and on a tie the largest field +4."
+confidence = "inferred"
+evidence = "Only caller is the voice-limit check, which stops the result; 88A0DB8 fills +0x1B and 88A1268 compares it with the request's priority byte."
+
+[[function]]
+module = "EBOOT"
+address = "088A0820"
+name = "sound_count_matching_voices"
+purpose = "Counts voices matching a request's conditions: every matching voice when mode is 0, only those in state 1 or 2 when mode is 1."
+confidence = "inferred"
+evidence = "Loops the voice list through the condition matcher 88A01D8 and counts results of 1."
+
+[[function]]
+module = "EBOOT"
+address = "088A08E4"
+name = "sound_faders_init_all"
+purpose = "Resets the master fader at 09A0D380 and the 16 group faders at 09A0D280 to full level."
+confidence = "inferred"
+evidence = "Calls 88A0938 on each; runs once at boot from 88A1200."
+
+[[function]]
+module = "EBOOT"
+address = "088A0938"
+name = "sound_fader_init"
+purpose = "Sets one fader's output, base and current levels to 0xFFF and clears its fraction, step and target."
+confidence = "inferred"
+evidence = "Shorts written here are the ones 88A09E4 steps toward the target."
+
+[[function]]
+module = "EBOOT"
+address = "088A0958"
+name = "sound_faders_update_all"
+purpose = "Steps the master fader and the 16 group faders, then scales each group output by the master output."
+confidence = "inferred"
+evidence = "Called first in the command dispatcher 889F9C4; multiplies by DAT_09a0d380 and divides by 0xFFF."
+
+[[function]]
+module = "EBOOT"
+address = "088A09E4"
+name = "sound_fader_update"
+purpose = "Adds the step to one fader's 32-bit level, stops at the target, and writes output = base * level / 0xFFF."
+confidence = "inferred"
+evidence = "Step at +8, level at +4 with integer part +6, target at +0xC, output at +0."
+
+[[function]]
+module = "EBOOT"
+address = "088A0A80"
+name = "sound_lfo_init"
+purpose = "Zeroes an oscillator's 32-bit phase and stores its rate at +4 and depth at +6."
+confidence = "inferred"
+evidence = "88A0A9C adds +4 to the phase and 88A0AB0 multiplies a sine by +6."
+
+[[function]]
+module = "EBOOT"
+address = "088A0A90"
+name = "sound_lfo_reset"
+purpose = "Initialises an oscillator with rate 0 and depth 0."
+confidence = "inferred"
+evidence = "Calls 88A0A80 with zeros; used on two voice fields when a voice is set up."
+
+[[function]]
+module = "EBOOT"
+address = "088A0A9C"
+name = "sound_lfo_advance"
+purpose = "Adds the oscillator's rate to its phase."
+confidence = "inferred"
+evidence = "Phase at +0 increased by the unsigned short at +4."
+
+[[function]]
+module = "EBOOT"
+address = "088A0AB0"
+name = "sound_lfo_value"
+purpose = "Returns the sine of the oscillator's phase >> 8, times its depth, >> 15."
+confidence = "inferred"
+evidence = "Calls the sine table lookup 88A0AFC and scales by the short at +6."
+
+[[function]]
+module = "EBOOT"
+address = "088A0AFC"
+name = "sound_sin_table_1024"
+purpose = "Looks up a sine with 1024 steps per turn from the quarter-wave table at 089B2290, mirroring and negating by quadrant."
+confidence = "inferred"
+evidence = "Quadrant logic at 0x100, 0x200, 0x300 and 0x400; table values not read."
+
+[[function]]
+module = "EBOOT"
+address = "088A0BE4"
+name = "sound_cos_table_1024"
+purpose = "Returns the 1024-step table sine of the angle plus 0x100, a cosine."
+confidence = "inferred"
+evidence = "Quarter-turn offset passed to 88A0AFC."
+
+[[function]]
+module = "EBOOT"
+address = "088A0BFC"
+name = "sound_cmd_set_mono_mix"
+purpose = "Command 0x10000009: sets the global that makes the voice update average left and right volumes, from mask 0x1 of the command's byte +8."
+confidence = "inferred"
+evidence = "889F9C4 dispatches it; 889FD08 averages its two levels when DAT_09a0d27c is nonzero."
+
+[[function]]
+module = "EBOOT"
+address = "088A0C74"
+name = "sound_cmd_fade_fader"
+purpose = "Command 0x1000000B: starts a fade of the master fader (index 0xFF) or one group fader to a 0-0x7F target at the command's speed, signed by direction."
+confidence = "inferred"
+evidence = "889F9C4 dispatches it; writes step and target that 88A09E4 consumes."
+
+[[function]]
+module = "EBOOT"
+address = "088A0DB0"
+name = "sound_cmd_set_reverb"
+purpose = "Command 0x10000007: passes the command's parameters at +8 to the reverb setter."
+confidence = "inferred"
+evidence = "889F9C4 dispatches it; calls 88A1500, which reaches the __sceSasRev calls."
+
+[[function]]
+module = "EBOOT"
+address = "088A0DB8"
+name = "sound_cmd_play_voice"
+purpose = "Command 0x10000000: unless a flagged voice already plays the same sample address, enforces the voice limit, allocates a voice, fills its volume, pan, pitch and sample fields from the command, and starts it in state 1."
+confidence = "inferred"
+evidence = "889F9C4 dispatches it; sample address is DAT_09a0d278 + command +0x34, and it logs an error when allocation fails."
+
+[[function]]
+module = "EBOOT"
+address = "088A1200"
+name = "sound_voice_system_init"
+purpose = "Boot setup of the voice system: runs three sub-inits, resets faders, clears the mono flag and sets reverb off with dry output on."
+confidence = "inferred"
+evidence = "Called from 889F9A0 once at frame 0; passes type -1 and the VON pair 1, 0 to 88A1500."
+
+[[function]]
+module = "EBOOT"
+address = "088A1268"
+name = "sound_enforce_voice_limit"
+purpose = "Stops the least important matching voices so a new one fits within the request's limit byte +0x10; returns 0 if a voice outranks the request's priority."
+confidence = "inferred"
+evidence = "Uses the count 88A0820 and the picker 88A072C; limit 0 with mask 0x1 stops all matching voices through 88A0360."
+
+[[function]]
+module = "EBOOT"
+address = "088A13AC"
+name = "sound_stop_matching_voices"
+purpose = "Applies the stop command 0x10000001 to voices matching a request, forcing priority 0x7F when mask 0x1 of its flags is clear, then frees finished voices."
+confidence = "inferred"
+evidence = "88A10E0 passes command 0x10000001 here; 88A0360 with that code moves voices to state 7 or 3."
+
+[[function]]
+module = "EBOOT"
+address = "088A146C"
+name = "sound_update_matching_voices"
+purpose = "Applies the update command 0x10000003 to voices matching a request, forcing priority 0x7F when mask 0x1 of its flags is clear."
+confidence = "inferred"
+evidence = "88A10F0 passes the command here; 88A0360 with that code rewrites volume, pan and other voice fields by mask."
+
+[[function]]
+module = "EBOOT"
+address = "088A1500"
+name = "sound_set_reverb_params"
+purpose = "Expands six parameter words to the seven the SAS reverb setter takes, repeating the fourth for both EVOL values."
+confidence = "inferred"
+evidence = "Passes to 88A4504, whose callees call __sceSasRevType, RevParam, RevEVOL and RevVON."
+
+[[function]]
+module = "EBOOT"
+address = "088A16A4"
+name = "sound_query_matching_voice_count"
+purpose = "With interrupts suspended, writes the number of voices matching a request to result byte +0x12 and zeroes result word +0."
+confidence = "inferred"
+evidence = "Calls 88A0820 in mode 0 inside sceKernelCpuSuspendIntr/ResumeIntr, with a nesting count."
+
+[[function]]
+module = "EBOOT"
+address = "088A173C"
+name = "atrac_sema_create"
+purpose = "Creates a semaphore named CsePspATRAC3Proc with count 1 and stores its id."
+confidence = "confirmed"
+evidence = "String and sceKernelCreateSema in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088A178C"
+name = "atrac_sema_signal"
+purpose = "Signals the semaphore whose id is in the given word."
+confidence = "inferred"
+evidence = "sceKernelSignalSema; visible callers are the ATRAC functions using 09A0D398 and 09A0D39C."
+
+[[function]]
+module = "EBOOT"
+address = "088A1798"
+name = "atrac_player_release_id"
+purpose = "Releases the player's ATRAC id at +8 if it holds one and sets it to -1."
+confidence = "confirmed"
+evidence = "sceAtracReleaseAtracID in the function."
+
+[[function]]
+module = "EBOOT"
+address = "088A17D8"
+name = "atrac_player_set_loop_forever"
+purpose = "Sets the player's ATRAC loop count to 0x7FFFFFFF, field +0x48 to 1 and field +0x4C to 0."
+confidence = "confirmed"
+evidence = "sceAtracSetLoopNum with 0x7FFFFFFF."
+
+[[function]]
+module = "EBOOT"
+address = "088A1814"
+name = "atrac_player_set_no_loop"
+purpose = "Sets the player's ATRAC loop count to 0 and clears fields +0x48 and +0x4C."
+confidence = "confirmed"
+evidence = "sceAtracSetLoopNum with 0."
+
+[[function]]
+module = "EBOOT"
+address = "088A1848"
+name = "atrac_system_init"
+purpose = "Boot setup of ATRAC playback: creates two semaphores, clears the players, sets master volume 0x7F, inits audio output and stores the decode thread priority."
+confidence = "inferred"
+evidence = "DAT_09a0d394 is later the priority argument of the decode thread's sceKernelCreateThread."
+
+[[function]]
+module = "EBOOT"
+address = "088A18B8"
+name = "atrac_players_clear"
+purpose = "Zeroes the 0x810-byte player table at 09A0D3A0 and clears the error callback at 09A0D390."
+confidence = "inferred"
+evidence = "88A198C indexes the table by 0x204; 88A2410 calls DAT_09a0d390."
+
+[[function]]
+module = "EBOOT"
+address = "088A18E8"
+name = "atrac_set_master_volume"
+purpose = "Clamps a value to 0-0x7F and stores it as the global volume at 09A0DBB0."
+confidence = "inferred"
+evidence = "The decode thread multiplies output volume by DAT_09a0dbb0 / 127."
+
+[[function]]
+module = "EBOOT"
+address = "088A1914"
+name = "atrac_player_create_locked"
+purpose = "Takes the ATRAC semaphore 09A0D398 and creates a player."
+confidence = "inferred"
+evidence = "Wraps 88A198C between the semaphore calls."
+
+[[function]]
+module = "EBOOT"
+address = "088A198C"
+name = "atrac_player_create"
+purpose = "Sets up player slot param_1 on audio channel param_2 with the sound buffer split in two, and starts its decode thread."
+confidence = "confirmed"
+evidence = "String CsePspAtrac3DecodeThrd and thread creation with entry 88A2498; error strings for each failure."
+
+[[function]]
+module = "EBOOT"
+address = "088A1E70"
+name = "atrac_player_load_data"
+purpose = "Hands a data buffer to sceAtrac for a player and reads remaining frames, loop points and bitrate, marking looping if the track has loop points; returns -1 on failure."
+confidence = "inferred"
+evidence = "sceAtracSetDataAndGetID, GetRemainFrame, GetSoundSample, GetBitrate; state +0x54 goes 1 then 2."
+
+[[function]]
+module = "EBOOT"
+address = "088A2068"
+name = "atrac_player_play_locked"
+purpose = "With the semaphore 09A0D398, starts a track on a player, sets +0x2C to 1 and clears the counters +0xC, +0x10 and +0x14."
+confidence = "inferred"
+evidence = "Wraps 88A20E4."
+
+[[function]]
+module = "EBOOT"
+address = "088A20E4"
+name = "atrac_player_play"
+purpose = "Stops what the player is doing if needed, loads the given data, applies its loop setting and sets state +0x54 to 3; invalid states record an error and call the error callback."
+confidence = "inferred"
+evidence = "88A2A78 decodes in state 3; fields +0x58 and +0x5C get an error code and old state."
+
+[[function]]
+module = "EBOOT"
+address = "088A2204"
+name = "atrac_player_stop_locked"
+purpose = "Stops a player while holding the semaphore 09A0D398."
+confidence = "inferred"
+evidence = "Wraps 88A2244."
+
+[[function]]
+module = "EBOOT"
+address = "088A2244"
+name = "atrac_player_stop"
+purpose = "If decoding, zeroes the current sound buffer and outputs it; releases the ATRAC id and sets state +0x54 to 0; other states record an error."
+confidence = "inferred"
+evidence = "Calls 8897AE0, a wrapper of sceAudioOutputPannedBlocking, and 88A1798."
+
+[[function]]
+module = "EBOOT"
+address = "088A232C"
+name = "atrac_player_set_paused"
+purpose = "Sets field +0x60 to whether param_2 is nonzero; while 1 the decode step skips decoding and returns -1."
+confidence = "inferred"
+evidence = "88A2A78 checks +0x60 == 1 at the start of state 3."
+
+[[function]]
+module = "EBOOT"
+address = "088A2338"
+name = "atrac_player_get_state"
+purpose = "Returns the player's state +0x54 under the semaphore 09A0D398."
+confidence = "inferred"
+evidence = "Field is the switch value of 88A2A78 and 88A2244."
+
+[[function]]
+module = "EBOOT"
+address = "088A2378"
+name = "atrac_player_set_volume"
+purpose = "Clamps a volume to 0-0x7F and stores it at +0x6C, with the 0-0x8000 scaled form at +0x70."
+confidence = "inferred"
+evidence = "Decode thread uses +0x70 for output volume."
+
+[[function]]
+module = "EBOOT"
+address = "088A2498"
+name = "atrac_decode_thread"
+purpose = "Player thread: decodes a block, optionally filters and clips the samples when mask 0x2 of DAT_09a0dc84 is set, computes left and right volumes from +0x70 and +0x74, outputs the buffer and flips to the other one."
+confidence = "confirmed"
+evidence = "Created by 88A198C as CsePspAtrac3DecodeThrd; calls 88A2A78 and 8897AE0, a wrapper of sceAudioOutputPannedBlocking."
+
+[[function]]
+module = "EBOOT"
+address = "088A2A78"
+name = "atrac_player_decode_step"
+purpose = "Per-block state machine: in state 3 decodes data, carries sample overflow to the other buffer, updates loop and stream info, handles end of track by mode +0x2C and optionally negates the left samples; state 4 stops the player."
+confidence = "inferred"
+evidence = "sceAtracDecodeData, GetNextDecodePosition, GetLoopStatus; end path loads the next track through 88A243C when +0x2C is 2."
+
+[[function]]
+module = "EBOOT"
+address = "088A2F88"
+name = "atrac_player_set_filter_params"
+purpose = "Copies 21 floats into player fields +0x150 to +0x1A0, keeping the old value where a float is the unset marker 0x800000, and clears filter state fields."
+confidence = "inferred"
+evidence = "Decode thread reads these fields in its filter and clip loop."
+
+[[function]]
+module = "EBOOT"
+address = "088A3244"
+name = "sound_filter_params_mark_unset"
+purpose = "Fills a 21-float parameter block with the marker 0x800000."
+confidence = "inferred"
+evidence = "88A2F88 skips fields equal to that bit pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088A32A0"
+name = "sas_render_system_init"
+purpose = "Sets the SAS filter parameters, creates CsePspSasRendThread with the given priority, sets up the given audio channel and starts the thread."
+confidence = "confirmed"
+evidence = "String and sceKernelCreateThread with entry 88A356C."
+
+[[function]]
+module = "EBOOT"
+address = "088A3480"
+name = "sas_render_suspend"
+purpose = "Increments the render suspend count, and on the first waits until audio channel 0 has no samples left."
+confidence = "inferred"
+evidence = "Render thread 88A356C only sleeps while DAT_09a0dbc8 is nonzero; runs once around frame 520."
+
+[[function]]
+module = "EBOOT"
+address = "088A34E4"
+name = "sas_render_resume"
+purpose = "If the suspend count is 1, reconfigures the render audio channel; always decrements the count."
+confidence = "inferred"
+evidence = "Pairs with 88A3480 on DAT_09a0dbc8; calls the same channel setup as 88A32A0."
+
+[[function]]
+module = "EBOOT"
+address = "088A3554"
+name = "sas_render_get_block_count"
+purpose = "Returns the number of blocks the SAS render thread has rendered."
+confidence = "inferred"
+evidence = "DAT_09a0dbb8 is incremented once per block in 88A356C."
+
+[[function]]
+module = "EBOOT"
+address = "088A356C"
+name = "sas_render_thread"
+purpose = "Render thread: per block calls __sceSasCore through 88972A0, optionally filters and clips when mask 0x1 of DAT_09a0dc84 is set, reads the end flag, counts the block and outputs to the audio channel, alternating two buffers; sleeps while suspended."
+confidence = "confirmed"
+evidence = "Created by 88A32A0 as CsePspSasRendThread; callees wrap __sceSasCore, __sceSasGetEndFlag and sceAudioOutputPannedBlocking."
+
+[[function]]
+module = "EBOOT"
+address = "088A3AB0"
+name = "sas_set_filter_params"
+purpose = "Copies 21 floats into the globals at 089B25FC to 089B264C, keeping the old value where a float is the unset marker 0x800000, and clears filter state globals."
+confidence = "inferred"
+evidence = "Render thread reads those constants in its filter and clip loop; same pattern as 88A2F88."
+
+[[function]]
+module = "EBOOT"
+address = "088A3F30"
+name = "sound_driver_thread_start"
+purpose = "Creates and starts CsePspSndDrvThread with the given priority and a control block at 09A0E4C4."
+confidence = "confirmed"
+evidence = "String and sceKernelCreateThread with entry 88A4004."
+
+[[function]]
+module = "EBOOT"
+address = "088A4004"
+name = "sound_driver_thread"
+purpose = "Thread body: until DAT_09a0e4c0 is set, calls 889EF20(0), calls the callback at block +8 with the counter at +4, and increments the counter."
+confidence = "confirmed"
+evidence = "Created by 88A3F30 as CsePspSndDrvThread; loop read directly."
+
+[[function]]
+module = "EBOOT"
+address = "088A407C"
+name = "sound_audio_init_refcounted"
+purpose = "Runs the low-level audio setup 889786C when its count is 0 and increments the count when already set up or setup returns 0."
+confidence = "inferred"
+evidence = "Count at DAT_09a0e4d0; called by both the ATRAC and SAS inits."
+
+[[function]]
+module = "EBOOT"
+address = "088A412C"
+name = "sas_blank_sample_init"
+purpose = "Zeroes the 16-byte block at 09A0E4E0 and sets its byte +1 to 5."
+confidence = "inferred"
+evidence = "88A4344 uses this block as the default sample address of a voice, with size 0x10."
+
+[[function]]
+module = "EBOOT"
+address = "088A4178"
+name = "sas_get_blank_sample"
+purpose = "Returns the address of the 16-byte block at 09A0E4E0."
+confidence = "inferred"
+evidence = "88A4344 stores the result at voice +0x24 with size 0x10 at +0x28."
+

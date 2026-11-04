@@ -1,0 +1,423 @@
+[[function]]
+module = "EBOOT"
+address = "08885F50"
+name = "sound_state_tick"
+purpose = "Counts down the int at +0, and when mask 0x102 of +0x14 equals 2 and track slot 1's state is above 4, stops slot 1, sets the id at +0xA to 0xffff, fades slot 0 over 0xF frames to +0x10 (or 0x7F when +4 is 4 or more) and clears mask 0x2; then calls game_task 09A63B98 unless mask 0x1 of game global +0x6AF14 is set."
+confidence = "inferred"
+evidence = "Undoes what 08885E3C sets (mask 0x2, id +0xA, slot 1); runs throughout quests from game_task 09A627B8."
+
+[[function]]
+module = "EBOOT"
+address = "08886048"
+name = "sound_state_get_id_c"
+purpose = "Returns the ushort at +0xC of the sound state."
+confidence = "inferred"
+evidence = "Plain getter; 08885E00 resets +0xC with the other id shorts to 0xffff."
+
+[[function]]
+module = "EBOOT"
+address = "08886050"
+name = "sound_state_get_id_1c_at"
+purpose = "Returns the ushort at index param_2 of the array at +0x1C of the sound state."
+confidence = "inferred"
+evidence = "Plain indexed getter; 08885E00 resets +0x1C and +0x1E to 0xffff."
+
+[[function]]
+module = "EBOOT"
+address = "0888606C"
+name = "sound_state_get_id_8"
+purpose = "Returns the ushort at +8 of the sound state."
+confidence = "inferred"
+evidence = "Plain getter; pair of 08886074, and 088862A8 compares +8 with an id."
+
+[[function]]
+module = "EBOOT"
+address = "08886074"
+name = "sound_state_set_id_8"
+purpose = "Stores a 16-bit value at +8 of the sound state."
+confidence = "inferred"
+evidence = "Plain setter; pair of 0888606C."
+
+[[function]]
+module = "EBOOT"
+address = "0888607C"
+name = "sound_state_id_c_equals"
+purpose = "Returns whether the short at +0xC of the sound state equals the argument."
+confidence = "inferred"
+evidence = "Single comparison; same field as 08886048 and the same callers."
+
+[[function]]
+module = "EBOOT"
+address = "08886090"
+name = "sound_state_get_byte_18"
+purpose = "Returns the byte at +0x18 of the sound state."
+confidence = "inferred"
+evidence = "Plain getter; pair of 08886098."
+
+[[function]]
+module = "EBOOT"
+address = "08886098"
+name = "sound_state_set_byte_18"
+purpose = "Stores a byte at +0x18 of the sound state."
+confidence = "inferred"
+evidence = "Plain setter; pair of 08886090, called from 088CD804 and game_task."
+
+[[function]]
+module = "EBOOT"
+address = "088860A0"
+name = "sound_state_play_slot_1_by_item_field_2"
+purpose = "Reads the short at +2 of entry param_2 (0x18 bytes each) of table 0899D2C0 and plays id 0x18F8 for 3, 0x18F7 for 2, or 0x18F6 for 0 on track slot 1 through 08885E3C; other values play nothing."
+confidence = "inferred"
+evidence = "Only caller is item_give_to_hunter_with_message, so the index is taken to be the item; once in fight1 at frame 4400."
+
+[[function]]
+module = "EBOOT"
+address = "08886124"
+name = "sound_state_get_id_20"
+purpose = "Returns the ushort at +0x20 of the sound state."
+confidence = "inferred"
+evidence = "Plain getter; 08885E00 resets +0x20 to 0xffff."
+
+[[function]]
+module = "EBOOT"
+address = "0888612C"
+name = "sound_state_get_field_24"
+purpose = "Returns the word at +0x24 of the sound state."
+confidence = "inferred"
+evidence = "Plain getter next to the other sound state getters, same caller game_task 09A60E80."
+
+[[function]]
+module = "EBOOT"
+address = "08886134"
+name = "sound_state_clear_masks_10_20"
+purpose = "Clears masks 0x10 and 0x20 of the flags at +0x14 of the sound state."
+confidence = "inferred"
+evidence = "Each mask is XORed only when set, which clears it; same caller and frames as 0888612C."
+
+[[function]]
+module = "EBOOT"
+address = "0888616C"
+name = "sound_state_field_4_is_8_or_9"
+purpose = "Returns whether the int at +4 of its argument is 8 or 9."
+confidence = "inferred"
+evidence = "Unsigned range check; called from sound_calc_distance_volume, and the object is taken to be the sound state from its neighbours."
+
+[[function]]
+module = "EBOOT"
+address = "0888617C"
+name = "sound_id_in_list_193e_to_198b"
+purpose = "Returns 1 when the 16-bit id in a1 is one of 0x193E, 0x1945, 0x1951-0x1955, 0x1958, 0x1959, 0x195E, 0x1975, 0x1977, 0x197E, 0x197F or 0x1983-0x198B, else 0."
+confidence = "inferred"
+evidence = "A chain of id compares; the sound prefix comes from the range sitting near the sound state ids, and what the list selects is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088862A8"
+name = "sound_state_duck_slot_0"
+purpose = "Fades track slot 0 over param_2 frames to 0x46 when +4 is 0xF or more, or to 0x32 when +4 is 4 to 0xE, game global short +0x6AF0E is 0x5B, or +0x6AF0E is 0x59 with id +8 equal to 0x19D4; when it fades, sets mask 0x400 and clears mask 0x2 of +0x14, otherwise does nothing."
+confidence = "inferred"
+evidence = "Calls 08882C24 on slot 0 with reduced targets; sound_state_restore_slot_0_volume clears the same masks; fight1 frame 4390 only."
+
+[[function]]
+module = "EBOOT"
+address = "0888637C"
+name = "sound_track_init_global"
+purpose = "Stores the sound track object in DAT_08A62EB4, zeroes the two stream handles at +0 and +0x18, and resets all track slots and buffer entries."
+confidence = "inferred"
+evidence = "Called from sound_manager_init at frame 0; calls 08886568 and 088865D0."
+
+[[function]]
+module = "EBOOT"
+address = "0888640C"
+name = "sound_track_open_streams"
+purpose = "Calls 088A1848(0x11), registers 08886898 through 088A2404, and opens the stream for both track slots."
+confidence = "inferred"
+evidence = "Called from sound_open_after_prx_loaded; loops 08886674 over 2 slots."
+
+[[function]]
+module = "EBOOT"
+address = "08886468"
+name = "sound_track_tick"
+purpose = "For each of the 2 track slots: with no handle sets the cached state to -1; otherwise, while fade frames remain and the cached state is 3, steps the volume linearly from the fade's start to its target, then caches the stream's state from 088A2338."
+confidence = "inferred"
+evidence = "Called from sound_manager_tick every frame; interpolates the fields set by 08886870."
+
+[[function]]
+module = "EBOOT"
+address = "08886530"
+name = "sound_track_slot_reset"
+purpose = "Sets a slot's buffer index (+4) and cached state (+8) to -1 and zeroes its volume and fade shorts at +0xC to +0x16, leaving the stream handle alone."
+confidence = "inferred"
+evidence = "Writes the same 0x18-byte slot fields used by 08886780, 08886850 and 08886870."
+
+[[function]]
+module = "EBOOT"
+address = "08886568"
+name = "sound_track_reset_all_slots"
+purpose = "Calls 08886530 for both track slots."
+confidence = "inferred"
+evidence = "Loop of 2 over sound_track_slot_reset, called from init."
+
+[[function]]
+module = "EBOOT"
+address = "088865B0"
+name = "sound_track_buffer_clear"
+purpose = "Zeroes +0x30, +0x34 and +0x38 of buffer entry param_2 and sets its id at +0x3C to 0xffff."
+confidence = "inferred"
+evidence = "Writes one 0x10-byte entry at +0x30; 08886780 passes +0x30 and +0x38 to the stream start."
+
+[[function]]
+module = "EBOOT"
+address = "088865D0"
+name = "sound_track_clear_all_buffers"
+purpose = "Calls 088865B0 for all 0x15 buffer entries."
+confidence = "inferred"
+evidence = "Loop of 0x15, the same count as the search in 088866D8."
+
+[[function]]
+module = "EBOOT"
+address = "08886618"
+name = "sound_track_buffer_set_memory"
+purpose = "Stores param_3 at +0x30 and param_4 at +0x34 of a buffer entry, sets its id to 0xffff and zeroes +0x38."
+confidence = "guess"
+evidence = "The +0x30 word goes to the stream start in 08886780 as its first data argument; that it is memory and +0x34 its capacity is not read."
+
+[[function]]
+module = "EBOOT"
+address = "08886638"
+name = "sound_track_buffer_assign_id"
+purpose = "Stores a 16-bit id at +0x3C and a word at +0x38 of a buffer entry."
+confidence = "inferred"
+evidence = "08886780 finds entries by the +0x3C id and passes +0x38 to the stream start."
+
+[[function]]
+module = "EBOOT"
+address = "0888664C"
+name = "sound_track_buffer_unassign_id"
+purpose = "Sets a buffer entry's id at +0x3C to 0xffff and zeroes +0x38, keeping +0x30 and +0x34."
+confidence = "inferred"
+evidence = "Undoes 08886638 on the same fields."
+
+[[function]]
+module = "EBOOT"
+address = "08886664"
+name = "sound_track_buffer_get_field_30"
+purpose = "Returns the word at +0x30 of a buffer entry."
+confidence = "inferred"
+evidence = "Plain indexed getter, same callers as 08886638."
+
+[[function]]
+module = "EBOOT"
+address = "08886674"
+name = "sound_track_slot_open_stream"
+purpose = "If the slot has no handle, creates a stream through 088A1914 with the slot index, index + 1 and a 0x4400-byte buffer at +0x180 + index * 0x4400 of the object, and stores the handle at the slot's +0."
+confidence = "inferred"
+evidence = "Handle is later used by every stream call in this family; called from 0888640C."
+
+[[function]]
+module = "EBOOT"
+address = "088866D8"
+name = "sound_track_find_buffer_by_id"
+purpose = "Returns the index of the first of 0x15 buffer entries whose id at +0x3C equals the argument, or -1."
+confidence = "confirmed"
+evidence = "A linear search over the entries, fully read; used by 08886780."
+
+[[function]]
+module = "EBOOT"
+address = "0888670C"
+name = "sound_track_buffer_get_id"
+purpose = "Returns the ushort id at +0x3C of a buffer entry."
+confidence = "inferred"
+evidence = "Plain indexed getter of the field 088866D8 searches."
+
+[[function]]
+module = "EBOOT"
+address = "0888671C"
+name = "sound_track_slot_get_state"
+purpose = "Returns a slot's cached stream state at +8."
+confidence = "inferred"
+evidence = "The field 08886468 and 08886780 fill from 088A2338; sound_state_tick tests it for slot 1."
+
+[[function]]
+module = "EBOOT"
+address = "08886734"
+name = "sound_track_slot_is_fading"
+purpose = "Returns 1 when the slot has a handle, fade frames remain at +0x16 and its cached state is 3, the same condition under which 08886468 steps the fade."
+confidence = "inferred"
+evidence = "Same test as the fade step in 08886468; seen from game_task 09A63B98 in fight1 and fight2."
+
+[[function]]
+module = "EBOOT"
+address = "08886780"
+name = "sound_track_slot_start_by_id"
+purpose = "Finds the buffer entry for an id, stores its index at the slot's +4 (-1 when not found), and when found starts the slot's stream through 088A2068 with the entry's +0x30 and +0x38 and caches the stream's state."
+confidence = "inferred"
+evidence = "088A2068 resets the stream's position fields under its lock; called from 08882D9C."
+
+[[function]]
+module = "EBOOT"
+address = "088867F4"
+name = "sound_track_slot_stop"
+purpose = "Calls 088A2204 on the slot's stream and caches the stream's state."
+confidence = "inferred"
+evidence = "Reached through 08882F58 from sound_state_tick, which then clears the slot 1 id; 088A2244 under it was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08886834"
+name = "sound_track_slot_set_stream_flag_60"
+purpose = "Sets field +0x60 of the slot's stream to whether the argument is nonzero, through 088A232C."
+confidence = "inferred"
+evidence = "088A232C stores (param_2 != 0) at +0x60; what reads it was not checked."
+
+[[function]]
+module = "EBOOT"
+address = "08886850"
+name = "sound_track_slot_set_volume"
+purpose = "Stores a volume in the slot's short at +0xC and applies it to the stream through 088A2378, which clamps to 0 to 0x7F and scales to 0 to 0x8000."
+confidence = "confirmed"
+evidence = "088A2378 clamps and scales the value; 08886468 calls this for each fade step."
+
+[[function]]
+module = "EBOOT"
+address = "08886870"
+name = "sound_track_slot_start_fade"
+purpose = "Starts a volume fade: copies the current volume to +0x10, stores the target at +0x12, and stores the frame count at +0x14 and +0x16."
+confidence = "inferred"
+evidence = "08886468 interpolates from +0x10 to +0x12 over these frames; sound_track_fade_to_scaled_volume calls it."
+
+[[function]]
+module = "EBOOT"
+address = "088868AC"
+name = "camera_view_init_mode"
+purpose = "Sets up one camera view: zeroes +0x98, clears the update member function at +0x180, stores the mode byte at +0x18C, runs the init for modes 0 to 5, and installs that mode's member function at +0x180 when it is set."
+confidence = "inferred"
+evidence = "cameras_update calls it in a loop with a 0x1A0 stride starting at +0xB0; the mode 3 pair is 08889C90 and 08889CAC."
+
+[[function]]
+module = "EBOOT"
+address = "08886B68"
+name = "camera_view_mode0_init_behind_target"
+purpose = "Picks an offset table (0x20-byte entries, from the manager's +0xA90 data or 08933C00) by manager byte +0x14, sets yaw +0x122 to the target's angle +0x1F4 plus a half turn, places the eye at the target position plus the rotated offset and the look-at at the target plus the entry's height, and zeroes the view's state fields."
+confidence = "inferred"
+evidence = "Installed as mode 0 by camera_view_init_mode; reads target +0x200 from manager +0xA84, and later views read +0x122 as the yaw."
+
+[[function]]
+module = "EBOOT"
+address = "088883C0"
+name = "camera_view_mode1_update_blend_to_fixed_offset"
+purpose = "While view 0's bytes +0x91 and +0x12F allow it, makes this the active view (manager +0xA8D = 1), takes pitch from the target's char +0x67E, swings a yaw offset up to 0x800 from the target's angle, blends over 9 frames from view 0's table offsets to the fixed offsets at 08933BE0 and 08933BF0, then pushes the eye through a map check and a floor clamp and recomputes the look-at."
+confidence = "inferred"
+evidence = "Member function of mode 1; manager +0x141 and +0x1DF are view 0's +0x91 and +0x12F (views start at +0xB0); 888E3DC gives the blend."
+
+[[function]]
+module = "EBOOT"
+address = "08888B84"
+name = "camera_view_mode2_init"
+purpose = "Zeroes +0x80, sets +0x88 to 0x3F75BE0B (55 degrees in radians) and calls 08888B98."
+confidence = "inferred"
+evidence = "Installed as mode 2 by camera_view_init_mode."
+
+[[function]]
+module = "EBOOT"
+address = "08889C90"
+name = "camera_view_mode3_init"
+purpose = "Zeroes +0x80 and sets +0x88, +0xFC and +0x100 to 0x3F490FDB (pi/4)."
+confidence = "inferred"
+evidence = "Installed as mode 3 by camera_view_init_mode; 08889CAC reads these fields."
+
+[[function]]
+module = "EBOOT"
+address = "08889CAC"
+name = "camera_view_mode3_update_matrix_view_with_zoom"
+purpose = "While the target's +0x614 mask 0x1000 is set, picks a kind 0 to 3 through 0888D888, builds a matrix from the target (a bone matrix for kind 0, else through 0888D958), sets eye and look-at from that matrix and the kind's offsets at 08933D40 and 08933D50, and lets manager input masks 0x80 and 0x20 lower and raise the angle at +0xFC or +0x100, limited to +0xF0 to +0xF4, which feeds +0x88."
+confidence = "inferred"
+evidence = "Member function of mode 3; the step of 0.0223 radians on input masks and the 30 to 55 degree limits show a zoom, but which action sets mask 0x1000 was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888A164"
+name = "camera_view_mode4_init"
+purpose = "Sets +0x88 to 0x3F75BE0B (55 degrees in radians), sets short +0xE4 to 0xF, and zeroes +0x80, +0xA4, +0xB0, +0xE0 and +0x104."
+confidence = "inferred"
+evidence = "Installed as mode 4 by camera_view_init_mode; +0xA4 and +0xB0 are the sub-states of 0888A190."
+
+[[function]]
+module = "EBOOT"
+address = "0888A190"
+name = "camera_view_mode4_update"
+purpose = "Runs 0888A668 on the sub-state at +0xA4 and, if it left the view inactive (+0x91 zero), runs 0888A8C0 on the sub-state at +0xB0."
+confidence = "inferred"
+evidence = "Member function of mode 4; called from camera_view_update."
+
+[[function]]
+module = "EBOOT"
+address = "0888A1D0"
+name = "camera_view_mode5_init"
+purpose = "Zeroes +0x80, +0xEE, +0xEF, +0xF0, +0x13A, +0x13B and +0x94, and sets +0x88 to 0x3F75BE0B (55 degrees in radians)."
+confidence = "inferred"
+evidence = "Installed as mode 5 by camera_view_init_mode; 0888A1FC uses these fields."
+
+[[function]]
+module = "EBOOT"
+address = "0888A1FC"
+name = "camera_view_mode5_update_requested_sequence"
+purpose = "When idle and manager byte +0xA80 is nonzero, takes it as a request (with word +0xA7C) and clears it, then runs 0888AFEC, or 0888C9F8 when the request's entry in table 08938354 is -1; a result above 0 ends the sequence and sets manager byte +0xAAA, otherwise +0xEF is 1 for 0 or 0xFF for negative and the view stays active."
+confidence = "inferred"
+evidence = "Member function of mode 5; phase byte +0x98 selects the two runners."
+
+[[function]]
+module = "EBOOT"
+address = "0888A330"
+name = "camera_path_update_position"
+purpose = "When manager +0xA90 is set, updates the two-float state at manager +0xA98 against the data at +0xA90 + 0x20, snapping through 0888A49C when param_3 is 0, stepping through 0888A538 otherwise."
+confidence = "guess"
+evidence = "Called from 08888B98, only in the quest recordings; 'path' reads the entry at +0x10C as a segment length, and that data's meaning was not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888A49C"
+name = "camera_path_snap_position"
+purpose = "Gets a byte index through 0888B884 and a value through 0888B994 into the state, stores the value divided by that entry's float at +0x10C as a fraction in the state's second float, or zeroes both when 0888B994 returns 0."
+confidence = "guess"
+evidence = "Fraction from a per-entry divisor; once per quest recording at frame 2090; 'path' is a reading, not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0888A538"
+name = "camera_path_step_position"
+purpose = "Like 0888A49C into a local, but on the same entry moves the state's value toward the new one by at most 0.5, and on a changed entry calls 0888A388; then recomputes the fraction with the entry's float at +0x10C."
+confidence = "guess"
+evidence = "The 0.5 limit on the value is read; it runs after the snap at frame 2090; 'path' is a reading, not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0888A668"
+name = "camera_view_mode4_update_on_target_mask_80000"
+purpose = "Stores in sub-state +4 whether target mask 0x80000 is set (0888D708); clear resets the sub-state; on first set copies the target's word +0x554, sets +0x88 to 50 degrees when game global short +0x6AF0E is 0x4B else 55 degrees, zeroes +0x80, then marks the view active (+0x91) when 0888A73C returns 1."
+confidence = "inferred"
+evidence = "0888D708 tests mask 0x80000 on manager +0xA84; 0888A73C and the meaning of the mask were not read."
+
+[[function]]
+module = "EBOOT"
+address = "0888A8C0"
+name = "camera_view_mode4_update_focus_blend"
+purpose = "Saves the active view's eye, look-at and +0x138 as a base, runs a state byte (0 idle, 1 blends up, 2 counts down) with a saved-view depth at +0x54, and by kind byte blends this view toward a focus: kind 0 a midpoint between the target and another object or point, kind 2 a stored eye, kinds 1, 3, 4 and 5 a height and distance from the target, adjustable by DAT_08A62D88 masks 0x10, 0x40, 0x80 and 0x20 when manager byte +0xAA9 is 1."
+confidence = "inferred"
+evidence = "Member path of mode 4; the blend uses 0888AF68; requests are written to +0x30 elsewhere, so what triggers it is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0888AF68"
+name = "camera_blend_fraction_eased"
+purpose = "Returns current / total, raised to the power 2.25 for mode 2, or 1 - (1 - fraction)^2.25 for mode 1, and left linear otherwise."
+confidence = "confirmed"
+evidence = "08897D4C is exp2(log2(x) * y), so a power; the code is otherwise fully arithmetic; called only by 0888A8C0 during its blends."
+
+[[function]]
+module = "EBOOT"
+address = "0888AFEC"
+name = "camera_view_mode5_run_table_sequence"
+purpose = "Runs a sequence for the mode 5 view: returns 1 early when +0x13A is set, manager input +0xA72 mask 1 is set and byte +0x480 of the game global is 0; on first run stores the request's table 08938354 value at +0xE0 unless the request is 0xFF, copies the manager's final eye, look-at and +0xA0, +0xA8 into its working fields, and resets them; then steps 0888B1C0 until it returns above 0, after which it returns 1."
+confidence = "inferred"
+evidence = "Called by 0888A1FC for requests with a table entry other than -1; ran at varied times in fight1, misc and quest-q5/q8/q9, so no single game event is named."

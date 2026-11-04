@@ -1,0 +1,367 @@
+[[function]]
+module = "EBOOT"
+address = "08892FB0"
+name = "font_setup_list_and_refresh_glyph_cache"
+purpose = "Builds and queues a short GE state list (ending in BASE and RET command words), then requests the active queue's glyphs and rasterises the pending cache slots."
+confidence = "inferred"
+evidence = "Writes GE command words through f_EBOOT_88597FC/88596C8, then calls 088930A8 and 08893390; the individual state words were not decoded."
+
+[[function]]
+module = "EBOOT"
+address = "088930A8"
+name = "font_request_glyphs_for_active_queue"
+purpose = "Clears the slot-to-character table at +0x22608 and requests a cache slot for every non-space, non-newline character of each string in the queue picked by +0x15D."
+confidence = "inferred"
+evidence = "Walks 0xC-byte entries from +0x140[index], count from +0x134[index], reading u16 strings at entry +8, and calls 08893198."
+
+[[function]]
+module = "EBOOT"
+address = "08893198"
+name = "font_cache_request_glyph"
+purpose = "Marks a character's cache slot as used, assigning a new slot if the character has none; returns 1 when newly assigned, 0 when already cached or the code is 0xFFF0 or above."
+confidence = "inferred"
+evidence = "Character-to-slot map at +0x2628 (0xFFFF means none), slot-to-character table at +0x22608, per-slot byte at +0x22968 set to 2; takes new slots from 088932A8."
+
+[[function]]
+module = "EBOOT"
+address = "088932A8"
+name = "font_cache_pick_slot"
+purpose = "Returns the next unused slot while the cache has room, otherwise finds a slot from +0x162 upward whose byte at +0x22968 is 0, or steps +0x162 back, and clears the old character's mapping for it."
+confidence = "inferred"
+evidence = "Compares +0x15A against capacity +0x11E, then scans +0x22968 and writes 0xFFFF into the +0x2628 map."
+
+[[function]]
+module = "EBOOT"
+address = "08893390"
+name = "font_cache_rasterize_pending"
+purpose = "For each cache slot with a character in the +0x22608 table, computes its texture page and cell position and rasterises the glyph there."
+confidence = "inferred"
+evidence = "Slot / +0x11C gives the page; +0x118, +0x119, +0x11A and +0x11B give x and y; calls 08893444."
+
+[[function]]
+module = "EBOOT"
+address = "08893444"
+name = "font_rasterize_glyph_to_cell"
+purpose = "Clears a glyph's cell in a 4-bit font texture page and draws the character into it with sceFont, adjusting placement for certain characters and mapping backslash to 0x3035."
+confidence = "confirmed"
+evidence = "Calls sceFontGetCharInfo and sceFontGetCharGlyphImage; cell clearing writes half a byte per pixel with a 0x80 stride; runs from boot through loads."
+
+[[function]]
+module = "EBOOT"
+address = "0889377C"
+name = "font_draw_text_entry"
+purpose = "Draws one queued text entry: walks its u16 string, handling newlines by entry line height, drawing visible characters and advancing the cursor at +0x126/+0x128."
+confidence = "inferred"
+evidence = "Takes entry x, y, size byte +4, line height byte +7 and string +8; calls 08893894 per visible character and 088952A4 for the advance."
+
+[[function]]
+module = "EBOOT"
+address = "08893894"
+name = "font_draw_glyph_sprite"
+purpose = "Emits a GE list drawing one cached character as a textured sprite at the cursor, with its colour from the entry's colour index and a small upward shift for characters flagged by 088952E4."
+confidence = "inferred"
+evidence = "UV from the +0x2628 slot, texture and CLUT commands (0xA0, 0xA8, 0xB8, 0xB0), vertex type then PRIM sprite word 0x04060002, queued via 088596C8."
+
+[[function]]
+module = "EBOOT"
+address = "08893C6C"
+name = "str_vsnprintf_encoded"
+purpose = "Bounded vsnprintf over a stack argument list, handling %s %c %f %b %o %x %X %u %d and a %N% percent-repeat form, keeping multibyte characters whole (mode 1 by UTF-8 lead byte, otherwise Shift-JIS lead-byte ranges)."
+confidence = "inferred"
+evidence = "Format-character branches call sprintf-like 0880E8F0; size checks against arg_a2; 08816930 returns lengths 1-4 from UTF-8 lead bits; lead ranges 0x81-0x9F and 0xE0-0xFF."
+
+[[function]]
+module = "EBOOT"
+address = "08894754"
+name = "font_append_string_to_text_buffer"
+purpose = "Decodes a string with one of two decoders chosen by mode and appends it as u16 characters plus a terminator at text buffer +0x22CF8, offset +0x160, clamping the offset at 0x2FFE."
+confidence = "inferred"
+evidence = "Mode 1 uses 08816460; otherwise 0881629C then 088165FC; stores u16 and advances +0x160 by 2 with a 0x2FFF limit."
+
+[[function]]
+module = "EBOOT"
+address = "08894874"
+name = "font_char_width_class"
+purpose = "Classifies a u16 character code into 0, 1 or 2 by code range; class 0 draws at full size width and advances full, the others advance half."
+confidence = "inferred"
+evidence = "Range table (1 below 0x250 and for 0x2000-0x206F, 0 for most of the rest, 2 for 0xFF60-0xFFDF); results used by 088952A4 and 08893894."
+
+[[function]]
+module = "EBOOT"
+address = "08894988"
+name = "font_active_queue_list_id"
+purpose = "Maps the active queue index at +0x15D (0 to 5) to the values 9 to 0xE, default 9, passed as the last argument when the font's GE lists are queued."
+confidence = "inferred"
+evidence = "Switch on +0x15D; result is the 4th argument to 088596C8 in 08892FB0 and 08893894."
+
+[[function]]
+module = "EBOOT"
+address = "088949EC"
+name = "font_update_pulsing_default_color"
+purpose = "Sets the font's default colour at +0x164 to a colour varying by a sine of the low 5 bits of counter +0x15E."
+confidence = "inferred"
+evidence = "vsin_s of (+0x15E & 0x1F), then 08890C94 with index -1 (slot +0x164); the caller increments +0x15E right after."
+
+[[function]]
+module = "EBOOT"
+address = "08894B00"
+name = "font_precache_alnum_glyphs"
+purpose = "Passes the built-in string beginning \"0123456789ABCDEFGHIJKLMNOPQRSTUV\" to 08891E0C, which requests and rasterises glyphs."
+confidence = "inferred"
+evidence = "String symbol in the call; 08891E0C is a listed caller of 08893198 and 08893390; ran only at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "08894B0C"
+name = "font_parse_format_tag"
+purpose = "Parses a text tag after a '%' (%%, %Bnn, %Ann, %Cnn, %~) and writes a value by mode: 0 a tag code (0x800, 0x400|n, 0x200|n, 0x100|n), 1 a width adjustment, 2 a character count; returns the position after the tag."
+confidence = "inferred"
+evidence = "Branches on the character and on param_4 with values 0, 1 and 2; %A formats argument n with 08894EE4 and measures it; caller 088921FC tests the 0x800 and 0x400 codes."
+
+[[function]]
+module = "EBOOT"
+address = "08895220"
+name = "font_queue_b_tag_entry"
+purpose = "Adds an 8-byte record (position, +0x12D and +0x12E values, tag number with 0xC changed to 0xB) to the list for buffer +0x12F at +0x22B18, up to 10 per buffer."
+confidence = "inferred"
+evidence = "Count at +0x13A[+0x12F]; stride 0x50 per buffer; caller 088921FC calls it on the %B code 0x400 from 08894B0C. What the record draws was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088952A4"
+name = "font_char_advance"
+purpose = "Returns the cursor advance for a character: the size byte for width class 0, half of it otherwise; both +0x130 branches give the same result."
+confidence = "inferred"
+evidence = "Takes the class from 08894874 and the entry's size byte; result added to +0x126 in 0889377C."
+
+[[function]]
+module = "EBOOT"
+address = "088952E4"
+name = "font_char_is_raised_latin_capital"
+purpose = "Returns 1 for a listed set of Latin-1 and Latin Extended capitals (such as 0xC0-0xC6, 0xC8-0xD6, 0xD8-0xDD, 0x100, 0x1D3), else 0; the drawer shifts these up."
+confidence = "inferred"
+evidence = "Explicit code list below 0x200; 08893894 applies a -2 to -6 y offset by size when it returns 1."
+
+[[function]]
+module = "EBOOT"
+address = "0889560C"
+name = "game_state_slot_occupied"
+purpose = "Returns 1 if the slot index is below 4 and that slot of the game state manager holds an object, else 0."
+confidence = "inferred"
+evidence = "Tests param_1[slot] with a bound of 4; caller 08895644 only creates when it returns 0."
+
+[[function]]
+module = "EBOOT"
+address = "08895644"
+name = "game_state_create_in_slot"
+purpose = "If the slot is empty, allocates from the arena at +0x14010 and constructs a game state object of type 1 to 0xE (a size and constructor per type), storing it in the slot with slot index +0x10, type +0x14, +0x11 = 2 and +0x12 = 0."
+confidence = "inferred"
+evidence = "Switch over 14 types calling 08859B44 and per-type constructors; called from 08895538, which runs and frees these four slots and passes a pending type read from +0x18."
+
+[[function]]
+module = "EBOOT"
+address = "08895EA0"
+name = "quest_notice_init"
+purpose = "Clears the notice fields and sets stage +0x1111 from global +0x6AF12 minus 0x20 when global flag mask 0x100 is set (firing event 0), else to 1, then stores a table byte for that stage in +0x1114."
+confidence = "guess"
+evidence = "Ran once at quest load (frames 1450-1500) from 08869904; 'notice' is read from the paged-panel behaviour in 08895FFC and 088966C0; what +0x6AF12 holds was not read."
+
+[[function]]
+module = "EBOOT"
+address = "08895F3C"
+name = "quest_notice_open_pending"
+purpose = "When global +0x6AF1A is clear and a notice is pending at +0x1115, opens it: raises +0x1117, resets page +0x110E, loads the page count +0x1110, sets global +0x6AF1A via 088567C8 and calls 08883988 with a random 0-2."
+confidence = "guess"
+evidence = "Reads 088567B4 and +0x1115 set by 088966C0, page count from table 08896CF8; only runs in quest recordings."
+
+[[function]]
+module = "EBOOT"
+address = "08895FFC"
+name = "quest_notice_handle_input"
+purpose = "While open and global flag mask 0x100 is set: mask 0x80 steps page +0x110E back, mask 0x20 steps it forward up to the count, mask 0x2000 closes (+0x1117 = 0, 0885683C); calls 08883988 with 0x17 on a page step and 0x14 on close; returns +0x1117."
+confidence = "guess"
+evidence = "Those masks are the PSP pad's left, right and circle bits; param_2 comes from caller 0883F270; panel meaning inferred from page stepping."
+
+[[function]]
+module = "EBOOT"
+address = "088966C0"
+name = "quest_hint_trigger_event"
+purpose = "Given an event code, tests a table or single entry for the current stage whose once-only flag is unset, and if one matches sets the flag and marks a notice pending at +0x1115 with its number in +0x1112; returns 1 when one was armed."
+confidence = "guess"
+evidence = "Switch on param_2 to 0889695C/08896A50, which test 0884FB38 and set 0884FAC4 and compare stage +0x1111; early-outs on 08A632C0+0xF7A57C mask 1, global +0x6AF14 mask 0x100 and 0884FA5C; called from 088476F4 and game_task overlay code; 'notice' is read from 08895FFC."
+
+[[function]]
+module = "EBOOT"
+address = "08896C10"
+name = "quest_notice_stage_table_byte"
+purpose = "Returns the byte at 089B164E + index * 4 for a stage index; 08895EA0 stores it at +0x1114."
+confidence = "guess"
+evidence = "One-line table lookup; what +0x1114 means was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088971A0"
+name = "game_state_base_tick"
+purpose = "Base +0xC tick of game state objects: when 088971F0 says to run and field +4 passes 0890C4F8, calls 0890C490 on the object."
+confidence = "inferred"
+evidence = "vtable +0xC slot in several vtables, which 08895538 calls per slot; 088B9910 also calls it."
+
+[[function]]
+module = "EBOOT"
+address = "088971F0"
+name = "game_state_step_run_state"
+purpose = "Steps run state +0x11 (low mask 0x7F; high mask 0x80 holds): 2 becomes 3, 3 returns 1 unless held, 4 counts down +0x12 then becomes 3 and returns 1, others return 0."
+confidence = "inferred"
+evidence = "Read directly; sole caller 088971A0 runs the object only when this returns 1; 08895538 frees objects at state 1."
+
+[[function]]
+module = "EBOOT"
+address = "088972A0"
+name = "sas_core_checked"
+purpose = "Calls __sceSasCore when SAS is initialised and the buffer is non-null and aligned to 0x40."
+confidence = "confirmed"
+evidence = "Import call guarded by DAT_08a8b30c; ran throughout every recording."
+
+[[function]]
+module = "EBOOT"
+address = "088972F8"
+name = "sas_init_once"
+purpose = "If not yet initialised, calls __sceSasInit and sets DAT_08a8b30c to 1; its loop of per-voice defaults over 0x20 voices is guarded by that same flag, still 0 at that point, so as decompiled it sets nothing."
+confidence = "inferred"
+evidence = "Read directly; the flag is set only after the loop; ran only at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088973F8"
+name = "sas_set_key_on"
+purpose = "Calls __sceSasSetKeyOn when SAS is initialised."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "08897434"
+name = "sas_set_key_off"
+purpose = "Calls __sceSasSetKeyOff when SAS is initialised."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "08897470"
+name = "sas_set_volume"
+purpose = "Calls __sceSasSetVolume when SAS is initialised."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "088974D4"
+name = "sas_set_pitch"
+purpose = "Calls __sceSasSetPitch when SAS is initialised and the second argument is non-zero."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c and param_2."
+
+[[function]]
+module = "EBOOT"
+address = "08897524"
+name = "sas_set_voice"
+purpose = "Calls __sceSasSetVoice when SAS is initialised."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "08897580"
+name = "sas_set_simple_adsr"
+purpose = "Calls __sceSasSetSimpleADSR when SAS is initialised."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "088975D4"
+name = "sas_get_end_flag"
+purpose = "Returns __sceSasGetEndFlag when SAS is initialised, else 0."
+confidence = "confirmed"
+evidence = "Import wrapper guarded by DAT_08a8b30c."
+
+[[function]]
+module = "EBOOT"
+address = "08897610"
+name = "sas_reverb_set_von"
+purpose = "Calls __sceSasRevVON when SAS is initialised and __sceSasGetOutputmode does not return 1."
+confidence = "confirmed"
+evidence = "Import calls guarded by DAT_08a8b30c and the output mode."
+
+[[function]]
+module = "EBOOT"
+address = "088976A4"
+name = "sas_reverb_set_evol"
+purpose = "Calls __sceSasRevEVOL when SAS is initialised and __sceSasGetOutputmode does not return 1."
+confidence = "confirmed"
+evidence = "Import calls guarded by DAT_08a8b30c and the output mode."
+
+[[function]]
+module = "EBOOT"
+address = "08897738"
+name = "sas_reverb_set_type"
+purpose = "Calls __sceSasRevType when SAS is initialised and __sceSasGetOutputmode does not return 1."
+confidence = "confirmed"
+evidence = "Import calls guarded by DAT_08a8b30c and the output mode."
+
+[[function]]
+module = "EBOOT"
+address = "08897850"
+name = "sas_init_default"
+purpose = "Calls 088972F8 with 0x100 and returns its result."
+confidence = "inferred"
+evidence = "One-line wrapper; ran only at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "0889786C"
+name = "audio_reserve_channels"
+purpose = "On first use clears two 0x200-byte areas and reserves one 0x1C0-sample audio channel and three 0x100-sample channels, kept at DAT_08a8c608 and DAT_08a8c618; on a failed reservation releases and returns 0x80440001."
+confidence = "confirmed"
+evidence = "sceAudioChReserve and sceAudioChRelease calls; ran only at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "088979B4"
+name = "audio_slot_set_levels"
+purpose = "Stores two values of at most 0x1000 into slot index below 8 of a 0x40-stride table, at 08A8C20C and 08A8C210; 'levels' is read from the range alone."
+confidence = "guess"
+evidence = "Bounds checks and two stores; no reader of the fields seen."
+
+[[function]]
+module = "EBOOT"
+address = "08897A08"
+name = "audio_set_channel_data_len"
+purpose = "Calls sceAudioSetChannelDataLen for channel index below 4 when the length is 0x40 to 0xFFC0 and a multiple of 0x40."
+confidence = "confirmed"
+evidence = "Import wrapper over the DAT_08a8c618 channel table with these checks."
+
+[[function]]
+module = "EBOOT"
+address = "08897A78"
+name = "audio_change_channel_volume"
+purpose = "Calls sceAudioChangeChannelVolume for channel index below 4 with both values at most 0x8000."
+confidence = "confirmed"
+evidence = "Import wrapper over the DAT_08a8c618 channel table."
+
+[[function]]
+module = "EBOOT"
+address = "08897AE0"
+name = "audio_output_panned_blocking"
+purpose = "Calls sceAudioOutputPannedBlocking for channel index below 4 with both values at most 0x8000."
+confidence = "confirmed"
+evidence = "Import wrapper over the DAT_08a8c618 channel table; ran throughout every recording."
+
+[[function]]
+module = "EBOOT"
+address = "08897B48"
+name = "audio_change_channel_config"
+purpose = "Calls sceAudioChangeChannelConfig for channel index below 4."
+confidence = "confirmed"
+evidence = "Import wrapper over the DAT_08a8c618 channel table."
