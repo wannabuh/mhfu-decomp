@@ -1,0 +1,1495 @@
+[[function]]
+module = "lobby_task"
+address = "09ABE7C8"
+name = "motion_sound_cue_npc_arg3_random_by_variant_at_frame"
+purpose = "At frame f12 of the motion, if the NPC's +0x29A matches the game, plays 3D sound arg 3 with id npc_variant*2 + a random bit."
+confidence = "confirmed"
+evidence = "Whole body; caller motion_sound_cues_npc_by_field_1e8."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE1C8"
+name = "motion_sound_cue_npc_arg3_remapped_at_frame"
+purpose = "At frame f12, plays 3D sound arg 3 with p2 passed through npc_remap_cue_sound_id_for_motions_44c_to_451, via 09ABDF50."
+confidence = "confirmed"
+evidence = "Whole body; caller motion_sound_cues_npc_by_field_1e8."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE228"
+name = "motion_sound_cue_npc_arg3_at_frame"
+purpose = "At frame f12, plays 3D sound arg 3 with id p2, via 09ABDFE8."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A65B78"
+name = "lobby_points_menu_row_set_index_and_value"
+purpose = "Sets a row: +8 = index a2, +0 = u16 at 09B02F0A + index*4, +4 = 3."
+confidence = "inferred"
+evidence = "Whole body; the table's values look like prices (0x3E8, 0x5DC). Called 22 times by lobby_points_menu_build_list."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE420"
+name = "local_armor_part_series_equals_for_type_or_any"
+purpose = "True if the local hunter's part of type a2 has data byte 0x13 equal to a1; a2 of 5 tests the five types and is true on any match."
+confidence = "inferred"
+evidence = "Whole body. Byte 0x13 values 2 and 3 are the series whose color change messages 09AA1A40 pushes, so 'series' is from there."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD258"
+name = "npc_store_motion_request_in_layer"
+purpose = "Writes layer p5's motion id (+0x324), blend p3/2 (+0x334) and start frame p4 (+0x32C) and clears +0x48C of the layer."
+confidence = "confirmed"
+evidence = "Whole body; offsets are the fields used by 09ABCF48."
+
+[[function]]
+module = "lobby_task"
+address = "09ADC538"
+name = "npc_group_find_by_npc_id"
+purpose = "Returns the first entry of the group's array (+0xC, count +0x5C) whose npc_id +0x480 equals p2, or 0."
+confidence = "confirmed"
+evidence = "Whole body; Npc +0x480 is npc_id; caller npc_record_menu_commit_row_deduct_cost_add_or_remove."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B8C0"
+name = "lobby_text_get_string_table_0x03"
+purpose = "Returns entry a1 of pack section 3 through 09A7B820."
+confidence = "confirmed"
+evidence = "Generated C: a2=a1, a1=3, tail call. Section 3 in a shops snapshot holds the bookshelf, hair and Piggie text."
+
+[[function]]
+module = "lobby_task"
+address = "09AA6778"
+name = "equip_is_weapon_kind_1_or_5"
+purpose = "False for types under 5; else true when weapon_kind_by_type_and_id is 1 or 5."
+confidence = "confirmed"
+evidence = "Whole body. Its callers use it to choose gun part text (Silencer, Long Barrel, Zoom Scope), so these kinds are probably the bowguns."
+
+[[function]]
+module = "lobby_task"
+address = "09AE9050"
+name = "equip_set_fill_skill_panel_on_temp_hunter"
+purpose = "Builds a temporary hunter from equipment set p2 (game +0x47D4 + p2*0x20, or the list at p1+0xA2 if p2<0), recomputes skills, fills the skill panel and stores page counts at p1 +0x1E,+0x1F,+0x20,+0x63,+0x64."
+confidence = "inferred"
+evidence = "Whole body; set text 'Set %2d' in 09AE9CD8."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B200"
+name = "lobby_hud_message_push_with_90_tick_cooldown"
+purpose = "For index 0..0x16, if the timer +0x18 is 0 pushes the string from table 09B05390 and sets the timer to 0x5A; returns whether it pushed."
+confidence = "confirmed"
+evidence = "Whole body; table strings read from a snapshot ('Item Box is full.', 'Quest under contract.')."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE660"
+name = "motion_sound_cue_npc_arg3_remapped_with_record_param_at_frame"
+purpose = "At frame f12, if +0x29A matches, plays 3D sound arg 3 with the remapped id and a parameter from tables chosen by npc_variant and the NPC's record."
+confidence = "inferred"
+evidence = "Whole body; what the parameter does in the sound call isn't read."
+
+[[function]]
+module = "lobby_task"
+address = "09A6BCC8"
+name = "kitchen_menu_draw_help_window"
+purpose = "Draws window p2 of table 09B03298 with the text from table 09B05628 index p1 (none if negative)."
+confidence = "inferred"
+evidence = "Whole body; table text: 'Change the number of Chefs...', 'Change your Chef order...'."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE6A8"
+name = "equip_type_swap_0_and_5"
+purpose = "Maps 0 to 5 and 5 to 0, 1..4 to themselves, anything else to 5."
+confidence = "confirmed"
+evidence = "Whole body. Used by box screens to turn a row into an equipment type: inferred from 5 being a weapon type."
+
+[[function]]
+module = "lobby_task"
+address = "09A91E10"
+name = "farm_row_is_unlocked"
+purpose = "True when points_menu_level_a is at least row a1."
+confidence = "inferred"
+evidence = "Whole body; callers loop rows 0..2 reading the 0x28-byte records at game +0x6A2E8; strings 'Row Level', 'Select the row where you'd like to plant this item' nearby."
+
+[[function]]
+module = "lobby_task"
+address = "09A9CA28"
+name = "npc_kind_0e_line_has_later_flag_set"
+purpose = "For line id 0x39, 3B, 3D, 3F, 41, 42, 45, 47 or 49, true if any gamedata flag in its list is set; each list runs from a point to the end of 0x175..0x17E, 0x1CA, 0x1CC, 0x1CE, 0x1D0, 0x1D1. Other ids false."
+confidence = "confirmed"
+evidence = "Whole body; caller npc_kind_0e_talk_pick_line. That later flags mean story progress isn't shown here."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8DF0"
+name = "equip_skill_panel_preview_with_piece_swapped"
+purpose = "Builds a temporary hunter from p2's equipment with record p3 in its slot (weapon for types 5,6), recomputes skills, fills the skill panel, stores the record at p1+0x12, whether it fits at +0x1E and page counts at +0x1F,+0x20; returns +0x20."
+confidence = "confirmed"
+evidence = "Whole body. Same temporary hunter method as equip_set_fill_skill_panel_on_temp_hunter."
+
+[[function]]
+module = "lobby_task"
+address = "09A8FAC8"
+name = "loaded_data_language_text_ptr"
+purpose = "Returns entry p2 of the current language's offset table in the block loaded_data_base_by_id_range gives; offsets relative to +0x14, or +0x18 for id 60000 and up."
+confidence = "inferred"
+evidence = "Whole body; language index at global +0xF7A574 is the one the 'pts/pti/pkt' choice in 09A954B8 tests."
+
+[[function]]
+module = "lobby_task"
+address = "09AB21D8"
+name = "lobby_hunter_enter_state_group_7"
+purpose = "Sets byte +0x64 of DAT_09CFB998 to 1, then calls the set state method (+0x6C) with group 7, state p2."
+confidence = "inferred"
+evidence = "Whole body; hunter_state_run_village runs group 7 through lobby_hunter_group_7_state_dispatch; +0x6C with (self, group, state, 0) as in 09AAC0A8."
+
+[[function]]
+module = "lobby_task"
+address = "09ADC4C8"
+name = "npc_group_set_flag_4_on_all"
+purpose = "ORs 4 into +4 of every entry in the group's array (+0xC, count +0x5C)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A78608"
+name = "lobby_task_set_flag_73"
+purpose = "Sets byte +0x73 to 1."
+confidence = "confirmed"
+evidence = "One line. Read in 09A71B10 only: set while the SELECT bit of the pad word is pressed during a step, tested later by lobby_task_get_flag_73."
+
+[[function]]
+module = "lobby_task"
+address = "09AE88A0"
+name = "equip_box_find_matching_record"
+purpose = "Returns the index of the first non-empty box record equal to a2 over the box capacity, or 0xFFFF."
+confidence = "confirmed"
+evidence = "Whole body; compare is equipment_record_equal_0885EEA4; caller box_apply_sort_remap_equipped_indices."
+
+[[function]]
+module = "lobby_task"
+address = "09AA18C8"
+name = "equip_menu_preview_record_init"
+purpose = "Fills the preview record at +0x5E: present 1, type p2, id p3, +0x62 = p4, the three slots 0."
+confidence = "confirmed"
+evidence = "Whole body; the same record is copied by the other preview functions."
+
+[[function]]
+module = "lobby_task"
+address = "09AA8AD0"
+name = "deco_menu_preview_row_on_equipment"
+purpose = "Copies the chosen equipment record (+0x52) to the preview (+0x5E); removes the row's decoration slot in mode 2, adds it to the first free slot in mode 1 (row kinds 0 and 3); refreshes the skill or status panel for view +0x22."
+confidence = "inferred"
+evidence = "Whole body; 885E9F8 clears slot p2, 885E950 fills the first zero slot; mode text in 09AA80D0 and 09AA8D80 'Attach which Decoration?', 'Remove which Decoration?'."
+
+[[function]]
+module = "lobby_task"
+address = "09AA09B8"
+name = "equip_menu_two_choice_input"
+purpose = "Two choice input on +0x28, returning the next state: cross gives 0 on the first choice and 3 on the second, circle moves to the second or gives 3, left and right move; otherwise 2."
+confidence = "confirmed"
+evidence = "Whole body; caller equip_menu_state_machine."
+
+[[function]]
+module = "lobby_task"
+address = "09AA72F8"
+name = "deco_menu_build_rows_and_help"
+purpose = "Fills rows for mode +0x25 (0 through 09AA73C8, 1 and 2 through deco_menu_fill_box_rows); in box view 4 splits cursor +0x1C into page +0x3A and row +0x3C by 100; sets the help text."
+confidence = "inferred"
+evidence = "Whole body; 09AA73C8 itself is read only by its caller's mode."
+
+[[function]]
+module = "lobby_task"
+address = "09A8F778"
+name = "net_session_list_find_by_mac"
+purpose = "Compares the 6 bytes at *(p1+0x1C) with the key at +0x34 of each of 4 records 0x1C apart; sets +2 to the index and returns the record at +0x20, or 0."
+confidence = "inferred"
+evidence = "Whole body; 'mac' from the same comparison against net_get_local_mac_buffer in 09AAAC88. 'session' from net list source DAT_09A0B684."
+
+[[function]]
+module = "lobby_task"
+address = "09A78600"
+name = "lobby_task_get_flag_73"
+purpose = "Returns byte +0x73."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "lobby_task"
+address = "09A8F270"
+name = "net_session_list_copy_up_to_4"
+purpose = "Copies count and records from DAT_09A0B684 +0x12D8.. (0x64 apart) to p1 +3 and 0x1C-byte records at +0x20, marks +0x33; clears the rest up to 4."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AEA658"
+name = "equip_box_count_of_type"
+purpose = "Counts non-empty box records of type a1 with non-zero id; for a1 of 5 or more counts types 5 and 6 together."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA5D80"
+name = "item_take_from_pouch_then_box"
+purpose = "Removes count a2 of item a1 from the saved pouch, the rest from the box; item 0 does nothing."
+confidence = "confirmed"
+evidence = "Whole body through item_pouch_saved_add_count and item_box_remove_count."
+
+[[function]]
+module = "lobby_task"
+address = "09A8F898"
+name = "net_session_check_entry_status"
+purpose = "If +0x12C4 bit 0x200 is set clears it and returns 1; else refreshes the list and finds the entry: 1 if absent or +0x13 zero, 0 if count +6 is below limit +7, else 2."
+confidence = "inferred"
+evidence = "Whole body; count and limit are from the 'n/m' text in net_session_format_member_count_text."
+
+[[function]]
+module = "lobby_task"
+address = "09ABEB20"
+name = "npc_record_0_and_game_sub_mode_not_7"
+purpose = "True if record_index is 0 and field +0x6C of DAT_09CFB998 isn't 7."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA3650"
+name = "forge_menu_refresh_row_preview"
+purpose = "Loads the row's record into the preview and refreshes the panel and help text for create or improve, weapon or armor; page counts for view +0x22."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04FB0..B6 'Create which weapon?', 'Improve which weapon?', 'Create which armor?', 'Improve which armor?'."
+
+[[function]]
+module = "lobby_task"
+address = "09AA4F38"
+name = "equip_improve_menu_refresh_row_preview"
+purpose = "Works out the improved record, refreshes the panel for view +0x22 and sets the help: for a bowgun the row's action (Level Up, Attach Silencer and so on), otherwise 'Execute which improvement?' or the level text."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04FC8..DC, 09B04FEA."
+
+[[function]]
+module = "lobby_task"
+address = "09AA10A0"
+name = "equip_shop_refresh_row_preview"
+purpose = "Loads the row's or box record into the preview, refreshes the panel for view +0x22 and sets the purchase help for weapon or armor."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04F60/62 'Please select a weapon to purchase'."
+
+[[function]]
+module = "lobby_task"
+address = "09AA04E0"
+name = "equip_shop_fill_buy_rows"
+purpose = "Clears the rows and fills them from the shop's list for the tab, keeping pieces the hunter's body may use: name, price, id, disabled if unaffordable or box full; sets page count and +0x29 to 1. Pushes 'Item Box is full.' when it is."
+confidence = "inferred"
+evidence = "Whole body; message table index 9; shop_money_at_least_09A801E0."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7928"
+name = "box_menu_draw_bottom_button_hint"
+purpose = "Draws one of table 09B05190's hints by language position, chosen from +0x30, the row's kind and +0x54; may also draw '~B02Delete Set'."
+confidence = "inferred"
+evidence = "Whole body; table strings '~C00~B03Skill Info', '~C00~B03Return', '~C00~B03Status', '~B02Delete Set'."
+
+[[function]]
+module = "lobby_task"
+address = "09AB54C8"
+name = "preview_hunter_set_part_and_settle_chains"
+purpose = "Stores type, mode, id and body on the preview hunter; armor of mode 2 calls 09AB8188 and runs 50 spring chain steps; weapons set the weapon fields and row and prime the effect."
+confidence = "inferred"
+evidence = "Whole body; callers item_equip_menu_preview_update_and_load_step and hair_preview_tick."
+
+[[function]]
+module = "lobby_task"
+address = "09A65E40"
+name = "lobby_points_can_exchange_item_count"
+purpose = "Whether count p3 of item p2 fits the saved pouch and the Pokke Points cover it; a room of 0xFF allows only a single item not already held."
+confidence = "inferred"
+evidence = "Whole body; gamedata_points_696e8_at_least; string 'exchange for Pokke Points' in lobby_points_menu_fill_rows."
+
+[[function]]
+module = "lobby_task"
+address = "09A91E68"
+name = "farm_item_is_plantable"
+purpose = "True for items 0xC2..0xC4, 0x5D, 0xA3, 0xA4, 0xA7, 0xAB, 0xB9, 0xBA, 0xBB, 0xBE."
+confidence = "inferred"
+evidence = "Whole body; names from a snapshot: Red, Green, Yellow Seed, Huskberry, Herb and so on. Farm strings nearby 'Select the item you'd like to plant.'"
+
+[[function]]
+module = "lobby_task"
+address = "09AA49F8"
+name = "item_pouch_plus_box_at_least"
+purpose = "True if pouch plus box count of item a1 is at least a2; item 0 is always true."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A91E38"
+name = "farm_row_is_planted"
+purpose = "True when row a1's word at game +0x6A2E8 (0x28-byte records) isn't 0."
+confidence = "inferred"
+evidence = "Whole body; other 'row' evidence at farm_row_is_unlocked."
+
+[[function]]
+module = "lobby_task"
+address = "09A8A580"
+name = "quest_menu_play_cue_8_and_refund_fee"
+purpose = "Plays lobby sound cue 8 and calls game_refund_quest_fee_paid."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AF3498"
+name = "fx_spawn_at_bone_10_rotated_by_facing"
+purpose = "Allocates an fx (id 0x25, 30 ticks) on owner p1, kind p2; at bone 10 plus an offset rotated by facing, mirrored in x for kind 2; random spin, vertical speed and scale; links it into the list at +0x19030."
+confidence = "confirmed"
+evidence = "Whole body. Used by npc_event_steps_spin_fx_dialogue."
+
+[[function]]
+module = "lobby_task"
+address = "09A82270"
+name = "item_detail_draw_decoration_skills"
+purpose = "For item a1's row in the decoration table draws up to 4 skill names and points; 'No Skill Effects' if none; without t0 also 'Required Slots:%d'."
+confidence = "inferred"
+evidence = "Whole body; strings at 089ACAF2, 089AC99C; caller item_equip_menu_draw_item_detail."
+
+[[function]]
+module = "lobby_task"
+address = "09AA5E20"
+name = "equip_menu_commit_create_or_improve"
+purpose = "Writes the result: in improve mode to box record +0x1C (armor level +1; a gun part action by the row's kind, 885E348..885E5C0), refreshing if it's equipped; otherwise adds a new box record. Returns the box index."
+confidence = "inferred"
+evidence = "Whole body; row kinds match the Attach and Remove strings of equip_improve_menu_refresh_row_preview; caller equip_menu_state_machine."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8070"
+name = "item_box_menu_transfer_count_input"
+purpose = "Works out the maximum for mode p3 from the box, pouch and stack limits; left sets 1, right the maximum, up and down step +0x58; plays sounds; +0x57 set at the maximum."
+confidence = "confirmed"
+evidence = "Whole body; callers item_box_menu_tab_store_pouch_items, item_box_menu_tab_take_to_pouch."
+
+[[function]]
+module = "lobby_task"
+address = "09A65BA8"
+name = "lobby_points_menu_fill_rows"
+purpose = "Clears and fills rows from the 09A7FDD0 list: name, price, id, disabled state from lobby_points_can_exchange_item_count or item_is_obtained for the unique items; sets help text and page count."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05D86/88 'exchange for Pokke Points', 'Item Bag is full'."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7120"
+name = "box_menu_panel_cycle_input"
+purpose = "Circle steps panel +0x54 back or returns 0x2000 when already at panel 0; square cycles it forward; step size 1 or 2 by the row's kind; panel 2 passes other buttons to the page cursor."
+confidence = "confirmed"
+evidence = "Whole body; buttons as in the sibling inputs."
+
+[[function]]
+module = "lobby_task"
+address = "09AA67D0"
+name = "equip_refresh_and_copy_equipped_to_record"
+purpose = "Calls equip_refresh_equipped_copies then copies the six 12-byte equipped records (game +0x4C0..) to the hunter record copy (game +0x60..)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AEBF60"
+name = "hud_draw_color_swatch"
+purpose = "Draws a 10x10 box in colour a3,t0,t1 with a grey border; with t2 of 1 the border is larger and pulses with the tick."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA7F50"
+name = "deco_menu_preview_load_box_record"
+purpose = "In modes 1 and 2 copies box record +0x40 to the preview at +0x5E and refreshes the panel for view +0x22."
+confidence = "inferred"
+evidence = "Whole body; the mode meanings are those of deco_menu_set_help_for_row."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF728"
+name = "hunter_motion_1ab_1ac_idle_and_periodic_fx"
+purpose = "p2 bit 2: keeps motion 0x1AB, with 1 in 128 to play 0x1AC; otherwise restarts 0x1AB when finished. p2 bit 1: at ticks 0, 10 and 20 of each 60 spawns fx 4 through 09C60F48."
+confidence = "confirmed"
+evidence = "Whole body; callers 09AABBC0 (before the save prompt) and lobby_hunter_rest_countdown."
+
+[[function]]
+module = "lobby_task"
+address = "09AF8A78"
+name = "object_pick_next_of_4_behaviors_by_weights"
+purpose = "Draws a random 0..99 and picks the first of 4 behaviours whose byte in table 09B0DC70, row +0x38, exceeds it; calls its setup, which sets a timer and a state function."
+confidence = "confirmed"
+evidence = "Whole body and 09AF8B78, 09AF8C18. The object's kind isn't known."
+
+[[function]]
+module = "lobby_task"
+address = "09ABDD30"
+name = "npc_play_sound_2d_or_3d_if_field_29a_matches"
+purpose = "If +0x29A matches the game: plays bank p2, id p3 in 2D when p4 is 0, else 3D at position p4."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A82190"
+name = "shop_draw_skill_info_hint"
+purpose = "Draws '~B03Skill Info' centred, 0x70 lower if a1 is set."
+confidence = "inferred"
+evidence = "Whole body; string 09B04F70; caller shop_draw_window_extras_by_mode."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF4A0"
+name = "net_adhoc_ptp_send_all_chunked_and_flush"
+purpose = "Sends a3 bytes of a2 in pieces of up to 0x5A4 through a stack buffer with sceNetAdhocPtpSend, then sceNetAdhocPtpFlush; returns the first error or 0."
+confidence = "confirmed"
+evidence = "Whole body; imports named."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC500"
+name = "equip_piece_fits_set_hunter_type"
+purpose = "Armor: its data flags +4 have bit 4 if the set's weapon is type 5, else bit 8. Weapon: true if it isn't the set's own weapon index."
+confidence = "inferred"
+evidence = "Whole body; string 'This item cannot be equipped in your current hunter type'."
+
+[[function]]
+module = "lobby_task"
+address = "09AEF3F0"
+name = "net_adhoc_ptp_recv_chunked"
+purpose = "Receives a3 bytes into a2 in pieces of up to 0x5A4 through sceNetAdhocPtpRecv; returns the first error or 0."
+confidence = "confirmed"
+evidence = "Whole body; imports named."
+
+[[function]]
+module = "lobby_task"
+address = "09AEA860"
+name = "equip_box_nth_index_of_tab"
+purpose = "Returns the box index of the p3-th record of tab p2's type, through table 09B0AEB0 and equip_box_next_of_type."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA6630"
+name = "armor_part_model_id_is_zero_for_body"
+purpose = "False for weapons; for armor true when 088516A4 gives id 0 for the hunter's body variant +0x4E0 and part."
+confidence = "inferred"
+evidence = "Whole body; 88516A4's first part read, returning model or texture ids from per-body tables."
+
+[[function]]
+module = "lobby_task"
+address = "09A92508"
+name = "farm_row_start_effect_with_30_tick_timer"
+purpose = "Calls 08829F04 mode 1 (plays sound 0xE, spawns sprites) at x 0x70, y from table 09B04D28 by p2, and sets +4 to 0x1E."
+confidence = "inferred"
+evidence = "Whole body; first part of 8829F04 read; caller farm_apply_fertilizer_and_consume."
+
+[[function]]
+module = "lobby_task"
+address = "09AF4128"
+name = "fx_alloc_element_run_and_set_owner_a"
+purpose = "Allocates an element run for the fx's +0x20 high byte into +0x44, marks +0x41 and sets the owner; returns success."
+confidence = "confirmed"
+evidence = "Whole body; three identical copies."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B820"
+name = "lobby_pack_section_entry_by_id"
+purpose = "Returns the entry a2 of section a1 of tagged heap block 4, or 0 for 0xFFFF or an offset of -1."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AFEC30"
+name = "fx_clear_flag_or_spawn_child_by_3e_3c"
+purpose = "Clears +4 bit 1 when +0x3E is below +0x3C; otherwise spawns through fx_spawn_kinds_0_to_4_at_pos with kind +0x38 - 1, ticks +0x40, position +0x50, scale +0x48."
+confidence = "confirmed"
+evidence = "Whole body and generated C."
+
+[[function]]
+module = "lobby_task"
+address = "09AFBD80"
+name = "parabola_bump_a"
+purpose = "For f14 under f12: f13 - f13*(2*f14/f12 - 1)^2, else 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA66F8"
+name = "equip_is_weapon_kind_10"
+purpose = "False for types under 5; else true for weapon kind 10."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A8FA88"
+name = "loaded_data_base_by_id_range"
+purpose = "Returns *(+0xC) + +0x14, or *(+0x10) + +0x18 when word +4 is 60000 or more."
+confidence = "confirmed"
+evidence = "Whole body. 09A8FEC0 copies quest-like records from it; 'quest' isn't shown."
+
+[[function]]
+module = "lobby_task"
+address = "09AB5848"
+name = "preview_hunter_set_byte_10fc"
+purpose = "Writes p2 to byte +0x10FC."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "lobby_task"
+address = "09AEAAF8"
+name = "box_menu_draw_set_with_temporary_equip"
+purpose = "Temporarily puts equipment set p3 on the game's equipped records and the local hunter, draws one of three panels by p2 (stats, status or skill), then restores everything and refreshes the hunter."
+confidence = "inferred"
+evidence = "Whole body; strings 'Set %2d', 'Status'."
+
+[[function]]
+module = "lobby_task"
+address = "09A69F80"
+name = "kitchen_chef_records_apply_new_order"
+purpose = "Applies the order in +0xC..+0x10 to 5 records of 0x70 bytes at game +0x696FC by swapping, and remaps npc_job_record; also stores +0x11 in field_69935."
+confidence = "inferred"
+evidence = "Whole body; string 'Change your Chef order.' in kitchen_menu_draw_help_window's table."
+
+[[function]]
+module = "lobby_task"
+address = "09AEA180"
+name = "box_menu_draw_set_piece_list"
+purpose = "Draws a page of 7 equipment rows of tab p2 with icons, markers for equipped and for the set's own piece, greyed names when unfit, the page counter or 'No Equipment'."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05D72, 09B05D6C."
+
+[[function]]
+module = "lobby_task"
+address = "09AF31A0"
+name = "fx_spawn_at_pos_jittered_15"
+purpose = "Allocates an fx (id 0x48 or 0x4A at random, 16 ticks), kind p2, at p1 plus random up to 15 on each axis, random spin and vertical speed; links it into the list."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8538"
+name = "box_menu_equip_list_input"
+purpose = "Handles list +0x40 or +0x42 by +0x37: square opens details or marks a choice, circle closes or returns 0x2000, moves the page in the detail view; plays sounds; returns buttons left to handle."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A79030"
+name = "lobby_draw_gathering_hall_choice_window"
+purpose = "Draws a window titled 'Which Gathering Hall would you like to join?' with DAT_09A0B684 +0xEE0 numbered entries in two columns and a cursor at a1."
+confidence = "inferred"
+evidence = "Whole body; string 09B053F6; 8832884 formats the numbered names."
+
+[[function]]
+module = "lobby_task"
+address = "09AD1F40"
+name = "npc_felyne_place_in_row_and_play_442_or_443"
+purpose = "State steps: places the NPC at x = 4900 + index*65 (y, z by record kind 3), plays 0x3E9, waits for 09C1C140, plays 0x442 or rarely 0x443, then steps the counter in DAT_09CFB998 when done."
+confidence = "inferred"
+evidence = "Whole body; record +0x696FC as in kitchen_chef_records_apply_new_order; 'felyne' is from there."
+
+[[function]]
+module = "lobby_task"
+address = "09ACC068"
+name = "npc_idle_motion_cycle_414_415_416"
+purpose = "Motion steps in state_scratch_a: 0x414 repeated, at frame 336 picks 0x416, 0x415 or another 0x414; from 0x415 at frame 140 returns or repeats."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A95020"
+name = "destination_menu_draw_unlocked_rows"
+purpose = "Draws the 'Destination' list with 7 place names up to count +5, others as '????'; cursor +2."
+confidence = "inferred"
+evidence = "Whole body; strings 'Destination', 'Mountains', 'Jungle', '????'."
+
+[[function]]
+module = "lobby_task"
+address = "09A6BB38"
+name = "kitchen_board_menu_draw"
+purpose = "Draws the 'Kitchen Board' list of Shift Chart, Order, Uniform, BBQ Service, BBQ Pickup, Change/Dismiss, greying BBQ Service when npc_job_state isn't 0 and BBQ Pickup when it isn't 2."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05600, 09B05602, 09B05DF0."
+
+[[function]]
+module = "lobby_task"
+address = "09AA0368"
+name = "equip_shop_fill_sell_rows"
+purpose = "Fills a row for each box slot: name, sale value, marked if equipped or empty; sets help 'select the equipment you would like to sell', page count, view 4 and flag 4."
+confidence = "inferred"
+evidence = "Whole body; string 09B04F6A."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE558"
+name = "armor_series_3_pieces_share_color"
+purpose = "True unless two local armor parts of series 3 differ in their three colour bytes (game +0x6AC3F..41) or one has a high nibble of 1 at +0x6AC3E."
+confidence = "inferred"
+evidence = "Whole body; the colour reading is from 09AEC2B8 and color_rgb_bytes_add_clamped; X/Z series message in 09AA1A40 gives series 3."
+
+[[function]]
+module = "lobby_task"
+address = "09A954B8"
+name = "lobby_draw_pokke_points_window"
+purpose = "Draws a window at the screen's top right with the points as %7dpts, or pti/pkt by language."
+confidence = "inferred"
+evidence = "Whole body; strings; g_game->points."
+
+[[function]]
+module = "lobby_task"
+address = "09AEBE28"
+name = "box_menu_draw_colored_diamond"
+purpose = "Draws '◆' in black then, 1 pixel in and smaller, in colour a3,t0,t1."
+confidence = "confirmed"
+evidence = "Whole body; string 09B051B8."
+
+[[function]]
+module = "lobby_task"
+address = "09AEA738"
+name = "equip_box_next_of_type"
+purpose = "Advances index *a2 to the record after the next non-empty one of type a1 (5 and 6 together for 5 or more) and returns that record, or 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A82078"
+name = "shop_draw_info_or_back_hint"
+purpose = "Draws sprite 0x35 and 'Info' when view +0x22 is 0, else 'Back'."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04EEE, 09B04EF2."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC438"
+name = "equip_set_cursor_step_to_nonempty"
+purpose = "Steps *a1 forward or back through 20 sets with wrap to the next whose first index isn't -1; returns whether one was found."
+confidence = "confirmed"
+evidence = "Whole body; 0x20-byte sets at game +0x47D4."
+
+[[function]]
+module = "lobby_task"
+address = "09AB0410"
+name = "lobby_hunter_group_6_play_table_motion_then_idle"
+purpose = "First step plays motion from table 09B07D70 row p2; when finished enters idle with the next word of the row."
+confidence = "confirmed"
+evidence = "Whole body; caller lobby_hunter_group_6_state_dispatch."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8D40"
+name = "box_combine_return_selected_pair_to_box"
+purpose = "In mode +0x36 of 2, +0x39 of 4, adds the items at +0x8A and +0x8E back to the box, at their indexes +0x88 and +0x8C unless +0x94 is 1."
+confidence = "guess"
+evidence = "Whole body; 'combine' is from table_89a48f0_find_pair_entry's callers on the same screen."
+
+[[function]]
+module = "lobby_task"
+address = "09A7D3D8"
+name = "lobby_job_queue_add_equip_load"
+purpose = "Takes the first of 8 free 0x84-byte jobs and sets it to 4 with slot for type p2, id p3 and p4."
+confidence = "inferred"
+evidence = "Whole body; the object is DAT_09B23790, used with lobby_job_queue_clear_all_but_head."
+
+[[function]]
+module = "lobby_task"
+address = "09A90098"
+name = "quest_data_unload_and_close_dialogue"
+purpose = "If +0xC is set frees heap tag 0x19, resets quest data; clears dialogue state, DAT_09A0B684 +0x12C8, and sets the state to 0."
+confidence = "inferred"
+evidence = "Whole body; quest_data_load_reset."
+
+[[function]]
+module = "lobby_task"
+address = "09AE9C50"
+name = "equip_clear_box_index_for_part"
+purpose = "Sets the equipped box index of part a1 (0..4) to 0xFFFF and returns 1; 5, 6 and others return 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE080"
+name = "npc_play_3d_sound_arg_1_if_field_29a_matches"
+purpose = "If +0x29A matches: plays 3D sound arg 1, id p2, at position p3."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A91F08"
+name = "farm_fertilizer_item_is_usable"
+purpose = "True for items 0x43 and 0x44; for 0x89 only with 5 or more in pouch plus box."
+confidence = "inferred"
+evidence = "Whole body; item names Dung, Wyvern Droppings, Worm from a snapshot; farm_apply_fertilizer_and_consume consumes 5 Worms."
+
+[[function]]
+module = "lobby_task"
+address = "09AF72E0"
+name = "fx_alloc_element_run_and_set_owner_b"
+purpose = "Same as fx_alloc_element_run_and_set_owner_a."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7B40"
+name = "item_box_menu_draw_transfer_count"
+purpose = "Draws count +0x58 at position table p2 unless it's 9999, through 08832CE4."
+confidence = "inferred"
+evidence = "Whole body; the count is the one item_box_menu_transfer_count_input moves."
+
+[[function]]
+module = "lobby_task"
+address = "09A65DE8"
+name = "item_points_price"
+purpose = "Returns the item table word at 0899D2C4 for item a1, through a real u32 to float to int conversion."
+confidence = "inferred"
+evidence = "Generated C read whole (rt_trunc_w); lobby_points_can_exchange_item_count compares it to the points."
+
+[[function]]
+module = "lobby_task"
+address = "09AB1AA8"
+name = "lobby_hunter_state_not_0_to_4_or_c"
+purpose = "False for states 0..4 and 0xC, true otherwise."
+confidence = "confirmed"
+evidence = "Whole body; caller 09AB0C10 compares states from a remote record."
+
+[[function]]
+module = "lobby_task"
+address = "09A6C060"
+name = "kitchen_bbq_item_index"
+purpose = "Returns the index of a1 in the 8 item ids at 09B031B8, or -1."
+confidence = "inferred"
+evidence = "Whole body; ids are Raw Meat, Knife Mackerel and other fish; string 'cook your meat or fish via the Felyne BBQ Service'."
+
+[[function]]
+module = "lobby_task"
+address = "09A5FC78"
+name = "menu_entry_tier_condition_met"
+purpose = "True when +0xC isn't 1, else gamedata_condition_tier_reached for tier +8."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C508"
+name = "net_local_party_record_byte_56"
+purpose = "Returns byte +0x56 of the party record found by the local MAC."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AAAC60"
+name = "lobby_net_peer_record_by_index"
+purpose = "Returns p1 + index*200 + 0x57C."
+confidence = "confirmed"
+evidence = "One line; same layout as lobby_net_peer_record_find_by_mac."
+
+[[function]]
+module = "lobby_task"
+address = "09AA0350"
+name = "equip_shop_use_row_table_52f8_mode_2"
+purpose = "Sets +0xC to 09B052F8 and +0x27 to 2."
+confidence = "confirmed"
+evidence = "Two stores."
+
+[[function]]
+module = "lobby_task"
+address = "09A6BD48"
+name = "lobby_hud_draw_883d6d0_at_16_16"
+purpose = "Calls 0883D6D0 at x and y 0x10 with string a1."
+confidence = "confirmed"
+evidence = "Whole body; callers are kitchen menus; 883D6D0 read only in part."
+
+[[function]]
+module = "lobby_task"
+address = "09AB7528"
+name = "preview_hunter_pose_part_bones"
+purpose = "By type: armor parts get fixed bone offsets and rotations from tables (0x10F1 0..4), weapons by class; then updates bone roots and skin matrices."
+confidence = "inferred"
+evidence = "Whole body; rotation matrices repeated; caller item_equip_menu_preview_update_and_load_step."
+
+[[function]]
+module = "lobby_task"
+address = "09AD3858"
+name = "npc_event_steps_spin_fx_dialogue"
+purpose = "Long scripted steps: hides the NPC 500 below, reveals it spinning with fx, plays motions, opens dialogue page 0x105, on dialogue result 3 updates a record +0x696FC of 4 or clears bit 0x10 of npc_records_b, plays tracks 0x19FC or 0x19FD."
+confidence = "inferred"
+evidence = "Whole body; state 0x9D; I can't say what the event is."
+
+[[function]]
+module = "lobby_task"
+address = "09AF58C0"
+name = "fx_spawn_kinds_0_to_4_at_pos"
+purpose = "Allocates an fx at position p3 of ticks p2 with kind p1: kind 4 random id 0x48/0x4A with random spread and speed, others ids 0, 0x51, 0x10, 0x2A and zero motion; scale f12; links it into the list."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AB14C0"
+name = "save_prompt_steps_tick"
+purpose = "Once per frame id: steps through savedata session start, load or save (+0x97C), and two choice windows with sounds, returning 1 or 2 at the end, otherwise 0."
+confidence = "inferred"
+evidence = "Whole body; save_menu_draw_message, savedata_session_init. Callers 09AAB990 and 09AABBC0."
+
+[[function]]
+module = "lobby_task"
+address = "09AA0AD0"
+name = "equip_shop_list_input"
+purpose = "Pad handling of the shop list: circle back or 3, cross 0 or a refused 1, up/down/left/right moves with the box view by 100s, square cycles the view, L/R page, SELECT queues the preview, returns 2 to stay; updates the row +0x40."
+confidence = "inferred"
+evidence = "Whole body; lobby_sound_play_by_cue_index; caller 09A9FD10, with equip_shop_commit_buy_or_sell's modes."
+
+[[function]]
+module = "lobby_task"
+address = "09AE9CD8"
+name = "box_menu_draw_set_contents_window"
+purpose = "Draws a window 'Set N' with the set's weapon and 5 parts as icons and names, greyed if unfit, and 'Register' when bit 8 is given."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05D68, 09B05D70."
+
+[[function]]
+module = "lobby_task"
+address = "09AC0130"
+name = "npc_talk_turn_to_hunter_wait_then_turn_back"
+purpose = "Steps: turns over 10 ticks to face the local hunter, plays 0x3F0, waits for the talk to release it, turns back, restores its place and resumes its sequence or state 0x6A."
+confidence = "confirmed"
+evidence = "Whole body; npc_talk_is_npc_released_by_talk_state."
+
+[[function]]
+module = "lobby_task"
+address = "09AA2AB8"
+name = "forge_menu_fill_rows"
+purpose = "Mode 0: rows from the recipe table for the tab, filtered by hunter type and body, with price and material check; mode 1: a row per box slot. Pushes 'Item Box is full.'; sets page count and view."
+confidence = "inferred"
+evidence = "Whole body; recipe_check_material_availability; message index 9."
+
+[[function]]
+module = "lobby_task"
+address = "09AE94F0"
+name = "box_menu_draw_skill_details_and_activate_panels"
+purpose = "Draws the 'Skill Details' window with the panel and page counter, and '[Activate Skill]' with preview stats; or the empty windows if +0x1E is 0."
+confidence = "inferred"
+evidence = "Whole body; strings 089AC9EE, 089AC9E6."
+
+[[function]]
+module = "lobby_task"
+address = "09AF3AB8"
+name = "fx_spawn_id_5e_with_side_velocity"
+purpose = "Allocates an fx (id 0x5E, 10 ticks) at p1 raised 20, kind p2, moving -75 or +62 in x by p3 and +58 in z over its life; scale f12; links it into the list."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09ABF030"
+name = "npc_walk_to_sequence_point"
+purpose = "First step plays motion 0x2A4 or 2 by p2; then turns a tenth of the way to the current sequence point each tick and steps the sequence within 50."
+confidence = "confirmed"
+evidence = "Whole body; npc_step_state_sequence."
+
+[[function]]
+module = "lobby_task"
+address = "09A60D80"
+name = "hair_preview_tick"
+purpose = "Three steps on +0x38: creates or shows a preview hunter on SELECT (or with data install), queues the hair model load, then sets the model, poses it, and applies colour +0x30; SELECT closes it."
+confidence = "inferred"
+evidence = "Whole body; preview_hunter_set_part_and_settle_chains type 1; string 'Display hair style: SELECT button' in hair_preview_draw_window."
+
+[[function]]
+module = "lobby_task"
+address = "09A92218"
+name = "farm_apply_fertilizer_and_consume"
+purpose = "Item in the chosen row: Worm adds 1 to the row's level (uses 5), Dung adds 2 (uses 1), Wyvern Droppings adds 2 to all rows (uses 1), capped at 2; takes from pouch then box and logs it."
+confidence = "inferred"
+evidence = "Whole body; item names from a snapshot; +0x6A2EA in 0x28-byte records; 'Row Level' string."
+
+[[function]]
+module = "lobby_task"
+address = "09AAC0A8"
+name = "lobby_hunter_spot_state_motion_261_buttons_to_states"
+purpose = "Plays motions 0x260 then 0x261. For the local hunter with dialogue closed, buttons pick states: square 0x11 and online clears its record +0xAC, cross 0x13, circle 0x12, up 0x14, down 0x18, left 0x1A, right 0x16."
+confidence = "confirmed"
+evidence = "Whole body; lobby_hunter_set_state_keep_field_1a8; caller lobby_hunter_state_dispatch. Sitting is a guess."
+
+[[function]]
+module = "lobby_task"
+address = "09AF47B0"
+name = "fx_spawn_id_37_at_pos_with_matrix"
+purpose = "Allocates an fx (id 0x37, 30 ticks) with owner p4, matrix p3 or identity, position p2, speed to a stored target; links it into the list."
+confidence = "confirmed"
+evidence = "Whole body; caller npc_draw_extra_model_groups."
+
+[[function]]
+module = "lobby_task"
+address = "09A95208"
+name = "destination_menu_draw_point_costs"
+purpose = "Draws the 'PokkePts' list of 5 costs in %4dpts (or pti/pkt) up to count +6, greyed if not affordable, others '????'; cursor +3."
+confidence = "inferred"
+evidence = "Whole body; strings; costs 200, 300, 500, 1000, 1500."
+
+[[function]]
+module = "lobby_task"
+address = "09AC7FB8"
+name = "npc_motion_432_until_hunter_leaves"
+purpose = "Plays 0x432 with flag 0x20000; ends with 0x431 and state 0x8D when dialogue isn't 0xF and the flag 0x1D is unset or the hunter is over 130 from its target (or at dialogue 0xF with the hunter's state not 9 or 10)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AAF970"
+name = "lobby_hunter_go_to_spot_if_free_and_claim"
+purpose = "In states 0, 0xC or 4: starts a 20-tick move to p2 and facing p3, state 0xF. Online, only if no peer's +0x628 holds the zone +1; stores zone and writes p4+1 to its own record +0xAC, then selects it."
+confidence = "inferred"
+evidence = "Whole body; object_start_position_lerp_to_650. 'Claim' is a reading of that peer check."
+
+[[function]]
+module = "lobby_task"
+address = "09AB5658"
+name = "preview_hunter_set_color_material"
+purpose = "Stores colour p2 at +0x4E4 and writes the first material's colours at 0.65 of it, and half of it to bytes +4..6."
+confidence = "confirmed"
+evidence = "Whole body; model_data_group_material_indices."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC100"
+name = "equip_set_strip_pieces_wrong_hunter_type"
+purpose = "Clears, in a copy, any set armor index whose data flags lack bit 4 (weapon type 5) or 8; writes the copy to a1 if given; returns whether all fit."
+confidence = "inferred"
+evidence = "Whole body; string 'cannot be equipped in your current hunter type'."
+
+[[function]]
+module = "lobby_task"
+address = "09AA7578"
+name = "deco_menu_fill_box_rows"
+purpose = "A row per box slot with name and open or filled slot count by mode, greyed when 0; sets page count, view 4, flag 4 and rows."
+confidence = "inferred"
+evidence = "Whole body; equip_entry_count_used_slots, equip_count_filled_slots; mode strings in deco_menu_set_help_for_equipment."
+
+[[function]]
+module = "lobby_task"
+address = "09A93620"
+name = "farm_hammer_menu_draw"
+purpose = "Draws the list of White, Black and Gold Cat Hammer with the selected row's description below; other rows greyed unless p2 is 0x8000C040."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05DA8, 09B05DB0."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1388"
+name = "equip_shop_commit_buy_or_sell"
+purpose = "Sell (+0x24 of 1): adds the row's price to the zenny, clears set references and calls 088507F4 on the slot. Buy (0): sets the equip question if the piece fits (returning that), runs equip_notice_armor_series_color_unlock and subtracts the price. The record isn't added here."
+confidence = "inferred"
+evidence = "Whole body; gamedata_add_zenny_clamped; strings 'Equip this item now?'."
+
+[[function]]
+module = "lobby_task"
+address = "09AFA1B8"
+name = "fx_slot_randomise"
+purpose = "Initialises slot p2 of 0x30-byte slots at +0x1C0 with a random angle, a table radius +-10, height, and a table time."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AEC2B8"
+name = "equip_set_apply_to_equipped"
+purpose = "Sets each equipped box index from the set (clearing a missing piece's copy and index), copies armor records and the four colour bytes per part."
+confidence = "inferred"
+evidence = "Whole body; hunter_extra_records with +0x6AC3F..41."
+
+[[function]]
+module = "lobby_task"
+address = "09AB2230"
+name = "lobby_hunter_group_8_state_dispatch"
+purpose = "Calls one of 25 functions by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body; hunter_state_run_village calls it for group 8."
+
+[[function]]
+module = "lobby_task"
+address = "09ABCF48"
+name = "npc_first_motion_by_game_sub_state"
+purpose = "Picks a motion from the NPC's state in DAT_09CFB998 by behavior kind 8 or not and requests it; with p2 also starts it blended."
+confidence = "confirmed"
+evidence = "Whole body; caller npc_first_tick_setup_from_spawn_record."
+
+[[function]]
+module = "lobby_task"
+address = "09AA8D80"
+name = "deco_menu_set_help_for_row"
+purpose = "Sets the help for the decoration row: 'Remove which Decoration?' or 'Attach which Decoration?' with open slots, or why it can't attach (money, slots, equipment)."
+confidence = "inferred"
+evidence = "Whole body; strings 09B05002..14."
+
+[[function]]
+module = "lobby_task"
+address = "09AE9B20"
+name = "box_menu_draw_empty_skill_windows"
+purpose = "Draws the skill windows with no equipment: list window at a1,a2 and the '[Activate Skill]' title; a3 picks the title text."
+confidence = "inferred"
+evidence = "Whole body; strings 089AC9EE, 089AC9E6."
+
+[[function]]
+module = "lobby_task"
+address = "09AA5650"
+name = "equip_improve_preview_next_level"
+purpose = "Copies the current record +0x52 to the preview with its level raised: a bowgun by 09AA5570 and the row's action, armor +1; otherwise a fresh record."
+confidence = "inferred"
+evidence = "Whole body; caller equip_improve_menu_refresh_row_preview; 9AA5570 not read."
+
+[[function]]
+module = "lobby_task"
+address = "09AA80D0"
+name = "deco_menu_set_help_for_equipment"
+purpose = "Sets the help for the equipment row: Remove: which piece, with 'No Decorations attached'; Attach: to which piece, with open slots or none."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04FFC..05012."
+
+[[function]]
+module = "lobby_task"
+address = "09AAFCF0"
+name = "lobby_hunter_group_6_state_dispatch"
+purpose = "Calls one of 14 functions by state +0x299, some with a table row; for a non-local hunter then runs lobby_hunter_fade_in_tick."
+confidence = "confirmed"
+evidence = "Whole body; hunter_state_run_village calls it for group 6."
+
+[[function]]
+module = "lobby_task"
+address = "09AACB70"
+name = "lobby_hunter_rest_countdown"
+purpose = "Local hunter: motion 0x1AB with timer 360, periodic fx above 60, to state 0xB at the end when p2 is 0x1C; otherwise idle motions only. Others go back to state 0."
+confidence = "confirmed"
+evidence = "Whole body; hunter_motion_1ab_1ac_idle_and_periodic_fx."
+
+[[function]]
+module = "lobby_task"
+address = "09A89488"
+name = "text_draw_wide_two_lines_with_shadow"
+purpose = "Draws wide string a3 in two lines of 15 characters 0x14 apart at 16x16, each with a shadow 2 pixels off."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8B88"
+name = "equip_box_sort_key"
+purpose = "Composes a key from the tab table, data rank fields times 0x8000, weapon kind, level bits, filled slots and id."
+confidence = "inferred"
+evidence = "Whole body; caller 09AE8958 near box_apply_sort_remap_equipped_indices."
+
+[[function]]
+module = "lobby_task"
+address = "09A8F970"
+name = "net_session_format_member_count_text"
+purpose = "Finds the entry and writes 'n/m' to +0xE4 from +6 and +7 by digit strings, sets +0x104 and +0x105 and runs the word check on +0xA2; returns 0 if not found."
+confidence = "inferred"
+evidence = "Whole body; digit strings '0'.. '9' and '/' of table 09B04F08."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE9F0"
+name = "npc_remap_cue_sound_id_for_motions_44c_to_451"
+purpose = "With subtype 3, gamedata_count_records_69bec_nonzero_first3 over 1 and sound mask bit 2 on motions 44C, 44D, 44E, 44F or 451: maps ids 0x0A, 0x0B, 0x1D, 0x1E, 0x21, 0x22, 0x25, 0x26, 0x28, 0x29 to 0x46..0x4F."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9210"
+name = "deco_craft_can_make_count"
+purpose = "True if money, 4 materials from table 0894E748 row +0xE, and box room cover count p3, under 100."
+confidence = "inferred"
+evidence = "Whole body; item_box_total_room; item_pouch_plus_box_at_least. 'Decoration' from the mode 0 of the menu these rows belong to."
+
+[[function]]
+module = "lobby_task"
+address = "09AA90B0"
+name = "equip_menu_after_commit_offer_equip"
+purpose = "If the box record is equipped refreshes it and the hunter, step 0; else if it fits sets 'Equip this item now?' with the weapon warning and step 2; else step 1."
+confidence = "inferred"
+evidence = "Whole body; strings 09B04FC0, 09B04FC4."
+
+[[function]]
+module = "lobby_task"
+address = "09A61BE0"
+name = "bookshelf_menu_draw_list"
+purpose = "Draws the list with cursor +0x10 and count +0x11, with rows 09B01C08 when the manager's +0x1C is 1 and dimmed when p2 is 0."
+confidence = "guess"
+evidence = "Whole body; bookshelf from section 3 strings (Info Magazine, Hair & Clothes, Piggie's Fashion); the table's content wasn't confirmed row by row."
+
+[[function]]
+module = "lobby_task"
+address = "09A65570"
+name = "lobby_points_menu_confirm_input"
+purpose = "Two choice input on +6: cross gives 0 or 3 with a sound, circle moves to the second or gives 3, left and right move; otherwise 2."
+confidence = "confirmed"
+evidence = "Whole body; caller lobby_points_menu_update_and_draw."
+
+[[function]]
+module = "lobby_task"
+address = "09AA1A40"
+name = "equip_notice_armor_series_color_unlock"
+purpose = "Armor of data byte 0x13 of 2 sets equip_menu_flags bit 1 and pushes the S-Series colour message; 3 sets bit 4 and pushes the X/Z-Series one, once each."
+confidence = "inferred"
+evidence = "Whole body; message table strings 0x11, 0x12."
+
+[[function]]
+module = "lobby_task"
+address = "09A62590"
+name = "hair_preview_draw_window"
+purpose = "Draws a window with the preview hunter when shown (+0x2E), otherwise 'Display hair style: SELECT button' unless data install is on."
+confidence = "inferred"
+evidence = "Whole body; string 09B01C6A."
+
+[[function]]
+module = "lobby_task"
+address = "09A63948"
+name = "menu_option_row_enabled"
+purpose = "True when menu_option_condition_met and the byte in table 09B02E40 at row +1, column p2 is set; option 4 in row 4 also needs field_6ADE3."
+confidence = "confirmed"
+evidence = "Whole body. Callers 09A63068, 09A63688 unnamed."
+
+[[function]]
+module = "lobby_task"
+address = "09AB1B58"
+name = "lobby_hunter_group_7_state_dispatch"
+purpose = "Calls one of 9 functions by state +0x299."
+confidence = "confirmed"
+evidence = "Whole body; hunter_state_run_village calls it for group 7."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE710"
+name = "color_rgb_bytes_add_clamped"
+purpose = "Adds a2, a3, t0 to bytes +1,+2,+3 clamping to 0..255; returns 1 if an add landed inside the range."
+confidence = "confirmed"
+evidence = "Whole body. Colour from its caller 09AE2978 on the set screens."
+
+[[function]]
+module = "lobby_task"
+address = "09AEAA48"
+name = "equip_sets_clear_references_to_box_index"
+purpose = "Across 20 sets: a1 as weapon clears the whole set, as a part clears that part; with a2 bit 1 returns at the first reference instead."
+confidence = "confirmed"
+evidence = "Whole body; caller equip_shop_commit_buy_or_sell."
+
+[[function]]
+module = "lobby_task"
+address = "09A63A08"
+name = "menu_option_condition_met"
+purpose = "Option 0 always; 1 condition 5; 2 field 696F4; 3 and 4 condition 7; 5 EBOOT 0885057C; others false."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AE8C98"
+name = "box_menu_preview_selected_equip_on_local_hunter"
+purpose = "Builds a record from +0x50 or an empty one of +0x4C's type, previews it on the local hunter and resets page +0x63, count +0x64."
+confidence = "confirmed"
+evidence = "Whole body; caller item_box_menu_equipment_change."
+
+[[function]]
+module = "lobby_task"
+address = "09AAAC88"
+name = "lobby_net_peer_record_find_by_mac"
+purpose = "Returns the record 200 apart at p1+0x57C (count +0xEE3) with 6 bytes equal to p2, or 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A6A6F0"
+name = "kitchen_bbq_cost"
+purpose = "p3 times (u8 at 09CD015F[a1] percent of the u16 at 09CD0142 for the item's index), 0 if not a BBQ item."
+confidence = "guess"
+evidence = "Whole body; 'cost' is a reading of the percentage product."
+
+[[function]]
+module = "lobby_task"
+address = "09A92F68"
+name = "farm_any_unlocked_row_level_below_2"
+purpose = "True if an unlocked row of 3 has its level +0x6A2EA at 1 or less."
+confidence = "inferred"
+evidence = "Whole body; pbVar3+0xB2 from points_menu_level_a is +0x6A2EA."
+
+[[function]]
+module = "lobby_task"
+address = "09AE6B30"
+name = "box_menu_draw_tab_list"
+purpose = "Draws the tab list at x p2 with cursor +0x37, using rows 09B05188 when +0x34 is set."
+confidence = "confirmed"
+evidence = "Whole body. The row text isn't read."
+
+[[function]]
+module = "lobby_task"
+address = "09A92FF8"
+name = "farm_any_unlocked_row_is_empty"
+purpose = "True if an unlocked row of 3 has its word +0x6A2E8 at 0."
+confidence = "inferred"
+evidence = "Whole body; pbVar3+0xB0 from points_menu_level_a is +0x6A2E8."
+
+[[function]]
+module = "lobby_task"
+address = "09AAFC68"
+name = "lobby_hunter_fade_in_tick"
+purpose = "Counts down +0x10F0 unless -1; at 0 clears +4 bit 4 once +0xBE is 0; while that's clear raises alpha +0x230 by 0x10 to 0xFF."
+confidence = "confirmed"
+evidence = "Whole body; 'alpha' isn't confirmed by a draw."
+
+[[function]]
+module = "lobby_task"
+address = "09A88470"
+name = "quest_menu_saved_slot_header"
+purpose = "Returns the header of quest slot p2 in savedata (+0x94C + 0x142300 + p2*0x6810) if the slot is used and bit 0x1000000 is clear; stores the slot pointer at +0x78."
+confidence = "inferred"
+evidence = "Whole body; caller quest_menu_tick."
+
+[[function]]
+module = "lobby_task"
+address = "09A92D80"
+name = "farm_snapshot_rows_and_clear_log"
+purpose = "Copies the 3 rows' words +0x6A2E8, +0x6A2EA to +0x3C.. and clears the log at +6 with its count +0x48."
+confidence = "inferred"
+evidence = "Whole body; farm_log_used_item uses the log."
+
+[[function]]
+module = "lobby_task"
+address = "09ABE560"
+name = "motion_sound_cue_npc_arg7_remapped_then_update_mix"
+purpose = "Plays arg 7 sound at frame f12, and every 4th tick updates its 3D mix at the NPC."
+confidence = "confirmed"
+evidence = "Whole body; motion_sound_cues_npc_play_arg_0x07_at_frame_remapped."
+
+[[function]]
+module = "lobby_task"
+address = "09A88500"
+name = "quest_menu_find_saved_slot_by_id"
+purpose = "Returns the first of 6 quest slot headers with +0x18 equal to p2, or 0."
+confidence = "inferred"
+evidence = "Whole body; caller quest_menu_copy_record_to_current."
+
+[[function]]
+module = "lobby_task"
+address = "09A6BD60"
+name = "kitchen_draw_select_cancel_hint"
+purpose = "Draws a small window with the '~B01Select ~B00Cancel' hint."
+confidence = "inferred"
+evidence = "Whole body; string 09B05660; neighbours in the kitchen menu."
+
+[[function]]
+module = "lobby_task"
+address = "09AF5310"
+name = "fx_alloc_element_run_and_set_owner_c"
+purpose = "Same as fx_alloc_element_run_and_set_owner_a."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09ABF8E8"
+name = "npc_wait_8_ticks_then_state_100"
+purpose = "Waits 8 ticks, clears talk_linked and enters state 100."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A674B8"
+name = "hud_draw_rect_by_palette_index"
+purpose = "Draws a stretched tinted sprite at a1..t0 with colour row t1 of 0893AB7C, alpha 0xEF."
+confidence = "confirmed"
+evidence = "Whole body; caller lobby_points_menu_draw_list_page."
+
+[[function]]
+module = "lobby_task"
+address = "09A9EEF0"
+name = "npc_group_clear_byte_483_on_active"
+purpose = "For each of up to 0x14 entries with +4 bit 1 clears +0x483."
+confidence = "confirmed"
+evidence = "Whole body; caller npc_talk_update_run_end_action."
+
+[[function]]
+module = "lobby_task"
+address = "09A92DF8"
+name = "farm_log_used_item"
+purpose = "Appends item p2, pouch count p3, box count p4 to the 6-byte log at +6, counting in +0x48."
+confidence = "inferred"
+evidence = "Whole body; caller farm_apply_fertilizer_and_consume."
+
+[[function]]
+module = "lobby_task"
+address = "09AE7F30"
+name = "item_box_slot_can_move_to_pouch"
+purpose = "True when the box slot has an item and its table byte at 0899D2BD isn't -1."
+confidence = "guess"
+evidence = "Whole body; meaning from caller item_box_menu_tab_take_to_pouch."
+
+[[function]]
+module = "lobby_task"
+address = "09ABD468"
+name = "npc_start_position_lerp_to_4a0"
+purpose = "Sets ticks +0x4D0 to p2 and per-tick velocity +0x4C0.. toward +0x4A0 from the place +0x200."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B990"
+name = "lobby_request_exit_mode_29_return_point_4"
+purpose = "Sets +0x24 to -1, lobby_return_point to 4, lobby_return_was_online to 0, mode 0x29 and requests lobby task exit."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AEEBC8"
+name = "net_adhoc_shutdown_all"
+purpose = "Deletes the handler if +0x14 is set, then sceNetAdhocctlTerm, sceNetAdhocTerm, sceNetTerm."
+confidence = "confirmed"
+evidence = "Whole body; imports named."
+
+[[function]]
+module = "lobby_task"
+address = "09AA07B0"
+name = "equip_shop_prepare_confirm"
+purpose = "Runs the buy (0) or sell (1) confirm setup by +0x24."
+confidence = "inferred"
+evidence = "Whole body; 9AA0800 and 9AA08E0 set 'That will be $z' texts."
+
+[[function]]
+module = "lobby_task"
+address = "09AF4708"
+name = "parabola_bump_b"
+purpose = "Same as parabola_bump_a."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09AEE510"
+name = "armor_part_series_equals"
+purpose = "True if a1 equals the series byte from 08851E54 for type a2 id a3."
+confidence = "inferred"
+evidence = "Whole body; 8851E54 returns byte 0x13 of the equip table."
+
+[[function]]
+module = "lobby_task"
+address = "09AA6738"
+name = "equip_is_weapon_kind_1"
+purpose = "False for types under 5; else true for weapon kind 1."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A7D4E0"
+name = "lobby_job_queue_head_done_flag_zero"
+purpose = "True when word 0 is 3 and table 09B04218's byte at index word 0x108 is 0."
+confidence = "confirmed"
+evidence = "Whole body; caller 09A5FF38."
+
+[[function]]
+module = "lobby_task"
+address = "09A94B28"
+name = "destination_menu_can_afford_cost"
+purpose = "True when points cover the cost a1 in table 09B04E38."
+confidence = "inferred"
+evidence = "Whole body; costs drawn by destination_menu_draw_point_costs."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C070"
+name = "lobby_clear_byte_12d91_when_offline"
+purpose = "Clears +0x12D91 unless the global's online bit +0xF7A57C & 1 is set."
+confidence = "confirmed"
+evidence = "Whole body; bit is the net branch in lobby_hunter_go_to_spot_if_free_and_claim."
+
+[[function]]
+module = "lobby_task"
+address = "09ADF680"
+name = "combine_pair_exists"
+purpose = "True if table_89a48f0_find_pair_entry finds the pair a1, a2."
+confidence = "inferred"
+evidence = "Whole body; callers box_menu_draw_item_pair_and_result_screen, box_menu_draw_page_grid."
+
+[[function]]
+module = "lobby_task"
+address = "09AB0F30"
+name = "net_send_message_type_d_two_bytes"
+purpose = "Sends message 0xD with two bytes a2, a3 through net_build_and_send_message_by_type."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A685C8"
+name = "dialogue_state_clear_and_menu_step_zero"
+purpose = "Clears the dialogue manager's +2 and word 0, and p1's first byte."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B970"
+name = "lobby_request_exit_mode_1f"
+purpose = "Sets +0x24 to -1, mode 0x1F and requests lobby task exit."
+confidence = "confirmed"
+evidence = "Whole body; used after save_prompt_steps_tick in 09AABBC0."
+
+[[function]]
+module = "lobby_task"
+address = "09A78AF8"
+name = "object_clear_low_2_bits_of_field_20"
+purpose = "Clears bits 1 and 2 of +0x20."
+confidence = "confirmed"
+evidence = "One line; callers 09A6F638, 09A6F770."
+
+[[function]]
+module = "lobby_task"
+address = "09ABC680"
+name = "object_clear_flag1_set_state_fn_thunk"
+purpose = "Jumps to object_clear_flag1_set_state_fn."
+confidence = "confirmed"
+evidence = "Generated C: one tail call of EBOOT 08865D84."
+
+[[function]]
+module = "lobby_task"
+address = "09AB5840"
+name = "preview_hunter_set_word_10f8"
+purpose = "Writes p2 to +0x10F8."
+confidence = "confirmed"
+evidence = "One line."

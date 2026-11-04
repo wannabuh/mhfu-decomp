@@ -1,0 +1,55 @@
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "the spawn argument: tables and switches go by it"
+evidence = "game_sub 9C72800 stores; 9C71428, 9C6F820"
+
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x29
+name = "kind_param"
+type = "u8"
+confidence = "inferred"
+note = "by kind: kind 0xD takes the spawn argument; start tests it for 1"
+evidence = "game_sub 9C72800, 9C70AF0"
+
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x38
+name = "age_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "zeroed at start, one up per tick"
+evidence = "game_sub 9C70AF0, 9C71428"
+
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x3A
+name = "angle16"
+type = "s16"
+confidence = "inferred"
+note = "starts at owner facing, or a bone direction; some kinds randomise or turn it"
+evidence = "game_sub 9C72800, 9C71428"
+
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x3C
+name = "element_scale"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "0.7 as a raw word in one case of 9C72800, set by kind; copied to elements"
+evidence = "game_sub 9C72800, 9C70AF0, 9C71428"
+
+[[field]]
+struct = "Class_089BDE98"
+offset = 0x40
+name = "owner_byte_5c9"
+type = "u8"
+confidence = "inferred"
+note = "copy of owner +0x5C9 for kind 0x1A; used as a slot and a tint row"
+evidence = "game_sub 9C72800, 9C72530, 9C6F820"

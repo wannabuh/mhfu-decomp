@@ -1160,3 +1160,75 @@ type = "u8"
 confidence = "inferred"
 note = "tint entry 4's blue"
 evidence = "EBOOT 88CF094 copies these three bytes to the output colour in tint mode 3; EBOOT 88DA974 copies them"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x4E1
+name = "look_a"
+type = "u8"
+confidence = "confirmed"
+note = "copy of record_look_a at init"
+evidence = "EBOOT 88CE298 assigns it from the slot record"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x4EE
+name = "weapon_record_word_6"
+type = "u16"
+confidence = "inferred"
+note = "word +6 of the hunter 12-byte weapon record"
+evidence = "EBOOT 88CE298 from the player record; 88D66F4 from g_game; 8821BD4; 885D300 reads the record whole"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x4F0
+name = "weapon_record_word_8"
+type = "u16"
+confidence = "inferred"
+note = "word +8 of the hunter 12-byte weapon record"
+evidence = "EBOOT 88CE298 from the player record; 88D66F4 from g_game; 8821BD4; 885D300 reads the record whole"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x4F2
+name = "weapon_record_word_a"
+type = "u16"
+confidence = "inferred"
+note = "word +A of the hunter 12-byte weapon record"
+evidence = "EBOOT 88CE298 from the player record; 88D66F4 from g_game; 8821BD4; 885D300 reads the record whole"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x530
+name = "look_b"
+type = "u8"
+confidence = "confirmed"
+note = "copy of record_look_b at init"
+evidence = "EBOOT 88CE298 assigns it from the slot record"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x531
+name = "look_c"
+type = "u8"
+confidence = "confirmed"
+note = "copy of record_look_c at init"
+evidence = "EBOOT 88CE298 assigns it from the slot record"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x532
+name = "look_d"
+type = "u8"
+confidence = "confirmed"
+note = "copy of record_look_d at init"
+evidence = "EBOOT 88CE298 assigns it from the slot record"
+
+[[field]]
+struct = "HunterBase"
+offset = 0x5F4
+name = "weapon_kind_table_second_byte"
+type = "u8"
+confidence = "confirmed"
+note = "second byte of the weapon class row in table 0893161C"
+evidence = "EBOOT 88CE298 and 8821BD4 store table_0893161c_get_second_byte(weapon_class)"

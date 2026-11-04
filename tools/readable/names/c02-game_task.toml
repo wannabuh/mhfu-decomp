@@ -1,0 +1,2007 @@
+[[function]]
+module = "game_task"
+address = "09B5DA70"
+name = "class_089bd154_state_motion_46_timed_heal_to_60_percent"
+purpose = "Sets field_3CF and sight_off_ticks each tick; step 0 motion 0x46 movement 0, kind p2 2 sets 5400 ticks; step 1 runs 9C60F48 helper, kind 2 heals to 60% of max every 10 ticks, counts down then vfunc +0x88 (0, 0x13/0xF/0xC by kind); step 2 repeats that vfunc when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bd154_tick_group_00_states."
+
+[[function]]
+module = "game_task"
+address = "09B1F7F0"
+name = "class_089bcc68_state_motions_21_1f_timed_heal_to_half"
+purpose = "Step 0 motion 0x21, kind p2 1 sets 5400 ticks; at its end motion 0x1F; step 2 kind 1 heals to 50% of max every 10 ticks, counts down, then vfunc +0x88 (0, 0xF/0x10/9 by kind); step 3 repeats it when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AAA158"
+name = "hunter_steer_angles_by_input_bits_during_motion"
+purpose = "Local hunter with motion_id == p2, while +0x564 or +0x614 bit 0x1000: with +0x49E over 0x27, input bits 0x100000/0x400000 call 9AAA340 with +-0x100, 0x800000/0x200000 change +0x320 by +-0xC0; signs follow g_game option_pitch_mode_a; sets +0x564 to 5 or 10."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B727A0"
+name = "owned_obj_sound_by_event_and_kind_0d"
+purpose = "If +0x18 equals the stage id: event p2 2 plays 3D sound 0x96; 1 plays the owner hunter's bank sound 10..12 by 9A6F698's result of kind +0xD, offset 5 or 6 when hunter_check_4e9_6_1e8_5_4ec_mask_10 holds; 0 plays 3D sound 0x4E for kinds 0xC..0xE."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AA96D0"
+name = "hunter_use_item_spawn_by_id_and_consume"
+purpose = "By using_item_id: 0x2B..0x2E call 9C6BDC8(3, 0/1/3/2); 0x50,0x54,0x55,0x58,0x59 run class_089bd47c_stack_instance_run with 0x16,4 or 0x10,0x10,0x14 or 0x18,0x18; any of those then increments game counter 0x3B and takes 1 from the pouch unless the mode byte allows otherwise. Other ids do nothing."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B8E728"
+name = "class_089bd548_set_bytes_2b_27_1e_from_tables_by_e1"
+purpose = "If byte +0x1E nonzero and index +0xE1 at most 4, and +0x2B low bits are in 0x22..0x25 or 0xA,C,E,0x10: +0x2B from one of two tables, with 0x80/0x40 by +0xF7; +0x27 from a table; +0x1E = +0xE4 x table float clamped to 1..255."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bd548_tick_by_table_kind_ed."
+
+[[function]]
+module = "game_task"
+address = "09BAFD70"
+name = "hunter_weapon8_state_motions_0587_0586_0585_by_p2"
+purpose = "p2 2 or 1 plays motion 0x587 or 0x586, then 0x585; p2 0 plays 0x585 at once; entering 0x585 spawns kind 0x5F. Local hunter at frame 66 runs hunter_weapon8_pick_state_from_button_action(5); at motion end, base state."
+confidence = "inferred"
+evidence = "Whole body; only the callee names the weapon class."
+
+[[function]]
+module = "game_task"
+address = "09BB6B68"
+name = "hunter_update_charge_tier_from_charge_time"
+purpose = "Scales charge_time by 1.25 (skill 0xD7) or 0.8333 (0xD8), divides by 30, caps by weapon table byte 08960CC7 (4: 3; 2: 1 or 2 with skill 0xAA; other: 2 or 3 with it). Nonzero clears +0x111C bit 8. Local hunter stores it in charge_tier; others return the stored one."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_weapon10 states."
+
+[[function]]
+module = "game_task"
+address = "09B59D40"
+name = "monster_state_hold_motion_0e_then_0f_spawn_attack_13"
+purpose = "Movement 2, motion 0xE for 40/50/60 ticks by p2, then motion 0xF; at its frame 8 spawns attack (0x13, 0x18, 0x2000); at end monster_reset_movement_set_state_02_00."
+confidence = "inferred"
+evidence = "Whole body; view types it PreyRaptor, not otherwise shown."
+
+[[function]]
+module = "game_task"
+address = "09B70BF8"
+name = "node_set_bytes_2b_27_1e_from_tables_by_f1"
+purpose = "If byte +0x1E nonzero and index +0xF1 at most 4 and +0x2B low bits in 9..0x10: +0x2B from one of two tables, with 0x80/0x40 by +0x128; +0x27 from a table; +0x1E = +0x110 x table float clamped to 1..255."
+confidence = "inferred"
+evidence = "Whole body; same shape as 9B8E728."
+
+[[function]]
+module = "game_task"
+address = "09ACD6B0"
+name = "monster_apply_status_bitmask"
+purpose = "Each bit forces a status: 1 buildup for status 4 by its threshold; 2 starts or ends the end_vfunc_ec timer; 4 field_57A=2; 8 field_512=2; 0x10 sets or clears hit mark with 18000 ticks; 0x20 fills the boost meter and applies it, or clears monster_flags 0x20; 0x40 vfunc +0x48 and script restart; 0x80 script restart."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B22190"
+name = "class_089bcc68_state_motions_2c_2b_50_repeat_by_p2_p3"
+purpose = "Speed bonus 50; motion 0x2C repeats 1/5/20 times by p2, counted at frame 56; motion 0x2B 1 or 20 times by p3, counted at frame 106; then motion 0x50, at its end reset to state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AFA038"
+name = "object_dialogue_pick_weighted_item_if_pouch_room"
+purpose = "Picks from the weight and item list at 09BD8ED8 by a random 0..100. With room in the pouch: stores it at +0x7D0, line +0x470 = 9, state 0/9; else line 0xC. Sets the local hunter's +0x552 to 10, resets +0x46E/+0x472, sets +0x7C7 and +0x7C8 (0x1E or 0 by line's table kind)."
+confidence = "inferred"
+evidence = "Whole body; caller object_dialogue_line_update."
+
+[[function]]
+module = "game_task"
+address = "09B54728"
+name = "monster_state_jump_by_table_motions_17_18"
+purpose = "Motion 0x17; at frame 8 movement 2, velocity y and z and acceleration y from table 09BF61B8 row p2, spawns owned object 9B9B3C0 kind 2; lands at floor_y: movement 0, motion 0x18; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A87848"
+name = "object_near_kind_0a_subtype_0_1_6_7"
+purpose = "Walks the object list at +0x502C of DAT_09C190D0: for kind +0xC 0xA and subtype 0,1,6,7, true if within 500, 600, 440, 500 of p1 both across XZ and in Y."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B59280"
+name = "monster_state_move_y_toward_height_18_per_tick"
+purpose = "Movement 2, motion 1 unless already 0x3E9. Each tick counts action_count down and moves place Y 18 toward 600 - random%400 (p2 0) or move_target_place Y; ends with monster_reset_movement_set_state_02_00 within 50, on timeout, or if below floor + 180 (clamped there)."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AFB6A8"
+name = "class_089bc584_state_dialogue_motion_by_p2_then_1"
+purpose = "Motion 0xB/9/0xA by p2, then motion 1, running object_dialogue_line_update throughout (+0x7C6 1 then 0); when local hunter's +0x552 is 0 returns via monster_return_state_motion_by_46c."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bc584_dispatch_state_299."
+
+[[function]]
+module = "game_task"
+address = "09B565E8"
+name = "object_spawn_089bde98_at_bone_xz_floor_offset"
+purpose = "If locally owned: rotates offset p4 by facing, adds to bone p2's XZ, with Y = floor_y + offset Y, spawns class_089bde98 kind p3 at it, scale f12 x scale[0]."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAD0C8"
+name = "object_stage_cylinder_zone_id"
+purpose = "Through the stage (vfunc +0x28), walks 0x18-byte entries at +0x10, count +0x3E: returns u16 +0x16 of the first with p1 within Y +-50 of entry +8 and XZ radius +0x10; else 0xFFFF."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_use_selected_pouch_item and one more."
+
+[[function]]
+module = "game_task"
+address = "09A6D0D8"
+name = "hunter_add_drain_status_seconds_unless_skill"
+purpose = "Skills 0xB, 0xD0, 0xD6 clear the status instead. Otherwise adds p2 to drain_status_seconds, plus p3 when p3 is above 0, which also sets quest_flags 0x8000; drain_sound_ticks 20 when p3 applied or flag already set; second ticks 30; calls 9A704C8."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_consume_using_item_by_id, hunter_process_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09B65130"
+name = "object_spawn_089bd7c4_kind6_for_indexes_0_1"
+purpose = "If locally owned, for index 0 and 1 where 9B8BC40 succeeds, allocates 0xF0 bytes, constructs class_089bd7c4 and sets it up via 9B89AC8 with kind 6."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_state_spawn_at_20_2f_or_2."
+
+[[function]]
+module = "game_task"
+address = "09B80A28"
+name = "attack_get_ground_crossing_point"
+purpose = "Outputs the point where previous_position to position crosses ground_y; position if Y barely changed; previous_position if it started below ground_y."
+confidence = "inferred"
+evidence = "Whole body, mechanics only."
+
+[[function]]
+module = "game_task"
+address = "09AA83F0"
+name = "hunter_enter_item_use_state_by_movement_mode"
+purpose = "Item 0x50 with stick_magnitude above 84: sets using_item_id, turns to stick heading, state 0/0xC, or 0/0xD in movement 1. Otherwise movement 0 gives 0/0x19, movement 1 gives 0/0x59, others nothing."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_use_selected_pouch_item."
+
+[[function]]
+module = "game_task"
+address = "09B621E8"
+name = "object_sound_at_bone_on_motion_frame"
+purpose = "At motion frame p2 (when it is 2, multiplied by +0x4B0) plays sound p3 at bone p4's position."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B526D0"
+name = "monster_state_motion_by_p2_06_timed_03_02"
+purpose = "p2 2: motion 6 for 90 ticks; 1: motion 3; else motion 2 until it ends; then monster_end_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B16F90"
+name = "monster_run_7e8_7e9_7ea_checks_and_move"
+purpose = "Ors the results of the check for each of flags +0x7E8, +0x7E9 (9B16D68), +0x7EA (9B16E80); advances +0x7E6 by motion speed; in movement 2 moves by facing via +0x7B0."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD80C0"
+name = "monster_set_bits_774_call_9ad8170_for_new"
+purpose = "For each of 16 bits newly set by p2 calls 9AD8170(bit); ors p2 into +0x774, then its low byte into g_quest +0x5C2 by type +0x1E8."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A8C7F0"
+name = "hunter_state_motion_and_end_state_from_table_9bb77a0"
+purpose = "Plays the motion in table 09BB77A0 row p2; at its end hunter_reset_to_base_state_and_motion with the row's second short."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BA44F8"
+name = "hunter_weapon1_table_bit_index_by_4ea_and_55c"
+purpose = "Rows of 089795A8 (8 bytes, ends 999) matching +0x4EA: returns the first bit of the row's mask whose 12-byte entry at 08931358 has bit +0x55C set; bits above 0x15 give 0, none gives 0."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_weapon1_state_motions_0579_057d_0580_by_p2."
+
+[[function]]
+module = "game_task"
+address = "09B66220"
+name = "owned_obj_spawn_ctor_09b9cca0_setup_09b9cd38_if_29a_matches"
+purpose = "If in the local area: allocates 0xE0 bytes, constructs with 9B9CCA0, sets up with 9B9CD38(p1, p2)."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AF48B8"
+name = "monster_state_end_motion_by_p2_02_03_04_keep_7de"
+purpose = "Plays motion 2, 3 or 4 by p2; at its end monster_end_keep_7de_save_prev_set_state_00_01."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B33F00"
+name = "class_089bcd64_state_motion_20_sight_off"
+purpose = "Movement 0, motion 0x20, sight_off_ticks 2 until it ends, then 0 and class_089bcd64_reset_motion_fields_and_set_state_00_01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcd64_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09ACE2E8"
+name = "monster_load_packed_damage_slots_run_new_breaks"
+purpose = "For 8 slots unpacks a u16: high 4 bits to damage_slot break count, low 12 to its health; the ninth word goes to +0x5C0; slots whose count rose go to object_run_slot_mask_entries_from_table_9bce9e0."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B245F8"
+name = "class_089bcc68_state_motion_3d_script_restart"
+purpose = "Motion 0x3D with monster_script_restart_from_main_entry; at its end class_089bcc68_reset_fields_and_set_state_00_01."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BB4E20"
+name = "hunter_weapon9_spawn_9b9c118_by_variant_mod_3"
+purpose = "Spawns owned object 9B9C118 kind 1, 2 or 3 by +0x5F5 mod 3 being 0, 1, 2."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_weapon9_state_use_loaded_count_motions_0579_057b."
+
+[[function]]
+module = "game_task"
+address = "09BA67D0"
+name = "hunter_weapon2_tick_9a8b518_stamina_minus_1_9ba63b0"
+purpose = "Calls 9A8B518; local hunter increments action_count and past 1 takes 1 stamina via hunter_stamina_add_with_skills_a8_a9; calls 9BA63B0."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_weapon2_state_motions_3ee_3ef_reset_charge."
+
+[[function]]
+module = "game_task"
+address = "09B1FA38"
+name = "class_089bcc68_state_motion_20_sight_off"
+purpose = "sight_off_ticks 2 each tick, motion 0x20; at its end 0 and class_089bcc68_reset_fields_and_set_state_00_01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcc68_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09BB4EA0"
+name = "hunter_weapon9_sharpness_cost_by_variant_mod_3"
+purpose = "hunter_sharpness_add_with_skills with -3, -7, -4 for weapon_table_variant mod 3 being 0, 1, 2."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_weapon9_state_use_loaded_count_motions_0579_057b."
+
+[[function]]
+module = "game_task"
+address = "09B52290"
+name = "monster_cap_action_count_15_if_hunter_542_gone_or_other_area"
+purpose = "With action_count over 15: sets it to 15 if hunter slot +0x542 is absent or its +0x29A differs from this object's."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD0AE8"
+name = "monster_set_target_kind_0c_from_77a_and_resolve"
+purpose = "If locally owned: target_kind 0xC, param1 0, param2 field_77A/4; resolves it into move_target_place."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AC5910"
+name = "monster_type_in_36_3b_3c_40_41_51"
+purpose = "True if byte +0x1E8 is 0x36, 0x3B, 0x3C, 0x40, 0x41 or 0x51."
+confidence = "confirmed"
+evidence = "Whole body; caller monster_enter_flag_4000_play_motions_43b_503_5cb."
+
+[[function]]
+module = "game_task"
+address = "09B58660"
+name = "monster_reset_4b0_4b5_flag_and_set_state_00_01"
+purpose = "+0x4B0 = 1.0, +0x280 = 0, clears +0x410 bit 2, +0x4B5 = 1, +0x4B6 = 0; vfunc +0x88 (0, 1, 0)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B8F138"
+name = "math_add_scale_shift_u16"
+purpose = "(a1 + a2 * a3) >> t0, all as u16; the first argument register is unused."
+confidence = "confirmed"
+evidence = "One line; the same shape as math_scale_add_shift."
+
+[[function]]
+module = "game_task"
+address = "09AD5008"
+name = "monster_clear_548_52c_3cf"
+purpose = "Clears bytes +0x548, +0x52C, +0x3CF."
+confidence = "confirmed"
+evidence = "Three lines."
+
+[[function]]
+module = "game_task"
+address = "09B70DA8"
+name = "kind_switched_attack_state_fly_by_kind_table"
+purpose = "Per-tick state over the row of 09BFE7E0 for kind: by +0x22 either follows owner's bone until age limit then spawns 09B81000 kinds 8/0xE/0xF, bounces off a bone-relative point (0x6), or changes record at +0xF3 count (8); then moves with table-driven wander by launch_pitch/yaw; at or below floor ends and spawns by kind. attack_active_ticks 99 while flying."
+confidence = "inferred"
+evidence = "Whole body, 1120 lines, much VFPU atan2; the bounce reading is from the reflect formula with 0.6."
+
+[[function]]
+module = "game_task"
+address = "09A7EB60"
+name = "class_089bb450_state_approach_target_steps_120e"
+purpose = "Step machine on +0x120E toward the monster matching +0x1218 and its point +0x121C: 0 chooses by range (100 or 70 by p2); 1 and 2 chase or turn for up to 300 ticks, repick a target when stuck count +0x13B4 reaches 0x5A, or go to the leader (3); 4..10 play 0x3F9, hide, slide to the leader at +0x1214, drop 78 under the floor and rise with motions 0x44C..0x44F; 0xB runs p2's end steps. Ends with state 0x11."
+confidence = "inferred"
+evidence = "Whole body; class_089bb450 callees name the leader."
+
+[[function]]
+module = "game_task"
+address = "09AD4418"
+name = "monster_pick_nearest_hunter_in_arc_and_ranges"
+purpose = "Of hunters in this object's area, within Y range f13 and XZ range f12 (0 means any) and within +-p2 of facing, takes the nearest: stores slot +0x542, pointer +0x2F4, distance +0x2C4, heading +0x464. Returns 0xFF if none."
+confidence = "inferred"
+evidence = "Whole body; the end of the view is mangled VFPU atan2."
+
+[[function]]
+module = "game_task"
+address = "09A8D2C0"
+name = "hunter_reaction_state_slide_motions_586_587_58b_by_class"
+purpose = "Motion by p2 and weapon_class (0x586, 0x587, 0x58B), sound 0x67, flags; each tick moves along facing by a cosine falloff with size and length by p2 and classes 0, 1, 3, 4, 9; at the end base state 0/6 (class 4), state 2/0xC (3, 9), else base state 0/10."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_reaction_state_dispatch_by_state_299."
+
+[[function]]
+module = "game_task"
+address = "09B61D20"
+name = "npc_dialogue_text_and_list_input_update"
+purpose = "Sets local hunter +0x552 to 5. Step +0x46E 0: types the current line (table 089B55D4 row +0x470), on buttons 0x6000 ends, next line, or opens a list (+0x46E = 1, 9B629A0); step 1: list with pages via cursor, buttons 0x4000 or 0x2000 leave it to line 6. Mode byte 2E ends all at once."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BAD368"
+name = "hunter_weapon7_state_motions_058b_0580_gauge_25_code_8"
+purpose = "Gauge -25 and spawn on entry; p2 1 plays 0x58B first, then 0x580; spawns at frames 14, 34, 84 and kinds 0x4D, 0x50 at 34, 88; reads the next-state code at frames 100..160, takes it from 110; else evade from 110..160; at end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; callees hunter_weapon7_*."
+
+[[function]]
+module = "game_task"
+address = "09B9AF38"
+name = "node_set_end_from_direction_history_and_length"
+purpose = "Step 0: start at matrix p4's position, direction from its row 2 and +0x90, end 150 along it. Later: stores or shifts the p5 direction and p3's point in a 2-entry history (+0x80, +0x60), sets +0x10 to the entry's point + direction x length; length is 300 x 9B9B358 in step 1, else a ramp to 100 over 15 ticks of +0xC2."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD6B40"
+name = "math_point_in_triangle_by_angle_sum"
+purpose = "Normalises vectors from point a2 to the 3 corners at a1 +0, +0x10, +0x20; true if the three angles between them, in 65536ths, sum over 0xEFFF."
+confidence = "confirmed"
+evidence = "Whole body; caller math_segment_quad_test_body_quad."
+
+[[function]]
+module = "game_task"
+address = "09B9A270"
+name = "class_089bd95c_init_element_random_offset_by_kind"
+purpose = "Copies +0x50 to element +0x10. Kind 0: element +0x40 = 1 - 0.1 x scale over the type table's. Kinds 1..4: +0x40 = scale x 1.5, adds a random offset scaled by the owner's scale (900 or 1800 ahead by p3), rotated by +0x90/+0x94; random angle +0x52, spin +0x58 of either sign, bytes +0x48.. set."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bd95c_state_update_by_kind."
+
+[[function]]
+module = "game_task"
+address = "09B67CF8"
+name = "attack_set_status_kind_and_amount_with_skills"
+purpose = "p2 sets +0x28: 6 is 0x4000, 4 is 1, 3 is 4, 2 is 2, p3 0 also sets +0x2B to 0x23; p2 1 multiplies +0x1E by 1.5. With p3: +0x28 from 9B68060, or amount +0x2A 2; amount x 1.5 by weapon bits 0x100, 0x200, 0x80 for kinds 4, 1, 2, x 1.125 for skill 0x43 and list entry 9; other kinds halve it; at least 1."
+confidence = "inferred"
+evidence = "Whole body; callers class_089bd548_tick_table_28_2a_timers, hunter_attack_task_setup_from_weapon_values."
+
+[[function]]
+module = "game_task"
+address = "09BACA88"
+name = "hunter_weapon7_state_motions_0590_057e_gauge_20_code_6"
+purpose = "Gauge -20 and spawn on entry; p2 1 plays 0x590 first, then 0x57E; spawn at frame 28; reads next-state code at 34..100, takes it from 44; else evade 62..160; at end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; callees hunter_weapon7_*."
+
+[[function]]
+module = "game_task"
+address = "09BAB700"
+name = "hunter_weapon7_state_motions_058c_057a_code_2"
+purpose = "p2 1 plays 0x58C first, then 0x57A with spawn 0x3A; hunter_weapon7_react_byte_397_restart_motion_or_state each tick; spawn at frame 48; reads next-state code at 44..104, takes it from 80; else evade 80..164; at end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; callees hunter_weapon7_*."
+
+[[function]]
+module = "game_task"
+address = "09BA48E0"
+name = "hunter_weapon2_state_motions_0581_057a_shake_at_58"
+purpose = "p2 1 plays 0x581 first, then 0x57A with spawn 7. Camera shake at frame 58; action 2 during 30..88 marks a follow-up, taken at frame 70 through vfunc +0x6C(1, 2, 4); evade on action 2 in 80..120; at end base state 0/6."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A905F0"
+name = "hunter_reaction_state_airborne_motion_38_land_by_air_time"
+purpose = "Motion 0x38 with movement 2: p2 1 velocity (0,-10,8), else (0,18,20) with decay. Moves by facing; on reaching the floor, count 50 or more and no list entry 0x2A gives state 0/0x26 and 9C9A6F0, else under 30 gives 2/0x23, else 2/0x22. 9C9A6F0(1) every 10 ticks."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_reaction_state_dispatch_by_state_299."
+
+[[function]]
+module = "game_task"
+address = "09BAF4F0"
+name = "hunter_weapon8_state_motions_0588_057c_by_p2_windows"
+purpose = "Motion 0x588, then 0x57C with spawn 0x54. hunter_weapon8_attack_connected_react_scratch_b each tick; local hunter: p2 0 frames 32..70 button 0x200 goes to state 1/0x27, else pick from action (3); p2 other frames 32..52 pick from action (6); at end base state 0/6."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B6E0B8"
+name = "object_draw_model_group_59_twice_mirrored"
+purpose = "Builds a matrix from angles +0x90, +0x94 and position +0x40 and draws model group 0x59 twice, the second turned by pi."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AA3078"
+name = "hunter_state_motion_196_or_1a0_skill_speed_to_state_75_71"
+purpose = "Keeps a UI token for the local hunter. p2 1 motion 0x1A0, else 0x196. Speed 2.0, or 3.4 / 3.6 with skill 0xAD (for 0x1A0 only in frames 38..180); skill 0xAE repeats 0x1A0 from frame 0x34 up to 4 times at frame 62. At end local goes to state 0/0x75 or 0/0x71, others base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B23880"
+name = "class_089bcc68_state_turn_motions_28_29_type_43_57"
+purpose = "Only for subtypes 0x43, 0x57, else resets. Turns toward move_target_place with motion 0x29 or 0x28 by side until frame 44; at 96 waits 1 tick (p2 0) or 20, then motion 0x51 after motion 0x410, else 0x52; at its end resets to state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AA0090"
+name = "hunter_state_motion_19e_zone_stick_item_369_or_exit"
+purpose = "Motion 0x19E (p2 0 with 60 ticks, else from frame 0x42). Facing +0x46C from interaction_zone_find_at_object for zones 0x1F, 0x20, else facing_target. Local: stick bands each tick; after 30 ticks button 0x2000 with item 0x369 gives state 0/0x48; when counts are out button 0x4000 gives base state 0/6. Other hunters only hunter_add_1149_clamped_set_angle_680."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AAAEF0"
+name = "hunter_apply_item_effect_to_local_hunter_by_id"
+purpose = "If this hunter is local or shares its area: 9AAD300, then by using_item_id applied to the local hunter: 0xA0 defense bonus 40 for 5400 ticks, or only clears when halved; 0x9F attack bonus 10 for 5400; 0x9E clears the drain status; 0x9D vfunc +0x68(0x14). Spawns effect 3, 2, 1, 0 on both."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_motion_by_p2_blend_5_to_base."
+
+[[function]]
+module = "game_task"
+address = "09A98070"
+name = "hunter_draw_prop_group_with_colour_kind"
+purpose = "Sets world matrix p2; kind p3 6 draws through 9C34460 with diffuse and ambient from table 09CD34F0; kind 2 by +0x694 or kind 1 by +0x69A picks a colour row at 09BB77B8 / 09BB77D0 for the group's first two materials; draws group p4."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_draw_motion_attached_props."
+
+[[function]]
+module = "game_task"
+address = "09B51E70"
+name = "monster_init_motion_health_and_492_by_spawn_variant"
+purpose = "Starts type motion, sets health from type table, clears fields. Subtype 0x4F scale 1.3. Else by spawn_variant: 0/1 field_492 is a random bit, or 2 by chance: limit from quest time values 0 over 1 (under 33% 100, under 66% 70, else 40; +20 if 8872B2C of its type is over 3); 3 scale 1.3; 4/5 field_492 random bit; 1, 3, 5 also 9C64CD0. Ends with vfunc +0xF4."
+confidence = "inferred"
+evidence = "Whole body; view types it ShakalakaKingShakalaka."
+
+[[function]]
+module = "game_task"
+address = "09B398D0"
+name = "class_089bcd64_state_type_35_59_motions_2b_2c_shake_and_spawn"
+purpose = "Only types 0x35/0x59. Motion 0x2B 3 times (p2 0) or once, spawning 09B8F950 kind 0x24 or 0x31 at frame 16; motion 0x2C at frame 26 spawns 09B72EF0 kind 0xF or 0x14 at bone 0xD on the floor, shakes camera, 9B65130, and an effect; at its end resets to state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09AEB898"
+name = "entity_vt38c_state_follow_route_1_motion_67"
+purpose = "Movement 4, motion 0x67, forward speed at least 50 (type 0x22 sometimes 40). Each tick turns to point +0x5D0 and moves; when within 300 or count out, +0x797 down: at 0 enters state 2/0, else next point from monster_route_table_for_subtype_22_area(1), then vfunc +0x88 (2, 0x13, 0)."
+confidence = "inferred"
+evidence = "Whole body; same code as 9AEB620 except route argument; caller entity_vt38c_state2_dispatch_substate_299."
+
+[[function]]
+module = "game_task"
+address = "09AEB620"
+name = "entity_vt38c_state_follow_route_0_motion_67"
+purpose = "Same as 9AEB898 with route argument 0."
+confidence = "inferred"
+evidence = "Whole body compared; caller entity_vt38c_state2_dispatch_substate_299."
+
+[[function]]
+module = "game_task"
+address = "09AEED20"
+name = "monster_state_rise_through_surface_motions_7e_79_4b_47"
+purpose = "Motion 0x7E, velocity y 100 with -2.75; on reaching surface_height minus field_2A8 velocity 80, movement 2 and effect; after falling below surface_height lands at floor_y with motion 0x79, then 0x4B, then 0x47, then state 00/01. Script restart on entry; subtype 8 with p2 1 places a pickup."
+confidence = "inferred"
+evidence = "Whole body; view types it CephadromeCephalos."
+
+[[function]]
+module = "game_task"
+address = "09BAC7E8"
+name = "hunter_weapon7_state_motions_058f_057d_code_5"
+purpose = "Motion 0x58F, then 0x57D with spawn 0x47. hunter_weapon7_react_byte_397_restart_motion_or_state each tick; spawn at frame 18; next-state code read at 28..100, taken from 38; else evade 38..160; at end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; callees hunter_weapon7_*."
+
+[[function]]
+module = "game_task"
+address = "09B39EA0"
+name = "class_089bcd64_state_type_35_59_rise_motions_52_53_54"
+purpose = "Only types 0x35/0x59; p2 1 keeps cannot_die_ticks 2 and sets field_5F0 0x32. Motion 0x52; at frame 24 movement 2, up 170, movers set 1; at 30 motion 0x53, movers set 2, spawn at frame 22; when movers report and at floor + 345, lands, motion 0x54; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B593F8"
+name = "monster_state_move_forward_20_toward_target"
+purpose = "Movement 2, motion 1 unless already 0x3E9. Each tick optionally turns (+0x7CF, 0x280 limit) and moves 20 forward; ends with monster_reset_movement_set_state_02_00 when resolved target kind 1/0 is within 300 or count out, else when distance +0x7C8 is used up."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B3A4C8"
+name = "class_089bcd64_state_motions_29_twice_50_spawn_1f_shake_200"
+purpose = "Motion 0x29, again from frame 0x16 at frame 102, spawning 09B8F950 kind 0x1F at frame 26; spins in frames 170..180; vfunc +0x54 false: at frame 200 spawns 09B72EF0 kind 0x10 and shakes camera; then motion 0x50, p2 spawning 089BD95C kind 6; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B39680"
+name = "class_089bcd64_state_type_33_54_3d_motions_50_51_spawn_at_98"
+purpose = "Only types 0x33, 0x54, 0x3D. Motion 0x50; at frame 98 effect 8 and spawn kind 0xA, or for p2 effect 0x2A and kind 0x2D; computes a bone point that is not used; motion 0x51; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B4F7D8"
+name = "monster_state_hold_then_move_to_target_distance_table"
+purpose = "Movement 2, holds height for 10 ticks; then faces move_target_place, spawns 09B9B948 (kind 0 or 2 by random and spawn_variant) and moves until distance capped by table 09BF55E8 (variant, p2) is used; decelerates, then state 02/03. Integrates velocity each tick."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B22340"
+name = "class_089bcc68_state_subtype_49_56_30_motions_27_26"
+purpose = "Only subtypes 0x49, 0x56, 0x30, script requests blocked. Motion 0x27; at frame 82 spawn (089BD95C kind 4 or 0x11 for 0x30/0x56, else attack 0x1F); at 86 spawn 09B8F200 kind 0xC or 0x20; at its end motion 0x26, then state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch, though the view types it Pelagus."
+
+[[function]]
+module = "game_task"
+address = "09B3C480"
+name = "monster_state_motions_4a_4b_4c_to_state_04_1d"
+purpose = "field_5F0 5, script requests blocked. Motions 0x4A, 0x4B, 0x4C with field_77A counting down in the first two; subtypes 0x34/0x55 add effect and spawn; then 0x4A loops while vfunc +0x88 (4, 0x1D, 4) is called, each tick when locally owned."
+confidence = "inferred"
+evidence = "Whole body; view types it Pelagus."
+
+[[function]]
+module = "game_task"
+address = "09B36DE8"
+name = "class_089bcd64_state_type_33_54_3d_turn_to_target_motion_4"
+purpose = "Only types 0x33, 0x54, 0x3D. Motion 4, turns toward move_target_place at 409.6 or 819.2 x motion speed by p2; every 40 or 20 ticks checks; when facing, monster_state_02_03_movement_0_set_613_2ba."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group2_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09BA5EA8"
+name = "hunter_weapon2_state_motions_0585_0583_shake_at_40"
+purpose = "p2 0 starts motion 0x583 and clears quest_flags 0x800; others play 0x585 with facing +-0x1555 by direction first, then 0x583; spawn 0x20. Shake at frame 40; evade on action in 102..132; at end base state 0/6."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09ADFA58"
+name = "object_set_240_from_global_keyframe_table"
+purpose = "Advances global time 09C12408 through 16-byte rows (time, xyz) at 09C12424, ended by time -1: sets +0x240..+0x248 to the row's difference over its duration."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B72278"
+name = "object_spawn_9b6d2b0_copies_by_record_count"
+purpose = "Sound event 0, then for count p2 +2 creates 0x140-byte 9B6D2B0 objects kind 6, sub p2 +0, copying owner, position, angles, velocity, with +0xD0 x 1, 3, 5..., index +0x8B, f12 at +0x11C; links them at the head of the +0x502C list."
+confidence = "inferred"
+evidence = "Whole body; called from 9B70DA8."
+
+[[function]]
+module = "game_task"
+address = "09B12E80"
+name = "class_089bc974_state_spin_by_p2_spawn_at_126_motions_1f_20"
+purpose = "Movement 2 with air_step, keeps within floor and floor + 1000; from frame 96 turns 0xA0 per tick by p2; at frame 126 calls 9AAE0C8, spawns kind 0x15 and sound; at end motion 0x1F with more turning, then 0x20, then class_089bc974_finish_state_to_group2_state03."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bc974_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B35538"
+name = "class_089bcd64_state_wait_timer_or_other_type_35_59_then_boost"
+purpose = "Blocks script requests and perception. Waits for game flag 0x156 or p2, then counts down 18000 ticks. Locally owned: ends early when another present 0x35/0x59 monster of a different spawn_variant is in state 5 or 6/0, 6/1. Then fills the boost meter, applies boost, state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B23668"
+name = "class_089bcc68_state_subtype_43_57_motion_24_59_on_surface"
+purpose = "Only subtypes 0x43, 0x57. Keeps Y at surface_height, field_529 5, movement 2. Motion 0x24 or 0x59 by p2, effects at rates by frame windows; at frame 50 variant 0 and field_592 under 2 spawns 089BD95C kind 0xA; at end monster_movement_2_set_529_flags_set_state."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch, though the view types it Pelagus."
+
+[[function]]
+module = "game_task"
+address = "09AA2378"
+name = "hunter_state_motion_329_consume_item_message"
+purpose = "Motion 0x329 with UI token kept. p2 0 at frame 104 ducks sound; at frame 120 local hunter: p2 0 plays 0x18F9, takes 1 from the pouch and queues HUD message 3; other p2 queues 0xD; mode byte 2E skips this. At end base state 0/2."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09A9EDD8"
+name = "hunter_state_motion_22_speed_by_p2_checks_at_46_90"
+purpose = "Motion 0x22 (from 0x2E or 0x5A if coming from 0x23), speed 1.6 or 2.5 by p2. At frames 46 and 90, local: without shoulder input goes to state 0/0x27, else p2 1 drains stamina. No stamina gives 0/0x30; hunter_probe_ahead_y_in_band gives 0/0x1B."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B4E9A8"
+name = "monster_state_move_to_target_capped_800_1200"
+purpose = "Movement 2, faces move_target_place; p2 0 accel 0.345, distance cap 800, top speed 8; else 0.555, 1200, 10. Runs object_advance_move_distance; then decelerates and ends with monster_clear_7cb_set_state_02_03. Integrates each tick."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BB5CC8"
+name = "hunter_weapon10_state_motion_0579_layers_057a_057b"
+purpose = "Motion 0x579, layer motions 0x57A/0x57B by +0x67E; for 20 ticks the local hunter runs button checks and hunter_weapon10_pick_state_by_stick_stamina_buttons (1 if p2 1, else 2); after that, with button 0x200 held or hunter_flags 0x1000 keeps checking, else base state 0/10."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B36BF8"
+name = "class_089bcd64_state_type_33_54_3d_motion_16_cannot_die"
+purpose = "Only types 0x33, 0x54, 0x3D. cannot_die_ticks 2, script requests blocked. Motion 0x16 unless already 0x3FE; p2 1 fills the boost meter; spawns 09B8F950 kinds 6, 7 at frames 2 and 52; to frame 40 sets field_575 and hide ticks; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group2_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B24D08"
+name = "monster_state_motions_3f_40_46_or_47_48_49_to_state_00_0b"
+purpose = "Script restart. p2 0 motions 0x3F, 0x40, 0x46; else 0x47, 0x48, 0x49; the middle one lasts action_count ticks, which 9C97220 also receives; then vfunc +0x88 (0, 0xB), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A9EFF8"
+name = "hunter_state_motion_23_speed_by_p2_floor_check"
+purpose = "Motion 0x23, speed 1.6 or 2.6 by p2. At frames 0 and 44, local: without shoulder input state 0/0x27, else p2 1 drains stamina. No stamina gives 0/0x30; at or below floor_y gives 0/0x2A."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch; pairs with 9A9EDD8."
+
+[[function]]
+module = "game_task"
+address = "09ADD478"
+name = "entity_bc194_state_pushed_back_motions_3e_3f_40"
+purpose = "Motion 0x3E, faces field_360 + 0x8000, movement 2, velocity (0, 17, -20) with acceleration; script restart; p2 1 ends status 2 and keeps sight off. At the floor motion 0x3F for 90 ticks, then 0x40, then entity_bc194_end_state_enter_0_1."
+confidence = "inferred"
+evidence = "Whole body; view types it KelbiAnteka."
+
+[[function]]
+module = "game_task"
+address = "09B4FE40"
+name = "monster_state_removed_fade_alpha_to_state_05_02"
+purpose = "quest_on_monster_removed; variant 0 adds a drop via 9AD7968. After +0x1D6 ticks (0x3C for p2 0) fades alpha from 255 over 60 ticks, clears monster_flags 0x8000 and hit mark, waits 150, then vfunc +0x88 (5, 2, 4)."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AB30F0"
+name = "monster_manager_free_all_and_vram_slots"
+purpose = "For 20 slots at +0x1220: releases assets, frees first model part, unlinks from the list at 08A62D7C, runs the destructor, frees. Then +0x1270 = 0 and VRAM slots 0x25..0x28 freed."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B3A908"
+name = "class_089bcd64_state_type_34_55_3e_motion_2e_spawn_three"
+purpose = "Only types 0x34, 0x55, 0x3E. Motion 0x2E; at frame 66 spawns 3 attacks kind 0x21 at yaw 0, 0xE001, 0x2000, pitch 0x93F for p2 1, else 0x2000; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09AEBD10"
+name = "entity_vt38c_state_rise_through_surface_motion_77"
+purpose = "Movement 4, motion 0x77, velocity y 132 z 60; on reaching surface_height minus field_2A8, movement 2, gravity -5 (p2 0 sets y 50), effect and shake; on falling below floor_y, vfunc +0x88 (0, 4, 4)."
+confidence = "inferred"
+evidence = "Whole body; caller entity_vt38c_state2_dispatch_substate_299."
+
+[[function]]
+module = "game_task"
+address = "09B3B558"
+name = "class_089bcd64_state_subtype_33_54_motion_2f_spawn_fan"
+purpose = "Only subtypes 0x33, 0x54. Motion 0x2F; at 98 spawns 09B8F950 kind 0x13; at 102 spawns 2 (p3 0) or 4 attacks kind 0xD, 0x1555 apart, pitch by p2 0xFE00, 0xF000, 0xE800; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09A79C00"
+name = "class_089bb450_state_motions_45d_45e_add_health_self_and_leader"
+purpose = "Motion 0x45D twice, then 0x45E; then vfunc +0x68 with 20 or 40 by p2 (the vfunc is given health amounts elsewhere) and effect on self and +0x1214, counts quest event e, +0x13BE += 0x13EC. At end state 0x11."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B3A738"
+name = "class_089bcd64_state_subtype_34_55_motions_51_52_spawns"
+purpose = "Only subtypes 0x34, 0x55. Motion 0x51; at frame 40 spawns kind 0x20, field_481 1, then part_mask_3_ticks; motion 0x52 (p2 1 spawns 089BD95C kind 6); at frame 88 kind 0x29; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B24678"
+name = "class_089bcc68_state_motions_3f_40_46_or_47_48_49_timed_by_subtype"
+purpose = "Script restart. p2 0 motions 0x3F, 0x40, 0x46; else 0x47, 0x48, 0x49; the middle one lasts 180 ticks for subtypes 0x43, 0x57, else 120; at end class_089bcc68 reset, copies state group and state to +0x460/+0x461."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AF7598"
+name = "monster_state_removed_motions_3c_40_11_to_state_05_02"
+purpose = "quest_on_monster_removed, faces field_360 + 0x8000, motions 0x3C, 0x40, 0x11, blocking perception and push. At the end +0x7EB 1 leaves ptr set, clears monster_flags 0x8000, subtype 0x17 drops via 9AD7968, vfunc +0x88 (5, 2, 4)."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B33F98"
+name = "class_089bcd64_state_motions_21_1f_timed_sight_off"
+purpose = "Field_3CF and sight_off_ticks kept. Motion 0x21 (subtypes 0x34, 0x55 directly, else through the type table), then 0x1F for action_count ticks with periodic effect; then vfunc +0x88 (0, 4 or 0x26 by p2, 4), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AD7968"
+name = "monster_add_drop_pickup_by_type_table"
+purpose = "Only in the local area. Types other than 0x33, 0x54, 0x34, 0x55 need list entry 0x2E on the local hunter or a random chance. Item from table 09CD90CC by type and quest file byte +0x44 (6 with quest flag 0x400000); pickup_point_add at p2 with 3600 ticks and sound 0x8C."
+confidence = "inferred"
+evidence = "Whole body; callers 9B4FE40, 9AF7598."
+
+[[function]]
+module = "game_task"
+address = "09BA3CD8"
+name = "hunter_state_fill_loaded_count_motions_058e_058f_057c"
+purpose = "Motion 0x58E or 0x58F by p2; weapon_loaded_count = load_capacity capped by load_reserve; 9BA4258 of load_kind picks motion speed 1.25, 1.0 or 0.75 for 0x57C from frame 0x1E with layers 0x586/0x587; ends listed_item ticks with 9C6B560(4). At end hunter_enter_movement_mode_2_or_base_motion."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B54920"
+name = "monster_state_spawn_9b86e38_or_pickup_30_ticks"
+purpose = "Motion 1 unless already 0x3E9, 30 ticks. Once: unless 3 of kind 0xE/8 exist spawns 09B86E38 kind 8; p2 not 0 with timed pickup points tries monster_timed_pickup_id_by_subtype first. Then monster_end_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B4F118"
+name = "monster_state_move_around_5d0_by_p2_90_ticks"
+purpose = "Faces +0x5D0 offset by +-0x3800 by p2; movement 2, accel 0.333, 90 ticks holding height; then decelerates and monster_clear_7cb_set_state_02_03."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B39D08"
+name = "class_089bcd64_state_type_35_59_motions_50_51_call_9b63f40_at_80"
+purpose = "Only types 0x35/0x59. Motion 0x50 run twice; at frame 80 calls 9B63F40(1, 0x15, ...), with p2 1 values 1 and 0x38E; then motion 0x51; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09A9D928"
+name = "hunter_state_use_item_motions_8_9_or_199"
+purpose = "p2 1 motion 0x199 from frame 0x14, at end state 0/0x1D. Else motion 8 for 14 ticks (0 with hunter_skill_c2_double_motion_speed), then 9, at end base state 0/2. Local hunter runs 9AA96D0 on entry."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09ADA2B8"
+name = "monster_of_type_in_area_within_distance"
+purpose = "True if a present monster of type p2 (or same id group for p3 1), in self's area with +0x280 not 2, is within XZ distance f12."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B53220"
+name = "monster_state_repeat_motion_7_8_turn_to_target"
+purpose = "4 times: motion 7 or 8 by random bit, turns toward move_target_place at up to 0x800 per tick, with 9B52290's cap; then monster_end_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B39B78"
+name = "class_089bcd64_state_type_35_59_motions_50_51_spawn_kind_2_at_84"
+purpose = "Only types 0x35/0x59. Motion 0x50; at frame 84 spawns 089BD95C kind 2 and 9C9C010, angle 0xF8E5 for p2 1, else 0x71C; motion 0x51; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09AE9C90"
+name = "monster_state_motions_26_22_timed_load_type_block"
+purpose = "Field_3CF and sight_off kept. Motion 0x26 with entity_load_type_block_648_678(1), then 0x22 for action_count ticks; then vfunc +0x88 (0, 6 or 0x2A by p2, 4), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B5A200"
+name = "monster_state_fall_motions_13_14_to_state_04_02_05"
+purpose = "Movement 2, motion 0x13, script restart, falls by velocity 10, 40 from frame 66; at floor_y movement 0, motion 0x14; at its end vfunc +0x88 (4, 2 or 5 by p2), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAB180"
+name = "hunter_use_item_spawn_9b820f0_by_id_and_consume"
+purpose = "By using_item_id: 0x5C, 0x5B, 0x5A spawn 09B820F0 kind 7, 6, 5; 0x57, 0x368 kind 1; 0x56 kind 0, or 1 with list entry 8. Those then count game counter 0x3B and take 1 from the pouch unless the mode byte allows. Others do nothing."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AA3C70"
+name = "hunter_state_motions_7_8_steer_until_button_2000"
+purpose = "Motion 7 (p2 0), then 8, or 8 at once; hunter_flags 0x1000; each tick 9AAA158 steers. Local: button 0x2000 or mode byte 2E clears the steer flags and vfunc +0x6C (0, 0x1D, 0)."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AA35B0"
+name = "hunter_state_motions_1a4_1a8_repeat_to_state_5f_63"
+purpose = "p2 0 motion 0x1A4 with flag 0x10000: past frame 44 button 0x4000 or 3 repeats gives state 0/0x5F. p2 1 motion 0x1A8: 2 repeats give state 0/0x63. Repeats counted at the frame in field_9C."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B3BFF8"
+name = "monster_state_motion_49_to_state_04_06_1a"
+purpose = "Field_3CF 3, script restart, requests blocked, field_5F0 0x32 kept at least 5. Motion 0x49; at its end vfunc +0x88 (4, 6 or 0x1A by p2, 3), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B17438"
+name = "class_089bca70_state_motions_2b_2c_timed_sight_off"
+purpose = "Field_3CF and sight_off kept, +0x7F6 1. Motion 0x2B, then 0x2C for action_count ticks; then vfunc +0x88 (0, 8 or 0xE by p2, 4), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bca70_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B534A8"
+name = "monster_state_turn_to_target_motion_0c_0d_until_within_100"
+purpose = "Motion 0xD (p2 1) or 0xC, turns toward the heading at start, up to 0x800 per tick; ends within 100 of move_target_place or after 300 ticks with monster_end_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B119E0"
+name = "class_089bc974_state_move_y_to_target_random_ticks"
+purpose = "Movement 2, motion 1 unless already 0x3E9, for 30..120 ticks; when moving_to_target moves Y 5 per tick toward target Y (+50 for p2 0), ends when within 10; stays above floor; ends with class_089bc974_finish_state_to_group2_state03."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bc974_state_group2_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09A9C990"
+name = "hunter_state_motions_7_8_to_quest_state_pick"
+purpose = "Sets hunter_flags 4. p2 1 motion 8 at once, else motion 7, then 8, ends listed-item ticks with 9C6B560(4); on motion 8 each tick hunter_pick_state_by_quest_state_ground_forces."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B5E2E0"
+name = "class_089bd154_state_turn_motions_4_5_fixed_rate"
+purpose = "Picks side toward move_target_place: motion 5 or 4; +0x7C0 is 0x135, or for p2 the turn clamped to 0x2000..0x6000 divided by 0x35, but this function always turns +-0x135 per tick; at its end class_089bd154_change_to_group_00_state_01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bd154_tick_group_01_states."
+
+[[function]]
+module = "game_task"
+address = "09BAF7D0"
+name = "hunter_state_motions_0597_0584_spawn_5e_to_state_1_5"
+purpose = "reaction_block_weapon_ticks 2 each tick. p2 0 motion 0x584 at once, else 0x597 then 0x584 from frame 0x26 with quest_flags 0x800 cleared; spawn 0x5E; at end state 1/5."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A8B290"
+name = "hunter_pick_evade_state_by_stick_if_stamina_75"
+purpose = "Under 75 stamina returns 0. No direction buttons: vfunc +0x6C (0, 0x6D, 4). Else by stick angle (+0x2000, camera relative when option_camera_relative_evade is 1): under 0x6000 0x6C, up to 0xC000 0x6B, else 0x6E. Clears +0x111C 0x1000, returns 1. Takes no stamina itself."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_484_bit_4000_then_9a8b290, hunter_state_group0_motions_3f6_3f8_use_75_stamina."
+
+[[function]]
+module = "game_task"
+address = "09B53618"
+name = "monster_state_turn_to_7a0_random_ticks_motion_4_0c"
+purpose = "Motion 4 (p2 1) or 0xC for 120..247 ticks, turning up to 0x100 per tick toward point +0x7A0; ends when locally owned with monster_end_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B38FD0"
+name = "class_089bcd64_state_subtype_34_55_motion_28_spawn_at_100"
+purpose = "Only subtypes 0x34, 0x55. Motion 0x28; at frame 100, if +0x7EA or p2 1, effect 0x17 and spawn 089BD95C kind from table 09BEC698 by p2; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09AF6BF8"
+name = "monster_state_motions_24_4a_spawn_9b86e38_by_state"
+purpose = "Motion 0x24; after 20 ticks spawns 09B86E38 kind 2 in state 4, else 3, +0x7DE 1; after 60 motion 0x4A, clears +0x7DE at frame 48; at its end monster_end_keep_7de_save_prev_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AD8458"
+name = "monster_health_at_or_below_type_fraction_by_band"
+purpose = "Returns 0 where table 09BB8BB8 by type is 0 and for types 0x50, 0x4F, 0x58, 0x4C, 0x41, 0x40, 0x3B, 0x3C, 0x36. Else health <= health_max x (entry + 0.1), scaled 0.5 or 0.6 by object_band_from_field_4bc 2 or 1."
+confidence = "inferred"
+evidence = "Whole body; caller entity_apply_pending_damage_and_choose_result_code."
+
+[[function]]
+module = "game_task"
+address = "09B34B30"
+name = "class_089bcd64_state_motion_39_54_until_frame_to_state_00_22"
+purpose = "p2 0 motion 0x39 with field_3CF 3, to frame 300; else motion 0x54 to frame 200; then vfunc +0x88 (0, 0x22, 4), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B22598"
+name = "class_089bcc68_state_subtype_30_56_motion_28_timed"
+purpose = "Only subtypes 0x30, 0x56. part_mask_c_ticks 10; field_481 by field_5AA and field_5B2. Motion 0x28 for 360 ticks (p2 0) or 180; then vfunc +0x88 (3, 5), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AD8170"
+name = "monster_spawn_effect_at_bone_from_table_9bcfcf0"
+purpose = "Finds a 0x20-byte row of 09BCFCF0 with the same type group and bit p2 not yet set in +0x774; spawns class_089bdce0 at the row's bone and offset."
+confidence = "inferred"
+evidence = "Whole body; caller monster_set_774_bit_once_and_quest_5c2."
+
+[[function]]
+module = "game_task"
+address = "09B394B8"
+name = "class_089bcd64_state_type_34_55_3e_motion_2e_spawn_one"
+purpose = "Only types 0x34, 0x55, 0x3E. Motion 0x2E; at frame 66 spawns attack kind 0x21, pitch 0x93F for p2 0, else 0x2000; at end state 00/01. One-shot form of 9B3A908."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcd64_group3_dispatch_state."
+
+[[function]]
+module = "game_task"
+address = "09B23B30"
+name = "class_089bcc68_state_subtype_43_57_motions_2f_31_turn_window"
+purpose = "Only subtypes 0x43, 0x57. Motion 0x2F (p2 0) or 0x31; in frames 46..86 turns -0x666 or +0x666 per tick; at end state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B3C6B8"
+name = "monster_state_motion_4a_countdown_77a_to_state_00_0e"
+purpose = "field_5F0 5, requests blocked. Loops motion 0x4A while field_77A counts down; then vfunc +0x88 (0, 0xE, 4), repeated when locally owned."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AF5170"
+name = "monster_dispatch_state_299_cases_9af47b8_to_9af5100"
+purpose = "Copies +0x298/+0x299 to +0x460/+0x461; switch on +0x299 for states 0..0x10, states 2..4 being 9AF48B8 with 0, 1, 2."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A851C0"
+name = "class_089bb450_point_range_band"
+purpose = "Point record p2: Y must be within -200..+100 of it. XZ within 100 or a fifth of its radius (+0xC) gives 2; within the radius while +0x13B4 is above 0 gives 1; else 0."
+confidence = "inferred"
+evidence = "Whole body; +0x13B4 is used this way in class_089bb450 code."
+
+[[function]]
+module = "game_task"
+address = "09ADC3B0"
+name = "entity_bc194_state_move_motions_0b_0e_subtype_45_spawn"
+purpose = "Motion 0xB; subtype 0x45 spawns 09B69AD8 kind 0x16 at frame 20; object_advance_move_distance until done and motion over; motion 0xE, then entity_bc194_end_state_enter_0_1."
+confidence = "inferred"
+evidence = "Whole body; caller entity_bc194_dispatch_state_group_1."
+
+[[function]]
+module = "game_task"
+address = "09A9CB18"
+name = "hunter_state_motions_16_1c_to_state_02_at_frame_10"
+purpose = "Clears the steer flags and listed-item ticks. p2 0 motion 0x1C, else 0x16 then 0x1C from frame 6; at frame 10 of 0x1C state 0/2."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B5E438"
+name = "class_089bd154_state_turn_motion_15_rate_7c0"
+purpose = "Motion 0x15; +0x7C0 is 0x26A, or for p2 the turn to move_target_place clamped to 0x4000..0xA000 divided by 0x35; facing += +0x7C0 each tick; at end class_089bd154_change_to_group_00_state_01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bd154_tick_group_01_states."
+
+[[function]]
+module = "game_task"
+address = "09AA6100"
+name = "hunter_enter_state_16_if_vector_3e0_long_unless_monster_37"
+purpose = "Returns 0 if a monster of type 0x37 has +0x1E4 equal to the hunter's +0x3F0. Else if length of +0x3E0 is at least 7 (4 when movement 0 in state 0x16): returns 1, entering state 0/0x16 unless already in it."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_common_input_handler."
+
+[[function]]
+module = "game_task"
+address = "09BA6848"
+name = "hunter_set_group1_state_by_vfunc_70_and_flag_1000"
+purpose = "vfunc +0x70 result and flag_288 0x1000: 2 gives state 1/7 or (storing charge_tier) 1/5; 1 gives 1/6 or 1/0x11; 0 gives 1/0xF or 1/0x10."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B63F40"
+name = "owned_obj_spawn_vtable_089bd548_setup_9b734e0_if_29a_matches"
+purpose = "If in the local area allocates 0x250 bytes, base-constructs with vtable 089BD548, passes all arguments to 9B734E0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B1F480"
+name = "class_089bcc68_state_motion_37_heal_5_percent_by_p2"
+purpose = "Subtype 0x49 resets at once. Motion 0x37 with field_3CF 3; at its end p2 1 heals 5% of max, fills meter A, 9AD5008; subtypes 0x30, 0x56 place a timed pickup; state 00/01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AF3DB0"
+name = "monster_init_motion_health_scale_10_if_variant_bit_80"
+purpose = "Starts type motion, health from type table, clears fields; spawn_variant bit 0x80 sets scale 10; field_492 1 becomes alert mode 1 from type table; ends with vfunc +0xF4."
+confidence = "inferred"
+evidence = "Whole body; view types it FelyneMelynx."
+
+[[function]]
+module = "game_task"
+address = "09B68060"
+name = "hunter_weapon_status_mask_and_value"
+purpose = "hunter_weapon_value_by_selector 0, 1, 2, 3, 7, when above 0, set bits 0x10, 0x20, 0x40, 0x100, 0x80 in *a2 and write the value to *a3; the last wins."
+confidence = "inferred"
+evidence = "Whole body; called from attack_set_status_kind_and_amount_with_skills."
+
+[[function]]
+module = "game_task"
+address = "09B52ED0"
+name = "monster_dispatch_state_299_cases_9b525d0_to_9b52e50"
+purpose = "Copies +0x298/+0x299 to +0x460/+0x461; switch on +0x299 for states 0..0xD, states 2..4 being 9B526D0 with 0, 1, 2."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B21E10"
+name = "class_089bcc68_state_move_on_surface_motion_0c"
+purpose = "Keeps Y at surface_height, field_529 5, movement 2. Motion 0xC, p2 1 motion speed 50; variant 0 and +0x592 under 2 spawns via 9B65C58; object_advance_move_distance until done; monster_movement_2_set_529_flags_set_state."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bcc68_state_group_02_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AE9B70"
+name = "monster_state_motions_79_or_7b_7a_7c_to_state_00_01"
+purpose = "Motion 0x79, or 0x7B for p2 1; then 0x7A movement 1; then 0x7C movement 0; at its end state 00/01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A90088"
+name = "hunter_reaction_state_motion_33_mash_status_input"
+purpose = "Keeps motion 0x33. p2 0 clears buildups, sets mash_status_left 900, clears reaction blocks, waits 15 ticks; p2 other waits 0. Then local hunter runs hunter_mash_status_input_tick."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_reaction_state_dispatch_by_state_299."
+
+[[function]]
+module = "game_task"
+address = "09A6F698"
+name = "hunter_load_kind_band_kind_6_weapons"
+purpose = "For weapon_table_kind 6: table 089787D4 by p2 minus weapon byte, -1 by hunter_check_4e9_6_1e8_5_4ec_mask_10, -2 or -4 by skills 0x35, 0x36, or the table - 1 with skill 0xD9; under 9 gives 0, under 11 gives 1, else 2. Other kinds give 2."
+confidence = "inferred"
+evidence = "Whole body; used to pick a sound in owned_obj_sound_by_event_and_kind_0d."
+
+[[function]]
+module = "game_task"
+address = "09B58F78"
+name = "monster_state_motion_0a_jump_back_at_40"
+purpose = "Movement 2, motion 0xA; at frame 40 velocity y 30 z -30 (p2 0) or 32, -40, accel -0.8; moves until the motion ends; monster_reset_movement_set_state_02_00."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AC46B0"
+name = "monster_pick_hunter_highest_554_by_mask"
+purpose = "Of 4 slots with a bit in +0x503, present, same area, with +0x424 & p2: returns the one with the highest +0x554 entry, else 0xFF."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B19840"
+name = "class_089bca70_state_motion_1a_spawn_attack_0f_17_at_80"
+purpose = "Motion 0x1A; at frame 80 spawns attack (0xF, 0x17, 3 for p2 1 else 2, pitch 0xF8E5); at end class_089bca70_reset_motion_fields_and_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bca70_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B18BA8"
+name = "class_089bca70_state_motion_1a_spawn_attack_0f_09_at_80"
+purpose = "Motion 0x1A; at frame 80 spawns attack (0xF, 9, 3 for p2 1 else 1, pitch 0xF8E5); at end class_089bca70_reset_motion_fields_and_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bca70_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AA4C00"
+name = "hunter_state_hit_immune_motion_1_wait_60"
+purpose = "hit_immune_ticks 3 each tick. Motion 1; p2 0 without mode byte 2E state_wait_ticks 60; action_count 60; local stays in step 1 until the wait is 0, then base state 0/2; others step to 2, staying."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B5A398"
+name = "monster_state_motions_15_0b_timed_150_240"
+purpose = "Field_3CF 4, script restart. Motion 0x15 for 150 ticks (p2 0) or 240; motion 0xB; at frame 90 monster_reset_4b0_4b5_flag_and_set_state_00_01."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BA78D8"
+name = "hunter_state_motion_057c_stamina_minus_2_to_state_1_0e_or_4"
+purpose = "Motion 0x57C, clears freeze ticks. Takes 2 stamina per tick via hunter_stamina_add_with_skills_a8_a9; button_action 1 remembered; at end state 1/4 if remembered or p2 not 0, else 1/0xE."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B08EC0"
+name = "class_089bc77c_state_motion_1a_spawn_attack_0f_09_at_80"
+purpose = "Motion 0x1A; at frame 80 spawns attack (0xF, 9, 2 for p2 1 else 0, pitch 0xF8E5); at end class_089bc77c_finish_state_to_group0_state01."
+confidence = "inferred"
+evidence = "Whole body; caller class_089bc77c_state_group3_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B64DF8"
+name = "owned_obj_spawn_089bd7c4_one_or_two_setup_9b89418"
+purpose = "Allocates 0xF0-byte class_089bd7c4 objects, 2 if a2 low byte is 0 else 1, sets each up with 9B89418(a1, a2, index)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAD4B0"
+name = "fx_node_spawn_at_position_and_link"
+purpose = "Takes a node from 9C31628, fx_base_init, position p1, +0x64 f12, +0xC p2, +0x24 p3; links at the head of the +0x19030 list of DAT_09D19860, counts +0x19034."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BA4258"
+name = "hunter_load_kind_speed_band_by_skills"
+purpose = "Table 089787D5 by p2 minus weapon byte, plus entries of skill table 09C0BBB0 the hunter has; under 5 gives 0, under 8 gives 1, else 2."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_fill_loaded_count_motions_058e_058f_057c uses it for motion speed."
+
+[[function]]
+module = "game_task"
+address = "09A872E8"
+name = "hunter_update_monster_alert_flag_in_area"
+purpose = "monster_alert_on_hunter = 0, unless quest_flags 0x200; 1 if a monster in the same area has +0x638 bit 8, group not 5, this hunter's bit in +0x503, +0x4B9 1, type not 0xF or 0x2D."
+confidence = "inferred"
+evidence = "Whole body; view types it Comrade."
+
+[[function]]
+module = "game_task"
+address = "09AA4B08"
+name = "hunter_state_consume_item_motion_speed_by_skill_ad"
+purpose = "Local hunter on entry runs hunter_consume_using_item_by_id. p2 0 speed 3.4 with skill 0xAD, else 2.0; at motion end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09BB40A8"
+name = "hunter_state_motion_057c_fill_loaded_count_9ca8198_at_44"
+purpose = "Motion 0x57C (p2 not 0 from frame 6); weapon_loaded_count = load_capacity; at frame 44 9CA8198(3); at end base state 0/4."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B6D378"
+name = "owned_obj_kind6_setup_from_hunter_and_link"
+purpose = "Kind 6, sub p3, +0xC4 p4; copies owner, area, slot, facing from hunter p2; +0xE0 p5 unless sub is 0xC..0xE; f12 at +0x11C; links at the head of the +0x502C list."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_spawn_by_load_kind_half_scale."
+
+[[function]]
+module = "game_task"
+address = "09B59190"
+name = "monster_state_turn_to_7cc_then_state_02_00"
+purpose = "Movement 2, motion 1 unless already 0x3E9. Turns 0x440 per tick to heading +0x7CC; when there clears flag_288 0x20000 and monster_reset_movement_set_state_02_00."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAA068"
+name = "hunter_use_item_9b64638_or_spawn_kind_4_and_consume"
+purpose = "By using_item_id: 0x367, 0x4E call 9B64638; 0x364, 0x4F spawn 09B820F0 kind 4; those count game counter 0x3B and take 1 from the pouch unless the mode byte allows. 0x4EC and others do nothing."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A908F0"
+name = "hunter_reaction_state_motions_39_3a_to_state_2_1e"
+purpose = "Motion 0x39 (p2 0) or 0x3A; at end state 2/0x1E; 9C9A6F0(1) every 10 ticks."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_reaction_state_dispatch_by_state_299."
+
+[[function]]
+module = "game_task"
+address = "09A824B0"
+name = "class_089bb450_state_motions_408_40a_wait_40_80"
+purpose = "Motion 0x408, +0x280 = 3, waits 40 ticks (p2 0) or 80; motion 0x40A; at its end state 0x11."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AEA1A0"
+name = "monster_state_motion_7c_load_type_block_0_to_state_00_07"
+purpose = "Motion 0x7C with entity_load_type_block_648_678(0), sight_off_ticks 2 until it ends; then vfunc +0x88 (0, 7, 4), repeated when locally owned."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AE9E28"
+name = "monster_state_motion_25_load_type_block_0_to_state_00_07"
+purpose = "Motion 0x25 with entity_load_type_block_648_678(0), sight_off_ticks 2 until it ends; then vfunc +0x88 (0, 7, 4), repeated when locally owned."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A6FDE0"
+name = "hunter_in_stage_zone_held_by_other_slot"
+purpose = "With g_global bit 0xF7A57C & 1, not in states 0/0x36, 0/0x7A, 0/0x48, 0/0x7F: true if 9AAD0C8's zone has quest byte 0x75C bit 0x80 set and 8872E90 gives a slot other than the local one."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_use_selected_pouch_item."
+
+[[function]]
+module = "game_task"
+address = "09A99C40"
+name = "hunter_state_motions_39_3a_refresh_prop_to_state_5_0"
+purpose = "hunter_refresh_listed_item_prop each tick. Motion 0x39 (p2 0) or 0x3A; at end state 5/0."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09ADC2D8"
+name = "entity_bc194_state_move_motions_0a_0e"
+purpose = "Motion 0xA; object_advance_move_distance until done and motion over; motion 0xE, then entity_bc194_end_state_enter_0_1."
+confidence = "inferred"
+evidence = "Whole body; caller entity_bc194_dispatch_state_group_1."
+
+[[function]]
+module = "game_task"
+address = "09BA7810"
+name = "hunter_state_motion_057b_or_0583_to_base_state_0_6"
+purpose = "Motion 0x57B (p2 0) or 0x583, clears scratch and reaction block; at end base state 0/6."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A90238"
+name = "hunter_reaction_state_motion_1a_timed_40_80"
+purpose = "Motion 0x1A; after 40 ticks (p2 0) or 80, base state 0/0xC."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_reaction_state_dispatch_by_state_299."
+
+[[function]]
+module = "game_task"
+address = "09BB0DD8"
+name = "hunter_spawn_effect_by_kind_unless_group_3_4"
+purpose = "Not in state groups 3, 4: p2 0xD effect 9; 3, 4 with status_bits 0x800 effect 3; 0 effect 2."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B64170"
+name = "owned_obj_spawn_089bd58c_setup_9b81098"
+purpose = "Allocates 0xE0-byte class_089bd58c, sets it up with 9B81098 and all arguments; no area check."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09ADF9A8"
+name = "keyframe_table_globals_start_by_index"
+purpose = "Global 09C12424 = table 09BD4218[p]; starts the time and row and sets first row's duration and differences; read by object_set_240_from_global_keyframe_table."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09A704C8"
+name = "hunter_set_drain_interval_454_by_skills"
+purpose = "+0x454: with +0x111C bit 0x8000 40, 10 or 20, else 60, 15 or 30, for skill 10, skill 0xC, neither."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_add_drain_status_seconds_unless_skill, hunter_tick_periodic_health_drains."
+
+[[function]]
+module = "game_task"
+address = "09B417E0"
+name = "class_089bcd64_dispatch_state_group"
+purpose = "Copies state group and state to +0x460/+0x461; switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcd64_update_reactions_and_run_state."
+
+[[function]]
+module = "game_task"
+address = "09B161F0"
+name = "class_089bca70_dispatch_state_group"
+purpose = "Copies state group and state to +0x460/+0x461; switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bca70_tick_damage_reactions_script_and_state."
+
+[[function]]
+module = "game_task"
+address = "09AA1B60"
+name = "hunter_state_motion_321_322_to_base_state_0_6"
+purpose = "Motion 0x321 (p2 0) or 0x322; at end base state 0/6."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B668F0"
+name = "owned_obj_spawn_ctor_09b9d700_setup_09b9d7b0_if_29a_matches"
+purpose = "If in the local area allocates 0xF0 bytes, constructs with 9B9D700, sets up with 9B9D7B0(p1, p2)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B505B0"
+name = "monster_dispatch_state_group_9b4e910_to_9b502b0"
+purpose = "Clears +0x7CC, +0x7CA; switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; view types it GreatThunderbug."
+
+[[function]]
+module = "game_task"
+address = "09BA4340"
+name = "hunter_weapon1_set_layers_580_5e5_5e6_by_67e"
+purpose = "+0x67E 0 turns the layer off. Else +0x1A9 = 1, motion 0x580 with 0x5E5 (positive) or 0x5E6 (negative), weight abs(+0x67E) capped at 100."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_weapon1_state_motions_0579_057d_0580_by_p2."
+
+[[function]]
+module = "game_task"
+address = "09BB4728"
+name = "hunter_state_motion_0582_to_base_state_or_state_2_26"
+purpose = "Motion 0x582; at end base state 0/4 (p2 0) or state 2/0x26."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B608B8"
+name = "class_089bd154_dispatch_state_group"
+purpose = "Switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bd154_tick_damage_results_and_states."
+
+[[function]]
+module = "game_task"
+address = "09B5ADC8"
+name = "monster_dispatch_state_group_9b58788_to_9b5ab38"
+purpose = "Switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; view types it Remobra."
+
+[[function]]
+module = "game_task"
+address = "09B564B0"
+name = "monster_dispatch_state_group_9b52ed0_to_9b56180"
+purpose = "Switch on state group 0..7; groups 0 and 7 are both 9B52ED0."
+confidence = "confirmed"
+evidence = "Whole body; view types it ShakalakaKingShakalaka."
+
+[[function]]
+module = "game_task"
+address = "09B26610"
+name = "class_089bcc68_dispatch_state_group"
+purpose = "Switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcc68_tick_damage_reactions_and_state_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B1CE58"
+name = "monster_dispatch_state_group_9b1cf10_to_9b1d080"
+purpose = "Switch on state group 0..7; groups 4, 6, 7 are class_089bcc68_dispatch_state_0_1."
+confidence = "confirmed"
+evidence = "Whole body; view types it CreatureType1D."
+
+[[function]]
+module = "game_task"
+address = "09B0F930"
+name = "class_089bc974_dispatch_state_group"
+purpose = "Switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bc974_method7c_tick_damage_result_to_state_then_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AF9DF8"
+name = "class_089bc584_dispatch_state_group_all_to_same"
+purpose = "All state groups 0..7 go to class_089bc584_dispatch_state_299."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bc584_update."
+
+[[function]]
+module = "game_task"
+address = "09AF7FF0"
+name = "monster_dispatch_state_group_9af5170_to_9af7950"
+purpose = "Switch on state group 0..7; groups 0, 7 are 9AF5170."
+confidence = "confirmed"
+evidence = "Whole body; view types it FelyneMelynx."
+
+[[function]]
+module = "game_task"
+address = "09AE3AA0"
+name = "entity_vt290_dispatch_state_group"
+purpose = "Switch on state group 0..7."
+confidence = "confirmed"
+evidence = "Whole body; caller entity_vt290_tick_react_to_9ac7a08_code_and_run_state."
+
+[[function]]
+module = "game_task"
+address = "09B847B8"
+name = "node_set_position_from_bone_offset_plus_50"
+purpose = "Position +0x40 = bone +0x100 of object +0xE4's matrix applied to offset +0xF0, Y + 50."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AECC18"
+name = "entity_vt38c_state_motion_83_sight_off_to_state_2_0"
+purpose = "Movement 4, motion 0x83, sight_off_ticks 2 until it ends; entity_vt38c_set_mode_280_to_4_enter_state_2_0."
+confidence = "confirmed"
+evidence = "Whole body; caller entity_vt38c_state2_dispatch_substate_299."
+
+[[function]]
+module = "game_task"
+address = "09A8AD40"
+name = "object_play_3d_sound_on_instance_channel"
+purpose = "If in the local area plays 3D sound p2 at position p3, channel index + 2, volume-like value +0x40C."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAC970"
+name = "hunter_item_effect_defense_bonus_40_scaled_ticks"
+purpose = "Skill 0x4B chance of stamina max +75; local: defense bonus 40 for ticks 0x1518 scaled by skills 0xA6/0xA7, or only clears if halved; effect 3; motion 0x197."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09B68198"
+name = "scale_1_25_for_listed_ids"
+purpose = "Returns f12 x 1.25 if a1 is 0xE, 0x11, 0x15, 0x1A, 0x2B, 0x2C, 0x2E, 0x2F, 0x35, 0x4B, 0x51, 0x59; else f12."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BA7E08"
+name = "hunter_clear_quest_flags_20_800_enter_state_1_2_or_3"
+purpose = "Clears quest_flags 0x20, 0x800 and 111C bit; vfunc +0x6C (1, 3 for p2 0 else 2, 0xC)."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_input_by_weapon_class."
+
+[[function]]
+module = "game_task"
+address = "09B4E700"
+name = "monster_init_motion_health_zero_velocity_9b4e190"
+purpose = "Type motion, zero velocity, health from type table, +0x7AC from base_scale, script requested, clears fields, vfunc +0xF4, 9B4E190, entity_set_byte_6db."
+confidence = "inferred"
+evidence = "Whole body; view types it GreatThunderbug."
+
+[[function]]
+module = "game_task"
+address = "09AE2B50"
+name = "monster_dispatch_state_299_cases_9ae2140_to_9ae2a58"
+purpose = "Switch on +0x299 for states 0..5."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B580D0"
+name = "monster_init_motion_health_movement_2_save_place"
+purpose = "Type motion, movement 2, health from type table, script requested, vfunc +0xF4; place copied to +0x7B0."
+confidence = "inferred"
+evidence = "Whole body; view types it Remobra."
+
+[[function]]
+module = "game_task"
+address = "09B35DB8"
+name = "class_089bcd64_state_motion_0e_0d_by_p2"
+purpose = "Motion 0xE (p2 0) or 0xD; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcd64_state_group_01_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B35D20"
+name = "class_089bcd64_state_motion_0c_0f_by_p2"
+purpose = "Motion 0xC (p2 0) or 0xF; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcd64_state_group_01_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09ADF758"
+name = "entity_bc194_dispatch_state_299_9addf20_to_9aded68"
+purpose = "Switch on +0x299 for states 0..4; 1 and 2 go to no-ops."
+confidence = "confirmed"
+evidence = "Whole body; caller entity_bc194_dispatch_state_group."
+
+[[function]]
+module = "game_task"
+address = "09B97DC8"
+name = "class_089bd95c_free_pool_elems_by_kind_count"
+purpose = "For count table 09C0A9A8 by kind +0xD: frees the pool element at +0x30 of each 0xA0-byte entry from +0xE0, clears it."
+confidence = "confirmed"
+evidence = "Whole body; callers class_089bd95c_destructor, class_089bd95c_state_release_slots_and_finish."
+
+[[function]]
+module = "game_task"
+address = "09B3BBE0"
+name = "class_089bcd64_state_motion_3c_script_restart"
+purpose = "Movement 0, motion 0x3C, script restart; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AAD300"
+name = "hunter_set_10fe_bits_for_hunters_in_area"
+purpose = "Ors into +0x10FE the bit of slot +0x1E6 of each of 4 hunters in this one's area."
+confidence = "confirmed"
+evidence = "Whole body; callers hunter_consume_using_item_by_id, hunter_apply_item_effect_to_local_hunter_by_id."
+
+[[function]]
+module = "game_task"
+address = "09B23020"
+name = "class_089bcc68_state_motion_13_19_by_p2"
+purpose = "Motion 0x13 (p2 0) or 0x19; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B22F90"
+name = "class_089bcc68_state_motion_15_17_by_p2"
+purpose = "Motion 0x15 (p2 0) or 0x17; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcc68_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09AAC8E8"
+name = "hunter_item_effect_attack_bonus_10_scaled_ticks"
+purpose = "Skill 0x4B chance of stamina max +75; local: attack bonus 10 for ticks 0x1518 scaled by skills 0xA6/0xA7; effect 2; motion 0x197."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09BB0878"
+name = "hunter_set_flag_800_by_p2_enter_state_1_0e_or_1_26"
+purpose = "Clears 111C bit. p2 0 clears quest_flags 0x800, state 1/0xE; else sets it, state 1/0x26."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_snapshot_place_and_dispatch_on_1e8."
+
+[[function]]
+module = "game_task"
+address = "09AACB50"
+name = "hunter_item_effect_clear_drain_or_motion_198"
+purpose = "state_random bit 0 clear and no list entry 5: motion 0x198. Else clears drain status, motion 0x197, effect 1, skill 0x4B chance."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09AACA10"
+name = "hunter_item_effect_max_stamina_75_block_loss"
+purpose = "Skill 0x4B chance; stamina max +75; stamina_loss_block_ticks 0x1518 scaled by skills; HUD message 0x18 for the local hunter; effect 10, motion 0x197."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09B24F08"
+name = "class_089bcc68_state_motion_4a_script_restart"
+purpose = "Movement 0, motion 0x4A, script restart; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B175C0"
+name = "class_089bca70_state_motion_27_sight_off"
+purpose = "sight_off_ticks 2 each tick, motion 0x27; at end 0 and state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bca70_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B72670"
+name = "kind_switched_attack_step_until_age_31"
+purpose = "attack_phase 0, +0xF0 = 1, age + 1. Under 31 integrates, launch_pitch -= 0xC00, launch_yaw = 0x400. Returns age >= 31."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B61128"
+name = "monster_dispatch_state_9b611a0_9b61368_9b61730"
+purpose = "Copies state group and state to +0x460/+0x461; states 0, 1, 2."
+confidence = "confirmed"
+evidence = "Whole body; view types it ProximityCreatureType4A."
+
+[[function]]
+module = "game_task"
+address = "09B9B358"
+name = "node_ramp_0_2_to_1_over_15_ticks_c2"
+purpose = "Returns 0.2 + 0.8 x (+0xC2 / 15), clamped to 0.2..1."
+confidence = "confirmed"
+evidence = "Whole body; caller node_set_end_from_direction_history_and_length."
+
+[[function]]
+module = "game_task"
+address = "09BA6630"
+name = "hunter_set_flag_800_by_p2_enter_state_1_3"
+purpose = "p2 0 clears quest_flags 0x800, else sets it; clears 111C bit; vfunc +0x6C (1, 3, 4)."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_snapshot_place_and_dispatch_on_1e8."
+
+[[function]]
+module = "game_task"
+address = "09B4FCE0"
+name = "monster_state_movement_2_script_restart_to_state_02_03"
+purpose = "Movement 2, script restart; when motion ends monster_clear_7cb_set_state_02_03."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B1F3A8"
+name = "class_089bcc68_state_motion_1_to_state_00_01"
+purpose = "Motion 1; at end state 00/01."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcc68_state_group_00_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09A8B518"
+name = "hunter_charge_time_add_1_sound_at_60_cap_1000"
+purpose = "charge_time + 1 up to 1000; on reaching 60 plays the own-bank sound 9."
+confidence = "inferred"
+evidence = "Whole body; callers hunter_weapon10_call_9a8b518_stamina_minus_1, hunter_weapon2_tick_9a8b518_stamina_minus_1_9ba63b0."
+
+[[function]]
+module = "game_task"
+address = "09B820F0"
+name = "class_089bd5d0_construct"
+purpose = "Base-constructs, vtable 089BD5D0, clears the pointer in 3 sixteen-byte records from +0x104."
+confidence = "confirmed"
+evidence = "Whole body; caller owned_obj_spawn_ctor_09b820f0_setup_09b82210."
+
+[[function]]
+module = "game_task"
+address = "09B6A138"
+name = "class_089bd47c_construct"
+purpose = "Base-constructs, vtable 089BD47C, clears the pointer in 2 sixteen-byte records from +0xE0."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bd47c_stack_instance_run."
+
+[[function]]
+module = "game_task"
+address = "09AACCF0"
+name = "hunter_item_effect_amount_20_motion_192"
+purpose = "hunter_adjust_amount_by_skills_97_98_call_vt68(20), effect 0, motion 0x192, skill 0x4B chance."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09A731E0"
+name = "hunter_index_from_11e8_11ed_11ee"
+purpose = "+0x11EE 2: 0xB if +0x11E8 is 1, else 0xC. Otherwise 5 or 8 by the same test, plus signed +0x11ED."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09BAAD60"
+name = "hunter_clear_flag_800_enter_state_1_11"
+purpose = "Clears quest_flags 0x800 and 111C bit; vfunc +0x6C (1, 0x11, 4)."
+confidence = "confirmed"
+evidence = "Whole body; callers hunter_state_evade, hunter_state_evade_sideways."
+
+[[function]]
+module = "game_task"
+address = "09BA8FD0"
+name = "hunter_clear_flag_800_enter_state_1_0b"
+purpose = "Clears quest_flags 0x800 and 111C bit; vfunc +0x6C (1, 0xB, 4)."
+confidence = "confirmed"
+evidence = "Whole body; callers hunter_state_evade, hunter_state_evade_sideways."
+
+[[function]]
+module = "game_task"
+address = "09AAA340"
+name = "hunter_add_680_clamped_to_2000"
+purpose = "Adds p2 to +0x680, clamped to -0x2000..0x2000."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_steer_angles_by_input_bits_during_motion."
+
+[[function]]
+module = "game_task"
+address = "09AE9530"
+name = "monster_end_state_if_motion_part_p2_ended"
+purpose = "If flag bit 1 of motion part p2 (0x40-byte stride from +0xBC) is clear or p2 is 0xFF: monster_reset_movement_and_set_state_00_01."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AACAC8"
+name = "hunter_item_effect_vfunc_80_and_amount_150"
+purpose = "Skill 0x4B chance; vfunc +0x80 (0x96, 0); hunter_adjust_amount_by_skills_97_98_call_vt68(0x96); effect 10, motion 0x197."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09A870F0"
+name = "hunter_clear_attack_defense_bonuses_reset_health_max"
+purpose = "Zeroes attack and defense bonuses and timers; health_max back to base, capping health and red limit; hunter_clear_timed_arrays_5f7_6a0_114c."
+confidence = "inferred"
+evidence = "Whole body; view types it Comrade."
+
+[[function]]
+module = "game_task"
+address = "09B1CF10"
+name = "monster_dispatch_state_0_noop_9b1d008"
+purpose = "Copies +0x298/+0x299 to +0x460/+0x461; state 0 calls a no-op."
+confidence = "confirmed"
+evidence = "Whole body; called by monster_dispatch_state_group_9b1cf10_to_9b1d080."
+
+[[function]]
+module = "game_task"
+address = "09A67F30"
+name = "object_set_motion_3f9_half_blend_start_8"
+purpose = "motion_id 0x3F9, blend frames p2/2 on both parts, start frame 8 on both, flag_288 1."
+confidence = "confirmed"
+evidence = "Whole body; callers hunter_enter_movement_mode_2_or_base_motion, hunter_reset_to_base_state_and_motion."
+
+[[function]]
+module = "game_task"
+address = "09A6CB50"
+name = "angle_diff_plus_4000_outside_e3a_71c7"
+purpose = "(a1 - a2 + 0x4000) as u16: 0 if in 0xE3A..0x71C6, else 1."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_can_guard_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09A63190"
+name = "tagged_heap_free_id_4_clear_3c_3e"
+purpose = "Frees tagged heap id 4 of DAT_09A0B680; +0x3E = 0, +0x3C = 0xFFFF."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B72EB8"
+name = "class_089bd4c0_free_pool_elem_12c"
+purpose = "Frees the pool element at +0x12C if set, clears it."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09AC9B90"
+name = "monster_set_action_count_from_type_table_clear_4b5"
+purpose = "action_count = table 09BB8BE4 short by type; +0x4B5 = 0."
+confidence = "confirmed"
+evidence = "Whole body; caller class_089bcd64_update_reactions_and_run_state."
+
+[[function]]
+module = "game_task"
+address = "09B8C420"
+name = "class_089bd84c_construct"
+purpose = "Base-constructs, vtable 089BD84C."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "game_task"
+address = "09B6D2B0"
+name = "class_089bd4c0_construct"
+purpose = "Base-constructs, vtable 089BD4C0."
+confidence = "confirmed"
+evidence = "Whole body; caller hunter_spawn_by_load_kind_half_scale."
+
+[[function]]
+module = "game_task"
+address = "09AC3468"
+name = "monster_4c8_table_2c_entry_by_index"
+purpose = "Returns word p2 of table +0x2C of the record at +0x4C8; 0 if no table."
+confidence = "confirmed"
+evidence = "Whole body; callers monster_apply_boost_from_subtype_table, monster_script_take_pending_entry."
+
+[[function]]
+module = "game_task"
+address = "09AACB18"
+name = "hunter_item_effect_amount_20_motion_197"
+purpose = "Skill 0x4B chance; hunter_adjust_amount_by_skills_97_98_call_vt68(20); effect 10, motion 0x197."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09ACF698"
+name = "object_add_49c_clamped_to_4a8"
+purpose = "Adds p2 to +0x49C, capped at +0x4A8."
+confidence = "confirmed"
+evidence = "Whole body; caller monster_reset_size_and_refill_meters."
+
+[[function]]
+module = "game_task"
+address = "09AACA98"
+name = "hunter_item_effect_max_stamina_450_then_amount_150"
+purpose = "Stamina max +0x1C2 (450); then hunter_item_effect_vfunc_80_and_amount_150."
+confidence = "inferred"
+evidence = "Whole body; caller hunter_consume_using_item_by_id."
+
+[[function]]
+module = "game_task"
+address = "09A703C8"
+name = "hunter_button_4000_or_1120_is_1"
+purpose = "True if +0x484 has 0x4000 or +0x1120 equals 1."
+confidence = "confirmed"
+evidence = "Whole body; caller object_dialogue_line_update."
+
+[[function]]
+module = "game_task"
+address = "09AE8D80"
+name = "entity_vt38c_misc_flag_20_set"
+purpose = "True if misc_flags has 0x20."
+confidence = "confirmed"
+evidence = "One line; caller entity_vt38c_tick_react_to_9ac7a08_code_run_state_clamp_height."

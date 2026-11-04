@@ -1,0 +1,8 @@
+[[field]]
+struct = "Class_089BDCB8"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "2 gets 5 render nodes, the others 1"
+evidence = "game_sub 9C58688, 9C58900, 9C57E08"

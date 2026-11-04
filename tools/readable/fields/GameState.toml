@@ -320,11 +320,11 @@ decimal = true
 [[field]]
 struct = "GameState"
 offset = 0x390
-name = "supply_items"
+name = "quest_item_pairs"
 type = "u16"
 confidence = "inferred"
-note = "first of 32 pairs (u16 item, s16 count) loaded from the quest's section 8"
-evidence = "EBOOT 8851078 fills them; 88AB980 gives the pair named by a net request to the pouch; 8847CB0 draws the list"
+note = "first of 32 pairs (u16 item, s16 count), by section 8 of the quest or a random table: the supply box's items at the start, and the timed item-taking menu's list after, whose rest is paid for by item price"
+evidence = "EBOOT 8851078 fills them from the quest; 886F894 and 8872444 from weighted tables; 88476F4, 8847B74, 8847CB0 are the box; 8823E18 is the taking menu, and 88790F4 sums count times the price at 0899D2C8 for its zenny; 88739A4 clears"
 
 [[field]]
 struct = "GameState"
@@ -903,7 +903,7 @@ evidence = "lobby_task 9A960D8 selects item 0x399 or 0x39A from it and stores th
 [[field]]
 struct = "GameState"
 offset = 0x696E8
-name = "points"
+name = "pokke_points"
 type = "u32"
 confidence = "confirmed"
 note = "points spent in the lobby's points menu, 0 to 9999999"
@@ -982,7 +982,7 @@ decimal = true
 [[field]]
 struct = "GameState"
 offset = 0x6992C
-name = "npc_job_state"
+name = "kitchen_bbq_state"
 type = "u8"
 confidence = "inferred"
 note = "0 none, 1 given, 2 done: a single job given to one of the 5 NPC records"
@@ -1010,7 +1010,7 @@ decimal = true
 [[field]]
 struct = "GameState"
 offset = 0x6992F
-name = "npc_job_record"
+name = "kitchen_chef_record"
 type = "u8"
 confidence = "inferred"
 note = "index of the NPC record, 0xFF none"
@@ -1172,11 +1172,11 @@ evidence = "EBOOT 886A0B4 game_bytes_69942_contain(0x1F); 8852A60 copies to the 
 [[field]]
 struct = "GameState"
 offset = 0x69BEC
-name = "npc_records_b"
+name = "records_13_x70"
 type = "u8"
 confidence = "inferred"
-note = "first byte of a list of 13 records of 0x70 bytes"
-evidence = "lobby_task 9A73DF0 and 9AF05C0 memset (&this)[n*0x70] and clear bit n of npc_records_b_mask; game_sub 9C27710 walks 13"
+note = "first byte of a list of 13 records of 0x70 bytes, in groups of 3, 5 and 5; byte 0 is flags, nonzero means in use, byte +1 picks a name from a string table. What they are isn't shown: lobby menus list and remove them"
+evidence = "game_sub 9C241A0 draws the groups, names by +1; 9C27628 and 9C276C8 count empties; 9C27710 words messages from +1; lobby_task 9A73DF0 and 9AF05C0 memset (&this)[n*0x70] and clear bit n of records_13_notice_mask; 9A691E8 sets byte 0 bits"
 
 [[field]]
 struct = "GameState"
@@ -1217,11 +1217,11 @@ evidence = "game_sub 9C1FA18, 9C20A40"
 [[field]]
 struct = "GameState"
 offset = 0x6A1A0
-name = "npc_records_b_mask"
+name = "records_13_notice_mask"
 type = "u16"
 confidence = "inferred"
-note = "one bit per record of npc_records_b"
-evidence = "lobby_task 9AF05C0 and EBOOT 883BB10 clear the bit with the record; game_sub 9C27710 tests"
+note = "one bit per record of records_13_x70: set bits get a message, then all are cleared"
+evidence = "game_sub 9C26490 sets; 9C27710 pushes a HUD message for each set bit and zeroes it; lobby_task 9AF05C0 and EBOOT 883BB10 clear the bit with the record"
 
 [[field]]
 struct = "GameState"
@@ -1235,7 +1235,7 @@ evidence = "EBOOT 88BC7F0 save_menu_load_game_tick compares and replaces; game_s
 [[field]]
 struct = "GameState"
 offset = 0x6A238
-name = "points_menu_level_a"
+name = "farm_rows_unlocked"
 type = "u8"
 confidence = "confirmed"
 note = "level bought with points, up to 2"
@@ -1557,11 +1557,11 @@ evidence = "game_task 9AA4DD0, 9AAA390, 9BB6D98; EBOOT 88495AC"
 [[field]]
 struct = "GameState"
 offset = 0x6ADE4
-name = "option_camera_relative_evade"
+name = "option_stick_camera_relative"
 type = "s8"
 confidence = "inferred"
-note = "1: the hunter's evade tests the stick against the camera's heading"
-evidence = "game_task 9A8B100, 9A8B290, 9A8B790, 9A8B898; EBOOT 88495AC"
+note = "1: stick directions are taken from the camera's heading (camera_get_heading_angle16) instead of the hunter's facing, for evades and for turns on weapon states; off, some of those turn by held buttons"
+evidence = "game_task 9A8B100, 9A8B290, 9A8B790, 9A8B898 evades; 9AA4270; 9BA51F8, 9BA72F8 weapon states; 9BAE0F8 turn on weapon 7's state change, by buttons when off; 9BAA178, 9BB5080; EBOOT 88495AC sets it from the options menu"
 
 [[field]]
 struct = "GameState"
@@ -1809,7 +1809,7 @@ evidence = "EBOOT 88572E8 settings_snapshot_to_6af1c; 88574A4 compares"
 [[field]]
 struct = "GameState"
 offset = 0x6AF28
-name = "snapshot_camera_relative_evade"
+name = "snapshot_stick_camera_relative"
 type = "u8"
 confidence = "confirmed"
 note = "snapshot of the option at +0x6ADE4, compared to see if it changed"
@@ -1868,3 +1868,770 @@ type = "u32"
 confidence = "confirmed"
 note = "snapshot of all_slot_flags_e; bits copied"
 evidence = "EBOOT 88572E8; 88574A4 compares bytewise"
+
+[[field]]
+struct = "GameState"
+offset = 0x60
+name = "record_weapon_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_weapon_byte_0"
+evidence = "EBOOT 8852A60; 88CE298 copies it to the hunter weapon_record"
+
+[[field]]
+struct = "GameState"
+offset = 0x64
+name = "record_weapon_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_weapon_word_4"
+evidence = "EBOOT 8852A60; 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x66
+name = "record_weapon_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_weapon_word_6"
+evidence = "EBOOT 8852A60; 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x68
+name = "record_weapon_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_weapon_word_8"
+evidence = "EBOOT 8852A60; 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A
+name = "record_weapon_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_weapon_word_a"
+evidence = "EBOOT 8852A60; 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x6C
+name = "record_part0_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_part0_byte_0"
+evidence = "lobby_task 9AA1538; 9A5FCC0, 9A5FF38; EBOOT 88CE298 copies the slot to the hunter"
+
+[[field]]
+struct = "GameState"
+offset = 0x6D
+name = "record_part0_category"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy of equipped_part0_category"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x70
+name = "record_part0_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part0_word_4"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x72
+name = "record_part0_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part0_word_6"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x74
+name = "record_part0_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part0_word_8"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x76
+name = "record_part0_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part0_word_a"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x78
+name = "record_part1_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_part1_byte_0"
+evidence = "lobby_task 9AA1538; 9A5FCC0, 9A5FF38; EBOOT 88CE298 copies the slot to the hunter"
+
+[[field]]
+struct = "GameState"
+offset = 0x79
+name = "record_part1_category"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy of equipped_part1_category"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x7C
+name = "record_part1_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part1_word_4"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x7E
+name = "record_part1_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part1_word_6"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x80
+name = "record_part1_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part1_word_8"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x82
+name = "record_part1_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part1_word_a"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x84
+name = "record_part2_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_part2_byte_0"
+evidence = "lobby_task 9AA1538; 9A5FCC0, 9A5FF38; EBOOT 88CE298 copies the slot to the hunter"
+
+[[field]]
+struct = "GameState"
+offset = 0x85
+name = "record_part2_category"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy of equipped_part2_category"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x88
+name = "record_part2_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part2_word_4"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x8A
+name = "record_part2_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part2_word_6"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x8C
+name = "record_part2_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part2_word_8"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x8E
+name = "record_part2_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part2_word_a"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x90
+name = "record_part3_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_part3_byte_0"
+evidence = "lobby_task 9AA1538; 9A5FCC0, 9A5FF38; EBOOT 88CE298 copies the slot to the hunter"
+
+[[field]]
+struct = "GameState"
+offset = 0x91
+name = "record_part3_category"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy of equipped_part3_category"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x94
+name = "record_part3_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part3_word_4"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x96
+name = "record_part3_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part3_word_6"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x98
+name = "record_part3_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part3_word_8"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x9A
+name = "record_part3_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part3_word_a"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x9C
+name = "record_part4_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy (stride 0x8C) of equipped_part4_byte_0"
+evidence = "lobby_task 9AA1538; 9A5FCC0, 9A5FF38; EBOOT 88CE298 copies the slot to the hunter"
+
+[[field]]
+struct = "GameState"
+offset = 0x9D
+name = "record_part4_category"
+type = "u8"
+confidence = "inferred"
+note = "per-slot copy of equipped_part4_category"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0xA0
+name = "record_part4_word_4"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part4_word_4"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0xA2
+name = "record_part4_word_6"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part4_word_6"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0xA4
+name = "record_part4_word_8"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part4_word_8"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0xA6
+name = "record_part4_word_a"
+type = "u16"
+confidence = "inferred"
+note = "per-slot copy of equipped_part4_word_a"
+evidence = "lobby_task 9AA1538; EBOOT 88CE298"
+
+[[field]]
+struct = "GameState"
+offset = 0x392
+name = "quest_item_pair_count"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "the first pair count: taking from a pair lowers it"
+evidence = "EBOOT 8851078 fills from the quest; 8823E18 subtracts what is taken; 88AB980; 88790F4 multiplies by price"
+
+[[field]]
+struct = "GameState"
+offset = 0x498
+name = "demo_menu_row"
+type = "s32"
+confidence = "inferred"
+note = "row of the six-row menu at the end of the demo task, wrapping"
+evidence = "demo_task 9A61568 moves and wraps at 5; EBOOT 887F54C zeroes it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C0
+name = "equipped_weapon_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the weapon 12-byte box entry; its address is passed as the record"
+evidence = "EBOOT 8850910 copies the box entry; 88D66F4 passes &it to equip_weapon_base_id and copies it to the hunter weapon_record"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C4
+name = "equipped_weapon_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the weapon entry: the hunter weapon_record_flags"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; 88D66F4"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C6
+name = "equipped_weapon_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the weapon entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4C8
+name = "equipped_weapon_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the weapon entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4CA
+name = "equipped_weapon_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the weapon entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4CC
+name = "equipped_part0_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the part0 12-byte box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4CD
+name = "equipped_part0_category"
+type = "u8"
+confidence = "inferred"
+note = "byte 1 of the entry: its equipment category"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; equip_box_entry_has_category tests it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D0
+name = "equipped_part0_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the part0 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D2
+name = "equipped_part0_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the part0 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D4
+name = "equipped_part0_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the part0 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D6
+name = "equipped_part0_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the part0 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D8
+name = "equipped_part1_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the part1 12-byte box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4D9
+name = "equipped_part1_category"
+type = "u8"
+confidence = "inferred"
+note = "byte 1 of the entry: its equipment category"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; equip_box_entry_has_category tests it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4DC
+name = "equipped_part1_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the part1 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4DE
+name = "equipped_part1_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the part1 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E0
+name = "equipped_part1_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the part1 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E2
+name = "equipped_part1_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the part1 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E4
+name = "equipped_part2_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the part2 12-byte box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E5
+name = "equipped_part2_category"
+type = "u8"
+confidence = "inferred"
+note = "byte 1 of the entry: its equipment category"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; equip_box_entry_has_category tests it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4E8
+name = "equipped_part2_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the part2 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4EA
+name = "equipped_part2_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the part2 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4EC
+name = "equipped_part2_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the part2 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4EE
+name = "equipped_part2_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the part2 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F0
+name = "equipped_part3_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the part3 12-byte box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F1
+name = "equipped_part3_category"
+type = "u8"
+confidence = "inferred"
+note = "byte 1 of the entry: its equipment category"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; equip_box_entry_has_category tests it"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F4
+name = "equipped_part3_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the part3 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F6
+name = "equipped_part3_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the part3 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4F8
+name = "equipped_part3_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the part3 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4FA
+name = "equipped_part3_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the part3 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4FC
+name = "equipped_part4_byte_0"
+type = "u8"
+confidence = "inferred"
+note = "byte 0 of the part4 12-byte box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x4FD
+name = "equipped_part4_category"
+type = "u8"
+confidence = "inferred"
+note = "byte 1 of the entry: its equipment category"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60; equip_box_entry_has_category tests it"
+
+[[field]]
+struct = "GameState"
+offset = 0x500
+name = "equipped_part4_word_4"
+type = "u16"
+confidence = "inferred"
+note = "word +4 of the part4 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x502
+name = "equipped_part4_word_6"
+type = "s16"
+confidence = "inferred"
+note = "word +6 of the part4 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x504
+name = "equipped_part4_word_8"
+type = "s16"
+confidence = "inferred"
+note = "word +8 of the part4 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x506
+name = "equipped_part4_word_a"
+type = "s16"
+confidence = "inferred"
+note = "word +A of the part4 box entry"
+evidence = "EBOOT 8850910 copies the box entry; lobby_task 9AA1538 and 8852A60 copy it to the record at +0x60"
+
+[[field]]
+struct = "GameState"
+offset = 0x677F2
+name = "flag_2c_choice"
+type = "u16"
+confidence = "inferred"
+note = "1 when flag 0x2C is cleared, 2 when set by the edit task; low byte goes to the record +0xAE"
+evidence = "edit_task 9A60290; EBOOT 8853C88 clears; 8852A60 copies"
+
+[[field]]
+struct = "GameState"
+offset = 0x677F4
+name = "record_af_source"
+type = "u16"
+confidence = "inferred"
+note = "low byte copied to the record +0xAF"
+evidence = "EBOOT 8852A60; 8853C88 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x677F6
+name = "record_b0_source"
+type = "u16"
+confidence = "inferred"
+note = "low byte copied to the record +0xB0"
+evidence = "EBOOT 8852A60; 8853C88 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x678A0
+name = "quest_mask_b_low"
+type = "u32"
+confidence = "inferred"
+note = "low word of a 64-bit mask tested beside special_quest_bits"
+evidence = "EBOOT 88FD294; game_sub 9C27F38 tests it with the high word"
+
+[[field]]
+struct = "GameState"
+offset = 0x678A4
+name = "quest_mask_b_high"
+type = "u32"
+confidence = "inferred"
+note = "high word of the mask"
+evidence = "EBOOT 88FD294; game_sub 9C27F38"
+
+[[field]]
+struct = "GameState"
+offset = 0x687CF
+name = "counter_capped_250"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "adds one, up to 250"
+evidence = "EBOOT 88795F4; game_sub 9C25FE8"
+
+[[field]]
+struct = "GameState"
+offset = 0x69935
+name = "lobby_menu_saved_choice"
+type = "u8"
+confidence = "inferred"
+note = "a lobby menu loads its choice from here and writes it back when changed"
+evidence = "lobby_task 9A69E30, 9A69F80; 9ABB008 switches on it at 1"
+
+[[field]]
+struct = "GameState"
+offset = 0x6A380
+name = "lcg_state"
+type = "u16"
+confidence = "confirmed"
+note = "state of gamedata_lcg_next_6a380: times 0xB0 modulo 0xFF53"
+evidence = "game_sub 9C2ACC8; edit_task 9A62EF0 seeds it"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADDD
+name = "option_byte_6addd"
+type = "s8"
+confidence = "inferred"
+note = "in the options block, meaning unknown; read only with gallery mode off"
+evidence = "EBOOT 8852C20 default, 88572E8 snapshots; 88DE7C8 tests it with gallery_mode 0"
+
+[[field]]
+struct = "GameState"
+offset = 0x6ADE3
+name = "option_byte_6ade3"
+type = "s8"
+confidence = "inferred"
+note = "in the options block, meaning unknown: when 0 the lobby skips steps and 9A63948 refuses its kind 4"
+evidence = "EBOOT 8852C20 default, 88572E8 snapshots; lobby_task 9A70830 goes to step 10 at 0; 9A63948"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF0C
+name = "callback_event_4_pending"
+type = "u8"
+confidence = "inferred"
+note = "a callback saw event 4; a game_sub menu picks it up and clears it"
+evidence = "EBOOT 88DE6A0 sets 1 when its first argument is 4; game_sub 9C225C0 tests for 1 and clears; 884F8D4 clears"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF21
+name = "snapshot_option_byte_6addd"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of option_byte_6addd"
+evidence = "EBOOT 88572E8"
+
+[[field]]
+struct = "GameState"
+offset = 0x6AF27
+name = "snapshot_option_byte_6ade3"
+type = "u8"
+confidence = "confirmed"
+note = "snapshot of option_byte_6ade3"
+evidence = "EBOOT 88572E8"

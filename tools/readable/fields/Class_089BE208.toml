@@ -1,0 +1,82 @@
+[[field]]
+struct = "Class_089BE208"
+offset = 0x20
+name = "sound_arg_word"
+type = "u32"
+confidence = "inferred"
+note = "its top byte is the sixth argument of sound_play_3d; not written by this class"
+evidence = "game_sub 9CB6508, 9CB4558"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "indexes tables of element counts, limits, draw ids"
+evidence = "game_sub 9CB30C0, 9CB4558, 9CB2618"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x29
+name = "start_kind_param"
+type = "u8"
+confidence = "inferred"
+note = "kind 6 keeps kind_param here before changing it; the start sound tests it"
+evidence = "game_sub 9CB31B8, 9CB6508"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x2A
+name = "kind_param"
+type = "u8"
+confidence = "inferred"
+note = "spawn argument: its meaning goes by kind (frame limit for kind 0xF, a mode for 6 and 0xC)"
+evidence = "game_sub 9CB23F8 stores it; 9CB31B8; 9CB4558"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x2B
+name = "scale_table_row"
+type = "u8"
+confidence = "inferred"
+note = "row of a scale table for kinds 3 and 4; 0xFF once there is no owner or it was asked to end"
+evidence = "game_sub 9CB31B8, 9CB4558, 9CB6140, 9CB63B8"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x38
+name = "age_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "zeroed at start, one up per tick; ends past the kind limit"
+evidence = "game_sub 9CB31B8, 9CB4558"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x3C
+name = "element_scale"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "float spawn argument, copied to each element +0x40, then multiplied by kind. Not a pointer: the view had it as Object*"
+evidence = "game_sub 9CB23F8 stores a float; 9CB6140, 9CB63B8, 9CB31B8"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x361
+name = "elements_allocated"
+type = "u8"
+confidence = "inferred"
+note = "set 1 at the end of start; release frees the elements only then"
+evidence = "game_sub 9CB31B8, 9CB60A0"
+
+[[field]]
+struct = "Class_089BE208"
+offset = 0x362
+name = "angle16"
+type = "u16"
+confidence = "inferred"
+note = "16-bit angle: owner facing for kind 10; given to elements"
+evidence = "game_sub 9CB31B8, 9CB4558"

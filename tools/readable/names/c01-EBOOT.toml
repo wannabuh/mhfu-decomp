@@ -268,7 +268,7 @@ address = "0886AD58"
 name = "quest_on_monster_counted_update_records"
 purpose = "For a monster with a spawn entry: first time only (entry flag 8) adds to a per-type count capped at 9999, updates largest and smallest size for types in set a, updates objectives and decrements the spawn entry's remaining count."
 confidence = "inferred"
-evidence = "Whole body; the count's field name captured_count_by_type is not shown by this code to mean capture."
+evidence = "Whole body; the count's field name count_b_no_pickup_by_type is not shown by this code to mean capture."
 
 [[function]]
 module = "EBOOT"
@@ -690,7 +690,7 @@ evidence = "Whole body, newlib _Bfree pattern; caller 880CA00."
 module = "EBOOT"
 address = "08823E18"
 name = "hud_item_take_menu_tick"
-purpose = "The menu taking items listed in g_game supply_items to pouch or box: counts room, handles input, runs a timer at +0x1214, and when finished or timed out adds zenny from 88790F4 and backs up the pouch. Returns 0 when closed."
+purpose = "The menu taking items listed in g_game quest_item_pairs to pouch or box: counts room, handles input, runs a timer at +0x1214, and when finished or timed out adds zenny from 88790F4 and backs up the pouch. Returns 0 when closed."
 confidence = "inferred"
 evidence = "Part read of 745 lines: item_box_room_capped, item_pouch_room_for_item_or_full, item_box_add, gamedata_add_zenny_clamped; states at +0x120A set by 08823DB0."
 

@@ -1044,3 +1044,12 @@ type = "s8"
 confidence = "confirmed"
 note = "view taking over what is shown, 3, 4, 5, or -1"
 evidence = "camera.c documents it; EBOOT 8814E18 sets it from views 5, 3, 4 in that order; 8813158 tests it below 0"
+
+[[field]]
+struct = "Camera"
+offset = 0x830
+name = "focus_view_value"
+type = "f32"
+confidence = "inferred"
+note = "the value stored with a pushed focus view: 0x3F060A92 (0.5236) in 8813320"
+evidence = "EBOOT 88134E8 stores it; 8813320"

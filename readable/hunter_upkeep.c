@@ -178,7 +178,7 @@ static void count_down_timers(Ctx *c, Hunter *self) {
     COUNT_DOWN(self->push_off_ticks);
     COUNT_DOWN(self->hit_immune_ticks);
     COUNT_DOWN(self->reaction_block_item_ticks);
-    COUNT_DOWN(self->state_wait_ticks);
+    COUNT_DOWN(self->menu_camera_lock_ticks);
     count_down_positive(&self->repeat_use_ticks);
     if (self->stamina_loss_block_ticks != 0) {
         self->stamina_loss_block_ticks--;

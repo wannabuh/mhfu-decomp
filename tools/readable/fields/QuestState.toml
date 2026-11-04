@@ -472,12 +472,12 @@ evidence = "EBOOT 886AB7C increments; 8872B2C and 88701D8 read; 8849D7C adds the
 [[field]]
 struct = "QuestState"
 offset = 0x350
-name = "captured_count_by_type"
+name = "count_b_no_pickup_by_type"
 type = "u16"
-confidence = "guess"
+confidence = "inferred"
 decimal = true
-note = "first of 90 by monster type: other removal path, capped 9999"
-evidence = "EBOOT 886AD58 increments, called from monster states (9B5FD80); sum with removed in 8879198; capture is a reading"
+note = "first of 90 by monster type, capped 9999: the second count, once per spawn entry (its flag 8), from states that add no pickup point; the kill-or-capture reading is unproven"
+evidence = "EBOOT 886AD58 increments, called from monster states (em01 9D280E8, 9D28320, game_task 9B5FD80): none of its 27 callers calls entity_add_pickup_point, 67 of the 85 calling 886AB7C (removed_count_by_type) do; 8879198 and 8849D7C add the two; 8879198 sends it to 884FF80"
 
 [[field]]
 struct = "QuestState"
@@ -975,3 +975,39 @@ confidence = "confirmed"
 decimal = true
 note = "sum of the counts, at most 300"
 evidence = "EBOOT 88738D4, 8873838; 8873A0C sizes a buffer by it"
+
+[[field]]
+struct = "QuestState"
+offset = 0x58
+name = "quest_info_14_ptr"
+type = "ptr"
+confidence = "confirmed"
+note = "quest_info +0x14 made a pointer into the file"
+evidence = "EBOOT 8869904"
+
+[[field]]
+struct = "QuestState"
+offset = 0x5C
+name = "file_section_56c_ptr"
+type = "ptr"
+confidence = "confirmed"
+note = "the file offset at 08A5C56C made a pointer"
+evidence = "EBOOT 8869904"
+
+[[field]]
+struct = "QuestState"
+offset = 0x12E
+name = "copied_byte_8a5c5a7"
+type = "u8"
+confidence = "confirmed"
+note = "copy of the byte at 08A5C5A7"
+evidence = "EBOOT 8869904"
+
+[[field]]
+struct = "QuestState"
+offset = 0x12F
+name = "copied_byte_8a5c5a8"
+type = "u8"
+confidence = "confirmed"
+note = "copy of the byte at 08A5C5A8"
+evidence = "EBOOT 8869904"

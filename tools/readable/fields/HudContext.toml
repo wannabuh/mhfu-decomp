@@ -1080,3 +1080,103 @@ confidence = "inferred"
 decimal = true
 note = "Frames since the banner started; its zigzag strip follows it"
 evidence = "EBOOT 884A72C; 884AE14 receives it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x536
+name = "net_entry_copy"
+type = "u8"
+confidence = "inferred"
+note = "lobby net entry given to the HUD when a session starts; only written"
+evidence = "lobby_task 9A6FEB8, 9A70830; arcade_task 9A60810"
+
+[[field]]
+struct = "HudContext"
+offset = 0x57B
+name = "camera_query_8814080_result"
+type = "s8"
+confidence = "inferred"
+note = "result of f_8814080 on the camera, -1 when the test before it fails; the status layer tests it for 0 with the weapon class"
+evidence = "EBOOT 883FDF4 stores; 883F9F8 tests"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120A
+name = "item_take_step"
+type = "u8"
+confidence = "inferred"
+note = "step of the item-taking menu: 0 choice, 1 to pouch, 2 to box, higher are its prompts"
+evidence = "EBOOT 8823E18; 8823DB0 resets it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120B
+name = "item_take_choice_row"
+type = "u8"
+confidence = "inferred"
+note = "row among the three choices at step 0"
+evidence = "EBOOT 8823E18; 8823DB0 resets it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120C
+name = "item_take_cell"
+type = "u8"
+confidence = "inferred"
+note = "cell in the item grid, 8 wide; its pair in quest_item_pairs"
+evidence = "EBOOT 8823E18; 8824B14 draws it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120D
+name = "item_take_prompt_row"
+type = "u8"
+confidence = "inferred"
+note = "0 or 1, flipped in a prompt step; button 0x4000 acts on it"
+evidence = "EBOOT 8823E18"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120E
+name = "item_take_flags"
+type = "u8"
+confidence = "inferred"
+note = "bit 0 flipped by button 0x8000; button 0x2000 clears it before leaving the step"
+evidence = "EBOOT 8823E18; 8823DB0 resets it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x120F
+name = "item_take_open_sound_played"
+type = "u8"
+confidence = "confirmed"
+note = "0 plays the opening sound once"
+evidence = "EBOOT 8823E18; 8823DB0 resets it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1210
+name = "item_take_cell_refused"
+type = "s8"
+confidence = "inferred"
+note = "0xFF when the cell can be taken, 0 when there is no room"
+evidence = "EBOOT 8823E18 sets it from the room; 8824B14 reads it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1214
+name = "item_take_ticks_left"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "starts at 0xE10, one down per tick the caller allows"
+evidence = "EBOOT 8823E18; 8823DB0 resets it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1218
+name = "item_take_two_rows"
+type = "u8"
+confidence = "inferred"
+note = "1: the grid is 2 rows, not 4, with the window placed by it"
+evidence = "EBOOT 8823E18; 8823DEC sets it; 882545C"

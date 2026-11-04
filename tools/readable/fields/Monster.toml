@@ -1954,3 +1954,135 @@ decimal = true
 note = "ticks left held by status bit 0x10"
 evidence = "game_task 09AC5C30, 09ACCA30"
 
+
+[[field]]
+struct = "Monster"
+offset = 0x1D5
+name = "state_step"
+type = "u8"
+confidence = "confirmed"
+note = "step within the current state function; zeroed on every state change"
+evidence = "game_task 9AC8918 zeroes; em01 9D280E8 dispatches on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x1D6
+name = "state_scratch_a"
+type = "u8"
+confidence = "inferred"
+note = "per-state scratch, zeroed on every state change"
+evidence = "game_task 9AC8918, 9AC48C0"
+
+[[field]]
+struct = "Monster"
+offset = 0x1D7
+name = "state_scratch_b"
+type = "u8"
+confidence = "inferred"
+note = "second per-state scratch, zeroed on every state change"
+evidence = "game_task 9AC8918, 9AC48C0"
+
+[[field]]
+struct = "Monster"
+offset = 0x360
+name = "hit_angle"
+type = "u16"
+confidence = "inferred"
+note = "16-bit angle of the hit, written by the hit test"
+evidence = "game_sub 9C42DA0 writes it; 9C42750; em33 9D1E000 faces away from it; em14 9D1A4B8 compares it to facing"
+
+[[field]]
+struct = "Monster"
+offset = 0x512
+name = "request_bit_8_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "two-tick countdown set by request bit 8"
+evidence = "game_task 9ACD6B0; 9ABA440; 9AC5C30 and 9AC69B0 count down"
+
+[[field]]
+struct = "Monster"
+offset = 0x529
+name = "script_block_59_gate_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "countdown; script opcode 0x59 subcode 0 skips its block at 0"
+evidence = "game_task 9AC1EC0 tests; 9AC5C30 counts down; 9B21B08 sets 5; EBOOT 8844EA0 tests it for types 0xF and 0x2D"
+
+[[field]]
+struct = "Monster"
+offset = 0x52E
+name = "script_stored_value"
+type = "u8"
+confidence = "inferred"
+note = "script subcode 4 sets, clears and compares it"
+evidence = "game_task 9ABD318, 9ABC858, 9ABFAD0"
+
+[[field]]
+struct = "Monster"
+offset = 0x574
+name = "nearby_point_byte_16"
+type = "u8"
+confidence = "inferred"
+note = "byte +0x16 of the point chosen for nearby_point_id; 0xFF with none"
+evidence = "game_task 9AD21E8"
+
+[[field]]
+struct = "Monster"
+offset = 0x575
+name = "attached_effect_hide_hold_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "while nonzero, attached_effect_hide_ticks is not recomputed from the movement mode"
+evidence = "game_task 9AC5C30 counts down and skips it; em14 9D21BB0 sets 2 with the hide ticks"
+
+[[field]]
+struct = "Monster"
+offset = 0x578
+name = "script_op3f_distance_tens"
+type = "u8"
+confidence = "inferred"
+note = "argument of script opcode 0x3F, read times 10"
+evidence = "game_task 9ABBD90"
+
+[[field]]
+struct = "Monster"
+offset = 0x57A
+name = "request_bit_4_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "two-tick countdown set by request bit 4; what it holds off is not seen"
+evidence = "game_task 9ACD6B0 sets 2 at 0; 9AC2DE8; 9AC5C30 and 9AC69B0 count down"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F0
+name = "short_timer_side_0_ticks"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "short countdown: 9AD8808 refreshes it to 5 with p2 0, states also set it directly; hit code branches on it"
+evidence = "game_task 9AD8808 sets 5; 9AC5C30 counts down; 9AD8688 tests either; 9AC7A08, 9AE58A8 branch on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F2
+name = "short_timer_side_1_ticks"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "the same with p2 1"
+evidence = "game_task 9AD8808 sets 5; 9AC5C30 counts down; 9AD8688 tests either"
+
+[[field]]
+struct = "Monster"
+offset = 0x613
+name = "state_flag_cleared_with_3cf"
+type = "u8"
+confidence = "inferred"
+note = "set in many state functions, cleared with +0x3CF"
+evidence = "game_task 9AD8348 clears; 32 states set 1, 9B230B0 among them; 9B320B0 returns it; EBOOT 8844EA0 tests"

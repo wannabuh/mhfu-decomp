@@ -230,17 +230,17 @@ evidence = "game_sub 9C43000 stores at ring[idx], increments and wraps at 0x10; 
 [[field]]
 struct = "Hunter"
 offset = 0x39C
-name = "resist_hit_mask_04"
+name = "resist_pct_hit_bit_04"
 type = "f32"
 confidence = "inferred"
 decimal = true
 note = "percent taken off damage from hit records with +0x25 mask 4; equipment selector 2"
-evidence = "game_sub 9C43000 picks it by mask and scales by (100-r)/100; EBOOT 88D96BC loads it; 88D9880 adds skill bonuses"
+evidence = "game_sub 9C43000 picks it by mask and scales by (100-r)/100; EBOOT 88D96BC loads it; 88D9880 adds skill bonuses; 88D9EB8 adds to it by id 0x10. The suffix is the bit of the hit record that selects it: the field is a float, not a mask"
 
 [[field]]
 struct = "Hunter"
 offset = 0x3A0
-name = "resist_hit_mask_10"
+name = "resist_pct_hit_bit_10"
 type = "f32"
 confidence = "inferred"
 decimal = true
@@ -250,7 +250,7 @@ evidence = "game_sub 9C43000; EBOOT 88D96BC"
 [[field]]
 struct = "Hunter"
 offset = 0x3A4
-name = "resist_hit_mask_40"
+name = "resist_pct_hit_bit_40"
 type = "f32"
 confidence = "inferred"
 decimal = true
@@ -260,7 +260,7 @@ evidence = "game_sub 9C43000; EBOOT 88D96BC"
 [[field]]
 struct = "Hunter"
 offset = 0x3A8
-name = "resist_hit_mask_20"
+name = "resist_pct_hit_bit_20"
 type = "f32"
 confidence = "inferred"
 decimal = true
@@ -270,7 +270,7 @@ evidence = "game_sub 9C43000; EBOOT 88D96BC"
 [[field]]
 struct = "Hunter"
 offset = 0x3AC
-name = "resist_hit_mask_80"
+name = "resist_pct_hit_bit_80"
 type = "f32"
 confidence = "inferred"
 decimal = true
@@ -503,12 +503,12 @@ evidence = "game_sub 9C375D8"
 [[field]]
 struct = "Hunter"
 offset = 0x552
-name = "state_wait_ticks"
+name = "menu_camera_lock_ticks"
 type = "u8"
 confidence = "inferred"
 decimal = true
-note = "countdown some states wait on before leaving; set to 60"
-evidence = "game_task 9AA3460, 9AA4C00 set 0x3C and reset at 0; 9A68FC8 counts down; 9A91068 clears it"
+note = "countdown: while nonzero the quest menu won't open and the camera takes no yaw request. Some states set 60 and wait for 0; a dialogue line holds it at 5"
+evidence = "game_task 9A68FC8 counts down; EBOOT 883F270 opens the quest menu only at 0; 888E494 asks for yaw only at 0; game_task 9AA3460, 9AA4C00, 9A99D18 set 60 and wait; 9AF9F78 sets 10 and 9AFA1B8 holds 5 for the local hunter, clearing it when the line ends; 9A91068 clears it"
 
 [[field]]
 struct = "Hunter"
@@ -1281,3 +1281,79 @@ confidence = "confirmed"
 decimal = true
 note = "20-frame interval of the strong drain sound"
 evidence = "game_task 9A6D418; 9A6D0D8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x9C
+name = "motion_part0_end_frame"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "last frame of the part 0 motion: motion_max_track_value"
+evidence = "EBOOT 8863E70 sets motion +0x1C; 8864348 wraps or clamps at it; game_task 9A8F600 passes it as a frame"
+
+[[field]]
+struct = "Hunter"
+offset = 0x292
+name = "net_synced_word_292"
+type = "u16"
+confidence = "inferred"
+note = "sent to peers and restored; no other use seen"
+evidence = "game_task 9A70A30 packs; 9A71AB0 unpacks"
+
+[[field]]
+struct = "Hunter"
+offset = 0x55D
+name = "supply_box_cell"
+type = "u8"
+confidence = "confirmed"
+note = "cursor in the 8x4 supply box"
+evidence = "EBOOT 88476F4 moves it; 8847B74 takes that cell; 884860C"
+
+[[field]]
+struct = "Hunter"
+offset = 0x55E
+name = "supply_box_take_cooldown"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "ticks before the next take: 30 on a take, one down per menu tick"
+evidence = "EBOOT 8847B74 sets 30; 88476F4 counts down and requires 0; game_task 9AA2D50 clears"
+
+[[field]]
+struct = "Hunter"
+offset = 0x680
+name = "flag_1000_camera_arg"
+type = "s16"
+confidence = "inferred"
+note = "passed to the camera while hunter flag 0x1000 is set"
+evidence = "EBOOT 8889CAC passes it to 888D958; game_task 9AA9228, 9AA0090 zero it"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10F0
+name = "attack_percent_a"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "percent for one damage factor; the larger of the two factors wins. By weapon class and state"
+evidence = "game_sub 9C43558 divides by 100 with a part table byte; game_task 9A68218 from table 09BB75F0; 9BA3200 by charge tier"
+
+[[field]]
+struct = "Hunter"
+offset = 0x10F1
+name = "attack_percent_b"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "percent for the other damage factor"
+evidence = "game_sub 9C43558; game_task 9A68218 from the table; 9BA72F8"
+
+[[field]]
+struct = "Hunter"
+offset = 0x1149
+name = "weapon_net_flag"
+type = "s8"
+confidence = "inferred"
+note = "byte sent to peers; each weapon uses it as its own latch"
+evidence = "game_task 9A70A30 packs, 9A71AB0 unpacks; 9BA2060 weapon 0; 9BAE6E0 weapon 8; 9AA0090"
