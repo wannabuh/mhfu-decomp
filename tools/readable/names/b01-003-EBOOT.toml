@@ -1,0 +1,303 @@
+[[function]]
+module = "EBOOT"
+address = "08816B64"
+name = "identity_return_arg"
+purpose = "Returns its first argument unchanged."
+confidence = "confirmed"
+evidence = "The whole body is return param_1."
+
+[[function]]
+module = "EBOOT"
+address = "08816BE4"
+name = "ui_context_init"
+purpose = "Resets the UI context's flags, cursors and popup state, and stores the local hunter pointer at +0x530, when an area's task starts."
+confidence = "inferred"
+evidence = "Called from game_task and lobby_task just after boot; hunter fetched by player index; only field writes."
+
+[[function]]
+module = "EBOOT"
+address = "08818C94"
+name = "menu_draw_paged_options_list"
+purpose = "Draws a titled six-row menu page chosen from the cursor at +0x57d, greying rows that are unavailable, or calls another drawer when the 0x6af14 bit 0 mode is set."
+confidence = "inferred"
+evidence = "Page is cursor/6, six strings from a table at 089B5600 with colour 10 on some rows, and a scrollbar call; the game meaning of the menu is not settled."
+
+[[function]]
+module = "EBOOT"
+address = "08818F74"
+name = "menu_draw_toggle_label_panel"
+purpose = "Draws a bottom-right panel with a label picked by bit 0 of +0x576, widening it with a second label when the 0xF7A57C bit 0 mode is set."
+confidence = "inferred"
+evidence = "Fixed screen coordinates, one panel call and strings looked up by the +0x576 bit."
+
+[[function]]
+module = "EBOOT"
+address = "0881908C"
+name = "menu_draw_selected_info_panel"
+purpose = "Takes the selection's category (+0x5FE) and id (+0x5FC), remaps ids 8 and 10 of category 3 to 0xC or 0xD by a state byte, and calls the info panel drawer."
+confidence = "inferred"
+evidence = "Thin wrapper over 08819128 that only adjusts the id."
+
+[[function]]
+module = "EBOOT"
+address = "08819128"
+name = "menu_draw_info_panel"
+purpose = "Draws an info panel for a category and id: a text panel from a per-category string table, or for category 1 ids above 0x18 an item panel with icon, text and rarity line."
+confidence = "inferred"
+evidence = "Table 0893B054 indexed by category then id; id minus 0x18 indexes the 0x18-byte item table and feeds an icon and a +1 printed value in a rarity colour."
+
+[[function]]
+module = "EBOOT"
+address = "08819450"
+name = "menu_draw_item_text_or_attribute_list"
+purpose = "Draws an item's description text, or, for items with an extra record and view 1, up to four id-and-value rows from that record plus one more value, with a header naming the view."
+confidence = "inferred"
+evidence = "Item table field selects a 0x10-byte record at 08977AF4; arg bits 0-1 pick the view; rows print a named id and a signed value."
+
+[[function]]
+module = "EBOOT"
+address = "088197A0"
+name = "menu_draw_item_pouch_list"
+purpose = "Chooses a 24-slot item list (pouch or the list at save +0x43C8), optionally compacting out empty slots and sorting a copy, then draws a page of it."
+confidence = "inferred"
+evidence = "24 (id, count) short pairs, id 0 skipped, sort call on a stack copy, runs in menu recordings and calls 088198E4."
+
+[[function]]
+module = "EBOOT"
+address = "088198E4"
+name = "menu_draw_item_list_page"
+purpose = "Draws a titled eight-row page of item names and counts, colouring rows by availability under the mode flags, with an optional scrollbar and hint."
+confidence = "inferred"
+evidence = "Eight rows from the (id, count) list; item name lookup; count coloured when it reaches the item table's maximum, 0xFF showing a fixed string."
+
+[[function]]
+module = "EBOOT"
+address = "08819CF8"
+name = "menu_draw_icon_label_by_index"
+purpose = "Draws an optional panel, icon 0x3A and a fixed string at a position read from a table of six-byte entries indexed by the argument."
+confidence = "inferred"
+evidence = "Table 08938680 holds x, y and a flag bit for the panel; the string's meaning was not checked."
+
+[[function]]
+module = "EBOOT"
+address = "0881BF80"
+name = "menu_cursor_move_two_columns"
+purpose = "Moves a byte cursor over a list split into two equal columns: up and down wrap within a column, left and right jump to the other column with sound 0x11."
+confidence = "inferred"
+evidence = "PSP d-pad bits 0x80 and 0x20, column size is the count halved, and 0881C2E4 runs on the column-local value."
+
+[[function]]
+module = "EBOOT"
+address = "0881C098"
+name = "menu_cursor_move_paged_by_8"
+purpose = "Moves a byte cursor over a list in pages of eight: up and down wrap within the page, left and right change page by eight with wrap and sound 0x11."
+confidence = "confirmed"
+evidence = "Page size 8 in the code and PSP d-pad bits 0x80 and 0x20; runs in menu recordings."
+
+[[function]]
+module = "EBOOT"
+address = "0881C2E4"
+name = "menu_cursor_move_vertical_wrap"
+purpose = "Moves a byte cursor up or down with wraparound on the d-pad, plays sound 0x17 if it changed, and returns whether it changed."
+confidence = "confirmed"
+evidence = "PSP d-pad bits 0x10 and 0x40, wrap against the count argument."
+
+[[function]]
+module = "EBOOT"
+address = "0881C45C"
+name = "menu_cursor_move_horizontal_wrap"
+purpose = "Moves a byte cursor left or right with wraparound on the d-pad, plays sound 0x17 if it changed, returns whether it changed, and zeroes it when the count is below 2."
+confidence = "confirmed"
+evidence = "PSP d-pad bits 0x80 and 0x20, wrap against the count argument."
+
+[[function]]
+module = "EBOOT"
+address = "0881EE84"
+name = "menu_draw_equipment_stats_compare"
+purpose = "Draws an equipment piece's stat panel for the page chosen by flags, colouring each stat against an optional second piece, with separate layouts for blademaster weapons, gunner weapons and armor."
+confidence = "inferred"
+evidence = "Switches on the equipment record's type byte (5 with sharpness gauge, 6 with two gun-like stats, else five resistances), colour 4 for better and 2 for worse; only part of the body was read."
+
+[[function]]
+module = "EBOOT"
+address = "08820DBC"
+name = "menu_equipment_select_page_table"
+purpose = "Returns the byte table of panel page kinds for an equipment piece and optional comparison piece, depending on their types, class and a check from 0885E718."
+confidence = "inferred"
+evidence = "Returns one of several table addresses; the caller indexes the result by flags and 7 and switches on it."
+
+[[function]]
+module = "EBOOT"
+address = "08820FB4"
+name = "menu_draw_equipment_icon"
+purpose = "Draws an equipment piece's icon tinted by its rarity colour, or grey when flag 8 is set."
+confidence = "inferred"
+evidence = "Rarity lookup into a colour call, 0xFF808080 for the flag case, an icon id and a coloured sprite call."
+
+[[function]]
+module = "EBOOT"
+address = "08821080"
+name = "menu_draw_weapon_sharpness_gauge"
+purpose = "For a blademaster weapon, previews it on the hunter to get the sharpness level with skills, then draws the seven-colour bar, an up or down marker when skills change it, and the frame."
+confidence = "inferred"
+evidence = "Only for type 5; seven coloured segments scaled by 0.2 from a per-level table; level comes from 088213E4 and blacks out the bar past the effective level."
+
+[[function]]
+module = "EBOOT"
+address = "088213E4"
+name = "hunter_sharpness_level_with_skills"
+purpose = "Adjusts a sharpness level for the hunter's skills: +1 capped at 6 with skill 0x1D or 0xD1, otherwise -1 floored at 0 with skill 0x1E."
+confidence = "inferred"
+evidence = "Skill checks by id around a level clamped to 0-6; caller uses the result to draw the gauge."
+
+[[function]]
+module = "EBOOT"
+address = "08821890"
+name = "ui_save_hunter_equipment"
+purpose = "Copies the hunter's weapon record (+0x4E8) and five armor records (+0x4F4, 0xC apart) into the UI context and clears the context's preview flag."
+confidence = "inferred"
+evidence = "Field-for-field copy of six 12-byte records; paired with 08821924 around a preview."
+
+[[function]]
+module = "EBOOT"
+address = "08821924"
+name = "ui_restore_hunter_equipment"
+purpose = "If a preview is active, copies the saved weapon and armor records back to the hunter, recomputes its derived stats, and clears the preview flag."
+confidence = "inferred"
+evidence = "Mirror of 08821890 gated by +0x1206, followed by the same recalculation calls as 08821A10."
+
+[[function]]
+module = "EBOOT"
+address = "08821A10"
+name = "ui_preview_weapon_on_hunter"
+purpose = "If the given record differs from the hunter's weapon, writes it to the weapon slot, handles a type change via 08821CA8, recomputes derived stats and marks a preview active."
+confidence = "inferred"
+evidence = "Writes the record to hunter +0x4E8 and sets +0x1206; callers bracket it with the save and restore functions."
+
+[[function]]
+module = "EBOOT"
+address = "08821B58"
+name = "equipment_record_equal"
+purpose = "Returns whether two equipment records match at byte +1 and shorts +2, +4, +6, +8 and +10, ignoring byte +0."
+confidence = "confirmed"
+evidence = "Direct chain of field comparisons."
+
+[[function]]
+module = "EBOOT"
+address = "0882217C"
+name = "menu_draw_weapon_class9_subtype_label"
+purpose = "Draws a text label chosen by a value from the weapon modulo 3, for blademaster weapon class 9 only."
+confidence = "inferred"
+evidence = "Called only when the class is 9; string table 089ACAF4 of three entries. A gunlance shell type is possible but unverified."
+
+[[function]]
+module = "EBOOT"
+address = "08823174"
+name = "weapon_get_element_and_stat"
+purpose = "Reads a weapon's element or status index and a further stat from its data record, and when it has an element gets the hunter's value for it from 088DA398."
+confidence = "inferred"
+evidence = "Layout differs for type 5 and for others; 5 is added to the status field's index, and class 10 alone reads an element field in the non-type-5 branch."
+
+[[function]]
+module = "EBOOT"
+address = "088232A0"
+name = "menu_draw_weapon_element_lines"
+purpose = "Draws a weapon's element or status rows and a further stat row, previewing it on the hunter and colouring each against an optional comparison weapon."
+confidence = "inferred"
+evidence = "Up to two named rows with values, indices under 5 using one format and the rest another, colours 4 and 2 for better and worse."
+
+[[function]]
+module = "EBOOT"
+address = "08823960"
+name = "hunter_element_status_skill_active"
+purpose = "For an element index under 5 checks flag 0x2000 or skill 0x44, for higher indices skill 0x43 or check 9; negative indices return 0."
+confidence = "guess"
+evidence = "Mechanics are clear, and the caller highlights the row in colour 3 when true, but what the skills mean was not checked."
+
+[[function]]
+module = "EBOOT"
+address = "088239FC"
+name = "unknown_ui_mode_or_hunter_flag_614"
+purpose = "Returns 1 if bit 0 of field 0x6AF14 is set or bit 2 of the hunter's field +0x614 is set."
+confidence = "guess"
+evidence = "Only the bit tests are clear; its result greys a menu row."
+
+[[function]]
+module = "EBOOT"
+address = "08823A50"
+name = "ui_popup_queue_update_and_draw"
+purpose = "Each frame unless blocked by 088567B4, sets the UI layer and 2D render state, starts the next queued popup and updates all twenty active popup slots."
+confidence = "inferred"
+evidence = "Runs through whole recordings; calls 08825DA8 and 08823B58 and then loops 20 slots of 0x24 bytes at +0xE28."
+
+[[function]]
+module = "EBOOT"
+address = "08823B58"
+name = "ui_popup_queue_start_next"
+purpose = "If no popup slot is active and the queue at +0x10F8 is not empty, starts its next entry by kind (0xFF or 0xFE text pointer, otherwise an id with position), advancing the wrapped read index."
+confidence = "inferred"
+evidence = "Count +0x10F8, read index +0x10F9 wrapping at 20, returns early when any slot is active; whether these are messages or other effects is not settled."
+
+[[function]]
+module = "EBOOT"
+address = "08823C84"
+name = "ui_popup_queue_count_pending"
+purpose = "Returns the number of active popup slots plus the entries still queued."
+confidence = "inferred"
+evidence = "Counts nonzero first bytes in the 20 slots and adds the queue count at +0x10F8."
+
+[[function]]
+module = "EBOOT"
+address = "08825ADC"
+name = "menu_draw_info_panel_fixed_layout"
+purpose = "Draws the same category and id info panel as 08819128 at a fixed position from the table at 0893879C."
+confidence = "inferred"
+evidence = "Same tables and item branch as 08819128 with fixed coordinates; ran once in fight1 at frames 2110-2200, with no reason shown."
+
+[[function]]
+module = "EBOOT"
+address = "08825D38"
+name = "ui_tick_timer_5fa"
+purpose = "Counts down the short at +0x5FA and clears flag bit 1 when +0x5F0 is zero and two other flags are clear; otherwise zeroes the timer if bit 1 is clear."
+confidence = "inferred"
+evidence = "Direct reads of the fields; what the timer controls is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "08825DA8"
+name = "gpu_push_2d_ui_render_state"
+purpose = "Writes a small GE display list that disables depth and alpha tests, enables alpha blending and sets texture function and sampling, and links it into the layer at +0x534."
+confidence = "inferred"
+evidence = "PSP GE opcodes 0x23, 0xDE, 0x21, 0xDF, 0x22, 0xDB, 0xC9, 0xC0, 0xC7, 0xC6, then a BASE and JUMP pair; many UI callers."
+
+[[function]]
+module = "EBOOT"
+address = "08825EE8"
+name = "menu_draw_equipment_compare_pair"
+purpose = "Draws two equipment stat panels one above the other, each comparing against the other, and a sprite between them that pulses in colour over time."
+confidence = "inferred"
+evidence = "Two 08830078 calls with the arguments swapped; sine of a 32-frame counter tints sprite 0x9C; runs in the shop recordings."
+
+[[function]]
+module = "EBOOT"
+address = "088266CC"
+name = "hud_text_player_string_local_or_net"
+purpose = "Passes the text system one string: a local save field at +0x4A0, or a per-player 200-byte record's field when the 0xF7A57C bit 0 mode is set."
+confidence = "guess"
+evidence = "Two sources chosen by a mode flag and an index at +0x1E6; a player name fits but the callee 088911A0 was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088268E0"
+name = "ui_acquire_or_refresh_token"
+purpose = "Grants a short-lived exclusive token: issues a new sequence number if the 4-tick lease at +0x119E has run out, renews it for the current holder, and refuses others or while +0x52F is set."
+confidence = "inferred"
+evidence = "Counter +0x119C copied to the caller's short, lease reset to 4; only one recording ran it, near the faint at the end of fight1."
+
+[[function]]
+module = "EBOOT"
+address = "0882693C"
+name = "pouch_slot_has_item_of_kind_1"
+purpose = "Returns 1 when the given slot has a nonzero id and positive count and the record from 0885C580 for the slot number has byte +1 equal to 1."
+confidence = "inferred"
+evidence = "Same slot accessor as the pouch list; note the decompile passes the slot number, not the item id, to 0885C580."

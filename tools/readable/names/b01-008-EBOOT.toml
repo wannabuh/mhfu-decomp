@@ -1,0 +1,479 @@
+[[function]]
+module = "EBOOT"
+address = "0884AF84"
+name = "task_089bab8c_construct"
+purpose = "Constructs a task object: sets the base then derived vtable (089BAB8C), installs its first step member pointer at +4..+C and clears the step counter at +0x1C."
+confidence = "inferred"
+evidence = "Writes two vtables in sequence; copies a 3-word step pointer after a validity check."
+
+[[function]]
+module = "EBOOT"
+address = "0884B058"
+name = "task_089bab8c_destroy"
+purpose = "Destructor of the 089BAB8C task: restores the base vtable and frees the object when the delete flag is positive."
+confidence = "inferred"
+evidence = "Vtable +8 slot; rewrites vtables; conditional call to the free helper."
+
+[[function]]
+module = "EBOOT"
+address = "0884B0B4"
+name = "task_089bab8c_fade_and_wait_id_41"
+purpose = "Two-phase step: starts a one-frame screen fade and issues a request with id 0x41, then when the poll reports idle finishes the request and moves to the next step."
+confidence = "guess"
+evidence = "Calls screen_fade_start on DAT_089CC13C and 8890144/88901F8 with 0x41; what id 0x41 means is not visible."
+
+[[function]]
+module = "EBOOT"
+address = "0884B19C"
+name = "render_manager_init"
+purpose = "Static initialiser of the render manager global DAT_089CC11C: points the per-layer bucket table array at +0x1BC into the object and clears the open display list state."
+confidence = "inferred"
+evidence = "Called from startup list at frame 0; +0x1BC is the bucket array render_queue_insert indexes by layer, +0x20C the open-section flag."
+
+[[function]]
+module = "EBOOT"
+address = "0884B284"
+name = "gpu_emit_default_render_state"
+purpose = "Opens a display list section and emits a full default GE state: viewport from the camera block, scissor, region, offsets, test and blend enables, dither, lights off, material and fog."
+confidence = "inferred"
+evidence = "Writes GE command words 0x42-0x47, 0xD4-0xD7, 0x4C, 0x4D, 0x17-0x1B, 0xCD-0xCF to the list pointer DAT_089CC120."
+
+[[function]]
+module = "EBOOT"
+address = "0884C22C"
+name = "gpu_emit_layer_list_states"
+purpose = "Each frame, emits GE state presets into display lists 1, 2, 5, 6 and 0x12, mainly alpha test, blend, lighting and texture mode settings per list."
+confidence = "inferred"
+evidence = "Runs across the whole of every recording; five begin/emit/end sections with different 0xDB/0x21/0x17 values."
+
+[[function]]
+module = "EBOOT"
+address = "0884C7C0"
+name = "gpu_emit_dither_preset"
+purpose = "Emits dither enable followed by the four 16-byte table words of the selected dither preset."
+confidence = "inferred"
+evidence = "Writes 0x20000001 then 4 words from DAT_0893B8F0 indexed by (arg & 0x3F) * 0x10."
+
+[[function]]
+module = "EBOOT"
+address = "0884C89C"
+name = "render_list_section_begin"
+purpose = "Closes any open display list section, then takes the current GE list write pointer and records it as a new section for the given list index."
+confidence = "inferred"
+evidence = "Sets +0x20C open flag, +0x210 start pointer, +0x20D list index; paired with 0884C914."
+
+[[function]]
+module = "EBOOT"
+address = "0884C914"
+name = "render_list_section_end"
+purpose = "Closes the open display list section: registers the emitted words with the list system and advances the list write pointer."
+confidence = "inferred"
+evidence = "Computes word count from +0x210, calls 88596C8 and 885980C, clears the open flag."
+
+[[function]]
+module = "EBOOT"
+address = "0884C9B8"
+name = "render_queue_add_object_culled"
+purpose = "Submits an object to the render queue, first culling a sphere from its place and largest scale against the view unless forced; marks flag bit 2 when queued."
+confidence = "inferred"
+evidence = "Reads +0x200 place and +0x220..+0x228 scales with model radius and height at +0x50; layer 5 becomes 7 when +0x230 is set."
+
+[[function]]
+module = "EBOOT"
+address = "0884CB24"
+name = "render_queue_add_at_field_40_culled"
+purpose = "Submits an object to the render queue using the position at +0x40, culling by the model radius at +0x50 unless forced; marks flag bit 2 when queued."
+confidence = "inferred"
+evidence = "Same flow as 0884C9B8 but with fixed radius and position at +0x40."
+
+[[function]]
+module = "EBOOT"
+address = "0884CBD8"
+name = "render_queue_insert_depth_sorted"
+purpose = "Computes view depth of a position and links the object into a depth bucket of the given layer; layer 7 is kept sorted far to near within a bucket. Returns 1 on success."
+confidence = "inferred"
+evidence = "Uses camera matrix row and near/far values from DAT_089CBD04, bucket counts from DAT_0893B8DC, links through +8, stores depth at +0xC."
+
+[[function]]
+module = "EBOOT"
+address = "0884D25C"
+name = "screen_fade_task_init"
+purpose = "Init step of the screen fade task: clears state, sets display list 0x11, alpha and colour to zero, and installs 0884D2F8 as the running step."
+confidence = "inferred"
+evidence = "Vtable +0x10; installs the update function pointer visibly named in the step triple."
+
+[[function]]
+module = "EBOOT"
+address = "0884D2F8"
+name = "screen_fade_update_and_draw"
+purpose = "Each frame advances the fade alpha toward the target and draws a full-screen coloured rectangle through its display list; goes idle once fully clear."
+confidence = "inferred"
+evidence = "Interpolates alpha +0x2F over +0x24 frames; emits a 480x272 rectangle (0x11001E0) with colour +0x2C."
+
+[[function]]
+module = "EBOOT"
+address = "0884D754"
+name = "screen_fade_start"
+purpose = "Starts a fade over the given frame count: mode 1 goes to opaque, otherwise to clear, beginning at the current alpha."
+confidence = "inferred"
+evidence = "Sets +0x24 duration, +0x1C state 2 or 1, +0x29 target 0xFF or 0, +0x2A start alpha; many demo and game task callers."
+
+[[function]]
+module = "EBOOT"
+address = "0884D790"
+name = "screen_fade_start_black"
+purpose = "Starts a screen fade with the colour set to black."
+confidence = "inferred"
+evidence = "Calls screen_fade_start then zeroes RGB at +0x2C..+0x2E."
+
+[[function]]
+module = "EBOOT"
+address = "0884D878"
+name = "rofs_init_open_data_bin"
+purpose = "Initialises the DATA.BIN file system: activates the UMD, opens DATA.BIN, reads and decrypts its LBA and size tables, builds the install layout and starts the loader, SHA-1 and transfer threads."
+confidence = "confirmed"
+evidence = "Strings DATA.BIN path, fakeRofsLoader, sha1Thread, sha1EventFlag, transferThread; sce UMD and Io calls."
+
+[[function]]
+module = "EBOOT"
+address = "0884DBB8"
+name = "rofs_tick_read_error_dialog"
+purpose = "Per-frame method: when a read error code is pending and no dialog is up, formats a message by code, shows it and sets a pause-like flag, clears it when the dialog closes, then runs the base tick."
+confidence = "inferred"
+evidence = "Vtable +0x14; switches on +0x2FBE0 into message ids 0x40-0x48 via 8851680 and 880E8F0, then 88BFEF8 on DAT_09A44DA0; meaning of the +0x17 flag not settled."
+
+[[function]]
+module = "EBOOT"
+address = "0884DE3C"
+name = "rofs_loader_thread"
+purpose = "Loader thread main loop: takes queued chunk requests, reads each from the install files on ms0 or from DATA.BIN, hands it to the SHA-1 and transfer threads, verifies hashes, retries on errors."
+confidence = "confirmed"
+evidence = "Passed to sceKernelCreateThread as fakeRofsLoader in 0884D878; ms0 SAVEDATA ULUS10391DAT path, sceIoLseek, sceIoRead."
+
+[[function]]
+module = "EBOOT"
+address = "0884E5B4"
+name = "rofs_sha1_thread"
+purpose = "Worker thread that, on its event flag, decrypts the current chunk and feeds it to SHA-1 as the request flags ask, then signals done."
+confidence = "confirmed"
+evidence = "Passed to sceKernelCreateThread as sha1Thread; calls 0884E998 and 0884E884 by request flags +0x1B, +0x1C."
+
+[[function]]
+module = "EBOOT"
+address = "0884E678"
+name = "rofs_transfer_thread"
+purpose = "Worker thread that, on its event flag, copies the current chunk from the read buffer to its destination and writes back the data cache."
+confidence = "confirmed"
+evidence = "Passed to sceKernelCreateThread as transferThread; copies from +0x9300 via 880C084."
+
+[[function]]
+module = "EBOOT"
+address = "0884E72C"
+name = "rofs_read_chunk_to_buffer"
+purpose = "Reads one request's chunk bytes from a file into the shared read buffer at +0x9300 after invalidating the cache."
+confidence = "inferred"
+evidence = "sceKernelDcacheInvalidateRange then sceIoRead into +0x9300 with length req +8."
+
+[[function]]
+module = "EBOOT"
+address = "0884E788"
+name = "rofs_copy_chunk_or_mark_done"
+purpose = "Copies a chunk from the read buffer to its destination and writes back the cache, or if the destination is unusable just sets the request's done flag."
+confidence = "inferred"
+evidence = "Uses rofs_request_dest_usable; copies from +0x9300 or sets *(req +0x14)=1."
+
+[[function]]
+module = "EBOOT"
+address = "0884E7FC"
+name = "rofs_request_dest_usable"
+purpose = "Returns 1 if a global flag at DAT_09A4F210+0x214 is set or the request destination lies outside volatile memory; otherwise 0."
+confidence = "guess"
+evidence = "Mechanics are plain; the reading that the flag means volatile memory is available is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0884E858"
+name = "mem_range_in_volatile_ram"
+purpose = "Returns 1 if an address range lies within 0x08400000 to 0x08800000, the PSP volatile memory region."
+confidence = "inferred"
+evidence = "Exact range comparison; decides which thread copies a chunk in the loader."
+
+[[function]]
+module = "EBOOT"
+address = "0884E884"
+name = "rofs_sha1_feed_chunk"
+purpose = "Feeds a chunk to the SHA-1 context at +0x2FB60: initialises on the first chunk and finalises into +0x2FB4C on the last, or hashes in one call when the chunk is both."
+confidence = "inferred"
+evidence = "Run by sha1Thread with first and last flags +0x19, +0x1A; the loader compares +0x2FB4C with a 20-byte table entry."
+
+[[function]]
+module = "EBOOT"
+address = "0884E998"
+name = "rofs_decrypt_chunk"
+purpose = "Decrypts one chunk in place, reseeding the keystream from its file sector on the first chunk."
+confidence = "inferred"
+evidence = "Calls rofs_keystream_seed from offset + LBA*0x800 >> 11, then rofs_decrypt_buffer."
+
+[[function]]
+module = "EBOOT"
+address = "0884EA1C"
+name = "rofs_decrypt_buffer"
+purpose = "Decrypts a buffer in place word by word: substitutes each byte through table DAT_0899A138, then XORs with the next keystream word."
+confidence = "inferred"
+evidence = "Byte table lookup then XOR with 0884ECAC output; applied to the DATA.BIN tables in 0884D878."
+
+[[function]]
+module = "EBOOT"
+address = "0884EC3C"
+name = "rofs_keystream_seed"
+purpose = "Seeds the two 16-bit keystream states from a value, replacing zero parts with 0x7F8D and 0x2345."
+confidence = "inferred"
+evidence = "Writes +0x2FBD4 and +0x2FBD8; same constants as the generator."
+
+[[function]]
+module = "EBOOT"
+address = "0884ECAC"
+name = "rofs_keystream_next"
+purpose = "Advances the two multiplicative generators (mod 0xFFF1 and 0xFFD9) and returns them combined as a 32-bit keystream word."
+confidence = "inferred"
+evidence = "Multiplies by 0x7F8D and 0x2345 with modulus; only caller is the decrypt loop."
+
+[[function]]
+module = "EBOOT"
+address = "0884ED24"
+name = "rofs_get_file_size"
+purpose = "Returns a file's size in bytes: an exact size from the exception table if listed, otherwise its LBA span times 0x800."
+confidence = "inferred"
+evidence = "Vtable +0x18; scans 0x32D id and size pairs at +0x1140, falls back on the table at +0x2AC0; 0xFFFF gives 0."
+
+[[function]]
+module = "EBOOT"
+address = "0884ED94"
+name = "rofs_get_file_sector_span_bytes"
+purpose = "Returns a file's size rounded to sectors from the LBA table alone, 0 for id 0xFFFF."
+confidence = "inferred"
+evidence = "Vtable +0x1C; next LBA minus this LBA times 0x800; used when laying out install archives."
+
+[[function]]
+module = "EBOOT"
+address = "0884EF0C"
+name = "rofs_request_file"
+purpose = "Queues an asynchronous load of a file to a destination, split into chunks of at most 0x20000 bytes in the 128-entry ring, marking about 5 percent of loads for hash checking; optionally wakes the loader."
+confidence = "inferred"
+evidence = "Vtable +0x34; size -1 means whole file via the size method, wraps index at 0x7F, random % 100 <= 4 sets verify, sceKernelWakeupThread."
+
+[[function]]
+module = "EBOOT"
+address = "0884F0D8"
+name = "rofs_stream_open"
+purpose = "Starts blocking stream access to a file: marks streaming active, stores the file id, seeks to its first sector and seeds the keystream."
+confidence = "inferred"
+evidence = "Vtable +0x24; sets +0x111C and +0x111E, retried sceIoLseek; used with the other stream methods by one demo overlay function."
+
+[[function]]
+module = "EBOOT"
+address = "0884F190"
+name = "rofs_stream_read"
+purpose = "Blocking read from the stream: waits for the UMD to be ready, retries until the full size is read, advances the tracked position."
+confidence = "inferred"
+evidence = "Vtable +0x28; sceUmdGetDriveStat and sceIoRead loops, updates +0x2FBD0."
+
+[[function]]
+module = "EBOOT"
+address = "0884F244"
+name = "rofs_stream_seek"
+purpose = "Seeks the stream to an offset within the open file, retrying until it succeeds."
+confidence = "inferred"
+evidence = "Vtable +0x30; base from LBA of +0x111E plus offset, sceIoLseek loop."
+
+[[function]]
+module = "EBOOT"
+address = "0884F2CC"
+name = "rofs_stream_close"
+purpose = "Ends stream access: clears the streaming flag and the loader's tracked file position so its next read seeks."
+confidence = "inferred"
+evidence = "Vtable +0x2C; clears +0x111C and +0x29340, the position the loader compares before reading."
+
+[[function]]
+module = "EBOOT"
+address = "0884F2E0"
+name = "rofs_load_module_from_file"
+purpose = "Loads and starts a PRX stored inside DATA.BIN by opening it through a raw disc0 LBA path, retrying until it succeeds, and returns the module id."
+confidence = "confirmed"
+evidence = "String disc0:/sce_lbn0x%x_size0x%x; sceKernelLoadModuleByID and sceKernelStartModule."
+
+[[function]]
+module = "EBOOT"
+address = "0884F3FC"
+name = "rofs_file_hash_differs_from_reference"
+purpose = "Returns 1 if a file's 20-byte hash table entry differs from the reference hash at DAT_089CC540."
+confidence = "inferred"
+evidence = "Compares table 0x8979924 + id*0x14 with memcmp-like 880BFF0; contents of the reference are not visible."
+
+[[function]]
+module = "EBOOT"
+address = "0884F440"
+name = "rofs_build_install_layout"
+purpose = "Assigns each of the 0x1A01 files an install archive number and sector offset, packed into archives of at most 0x370000 bytes; files failing the hash test get archive 0xFFFF."
+confidence = "inferred"
+evidence = "Writes u16 pairs at +0x29348; the loader reads them to build the ms0 ULUS10391DAT path and treats 0xFFFF as not installed."
+
+[[function]]
+module = "EBOOT"
+address = "0884F510"
+name = "rofs_is_busy"
+purpose = "Returns nonzero if a read error is being handled or the loader's current queue slot is active."
+confidence = "inferred"
+evidence = "Vtable +0x38; base 88B8624 tests the ring entry at the read index; polled by many load paths."
+
+[[function]]
+module = "EBOOT"
+address = "0884F55C"
+name = "rofs_is_file_pending"
+purpose = "Returns nonzero if a read error is being handled or a given file id has an active queued request."
+confidence = "inferred"
+evidence = "Vtable +0x3C; base 88B863C scans 128 ring entries for that id."
+
+[[function]]
+module = "EBOOT"
+address = "0884F86C"
+name = "rofs_get_data_bin_path"
+purpose = "Returns the path of DATA.BIN on the disc."
+confidence = "confirmed"
+evidence = "Returns string disc0:/PSP/GAME/USRDIR/DATA.BIN."
+
+[[function]]
+module = "EBOOT"
+address = "0884F8D4"
+name = "gamedata_global_init"
+purpose = "Static initialiser of the large global DAT_089CC558: clears its 0x6A938-byte block at +0x4A0 and sets ids and slot fields to empty defaults."
+confidence = "inferred"
+evidence = "Called from startup list at frame 0; memset of +0x4A0, fills 0xFFFF tables at +0x47D4."
+
+[[function]]
+module = "EBOOT"
+address = "0884FA5C"
+name = "unknown_mode_byte_2e_allows_index"
+purpose = "Returns whether the mode byte at +0x2E permits index param_2: value 3 only index 0, value 5 all but index 2, values 4, 6, 7, 8 all, others none."
+confidence = "guess"
+evidence = "Plain switch on +0x2E; meaning of mode and index not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0884FAC4"
+name = "gamedata_bitflag_508_set"
+purpose = "Sets a numbered bit in the 16-bit word flag array at +0x508."
+confidence = "inferred"
+evidence = "Bit index / 16 word, OR with 1 << (index & 15)."
+
+[[function]]
+module = "EBOOT"
+address = "0884FAFC"
+name = "gamedata_bitflag_508_clear"
+purpose = "Clears a numbered bit in the 16-bit word flag array at +0x508."
+confidence = "inferred"
+evidence = "Same indexing as 0884FAC4 with AND NOT."
+
+[[function]]
+module = "EBOOT"
+address = "0884FB38"
+name = "gamedata_bitflag_508_test"
+purpose = "Returns 1 if a numbered bit in the 16-bit word flag array at +0x508 is set."
+confidence = "inferred"
+evidence = "Same indexing as 0884FAC4 with a test."
+
+[[function]]
+module = "EBOOT"
+address = "0884FB6C"
+name = "input_get_buttons_unless_locked"
+purpose = "Returns a button mask combining low 16 bits of one global with bits 0xF0 of another, or 0 when a lock byte at DAT_08A62D80+0x74 is set."
+confidence = "guess"
+evidence = "Mask shape resembles PSP buttons with direction bits; globals are not named here."
+
+[[function]]
+module = "EBOOT"
+address = "0884FBA4"
+name = "gamedata_add_zenny_clamped"
+purpose = "Adds a signed amount to the counter at +0x696F0, clamped to 0..9999999."
+confidence = "guess"
+evidence = "Clamp value fits a money cap; called from lobby overlay functions only; no string settles it."
+
+[[function]]
+module = "EBOOT"
+address = "0884FC74"
+name = "id_group_table_first_id"
+purpose = "Returns the first id of the byte list for a group in table DAT_0899C060."
+confidence = "inferred"
+evidence = "Dereferences the table entry; 88503F8 walks the same lists to a 0xFF terminator."
+
+[[function]]
+module = "EBOOT"
+address = "0884FC94"
+name = "id_group_table_get_list"
+purpose = "Returns the pointer to a group's 0xFF-terminated id list in table DAT_0899C060."
+confidence = "inferred"
+evidence = "Direct table read; list form shown by 88503F8."
+
+[[function]]
+module = "EBOOT"
+address = "0884FCB0"
+name = "quest_progress_tier_from_flags"
+purpose = "Returns a progress tier 0 to 8 from which of eight fixed ids has its flag set, checking the highest first."
+confidence = "guess"
+evidence = "Tests ids 0xC9C, 0xC1F, 0xBC1, 0x899, 0x848, 0x4C2, 0x4B1, 0x450; decimal forms look like quest numbers; stored per slot in 8869904."
+
+[[function]]
+module = "EBOOT"
+address = "0884FDC4"
+name = "quest_id_to_flag_index"
+purpose = "Finds an id in table DAT_0899C1C8 and returns its position, or 0xFFFF at the end marker."
+confidence = "guess"
+evidence = "Linear search with sentinel -0x15A0 (60000); that the ids are quests is read from the values only."
+
+[[function]]
+module = "EBOOT"
+address = "0884FE80"
+name = "quest_id_flag_test"
+purpose = "Maps an id to a bit index and returns whether that bit is set in the bitset at +0x4428, or 0 if the id is unknown."
+confidence = "guess"
+evidence = "Uses 0884FDC4 and a 32-bit word bitset; whether the bit means cleared or unlocked is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "0884FF24"
+name = "gamedata_u16_counter_46e8_get"
+purpose = "Returns the u16 counter at +0x46E8 for a byte id."
+confidence = "inferred"
+evidence = "Plain array read; 88503F8 sums these over an id group capped at 9999, so it is likely a per-monster tally."
+
+[[function]]
+module = "EBOOT"
+address = "0884FF38"
+name = "gamedata_u16_counter_44cc_get"
+purpose = "Returns the u16 counter at +0x44CC for a byte id."
+confidence = "inferred"
+evidence = "Plain array read; called by 885048C, whose total 8850520 adds to the +0x46E8 total."
+
+[[function]]
+module = "EBOOT"
+address = "0884FFB8"
+name = "gamedata_u16_value_4580_get"
+purpose = "Returns the u16 value at +0x4580 for an id."
+confidence = "inferred"
+evidence = "Plain array read; one of four parallel 0xB4-byte arrays."
+
+[[function]]
+module = "EBOOT"
+address = "0884FFCC"
+name = "gamedata_u16_value_4634_get"
+purpose = "Returns the u16 value at +0x4634 for an id."
+confidence = "inferred"
+evidence = "Plain array read; one of four parallel 0xB4-byte arrays."
+
+[[function]]
+module = "EBOOT"
+address = "08850044"
+name = "gamedata_group_counter_total_at_least"
+purpose = "Returns 1 if the combined capped total of the two counters for an id group is at least the threshold."
+confidence = "inferred"
+evidence = "8850520 sums the +0x46E8 and +0x44CC group totals, capped at 9999; compared with param_3."

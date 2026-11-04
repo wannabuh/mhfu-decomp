@@ -1,0 +1,335 @@
+[[function]]
+module = "EBOOT"
+address = "0882FB38"
+name = "menu_draw_window_page_counter_and_bar"
+purpose = "Prints a right-aligned current+1/total counter (when total is nonzero) from a window layout struct, then draws one of two bars under it depending on a flag."
+confidence = "inferred"
+evidence = "\"%d/%d\"-style format string with value+1, x from layout struct fields minus half char width times length; only UI callers."
+
+[[function]]
+module = "EBOOT"
+address = "0882FC50"
+name = "menu_draw_window_with_title"
+purpose = "Draws a window frame in the style given by the layout struct byte +0xB, sets font size, spacing and color from the struct, and prints an optional title string."
+confidence = "inferred"
+evidence = "Dispatches frame draw on style byte, then the text setters on the font object and a print at struct x/y; dialogue box passes a static layout."
+
+[[function]]
+module = "EBOOT"
+address = "08830078"
+name = "menu_draw_equipment_info_panel"
+purpose = "Draws a sized panel from a table, a page indicator from the page count, and the contents for one or two class+id records; records with id >= 0x5DD show one fixed string instead."
+confidence = "guess"
+evidence = "Records are class byte +1 and id +2 with classes 5/6 treated apart; runs only in shops and misc menus; 'equipment' is not proven by a string."
+
+[[function]]
+module = "EBOOT"
+address = "0883029C"
+name = "menu_equipment_icon_sprite_id"
+purpose = "Returns the sprite id for a class+id record: classes 5/6 go through a sub-type u16 table, others a byte table per class, id >= 0x5DD a fixed sprite; the second argument picks a row (small or large icon)."
+confidence = "guess"
+evidence = "08831338 passes the result as the sprite argument and selects the row by width < 0x18; 'equipment' reading rests on the record shape."
+
+[[function]]
+module = "EBOOT"
+address = "08830354"
+name = "menu_palette_color_with_alpha"
+purpose = "Maps a color index (shifted by 10 for the alternate set) through two tables to RGB and ORs the alpha into the top byte."
+confidence = "inferred"
+evidence = "Returns alpha<<24 | table[table2[index]]; 08831338 splits the result into R, G, B, A for a tinted sprite."
+
+[[function]]
+module = "EBOOT"
+address = "088303A0"
+name = "table_lookup_byte_0893b040"
+purpose = "Returns the byte at index a1 of the table at 0893B040."
+confidence = "confirmed"
+evidence = "One-line table read; what the table means is unknown."
+
+[[function]]
+module = "EBOOT"
+address = "088303B8"
+name = "table_lookup_u16_0893abec_row_col"
+purpose = "Returns a u16 from the table at 0893ABEC, with rows of 0x38 entries, row a2 and column a1."
+confidence = "confirmed"
+evidence = "One-line table read with row stride 0x70 bytes; what the table means is unknown."
+
+[[function]]
+module = "EBOOT"
+address = "088303E8"
+name = "menu_equipment_panel_page_count"
+purpose = "Returns the total page count for one record or a pair, taking the larger of the two and adding a page depending on the 0x8000 flag and option bits."
+confidence = "guess"
+evidence = "08830078 passes the result as the total to the page indicator 08832F20; 'equipment' reading rests on the record shape."
+
+[[function]]
+module = "EBOOT"
+address = "08830550"
+name = "menu_equipment_record_page_info"
+purpose = "Returns the page count of one class+id record by class (0 if empty, 1 if id >= 0x5DD, more for class 5/6 and when predicate 0885E718 holds), with flag 0x8000 for an extra-page case."
+confidence = "guess"
+evidence = "Only caller 088303E8 masks low 3 bits as a count and tests 0x8000; 'equipment' reading rests on the record shape."
+
+[[function]]
+module = "EBOOT"
+address = "088306DC"
+name = "hud_message_queue_init"
+purpose = "Zeroes the queue count and head bytes and the 20-entry queue at +0xE28, and initializes the 0x500-byte string pool at +0x500."
+confidence = "inferred"
+evidence = "Clears 0x2D0 = 20*0x24 bytes, the same ring the push functions write; pool is what 08830850 allocates from."
+
+[[function]]
+module = "EBOOT"
+address = "08830728"
+name = "hud_message_queue_push"
+purpose = "Appends a message with type, id and value to the ring if not full, and returns its 7-bit sequence number or 0xFF."
+confidence = "inferred"
+evidence = "Ring write at (head+count)%20 with stride 0x24; the item pickup path pushes type 1 with the item id."
+
+[[function]]
+module = "EBOOT"
+address = "088307BC"
+name = "hud_message_queue_push_string_ptr"
+purpose = "Appends a type 0xFF message holding a word at entry +0x20, read as a caller-owned string pointer, without copying."
+confidence = "inferred"
+evidence = "Same ring push; 08830850 stores a string pointer in the same field with type 0xFE."
+
+[[function]]
+module = "EBOOT"
+address = "08830850"
+name = "hud_message_queue_push_string_copy"
+purpose = "Copies a string into the message pool and appends a type 0xFE message pointing at the copy."
+confidence = "inferred"
+evidence = "Length+1 allocation from the pool at +0x500 aligned 0x10, then a copy, then the ring push."
+
+[[function]]
+module = "EBOOT"
+address = "0883095C"
+name = "dialogue_text_typewriter_update"
+purpose = "Advances a typewriter reveal of a Shift-JIS string from elapsed ticks, with longer pauses after punctuation, plays a tick sound per new character and an end sound, and sets box flags and prompt mode."
+confidence = "inferred"
+evidence = "Delays of 15 for 0x8142/0x8148/./? and 8 for 0x8141 are Shift-JIS punctuation; sound call when the shown count grows; 08830D3C draws the count it stores."
+
+[[function]]
+module = "EBOOT"
+address = "08830D3C"
+name = "dialogue_box_draw"
+purpose = "Draws the dialogue window and the revealed characters in lines of 22 width units, then the prompt strings selected by the box flags."
+confidence = "inferred"
+evidence = "Reads the text, shown count and flags set by 0883095C; wraps on newline and width; only caller draws layer 2."
+
+[[function]]
+module = "EBOOT"
+address = "08830F74"
+name = "ui_is_overlay_active"
+purpose = "Returns true if the global byte +0x10, the UI byte +0x604 or the popup state +0x52F is nonzero."
+confidence = "guess"
+evidence = "Plain OR of three flags, the same ones that gate the layer 1 popups; called from game code that likely blocks on them."
+
+[[function]]
+module = "EBOOT"
+address = "08830FAC"
+name = "menu_draw_bar_with_end_cap"
+purpose = "Draws sprite 0xB5 stretched to the width minus the cap and sprite 0xB6 as a cap at the right end."
+confidence = "inferred"
+evidence = "x+w-capwidth for 0xB6, w-capwidth for the stretch call; only in shops."
+
+[[function]]
+module = "EBOOT"
+address = "0883104C"
+name = "ui_load_asset_step"
+purpose = "Steps a boot-time async file load chosen by a table indexed by the global at +0xF7A574: request with allocation, wait while busy, then sets flag 0x1000 and returns 1."
+confidence = "inferred"
+evidence = "Step counter at +0x1198, file object vtable calls for size, read and busy, allocator call; runs once at frames 50-60 from demo_task."
+
+[[function]]
+module = "EBOOT"
+address = "08831274"
+name = "menu_draw_string_id_list"
+purpose = "Prints a 0xFFFF-terminated list of string ids at fixed line spacing, with an optional per-line color array."
+confidence = "inferred"
+evidence = "Loop over u16 ids through the string lookup 0885151C and the print call, y += spacing."
+
+[[function]]
+module = "EBOOT"
+address = "08831338"
+name = "menu_draw_equipment_icon"
+purpose = "Builds a class+id record from its arguments, looks up tint and sprite for it, and draws the tinted sprite at the given position and size."
+confidence = "guess"
+evidence = "Calls 0885C83C(class, id), 08830354 and 0883029C, then the tinted sprite draw with RGBA split; 'equipment' reading rests on the record shape."
+
+[[function]]
+module = "EBOOT"
+address = "088314A0"
+name = "hud_gpu_bind_texture"
+purpose = "Queues GE commands that set texture format, address, size and CLUT on the current layer, taking the texture from a registered table or, with id flag 0x8000, from a loaded pack."
+confidence = "confirmed"
+evidence = "Emits GE TMODE/TPSM/TEXADDR/TEXBUFW/TSIZE/CLUT/LOAD/FLUSH commands 0xC2 0xC3 0xA0 0xA8 0xB8 0xC5 0xB0 0xB1 0xC4 0xCB; called by the sprite drawers."
+
+[[function]]
+module = "EBOOT"
+address = "0883185C"
+name = "hud_gpu_bind_texture_subrect"
+purpose = "Like hud_gpu_bind_texture, but offsets the texture address to a rectangle from the record, in swizzle-block units by pixel format, and sizes it to the rectangle."
+confidence = "inferred"
+evidence = "Same GE commands in a list buffer; address offset from x,y in the record with a bytes-per-block switch on format."
+
+[[function]]
+module = "EBOOT"
+address = "08831CB0"
+name = "gpu_draw_horizontal_fade_band"
+purpose = "Draws two untextured gouraud quads forming a band whose alpha goes from 0 at the left edge to the given alpha at the middle and back to 0 at the right."
+confidence = "confirmed"
+evidence = "Vertices with alpha 0 and stack alpha at x, x+w/2, x+w; GE commands texture off, smooth shade, through-mode vtype 0x80011C, triangle strip of 4, twice."
+
+[[function]]
+module = "EBOOT"
+address = "08831F3C"
+name = "hud_draw_pulsing_fade_band"
+purpose = "Draws the fade band with alpha 0xBF +/- 48 following a sine of a counter masked to a 64-step cycle."
+confidence = "inferred"
+evidence = "vsin of (global +0xF7A554 & 0x3F) into the alpha argument of 08831CB0; the rate depends on how that counter advances."
+
+[[function]]
+module = "EBOOT"
+address = "08831FF8"
+name = "item_give_to_hunter_with_message"
+purpose = "Adds an item to the hunter's pouch; on success or partial success plays the pickup sound for the local player and queues a message, and on a full pouch queues a message or opens the swap popup with the item as pending."
+confidence = "inferred"
+evidence = "Calls 088D72A4, which fills pouch slots from the 0x18-byte item table and returns 5 on no slot; 088860A0 picks a sound by item type; one call in fight1 at frame 4400."
+
+[[function]]
+module = "EBOOT"
+address = "08832204"
+name = "ui_get_pending_item_id"
+purpose = "Returns the id at +0x590 while the popup state +0x52F is active and not 6, otherwise 0."
+confidence = "inferred"
+evidence = "08831FF8 stores the item id there when it sets the popup state; polled from game_task."
+
+[[function]]
+module = "EBOOT"
+address = "08832548"
+name = "hud_draw_fullscreen_image_filtered"
+purpose = "With linear filtering on, draws sprite 0x108 stretched to 480x272 on a chosen layer, then turns filtering off."
+confidence = "inferred"
+evidence = "882AF70(0,0,0x1E0,0x110,0x108) between the filter calls. The layer restore switches on the raw layer byte against 0-5, so it rarely restores."
+
+[[function]]
+module = "EBOOT"
+address = "08832A9C"
+name = "hud_gpu_set_blend_mode"
+purpose = "Queues GE commands that enable blending, as normal alpha when the argument is 0 or additive with fixed white when not."
+confidence = "confirmed"
+evidence = "GE 0x21 enable, 0xDF blend 0x32 (src alpha, inverse src alpha) or 0xA2 with fixed B 0xE1FFFFFF."
+
+[[function]]
+module = "EBOOT"
+address = "08832B98"
+name = "hud_gpu_set_texture_filter"
+purpose = "Queues a GE command selecting linear filtering when the argument is nonzero, nearest when not."
+confidence = "confirmed"
+evidence = "GE 0xC6 TEXFILTER with 0x101 or 0, then return and enqueue on the UI layer."
+
+[[function]]
+module = "EBOOT"
+address = "08832C60"
+name = "hud_draw_table_placed_sprite_and_caption"
+purpose = "Draws sprite 0x38 and the string 089ACBF8 at positions from a table row chosen by the argument."
+confidence = "inferred"
+evidence = "Two x,y pairs per 8-byte row, sprite call and string print; runs before gameplay at frames 690-870."
+
+[[function]]
+module = "EBOOT"
+address = "08832F20"
+name = "menu_draw_page_indicator_with_arrows"
+purpose = "Prints current+1/total centered at x, and draws left and right arrow sprites where more pages exist or always with flag 1; flag 2 adds sprites 0x36 and 0x37 next to the arrows."
+confidence = "inferred"
+evidence = "Formats \"%2d/%2d\" or \"%d/%d\", arrow bits from current vs total-1, the left one flipped through 0882C7B4."
+
+[[function]]
+module = "EBOOT"
+address = "08833290"
+name = "menu_draw_roster_member_status_panel"
+purpose = "Draws a status panel for one 0x78-byte roster entry: name, level, two numeric stats, 0-5 stars from points at +0x2A, table-driven text fields, and a skill list from a 64-bit mask plus three byte slots; possibly a Felyne comrade."
+confidence = "guess"
+evidence = "Field layout read from the prints; caller indexes entries by 0x78 in shops; the mask-and-three-slots skills suggest a companion, no string confirms it."
+
+[[function]]
+module = "EBOOT"
+address = "08834304"
+name = "ui_frame_update"
+purpose = "Runs one UI frame: reads input, updates popups or the list menu unless a dialogue is showing, then draws the UI and the three text layers."
+confidence = "inferred"
+evidence = "Calls input read 08834D04, 088345B8, 08834B0C, then the layer drawers 088345FC, 08834664, 088346D8; called from game_task and lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "08834548"
+name = "ui_reset_overlay_state"
+purpose = "Clears list menu state bytes, flags 0x100, 0x200 and 0x800 of +0x528, the global byte +0x10 and six records at stride 0xC from +0x112C, and sets bit 4 of +0x5E8."
+confidence = "inferred"
+evidence = "Only writes; touches the fields read by 08834B0C and 08830F74; runs at area entry from lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088345B8"
+name = "ui_update_popup_input_then_notify"
+purpose = "Calls 0883E928 with the input and, if it returns nonzero, calls 088D8900; returns that result."
+confidence = "guess"
+evidence = "Thin wrapper; 08834304 skips the list menu when it returns nonzero, which suggests it consumed the input."
+
+[[function]]
+module = "EBOOT"
+address = "088345FC"
+name = "ui_draw_layer_0"
+purpose = "Selects display layer 9 and text layer 0, flushes text through 08825DA8, and in screen mode 0xD also calls 088392F4."
+confidence = "inferred"
+evidence = "Sets +0x534 = 9, font layer 0; the check is global +0x6AF0E == 0xD."
+
+[[function]]
+module = "EBOOT"
+address = "08834664"
+name = "ui_draw_layer_1_popups"
+purpose = "Selects display layer 10 and text layer 1, flushes text, then draws popup 0883E4B8 if +0x52F is set or 08834730 if the global byte +0x10 is set."
+confidence = "inferred"
+evidence = "Sets +0x534 = 10, font layer 1; branches on the two overlay flags."
+
+[[function]]
+module = "EBOOT"
+address = "088346D8"
+name = "ui_draw_layer_2_dialogue"
+purpose = "Selects display layer 11 and text layer 2, flushes text, and draws the dialogue box when its flags are set, clearing them."
+confidence = "inferred"
+evidence = "Sets +0x534 = 11, calls 08830D3C when +0x5F0 is nonzero and then zeroes it."
+
+[[function]]
+module = "EBOOT"
+address = "08834B0C"
+name = "menu_list_14_entries_input"
+purpose = "Handles input for a 14-entry list: moves the cursor, confirms an enabled entry into a sub-step with a sound or buzzes on a disabled one, and closes on cancel with a sound."
+confidence = "inferred"
+evidence = "Cursor call with limit 0xE, sound ids 0x13, 0x14, 0x15 on buttons 0x4000 and 0x2008; which menu it is is unknown."
+
+[[function]]
+module = "EBOOT"
+address = "08834D04"
+name = "ui_get_input_unless_menu_open"
+purpose = "Returns the value from 0884FB6C when the list menu is closed, otherwise the stored word +0x111E."
+confidence = "inferred"
+evidence = "Result is passed as buttons to the menu handlers; 08834B0C zeroes +0x111E while open."
+
+[[function]]
+module = "EBOOT"
+address = "088351F0"
+name = "ui_draw_scene_mode_overlays"
+purpose = "Chooses which overlay drawers run on layers 0-2 by the mode at *09B22E70, toggling flag 0x2000 of +0x528 with a sound when bit 0x100 of the global button word is pressed and bit 0 of +0xF7A57C is set, then calls 0883D0EC."
+confidence = "inferred"
+evidence = "Switch on modes 0x14, 8, 0x16, 0, 0xC with fixed layer arguments, always 08835470 first in the main ones."
+
+[[function]]
+module = "EBOOT"
+address = "08835470"
+name = "hud_draw_player_name_tags"
+purpose = "For up to 4 player objects, projects the position 190 units above them to the screen and, if on screen, draws a sprite and the shadowed centered name colored by a rank-like byte, plus a marker sprite by state."
+confidence = "inferred"
+evidence = "Loop of 4 through 088DCEBC, object +0x200 place with y+190 through 08814674, name from player tables printed twice offset by one pixel."

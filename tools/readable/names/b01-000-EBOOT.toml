@@ -1,0 +1,311 @@
+[[function]]
+module = "EBOOT"
+address = "08804290"
+name = "libc_sbrk"
+purpose = "Grows a heap carved from a lazily allocated kernel partition block, returning the old break or -1 when out of range."
+confidence = "confirmed"
+evidence = "String UserSbrk passed to sceKernelAllocPartitionMemory; break bounds check; called by malloc's sbrk path."
+
+[[function]]
+module = "EBOOT"
+address = "08804424"
+name = "libc_write"
+purpose = "Maps fds 0-2 to the kernel's stdin, stdout and stderr handles, then writes with sceIoWrite."
+confidence = "confirmed"
+evidence = "sceKernelStdout/Stdin/Stderr mapping then sceIoWrite; returns EBADF-style 0xfffffff7 on a bad fd."
+
+[[function]]
+module = "EBOOT"
+address = "0880454C"
+name = "libc_fstat"
+purpose = "Stub fstat that reports every fd as a character device and returns 0."
+confidence = "inferred"
+evidence = "Writes 0x2000 (S_IFCHR) to st_mode at +4; only caller is the fstat_r wrapper 0880AD50."
+
+[[function]]
+module = "EBOOT"
+address = "0880455C"
+name = "libc_isatty"
+purpose = "Stub isatty that always returns 1."
+confidence = "inferred"
+evidence = "Returns 1; called from the stdio buffer setup right after the S_IFCHR check."
+
+[[function]]
+module = "EBOOT"
+address = "08804678"
+name = "intr_set_vblank_subhandler"
+purpose = "Registers and enables a handler for a sub-interrupt of interrupt 30, or releases it when the handler is null."
+confidence = "inferred"
+evidence = "sceKernelRegister/Enable/ReleaseSubIntrHandler on 0x1E, the PSP VBLANK interrupt number."
+
+[[function]]
+module = "EBOOT"
+address = "08804E40"
+name = "math_powf_ieee754"
+purpose = "Single-precision x to the power y, the core routine with no errno handling."
+confidence = "inferred"
+evidence = "fdlibm e_powf shape: y==0 returns 1, integer-y test, special cases for y of 1, 2 and 0.5, log/exp polynomials."
+
+[[function]]
+module = "EBOOT"
+address = "088055E8"
+name = "math_rem_pio2f"
+purpose = "Reduces a float angle modulo pi/2 into a two-part remainder and returns the quadrant."
+confidence = "inferred"
+evidence = "fdlibm e_rem_pio2f: thresholds 0x3f490fd9 (pi/4) and 0x4016cbe4 (3pi/4); stores y[0] and y[1]; falls back to a large-argument routine 0880700C."
+
+[[function]]
+module = "EBOOT"
+address = "08805978"
+name = "math_sqrtf_ieee754"
+purpose = "Software single-precision square root computed bit by bit."
+confidence = "inferred"
+evidence = "fdlibm e_sqrtf: negative gives NaN, exponent halved, 25-iteration restoring loop; only called from powf for y==0.5."
+
+[[function]]
+module = "EBOOT"
+address = "08806EBC"
+name = "math_kernel_cosf"
+purpose = "Cosine polynomial for an argument within pi/4, with a low-order correction term."
+confidence = "inferred"
+evidence = "fdlibm k_cosf: constant return for tiny x, even polynomial, used for quadrants 0 and 2 of cosf."
+
+[[function]]
+module = "EBOOT"
+address = "08807850"
+name = "math_kernel_sinf"
+purpose = "Sine polynomial for an argument within pi/4, with an optional low-order term selected by the first argument."
+confidence = "inferred"
+evidence = "fdlibm k_sinf: returns x for tiny x, odd polynomial, iy flag; called with 0 directly and 1 after reduction."
+
+[[function]]
+module = "EBOOT"
+address = "0880816C"
+name = "math_cosf"
+purpose = "Single-precision cosine of an angle in radians."
+confidence = "inferred"
+evidence = "Quadrant dispatch 0 cos, 1 -sin, 2 -cos, 3 sin after rem_pio2f; pi/4 shortcut to kernel cos; NaN for non-finite input."
+
+[[function]]
+module = "EBOOT"
+address = "0880824C"
+name = "math_fabsf"
+purpose = "Float absolute value."
+confidence = "confirmed"
+evidence = "Body is ABS(x)."
+
+[[function]]
+module = "EBOOT"
+address = "0880825C"
+name = "math_finitef"
+purpose = "Returns nonzero when a float is neither infinite nor NaN."
+confidence = "confirmed"
+evidence = "Tests abs bits against 0x7f7fffff and inverts."
+
+[[function]]
+module = "EBOOT"
+address = "08808364"
+name = "math_isnanf"
+purpose = "Returns nonzero when a float is NaN."
+confidence = "confirmed"
+evidence = "abs bits greater than 0x7f800000."
+
+[[function]]
+module = "EBOOT"
+address = "088084C4"
+name = "math_sinf"
+purpose = "Single-precision sine of an angle in radians."
+confidence = "inferred"
+evidence = "Quadrant dispatch 0 sin, 1 cos, 2 -sin, 3 -cos after rem_pio2f; pi/4 shortcut to kernel sin; NaN for non-finite input."
+
+[[function]]
+module = "EBOOT"
+address = "088085A4"
+name = "math_powf"
+purpose = "Single-precision power wrapper that calls the core routine and applies error handling for domain and range cases."
+confidence = "inferred"
+evidence = "fdlibm w_powf: calls 08804E40, checks NaN and finite cases, sets errno 0x21 (EDOM) and 0x22 (ERANGE), reads the _LIB_VERSION-like mode."
+
+[[function]]
+module = "EBOOT"
+address = "08808AC0"
+name = "math_abs_int"
+purpose = "Integer absolute value."
+confidence = "confirmed"
+evidence = "Returns the larger of x and -x."
+
+[[function]]
+module = "EBOOT"
+address = "08808ACC"
+name = "libc_atexit"
+purpose = "Adds a function to the current reent's atexit list, growing the list when a 32-entry block is full."
+confidence = "inferred"
+evidence = "Reent +0x148 list, 0x1f limit, 0x10c block allocation; crt startup 08906B68 passes it a function pointer."
+
+[[function]]
+module = "EBOOT"
+address = "0880A580"
+name = "libc_fflush"
+purpose = "Flushes a stdio stream's write buffer, or walks all streams when given null."
+confidence = "inferred"
+evidence = "newlib fflush: null case walks the global reent with itself as callback, runs stdio init, checks __SWR flag 8, loops the write callback at +0x24, sets error flag 0x40."
+
+[[function]]
+module = "EBOOT"
+address = "0880A684"
+name = "libc_stdio_init_stream"
+purpose = "Fills in a FILE with flags, fd, and the default read, write, seek and close callbacks."
+confidence = "inferred"
+evidence = "newlib std(): stores flags and file at +0xC and +0xE, four callbacks at +0x20 to +0x2C, cookie at +0x1C."
+
+[[function]]
+module = "EBOOT"
+address = "0880A754"
+name = "libc_sinit"
+purpose = "Initializes a reent's stdio: cleanup hook, stream table, and stdin, stdout and stderr."
+confidence = "inferred"
+evidence = "newlib __sinit: +0x38 init flag, cleanup at +0x3C, three streams with flags 4, 9, 10 and fds 0, 1, 2."
+
+[[function]]
+module = "EBOOT"
+address = "0880AD50"
+name = "libc_fstat_r"
+purpose = "Reentrant fstat wrapper that copies errno into the reent on failure."
+confidence = "inferred"
+evidence = "Clears errno, calls the fstat stub, stores errno through the reent on -1."
+
+[[function]]
+module = "EBOOT"
+address = "0880ADC4"
+name = "libc_sfvwrite"
+purpose = "Writes a scatter list of buffers to a stdio stream, honouring unbuffered, line-buffered and string streams."
+confidence = "inferred"
+evidence = "newlib __sfvwrite: uio at param_2, flags 2 and 1 for unbuffered and line-buffered, memchr for newline, __SSTR 0x200 path with realloc; reached from vfprintf's print helper."
+
+[[function]]
+module = "EBOOT"
+address = "0880B368"
+name = "libc_get_reent"
+purpose = "Returns the current thread's C library reent structure, or the global one."
+confidence = "inferred"
+evidence = "Reads the k0 thread pointer +4, falling back to the global impure pointer; many stdio callers."
+
+[[function]]
+module = "EBOOT"
+address = "0880B42C"
+name = "libc_localeconv_r"
+purpose = "Returns the static locale conversion table."
+confidence = "inferred"
+evidence = "Returns a fixed data address; localeconv wrapper 0880B474 tail-calls it."
+
+[[function]]
+module = "EBOOT"
+address = "0880B474"
+name = "libc_localeconv"
+purpose = "Returns the locale conversion table for the current reent."
+confidence = "inferred"
+evidence = "Calls get_reent then 0880B42C; vfprintf-shaped caller 0880F68C reads the first field as the decimal point."
+
+[[function]]
+module = "EBOOT"
+address = "0880B50C"
+name = "libc_smakebuf"
+purpose = "Gives a stdio stream a buffer, using its one-byte fallback when unbuffered or out of memory."
+confidence = "inferred"
+evidence = "newlib __smakebuf: flag 2 uses the byte at +0x43, fstat for file type, 0x400 allocation, flag 0x80 for malloced buffer, line-buffer flag for a tty."
+
+[[function]]
+module = "EBOOT"
+address = "0880B70C"
+name = "libc_malloc_r"
+purpose = "Reentrant allocator of the Doug Lea style: exact bins, sorted large bins, a binmap, a split remainder and a top chunk grown with sbrk."
+confidence = "inferred"
+evidence = "Size rounding +0x13 & ~0xF, bin index formula with 0x5b/0x6e/0x77/0x7c, binmap, lock around it, sbrk via 0880E430."
+
+[[function]]
+module = "EBOOT"
+address = "0880BF00"
+name = "mem_memchr"
+purpose = "Finds the first byte equal to a value within a length, returning its address or null."
+confidence = "confirmed"
+evidence = "Word-at-a-time zero-byte test with 0xfefefeff and 0x80808080, then a byte loop; caller searches for newline 10."
+
+[[function]]
+module = "EBOOT"
+address = "0880BFF0"
+name = "mem_memcmp"
+purpose = "Compares two memory regions, returning the difference of the first unequal bytes."
+confidence = "confirmed"
+evidence = "Word loop when both aligned, then byte compare returning a minus b."
+
+[[function]]
+module = "EBOOT"
+address = "0880C084"
+name = "mem_memcpy"
+purpose = "Copies a memory region forwards with no overlap handling."
+confidence = "confirmed"
+evidence = "16-byte aligned loop, word loop, trailing bytes, and an unaligned word path; 8 or more game callers."
+
+[[function]]
+module = "EBOOT"
+address = "0880C1A8"
+name = "mem_memmove"
+purpose = "Copies a memory region safely when source and destination overlap, choosing the copy direction."
+confidence = "confirmed"
+evidence = "Forward path when dest is below source or past its end, otherwise a mirrored backward copy."
+
+[[function]]
+module = "EBOOT"
+address = "0880C464"
+name = "mem_memset"
+purpose = "Fills a memory region with a byte value."
+confidence = "confirmed"
+evidence = "Byte head to alignment, value replicated across the word, 8-byte store loop, byte tail."
+
+[[function]]
+module = "EBOOT"
+address = "0880C53C"
+name = "libc_malloc_lock"
+purpose = "Takes the recursive allocator lock by suspending interrupts on the first entry."
+confidence = "inferred"
+evidence = "sceKernelCpuSuspendIntr with a depth counter; called on entry of malloc."
+
+[[function]]
+module = "EBOOT"
+address = "0880C578"
+name = "libc_malloc_unlock"
+purpose = "Releases the recursive allocator lock, resuming interrupts when the depth reaches zero."
+confidence = "inferred"
+evidence = "Decrements the counter and calls sceKernelCpuResumeIntr at zero; called on malloc's exits."
+
+[[function]]
+module = "EBOOT"
+address = "0880C5A0"
+name = "libc_lookup_thread_reent"
+purpose = "Finds the reent registered for the current thread's id in a chained 32-slot table, or returns the global one with a logged error."
+confidence = "confirmed"
+evidence = "Strings libc %s no reent structure; id%0x20 slot lookup with a next pointer."
+
+[[function]]
+module = "EBOOT"
+address = "0880C690"
+name = "libc_register_thread_reent"
+purpose = "Stores an id in a reent at +0x37C and begins inserting it into the thread reent table."
+confidence = "inferred"
+evidence = "Writes +0x37C under interrupt suspend; startup 08906B68 calls it right after reent init; body continues in 0880C6E8."
+
+[[function]]
+module = "EBOOT"
+address = "0880C6E8"
+name = "libc_register_thread_reent_insert"
+purpose = "Walks the reent table chain to place the id and reent in a free slot, allocating a new block when full and failing on a duplicate id."
+confidence = "inferred"
+evidence = "Reached only from 0880C690 with its registers live; slot pair +4 and +0x84, 0x104 block allocation, -1 on a duplicate."
+
+[[function]]
+module = "EBOOT"
+address = "0880C874"
+name = "libc_reent_init"
+purpose = "Initializes a reent structure to defaults, including stream pointers and rand48 seed."
+confidence = "confirmed"
+evidence = "rand48 constants 0x330e 0xabcd 0x1234 0xe66d 0xdeec 5 0xb; stream pointers +0x268 region cleared with memset."

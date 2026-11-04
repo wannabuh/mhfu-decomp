@@ -1,0 +1,287 @@
+[[function]]
+module = "EBOOT"
+address = "088140C4"
+name = "camera_get_eye"
+purpose = "Copies the current camera eye position (+0xB40) to a vec4 with w = 0."
+confidence = "inferred"
+evidence = "+0xB40 is the eye passed to the look-at builder in 08814268 and 08815964."
+
+[[function]]
+module = "EBOOT"
+address = "088140E4"
+name = "camera_get_target"
+purpose = "Copies the current camera look-at target (+0xB50) to a vec4 with w = 0."
+confidence = "inferred"
+evidence = "+0xB50 is the target passed to the look-at builder in 08814268 and 08815964."
+
+[[function]]
+module = "EBOOT"
+address = "08814114"
+name = "camera_alpha_from_nearest_of_three_entries"
+purpose = "Finds which of three table-selected entries (stride 0x250, position +0x100) is nearest the camera eye and writes a byte: 76 within 60 units, ramping to 255 at 100 units, 0xFF beyond that or if none is near."
+confidence = "guess"
+evidence = "Squared-distance thresholds 3600 and 10000 and a 76..255 ramp; alpha is a reading of that ramp, and what the entries are is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "08814268"
+name = "camera_set_view"
+purpose = "Stores eye, target and up, records eye-target distance, and builds the view matrix (+0xB80), a world-scaled view matrix (+0xBC0) and their affine inverses (+0xC80, +0xC40)."
+confidence = "inferred"
+evidence = "Calls the look-at builder 08815700 twice, the second time with positions scaled by global DAT_08a62d60; inverse computed inline."
+
+[[function]]
+module = "EBOOT"
+address = "088144B4"
+name = "math_mat4_perspective"
+purpose = "Writes an OpenGL-style perspective projection matrix from vertical fov in radians, aspect, near and far, with the depth terms scaled by global DAT_08a62d60."
+confidence = "inferred"
+evidence = "cot(fov/2)/aspect, cot(fov/2), -1 at [11] and the standard depth terms; the decompile prints far*far where a scale is likely, so the exact depth term is unsure."
+
+[[function]]
+module = "EBOOT"
+address = "088145C4"
+name = "camera_build_projection"
+purpose = "Builds the camera projection matrix (+0xC00) and its inverse-style matrix (+0xD00), then rebuilds the frustum planes."
+confidence = "inferred"
+evidence = "Calls math_mat4_perspective at +0xC00 and the frustum plane builder 08815E9C; called only by 08815348."
+
+[[function]]
+module = "EBOOT"
+address = "08814674"
+name = "camera_world_to_screen"
+purpose = "Projects a world position to screen coordinates: scales it by the world scale, applies the scaled view and the projection, divides by w, applies the viewport, and subtracts the offset at +0xB70."
+confidence = "inferred"
+evidence = "vtfm4 by +0xBC0 then +0xC00, perspective divide with a near-zero guard, then the viewport fields set by 08816264."
+
+[[function]]
+module = "EBOOT"
+address = "088147C8"
+name = "camera_get_heading_angle16"
+purpose = "Returns the camera's horizontal view direction as a 16-bit binary angle, from atan2 of target minus eye with z negated."
+confidence = "inferred"
+evidence = "Inlined VFPU atan2 on (dx, -dz), then angle * 65536 / 2pi masked to 0xFFFF."
+
+[[function]]
+module = "EBOOT"
+address = "08814984"
+name = "camera_read_zone_grid_header"
+purpose = "Copies the grid dimensions, cell sizes and origin fields from the camera zone data header into the camera, generating default data first if none is loaded."
+confidence = "inferred"
+evidence = "Reads the +0xAAC header that 08815024 indexes as a grid; 08814BE0 fills a default 1x1 grid of 20000-unit cells."
+
+[[function]]
+module = "EBOOT"
+address = "08814A14"
+name = "camera_set_zone_data"
+purpose = "Attaches a camera zone data file to +0xAAC and relocates its internal offsets to pointers (zone entries, grid cells, cell lists), or clears the pointer when given null."
+confidence = "inferred"
+evidence = "Adds the base address to offset fields in a loop; +0x1C and +0x20 are the grid walked by 08815024; runs around area loads."
+
+[[function]]
+module = "EBOOT"
+address = "08814D84"
+name = "camera_read_input_or_clear"
+purpose = "Copies global control values (DAT_08a62d88, 8C, 98, 9A) into camera fields +0xA70..+0xA78, or zeroes them when a query on DAT_089cc558 returns 1 or the followed object's byte +0x552 is set."
+confidence = "guess"
+evidence = "Called from the camera update and gated on the followed object; the globals being stick or button input is not shown here."
+
+[[function]]
+module = "EBOOT"
+address = "08814E18"
+name = "camera_resolve_active_view"
+purpose = "Counts down the three camera shake records, loads the desired view from the current mode slot, and sets the current view from it or from an active override slot 3, 4 or 5, applying the matching shake."
+confidence = "inferred"
+evidence = "0x1A0-stride slots with active bytes at +0x621, +0x7C1, +0x961; 8812DB8 applies a decaying sine offset to eye and target y."
+
+[[function]]
+module = "EBOOT"
+address = "08815004"
+name = "camera_store_override_slot_index"
+purpose = "Stores the override slot index in byte +0x142, writing 0xFF when the slot is 5 or negative."
+confidence = "inferred"
+evidence = "Only called by 08814E18 with the slot it selected; what reads +0x142 is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "08815024"
+name = "camera_find_zone_at_followed_object"
+purpose = "Looks up the grid cell at +0xB16/+0xB18, tests its zones against the followed object, and stores the first match in +0xA90, falling back to the first zone; returns 1 on a match, 0 on none, -1 with no data."
+confidence = "inferred"
+evidence = "Index = x + width * y into the +0x1C cell table, then a loop over 08815108."
+
+[[function]]
+module = "EBOOT"
+address = "08815108"
+name = "camera_zone_contains_followed_object"
+purpose = "Tests the object's position at +0x200 against a zone's volumes, using a height range along a plane normal and an XZ quad; returns 0 if inside, 2 if not; zones with flag 0x80 also need a check on the object to pass."
+confidence = "inferred"
+evidence = "+0xA84 + 0x200 is the object place; dot against the volume normal within +0x3C, then 08815260; volumes are 0x40 bytes."
+
+[[function]]
+module = "EBOOT"
+address = "08815260"
+name = "math_point_in_quad_xz"
+purpose = "Tests a point in the XZ plane against four edges given by two corners and two further points by the sign of a 2D cross product; returns 0 if inside, 2 if outside."
+confidence = "confirmed"
+evidence = "Four 2D cross products on x and z that return 2 when negative."
+
+[[function]]
+module = "EBOOT"
+address = "08815348"
+name = "camera_apply_projection_params"
+purpose = "Rebuilds the projection from near (+0), far (+4), aspect (+8) and fov (+0xC), and records the fov used in +0x10."
+confidence = "inferred"
+evidence = "Passes those fields to 088145C4, whose math_mat4_perspective gives them their meaning; 08815384 compares +0x10 with +0xC to detect a change."
+
+[[function]]
+module = "EBOOT"
+address = "08815384"
+name = "camera_update_matrices"
+purpose = "Per-frame camera matrix update: rebuilds the projection if the fov changed, computes the up vector from the roll, sets the view, and builds a yaw-only rotation matrix at +0xCC0 from the view heading."
+confidence = "inferred"
+evidence = "Calls 08815348, 08815D84 and 08814268, then inlines atan2 and three rotations with zero x and z angles; runs for the whole recordings."
+
+[[function]]
+module = "EBOOT"
+address = "08815700"
+name = "math_mat4_look_at"
+purpose = "Writes a right-handed look-at view matrix from eye, target and up."
+confidence = "confirmed"
+evidence = "Normalized eye-target, two cross products, transpose, translation of negated dot products."
+
+[[function]]
+module = "EBOOT"
+address = "088158D8"
+name = "camera_snap_to_view"
+purpose = "Sets up to (0,1,0) and both desired and current eye, target and fov to the given values, then rebuilds the camera matrices."
+confidence = "inferred"
+evidence = "Writes +0x20/+0x30 and +0xB40/+0xB50, then calls 08815964; ran once around frames 670-700, before gameplay."
+
+[[function]]
+module = "EBOOT"
+address = "08815964"
+name = "camera_ease_to_desired_and_update"
+purpose = "Moves current eye, target and fov one ninth of the way to their desired values, then rebuilds the projection, view and yaw matrices."
+confidence = "inferred"
+evidence = "x += (desired - x) / 9.0 on each field, then the same matrix sequence as 08815384; ran only around frames 670-880 in these recordings."
+
+[[function]]
+module = "EBOOT"
+address = "08815D64"
+name = "camera_set_desired_view"
+purpose = "Stores the desired eye (+0x20), target (+0x30) and fov (+0xA8) without touching the current view."
+confidence = "inferred"
+evidence = "The fields 08815964 eases toward; same caller as camera_snap_to_view."
+
+[[function]]
+module = "EBOOT"
+address = "08815D84"
+name = "math_up_vector_from_roll"
+purpose = "Computes an up vector by rotating (0,1,0) by the given roll angle about the eye-to-target direction."
+confidence = "inferred"
+evidence = "Direction and angle go to 08897DE0, the result to 08897D7C, whose 3x3 matrix transforms (0,1,0); those helpers read as axis-angle to rotation but are not checked here."
+
+[[function]]
+module = "EBOOT"
+address = "08815E28"
+name = "math_plane_normal_from_triangle"
+purpose = "Writes the normalized normal of a triangle, (b-a) x (c-a), with w = 0."
+confidence = "confirmed"
+evidence = "Two vsub, one vcrsp, normalize."
+
+[[function]]
+module = "EBOOT"
+address = "08815E9C"
+name = "camera_build_frustum_planes"
+purpose = "Builds the four side planes of the view frustum (+0xD50..+0xD80) through the origin from fov, aspect and far, and stores the negated near and far distances (+0xD90, +0xD94)."
+confidence = "inferred"
+evidence = "Corners from cot(fov/2) and aspect go to 08815E28 four times; the planes are read by the sphere test 088160F0."
+
+[[function]]
+module = "EBOOT"
+address = "088160E8"
+name = "camera_sphere_in_frustum"
+purpose = "Sphere visibility test against the camera frustum using the stored far limit +0xD94; returns 1 if visible."
+confidence = "inferred"
+evidence = "Thin wrapper over 088160F0 with +0xD94 as the far limit."
+
+[[function]]
+module = "EBOOT"
+address = "088160F0"
+name = "camera_sphere_in_frustum_far"
+purpose = "Tests a sphere against the camera frustum with a caller-given far limit: transforms the centre by the view matrix and checks near, far and the four side planes; returns 1 if visible or if culling flag +0xAAA is off."
+confidence = "confirmed"
+evidence = "View-matrix row dot products compared with radius against the planes built by 08815E9C."
+
+[[function]]
+module = "EBOOT"
+address = "08816264"
+name = "camera_init_viewport_480x272"
+purpose = "Sets the viewport scale (240, -136, far/2) and offset (2048, 2048, far/2) used to project to the PSP screen."
+confidence = "confirmed"
+evidence = "Constants 240.0, -136.0 and 2048.0 are half the 480x272 screen and the GE's screen offset; read by 08814674."
+
+[[function]]
+module = "EBOOT"
+address = "0881629C"
+name = "str_read_sjis_char_as_jisx0213"
+purpose = "Reads one character from a string pointer and advances it, converting a Shift-JIS double-byte character to a JIS X 0213 code with bit 15 for plane 2; single bytes are returned as they are and bad sequences give '?'."
+confidence = "inferred"
+evidence = "Lead-byte ranges 0x81-0x9F, 0xE0-0xEF, 0xF0-0xFC and trail ranges match Shift_JIS-2004, including the plane 2 row remapping."
+
+[[function]]
+module = "EBOOT"
+address = "08816460"
+name = "str_read_utf8_char"
+purpose = "Decodes one UTF-8 character from a string pointer and advances it, returning '?' for invalid lead bytes or code points outside the 16-bit range."
+confidence = "confirmed"
+evidence = "Lead-byte checks at 0x80, 0xC2 and 0xF5 and a continuation loop taking 6 bits per byte."
+
+[[function]]
+module = "EBOOT"
+address = "088165FC"
+name = "str_jis_code_to_unicode"
+purpose = "Maps a 16-bit character code through the u16 table at 08910A88, returning 0 for 0 and '?' for unmapped codes."
+confidence = "inferred"
+evidence = "Shares its only caller 08891E0C with the Shift-JIS reader; the table contents were not checked."
+
+[[function]]
+module = "EBOOT"
+address = "088167E0"
+name = "str_is_16bit_codepoint"
+purpose = "Returns whether a code point is below 0x10000."
+confidence = "confirmed"
+evidence = "Single comparison; used by str_read_utf8_char."
+
+[[function]]
+module = "EBOOT"
+address = "088167F4"
+name = "str_length_u16"
+purpose = "Returns the number of 16-bit units before the terminating zero."
+confidence = "confirmed"
+evidence = "Counting loop over a short pointer."
+
+[[function]]
+module = "EBOOT"
+address = "08816930"
+name = "str_utf8_sequence_length"
+purpose = "Returns the byte length of a UTF-8 sequence from its lead byte: 1 to 4, or 0 for a zero or invalid lead byte."
+confidence = "confirmed"
+evidence = "Tests the top bits for the 0xxxxxxx, 110, 1110 and 11110 patterns."
+
+[[function]]
+module = "EBOOT"
+address = "088169FC"
+name = "str_utf8_byte_length"
+purpose = "Returns a UTF-8 string's length in bytes by stepping through its sequences; the first argument is unused, and an invalid lead byte would loop forever."
+confidence = "confirmed"
+evidence = "Sums str_utf8_sequence_length until a zero byte."
+
+[[function]]
+module = "EBOOT"
+address = "08816A60"
+name = "unknown_singleton_init_sets_089cbd0c"
+purpose = "Stores itself in global DAT_089cbd0c, constructs an array of 20 0x24-byte elements at +0xE28, clears the 0x1220-byte object and that array, and zeroes a few fields."
+confidence = "guess"
+evidence = "Array constructor call with size 0x24 and count 0x14 and memset calls; ran once at frame 0, and nothing shows which system it is."

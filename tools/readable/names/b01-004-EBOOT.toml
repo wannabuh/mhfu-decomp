@@ -1,0 +1,295 @@
+[[function]]
+module = "EBOOT"
+address = "088269C0"
+name = "hunter_can_use_item"
+purpose = "Returns whether the local player's hunter can use the given item id now, with per-item special cases on hunter state."
+confidence = "inferred"
+evidence = "Indexes the 0x18-stride item table by id; its only caller draws the icon in colour 10 with a red overlay when it returns 0."
+
+[[function]]
+module = "EBOOT"
+address = "08827918"
+name = "text_draw_multiline_centered"
+purpose = "Draws a newline-separated string line by line, offset left by half the widest line, stepping y by a line height."
+confidence = "inferred"
+evidence = "Splits on char 10, tracks the max measured width, subtracts width*scale>>2 from x; same centring formula as the list drawer."
+
+[[function]]
+module = "EBOOT"
+address = "08828658"
+name = "hunter_skill_max_health_bonus"
+purpose = "Maps the hunter's skill value in group 9 to a health change: +20/+30/+50 or -10/-20/-30."
+confidence = "inferred"
+evidence = "Caller game_task 09A655F0 adds the result to health_recoverable capped at 150, once at quest start; lookup reads skill slots at +0x634/+0x676."
+
+[[function]]
+module = "EBOOT"
+address = "08828938"
+name = "hud_item_swap_prompt_tick"
+purpose = "State machine for a prompt offering an item: yes/no, pick one of 24 pouch slots, confirm, then remove that slot and add the item; state 0 counts down a cooldown."
+confidence = "inferred"
+evidence = "Cross/circle/d-pad handling over states at +0x52F; cursor over 0x18 entries; calls pouch slot clear 088D839C then item add 088D72A4 with id +0x590 and count +0x593."
+
+[[function]]
+module = "EBOOT"
+address = "0882900C"
+name = "map_point_table_lookup"
+purpose = "Reads a 3-short entry for an id from a static table into three floats, with a separate table for ids 0x80-0x81 on map 0x0F."
+confidence = "inferred"
+evidence = "Table at 08938C1C with stride 6; override keyed on the map-like byte at global +0x6AF10."
+
+[[function]]
+module = "EBOOT"
+address = "088290A4"
+name = "map_point_get_xy"
+purpose = "Gets an x,y for a map region id: the centre of a runtime rectangle if the static entry's third value is 0, otherwise the static point scaled by 1/152 and a per-map scale."
+confidence = "guess"
+evidence = "Rectangle table 09CDF040 stride 0x20 uses x+w/2; caller passes object fields +0x29A and +0x2E0 as ids; only the jungle quest recording ran it. Region meaning unproven."
+
+[[function]]
+module = "EBOOT"
+address = "08829674"
+name = "hud_set_mode_from_quest_flags"
+purpose = "Sets a mode byte at +0x584 and option bits at +0x5E6 from flag bits in the global at 08A62D9C +0x28 and the map byte."
+confidence = "guess"
+evidence = "Only flag tests and constant writes; runs once at frame ~1480 on entering a quest; that the global is the quest state is not shown here."
+
+[[function]]
+module = "EBOOT"
+address = "088298E4"
+name = "quest_get_field_68_or_local_buffer"
+purpose = "Returns the fixed buffer 09B04040 if bit 0 of global +0x6AF14 is set, otherwise the pointer at 08A62D9C +0x68."
+confidence = "guess"
+evidence = "Code is exactly that choice; what the pointer holds is unknown (caller passes it to lobby_task 09A885C8 while drawing)."
+
+[[function]]
+module = "EBOOT"
+address = "0882A168"
+name = "hud_draw_slot_entries_by_kind"
+purpose = "Sets layer 12 and font 3, then for each of 6 entries at +0x112A that are active draws it with one of three routines chosen by its kind byte."
+confidence = "inferred"
+evidence = "Loop of 6 with stride 0xC; +2 active flag, +3 kind dispatching to 0882A28C, 0882A43C, 0882A660."
+
+[[function]]
+module = "EBOOT"
+address = "0882A864"
+name = "hud_item_swap_prompt_is_idle"
+purpose = "True if the prompt state is 0 and its cooldown has expired; with a hunter argument, also requires that hunter to be the local player."
+confidence = "inferred"
+evidence = "Reads +0x52F and +0x119E, the same fields the prompt tick uses; compares hunter +0x1E6 to global +0x28."
+
+[[function]]
+module = "EBOOT"
+address = "0882A9DC"
+name = "hud_draw_sprite"
+purpose = "Draws an atlas sprite at x,y at its table size, untinted, into the display list at the HUD's layer."
+confidence = "inferred"
+evidence = "GE words: textured 2-vertex sprite prim, 5551 colour white; UV and size from the 12-byte entry at 089392C8; layer +0x534 linked via gpu_list_link_chunk."
+
+[[function]]
+module = "EBOOT"
+address = "0882AC18"
+name = "hud_draw_sprite_tiled"
+purpose = "Draws an untinted textured rectangle x,y,w,h with UV 0..w,h after setting up the atlas entry, so the texture repeats rather than stretches."
+confidence = "inferred"
+evidence = "UV written as 0,0 and w,h with entry passed whole to 0883185C; the window drawer uses it for edges and centre."
+
+[[function]]
+module = "EBOOT"
+address = "0882AF70"
+name = "hud_draw_sprite_stretched"
+purpose = "Draws an untinted atlas sprite stretched to the given width and height."
+confidence = "inferred"
+evidence = "UV from the sprite table, position x,y to x+w,y+h from arguments; 5551 white."
+
+[[function]]
+module = "EBOOT"
+address = "0882B624"
+name = "hud_draw_sprite_tinted_flipped"
+purpose = "Draws an atlas sprite at table size with an RGB tint, flipping U for mode 1 or 3 and V for mode 2 or 3."
+confidence = "inferred"
+evidence = "Packs r,g,b to 5551 and swaps the UV pairs by param_8."
+
+[[function]]
+module = "EBOOT"
+address = "0882B94C"
+name = "hud_draw_sprite_rgba"
+purpose = "Draws an atlas sprite at table size with an RGBA colour."
+confidence = "inferred"
+evidence = "GE vertex type 0x80011E (8888 colour) with a,b,g,r packed from arguments; sprite table UV and size."
+
+[[function]]
+module = "EBOOT"
+address = "0882BBE8"
+name = "hud_draw_sprite_color_ptr"
+purpose = "Draws an atlas sprite at table size with an 8888 colour read from a pointer."
+confidence = "inferred"
+evidence = "Same as the RGBA sprite draw, colour taken from *param_4."
+
+[[function]]
+module = "EBOOT"
+address = "0882BE60"
+name = "hud_draw_sprite_stretched_tinted"
+purpose = "Draws an atlas sprite stretched to width and height with an RGB tint."
+confidence = "inferred"
+evidence = "Packs r,g,b to 5551; x,y,w,h from arguments; UV from the sprite table."
+
+[[function]]
+module = "EBOOT"
+address = "0882C11C"
+name = "hud_draw_sprite_stretched_rgba"
+purpose = "Draws an atlas sprite stretched to width and height with an RGBA colour."
+confidence = "inferred"
+evidence = "8888 colour from arguments; x,y,w,h from arguments; sprite index in stack_4."
+
+[[function]]
+module = "EBOOT"
+address = "0882C3D0"
+name = "hud_draw_sprite_stretched_tinted_partial_u"
+purpose = "Draws a tinted stretched sprite using part of its width: right half (0), left half (1), right quarter (2), left quarter (3)."
+confidence = "inferred"
+evidence = "Mode in stack_0 alters only U0 or U1 by w/2 or w/4; position is still the full rectangle."
+
+[[function]]
+module = "EBOOT"
+address = "0882C7B4"
+name = "hud_draw_sprite_stretched_rgba_flipped"
+purpose = "Draws an RGBA stretched sprite with one of six flip modes, by swapping UVs or swapping top and bottom positions."
+confidence = "inferred"
+evidence = "Switch on stack_8, cases 0-5 reorder UV and y corners of the 2-vertex sprite."
+
+[[function]]
+module = "EBOOT"
+address = "0882CC9C"
+name = "hud_draw_sprite_quad_tinted"
+purpose = "Draws an atlas sprite as a triangle strip on four given corner points with an RGB tint."
+confidence = "inferred"
+evidence = "GE prim 0x4040004 (strip, 4 vertices), positions from 8 shorts at param_2, 5551 colour."
+
+[[function]]
+module = "EBOOT"
+address = "0882CF58"
+name = "hud_draw_sprite_quad_rgba"
+purpose = "Draws an atlas sprite as a triangle strip on four given corner points with an RGBA colour."
+confidence = "inferred"
+evidence = "GE prim 0x4040004, positions from 4 packed words at param_2, 8888 colour; called by the rotated sprite draw."
+
+[[function]]
+module = "EBOOT"
+address = "0882D470"
+name = "hud_draw_sprite_rotated"
+purpose = "Rotates a sprite's corners around a pivot offset by a 16-bit angle, scales by width and height, and draws the white quad with the given alpha."
+confidence = "inferred"
+evidence = "sin/cos of angle*2pi/65536, 2D rotation of four corners from table 08938858, passed to the RGBA quad draw."
+
+[[function]]
+module = "EBOOT"
+address = "0882D6F0"
+name = "hud_fill_rect_rgb"
+purpose = "Draws an untextured rectangle x,y,w,h with an RGB colour packed to 5551."
+confidence = "confirmed"
+evidence = "GE words: texture off 0x1E000000, vertex type 0x800114 (no UV, 5551 colour), 2-vertex sprite prim."
+
+[[function]]
+module = "EBOOT"
+address = "0882D8DC"
+name = "hud_fill_rect_rgba"
+purpose = "Draws an untextured rectangle x,y,w,h with an 8888 RGBA colour."
+confidence = "confirmed"
+evidence = "GE words: texture off 0x1E000000, vertex type 0x80011C (no UV, 8888 colour), 2-vertex sprite prim."
+
+[[function]]
+module = "EBOOT"
+address = "0882DCA0"
+name = "hud_draw_window_style_40"
+purpose = "Draws a nine-slice window using the frame sprites starting at index 0x40."
+confidence = "inferred"
+evidence = "Wrapper: calls the nine-slice drawer with base 0x40."
+
+[[function]]
+module = "EBOOT"
+address = "0882DCA8"
+name = "hud_draw_window_style_9e"
+purpose = "Draws a nine-slice window using the frame sprites starting at index 0x9E."
+confidence = "inferred"
+evidence = "Wrapper: calls the nine-slice drawer with base 0x9E."
+
+[[function]]
+module = "EBOOT"
+address = "0882DCB0"
+name = "hud_draw_window_nine_slice"
+purpose = "Draws a window x,y,w,h from nine consecutive sprites: corners at table size, edges and centre tiled, using the opaque draws at alpha 0xFF and alpha draws otherwise."
+confidence = "inferred"
+evidence = "Eight draws around the rectangle plus the middle with sprite base+0..8, sizes from the base sprite's table entry, branch on param_6 == 0xFF."
+
+[[function]]
+module = "EBOOT"
+address = "0882E0D0"
+name = "hud_draw_item_icon_usable_state"
+purpose = "Draws an item's icon in its table colour, or in colour 10 with a red sprite 0x85 overlay when the hunter can't use it; optionally half the icon; flag-bit items get overlay sprite 0x84 or 0xEE."
+confidence = "inferred"
+evidence = "Item table icon +5, colour +6, flags +4; palette 0893AB7C; branches on hunter_can_use_item; runs in the quest recordings only."
+
+[[function]]
+module = "EBOOT"
+address = "0882E2C0"
+name = "menu_draw_item_icon_weapon_check"
+purpose = "Draws an item's icon with alpha; optionally overlays sprite 0x84/0xEE for flag-bit items or a red sprite 0x85 when the item doesn't fit the hunter's weapon class."
+confidence = "guess"
+evidence = "Uses weapon-like class from 0885CD18 (+0x4E9, +0x4EA) values 10 and 1/5 with item flag bits and a per-item bitmask from 088D7D6C; called from lobby menus. Weapon meaning unproven."
+
+[[function]]
+module = "EBOOT"
+address = "0882E53C"
+name = "hud_draw_icon_by_id_and_color"
+purpose = "Draws an icon from an icon id and palette colour index, stretched to the rectangle, doing nothing for id 0xFF."
+confidence = "inferred"
+evidence = "Same icon lookup and palette as the item icon draws, but from direct arguments; no item table."
+
+[[function]]
+module = "EBOOT"
+address = "0882E604"
+name = "hud_draw_mirrored_end_caps"
+purpose = "Draws sprite 0x8E twice with one RGBA colour: flipped at x and normal at x+width."
+confidence = "inferred"
+evidence = "Calls the flipped RGBA draw with mode 1 at x, the RGBA draw at x+param_4; size from 08939974."
+
+[[function]]
+module = "EBOOT"
+address = "0882E6F0"
+name = "hud_draw_pulsing_end_caps"
+purpose = "Draws the mirrored end caps in green whose brightness pulses with the frame counter."
+confidence = "inferred"
+evidence = "Green = 0xAF + 48*sin(counter & 0x3F); red and blue fixed at 0x20; alpha from argument."
+
+[[function]]
+module = "EBOOT"
+address = "0882E7B4"
+name = "hud_pulse_green_color"
+purpose = "Returns an 8888 colour, alpha 0xF0 with green pulsing with the frame counter and red and blue at 0x20."
+confidence = "inferred"
+evidence = "Returns (0xAF + 48*sin)*0x100 | 0xF0200020 with the same pulse as the end caps."
+
+[[function]]
+module = "EBOOT"
+address = "0882F4A4"
+name = "hud_fill_rect_pulsing_alpha"
+purpose = "Fills a rectangle with a packed 0xRRGGBB colour and alpha pulsing with the frame counter."
+confidence = "inferred"
+evidence = "Alpha = 0xBF + 48*sin(counter & 0x3F); unpacks param_6 for the RGBA fill; the list draw uses it for the cursor row."
+
+[[function]]
+module = "EBOOT"
+address = "0882F580"
+name = "menu_list_draw"
+purpose = "Draws a list menu from a layout struct: window by style, optional title bar, cursor row, row separators, and row strings fetched by a string source selector, optionally centred."
+confidence = "inferred"
+evidence = "Style nibble picks the window; cursor row y = +0x1E + row*+0x10; loop over rows with switch(param_6) on string getters; many lobby and menu callers."
+
+[[function]]
+module = "EBOOT"
+address = "0882FA24"
+name = "menu_list_build_layout"
+purpose = "Fills a list menu's layout struct from a compact description plus an x,y offset, computing window size, row spacing, and cursor and title positions."
+confidence = "inferred"
+evidence = "Width from font width*max chars, height from row count plus optional title; the same offsets menu_list_draw reads; shares callers with it."
