@@ -68,6 +68,7 @@ To trust one, all of these, as a first-try pass means little by itself:
 2. Coverage (`HAND_FLAGS="-fprofile-instr-generate -fcoverage-mapping -mllvm -runtime-counter-relocation"`, `HAND_LDFLAGS=-fprofile-instr-generate`,
    `LLVM_PROFILE_FILE=dir/%p-%c.profraw`, then `llvm-cov show ... --show-branches=count`): every branch both ways, or a reason it can't be.
 3. Bugs put in on purpose, one at a time. Each must be caught or shown to change nothing. Random inputs without stubs let real bugs past.
+   `tools/readable/handbugs.py readable/x.c WORK/bugs/x.txt` does it from a list of `old -> new` lines kept out of the repo, in the test worktree.
 4. `tools/suite.py`, and `tools/readable/trace.py` over the recordings with `TRACE_BIN=build/mhfu`: RAM hashes against the earlier runs.
    Compare only the hashes both runs have: when a replay stops can add one at the end.
 5. Someone playing it: replays can't tell how it feels.
