@@ -1,0 +1,271 @@
+[[function]]
+module = "EBOOT"
+address = "0884F5A8"
+name = "file_loader_tag_queued_or_2fbdc_set"
+purpose = "Vtable +0x40: returns 1 when byte +0x2FBDC and word +0x2FBE0 are both nonzero, otherwise whether file_load_queue_contains_tag finds the tag in param_2."
+confidence = "inferred"
+evidence = "Tail of file_load_queue_contains_tag; sound_loader_tick calls DAT_089cc554 vtable +0x40 with 2, and is a traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "0885048C"
+name = "stat_group_sum_counters_capped"
+purpose = "Walks the 0xFF-terminated byte list for a group in the table at 0899C060, sums gamedata_u16_counter_44cc_get for each byte, and caps the total at 9999."
+confidence = "inferred"
+evidence = "Code shows the list walk and cap; group and counter words come from stat_group_total_capped and the callee's name."
+
+[[function]]
+module = "EBOOT"
+address = "0885A994"
+name = "game_state_089bac14_construct"
+purpose = "Constructor: sets vtable 089BACB8, copies the member function at 0899D294 to +4..+0xC if member_fn_is_set says it is set, then sets vtable 089BAC14 and clears +0x1C."
+confidence = "inferred"
+evidence = "Writes both vtables; main_init_systems stores the result; the game_state prefix rests on the destructor's traced caller game_states_update."
+
+[[function]]
+module = "EBOOT"
+address = "0885AA20"
+name = "game_state_089bac14_destruct"
+purpose = "Destructor at vtable 089BAC14 +8: resets the vtables to 089BAC14 then 089BACB8 and calls 08897298 when the delete argument is positive."
+confidence = "inferred"
+evidence = "Vtable slot +8 and its writes; traced caller game_states_update calls an object's vtable +8."
+
+[[function]]
+module = "EBOOT"
+address = "0885CE1C"
+name = "table_0893161c_get_second_byte"
+purpose = "Returns the second byte of the two-byte record at 0893161C for an index byte."
+confidence = "confirmed"
+evidence = "Reads 0893161D + index*2; its sibling 0885CE00 reads the first byte of the same records."
+
+[[function]]
+module = "EBOOT"
+address = "08864544"
+name = "identity_return_arg"
+purpose = "Returns its argument unchanged."
+confidence = "confirmed"
+evidence = "Body is only the return of its argument."
+
+[[function]]
+module = "EBOOT"
+address = "08882C90"
+name = "sound_track_slot_is_fading_global"
+purpose = "Calls sound_track_slot_is_fading on the track slots at global DAT_08a62eb4 for the given slot."
+confidence = "inferred"
+evidence = "One-line wrapper over the named callee with that global."
+
+[[function]]
+module = "EBOOT"
+address = "08882F58"
+name = "sound_track_slot_stop_global"
+purpose = "Calls sound_track_slot_stop on the track slots at global DAT_08a62eb4 for the given slot."
+confidence = "inferred"
+evidence = "One-line wrapper over the named callee with that global."
+
+[[function]]
+module = "EBOOT"
+address = "08885530"
+name = "sound_stop_all_wrapper"
+purpose = "Forwards its argument to sound_stop_all."
+confidence = "inferred"
+evidence = "One-line wrapper over the named callee, called from game_task and lobby_task code in traces."
+
+[[function]]
+module = "EBOOT"
+address = "08886064"
+name = "unknown_get_field_10"
+purpose = "Returns the word at +0x10 of its argument; the class is not known."
+confidence = "inferred"
+evidence = "Body is the one read; traced callers are game_task and lobby_task code."
+
+[[function]]
+module = "EBOOT"
+address = "088883B8"
+name = "camera_view_init_noop"
+purpose = "Empty function."
+confidence = "inferred"
+evidence = "Empty body; camera_view_init_mode is the caller in traces, and the camera prefix rests on that alone."
+
+[[function]]
+module = "EBOOT"
+address = "088901E0"
+name = "file_loader_query_vtable_38"
+purpose = "Tail-calls vtable +0x38 of the object at global DAT_089cc554 and returns its result."
+confidence = "inferred"
+evidence = "Indirect jump in the code; sound_loader_tick uses the same global's +0x38 as a file loader query."
+
+[[function]]
+module = "EBOOT"
+address = "08897BC0"
+name = "main_init_noop"
+purpose = "Empty function taking one argument."
+confidence = "inferred"
+evidence = "Empty body; main_init_systems calls it with 0 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "08898360"
+name = "global_09a4f1ac_set"
+purpose = "Stores its argument in global DAT_09a4f1ac."
+confidence = "confirmed"
+evidence = "Body is the one store; static_init_construct_globals is the caller in traces."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA54"
+name = "sound_lib_select_group_wrapper"
+purpose = "Forwards one argument through 0889EC80 to 088A4BC4, the library step that sound_driver_select_group uses to select a group."
+confidence = "inferred"
+evidence = "Traced callers sound_driver_select_group and sound_driver_set_group_no_clear both select a group in the library; 088A4BC4 itself not read."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA6C"
+name = "sound_entry_table_set_wrapper"
+purpose = "Forwards two arguments through 0889ECA0 to sound_entry_table_set."
+confidence = "inferred"
+evidence = "0889ECA0 only calls 088A6024, named sound_entry_table_set; sound_slot_set_pointers is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA74"
+name = "sound_bank_get_wave_data_size_wrapper"
+purpose = "Forwards one argument through 0889ECA8 to sound_bank_get_wave_data_size and returns its result."
+confidence = "inferred"
+evidence = "0889ECA8 only calls 088A59C4 of that name; the sound_load_step functions are the traced callers."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA94"
+name = "sound_se_change_send_2_empty_wrapper"
+purpose = "Calls sound_se_change_send_2_empty through 0889EE50."
+confidence = "inferred"
+evidence = "0889EE50 only calls 088A6798 of that name; sound_stop_all is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAC4"
+name = "sound_se_change_send_1_with_ids_wrapper"
+purpose = "Forwards three arguments through 0889EE88 to sound_se_change_send_1_with_ids."
+confidence = "inferred"
+evidence = "0889EE88 only calls 088A69DC of that name; 08880254 is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECB0"
+name = "sound_bank_merge_wrapper"
+purpose = "Forwards three arguments to sound_bank_merge and returns its result."
+confidence = "inferred"
+evidence = "One-line wrapper over 088A4CB0 of that name; ran once per recording."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE90"
+name = "sound_se_change_send_3_with_overrides_wrapper"
+purpose = "Forwards four arguments to sound_se_change_send_3_with_overrides."
+confidence = "inferred"
+evidence = "One-line wrapper over 088A6BA0 of that name; sound_start_with_params is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "088A10E0"
+name = "sound_request_stop_matching_voices"
+purpose = "Passes the block at +8 of a queued entry to sound_stop_matching_voices."
+confidence = "inferred"
+evidence = "Calls 088A13AC with param_1 + 8; sound_thread_update is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "088A140C"
+name = "sound_voices_apply_command_2_to_matching"
+purpose = "Translates a request's flags, sets its byte +3 to 0x7F and match mask 0x1 when mask 0x1 of its flags is clear, applies command 0x10000002 to matching voices, then frees finished voices."
+confidence = "inferred"
+evidence = "Same shape as sound_stop_matching_voices with command 0x10000002; effect of that command not read."
+
+[[function]]
+module = "EBOOT"
+address = "088A177C"
+name = "atrac_semaphore_wait"
+purpose = "Calls sceKernelWaitSema for the semaphore object given as its argument."
+confidence = "inferred"
+evidence = "Import call in the body; atrac_player_create_locked and atrac_system_init pass 09A0D398; the decompiled call hides the arguments."
+
+[[function]]
+module = "EBOOT"
+address = "088A3560"
+name = "sas_end_flag_cached_get"
+purpose = "Returns global DAT_09a0dbbc, the copy of the SAS end flag that 088A356C stores from 088975D4 and sas_render_system_init sets to -1."
+confidence = "inferred"
+evidence = "Writers of the global read in 088A356C and 088A32A0; 088975D4 returns __sceSasGetEndFlag; sound_voices_update is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "088A3ED4"
+name = "fill_21_words_with_0x800000"
+purpose = "Writes 0x800000 to 21 consecutive words at param_1."
+confidence = "confirmed"
+evidence = "Body is the 21 stores; sas_render_system_init passes a stack block."
+
+[[function]]
+module = "EBOOT"
+address = "088A40D4"
+name = "sas_init_default_counted"
+purpose = "If counter DAT_09a0e4d4 is nonzero, or it is zero and sas_init_default returns 0, increments the counter."
+confidence = "inferred"
+evidence = "Code shows the counter and condition; the callee name comes from its entry; sas_render_system_init is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "088A53D0"
+name = "sound_bank_magic_is_valid"
+purpose = "Returns 1 when the first 4 bytes at param_1 match the magic at 089B27A4, else 0."
+confidence = "inferred"
+evidence = "str_ncmp with length 4 against a fixed string; sound bank functions 088A5454 and 088A5548 are the traced callers and return an error on failure."
+
+[[function]]
+module = "EBOOT"
+address = "088A67D8"
+name = "sound_se_change_send_1_empty"
+purpose = "Sends a zeroed seven-word change block as command 0x10000001."
+confidence = "inferred"
+evidence = "Zeroes 0x1C bytes and calls sound_se_change_send with 0x10000001; sibling of sound_se_change_send_2_empty; sound_stop_all is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "088CC500"
+name = "stage_vmethod_44_return_0"
+purpose = "Vtable +0x44 default: returns 0."
+confidence = "inferred"
+evidence = "Body returns 0, shared by many vtables; stage_sound_emitters_update is the traced caller, which is all the stage prefix rests on."
+
+[[function]]
+module = "EBOOT"
+address = "088DB5C0"
+name = "file_slots_unload_group_part_global"
+purpose = "Calls file_slots_unload_group_part on the global DAT_08a62d7c with its two arguments."
+confidence = "inferred"
+evidence = "One-line wrapper over the named callee with that global; lobby_task code calls it in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DC16C"
+name = "hunter_manager_queue_record_sounds_all_step"
+purpose = "Runs hunter_manager_queue_record_sounds_step for the index at +0x3C and advances it when the step returns nonzero; returns 0 until the index reaches 4, then resets it and returns 1."
+confidence = "inferred"
+evidence = "Counter logic is in the code; the hunter_manager prefix and step name come from the callee 088DBF3C."
+
+[[function]]
+module = "EBOOT"
+address = "088DCF70"
+name = "hunter_subclass_089baf48_destruct"
+purpose = "Destructor at vtable 089BAF48 +8: sets that vtable, runs hunter_destruct without deleting, and calls object_delete_noop when the delete argument is positive."
+confidence = "inferred"
+evidence = "Calls hunter_destruct (param 0) and hunter_manager_delete_slot is the traced caller."
+
+[[function]]
+module = "EBOOT"
+address = "089BAAF8"
+name = "static_init_hunter_manager"
+purpose = "Constructs the hunter manager at 09A4F1BC and registers 088DCEEC as its destructor with handle 09A4F1B0."
+confidence = "inferred"
+evidence = "Calls hunter_manager_construct_global and cxx_register_global_destructor; crt_run_init_functions_and_add_range is the traced caller; 088DCEEC clears DAT_09a4f204."

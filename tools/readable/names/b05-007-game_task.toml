@@ -1,0 +1,343 @@
+[[function]]
+module = "game_task"
+address = "09AA84D8"
+name = "hunter_snapshot_place_and_dispatch_on_1e8"
+purpose = "Gated on +0x480 mask 0x200 and +0x410/+0x1120 tests; with argument 0 copies place to +0x650 and +0x1F4 to +0x320, then either way dispatches on byte +0x1E8 (values 0 to 10) to per-value handlers, then calls f_game_task_9A8B578 if f_game_task_9AA5FB0 is nonzero and no skip case was hit."
+confidence = "inferred"
+evidence = "Switch and copies are in the code; hunter prefix from caller 09AA5270 gating on +0x1E6 against game +0x28."
+
+[[function]]
+module = "game_task"
+address = "09AA87C8"
+name = "hunter_test_fields_614_688_689"
+purpose = "Returns 0 if +0x5F3 is not 1 and short +0x686 is 0xFF; otherwise 1 if +0x614 mask 1 is set, or if +0x688 is 0, +0x689 differs from +0x55C and +0x410 mask 8 is set; else 0."
+confidence = "inferred"
+evidence = "Pure field tests; meaning of the result unread, prefix from caller 09AA5270."
+
+[[function]]
+module = "game_task"
+address = "09AA8850"
+name = "hunter_dispatch_on_1e8_if_9a8b058"
+purpose = "If f_game_task_9A8B058 returns nonzero, calls the handler chosen by byte +0x1E8 (values 0 to 10; 1 and 5 share one)."
+confidence = "inferred"
+evidence = "Switch in the code; hunter prefix from caller 09AA5270."
+
+[[function]]
+module = "game_task"
+address = "09AA8958"
+name = "hunter_field_1144_is_positive"
+purpose = "Returns 1 if signed short +0x1144 is above 0, else 0."
+confidence = "inferred"
+evidence = "One-line test; prefix from callers 09A6B130 and 09AA5270."
+
+[[function]]
+module = "game_task"
+address = "09AA8968"
+name = "hunter_yaw_from_table_then_probe_ahead_bands"
+purpose = "Runs f_game_task_9AA8AC8 and on result 1 calls vtable +0x6C (0, 0x2B, 0xC); then unless +0x410 mask 4 is set probes 55 units ahead in three height bands (+60..+180, +180..+210, +210..+300) and on any hit copies +0x1F4 to +0x320 and calls f_game_task_9A67878 with 0."
+confidence = "inferred"
+evidence = "Constants and calls are in the code; what the bands mean in play is unread, prefix from caller 09AA5270."
+
+[[function]]
+module = "game_task"
+address = "09AA8AC8"
+name = "hunter_set_yaw_from_table_9d1a160_vector"
+purpose = "Reads the first entry of the table at DAT_09d1a160 for slot +0x1E6 (stride 0x84, entries 0xC); if entry flags mask 2 and +0x278 mask 0xE0000007 are set, sets +0x1F4 and +0x320 to the horizontal angle of the entry's vector minus 0x4000 and returns 1; returns 2 for another nonempty entry and 0 if empty or +0x278 is 0."
+confidence = "inferred"
+evidence = "Inlined atan2 from the vector's x and z scaled by 65536/2pi; the loop always returns on its first entry; the table's meaning is unread."
+
+[[function]]
+module = "game_task"
+address = "09AA8DB0"
+name = "hunter_probe_ahead_y_in_band"
+purpose = "Rotates a z offset (float arg 1) by yaw +0x1F4 from place, asks f_game_sub_9C3F740 for a value there, and returns 1 and writes it if it lies between place y + arg 2 and that + arg 3; returns 0 if outside, and also 1 (no write) when the lookup does not return 1."
+confidence = "inferred"
+evidence = "Rotation by 2pi/65536 angle and band comparison in the code; lookup meaning unread, prefix from callers."
+
+[[function]]
+module = "game_task"
+address = "09AA8FC8"
+name = "hunter_check_566_once_via_111c"
+purpose = "Returns 0 if byte +0x566 is 0, 0xFF if it equals +0x68A, or sets +0x111C mask 1 and returns 1 the first time (0xFF once that mask is set)."
+confidence = "inferred"
+evidence = "Field tests in the code; prefix from callers 09A665F0 and 09AA5270."
+
+[[function]]
+module = "game_task"
+address = "09AA9228"
+name = "hunter_clear_614_mask_1000_and_564_680"
+purpose = "Clears +0x614 mask 0x1000, byte +0x564 and short +0x680."
+confidence = "inferred"
+evidence = "Three stores; prefix from caller family, field meanings unread."
+
+[[function]]
+module = "game_task"
+address = "09AAA820"
+name = "hunter_take_item_by_source_mode"
+purpose = "For the object whose +0x1E6 matches game +0x28, gets an item id from the pickup point (modes 1 and 3) or f_game_task_9AAAB40 (mode 0), pushes HUD messages for no item or id 0xFFFE, otherwise gives it with item_give_to_hunter_with_message and returns that result, -1 when nothing is given."
+confidence = "inferred"
+evidence = "Calls to pickup_point_take_item_at_object and item_give_to_hunter_with_message; ran once in fight1 at 4400; mode 0's source is unread."
+
+[[function]]
+module = "game_task"
+address = "09AAD238"
+name = "hunter_linked_monster_of_listed_types_has_480"
+purpose = "If +0x29C is nonzero, finds the monster in the 20 slots whose +0x1E4 equals this object's +0x3F0 and whose type +0x1E8 is 7, 0x32, 0x37, 0x3A or 0x48, and returns whether that monster's byte +0x480 is nonzero; else 0."
+confidence = "inferred"
+evidence = "Loop over DAT_09c122b0 +0x1220 slots in the code; ran fight1 4400-4510; what the link and +0x480 mean is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB13D8"
+name = "monster_manager_tick_state_fn"
+purpose = "Calls the manager's member function at +0x1214 if one is set."
+confidence = "inferred"
+evidence = "member_fn_is_set then member_fn_call; ran every quest frame; +0x1214 holder uses the monster slots."
+
+[[function]]
+module = "game_task"
+address = "09AB1418"
+name = "object_list_3_add_to_render_queue"
+purpose = "Calls object_list_add_to_render_queue for object list 3 of DAT_08a62d7c."
+confidence = "inferred"
+evidence = "Single call; monsters are put on list 3 by 09AB2A58, whether only monsters are is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB1428"
+name = "monster_manager_first_tick_set_update_fn"
+purpose = "Runs f_game_task_9AB1498 once, then stores the three-word member function from DAT_09bb8a98, whose function word names 9AB1498, into +0x1214."
+confidence = "inferred"
+evidence = "Runs one frame at quest start, called through 09AB13D8; stored constant points at 9AB1498."
+
+[[function]]
+module = "game_task"
+address = "09AB1520"
+name = "monster_type_table_read_5_words"
+purpose = "For type below 0x5A copies 5 words to the output from the 0x1D0-stride type table, at entry +0 when the second argument is 0 and at +0x20 otherwise."
+confidence = "inferred"
+evidence = "Table indexed by type*0x1D0, same table as flags at DAT_09bb8b0c read by the spawn code; word meaning unread."
+
+[[function]]
+module = "game_task"
+address = "09AB15E8"
+name = "monster_manager_assign_slot"
+purpose = "Finds a free slot of the 20 at +0x1220, reserving the first quest_monster_queues_count_pending slots for types with table flag mask 4, stores the monster there and in its +0x1E4, increments +0x1270 and returns the slot, or -1."
+confidence = "inferred"
+evidence = "Called only at spawn in traces; condition reduces to i<pending requiring the table flag."
+
+[[function]]
+module = "game_task"
+address = "09AB16D8"
+name = "quest_entity_alloc_by_type"
+purpose = "Switches on the type byte to pick a size and vtable, allocates and zeroes from the heap at DAT_08a62d7c+0x80000, runs f_EBOOT_8864544 and f_game_task_9AC47B0, sets the vtable and returns the object, or null for an unknown type or failed allocation."
+confidence = "inferred"
+evidence = "Called by the spawn routine 09AB2A58; each case sets a different vtable, several types sharing one."
+
+[[function]]
+module = "game_task"
+address = "09AB2A58"
+name = "entity_manager_spawn_from_record"
+purpose = "Allocates a monster from a spawn record, appends it to object list 3, sets type +0x1E8, loads its model, calls vtable +0x10, assigns a slot into +0x1E6 and record +0x34, applies the record and sets +0x5F6 and +0x5F4."
+confidence = "inferred"
+evidence = "Calls 09AB16D8, 09AB2D08, 09AB15E8, 09AB2DC8; manager is the monster slot holder DAT_09c122b0 via 09AB2ED8."
+
+[[function]]
+module = "game_task"
+address = "09AB2D08"
+name = "monster_init_model_and_defaults"
+purpose = "Sets +0x510 and +0x230 to 0xFF, clears shorts +0x33E..+0x35C and byte +0x398, loads the model for the type, runs f_game_task_9AC56E0, makes vtable +0x20 and +0x24 calls with 1, and sets +0x1C0 to 3."
+confidence = "inferred"
+evidence = "Called once per spawn from 09AB2A58; the stores are in the code, field meanings unread."
+
+[[function]]
+module = "game_task"
+address = "09AB2DC8"
+name = "monster_apply_spawn_record"
+purpose = "Copies spawn record fields onto the monster, including place from +0x20, +0x1F4 from +0x1C, +0x274 from +0x30 and +0x5F3 from +0x18; +0x29A comes from the record or game +0x6AF0E by table flag mask 1; health +0x2E4 comes from record +0x32 unless that is -1, when the default is written back to the record."
+confidence = "inferred"
+evidence = "Field copies from arg_a2, run once per spawn; health and place are known Object fields."
+
+[[function]]
+module = "game_task"
+address = "09AB2ED8"
+name = "monster_spawn_at_place"
+purpose = "Builds a zeroed spawn record with the type, place vector, third argument into record +0x1C (object +0x1F4), record +0x30 of 100 and -1 for +0x2C and +0x32, and spawns it into DAT_09c122b0."
+confidence = "inferred"
+evidence = "Record built for 09AB2A58; ran once each in fight1, fight2 and quest-q5."
+
+[[function]]
+module = "game_task"
+address = "09AB2F68"
+name = "monster_manager_remove_slot"
+purpose = "Removes the monster in a slot: calls f_game_sub_9C33FE0 with its asset index, frees its first model part, unlinks it from its object list, calls vtable +8 with 1, frees it, clears the slot and decrements +0x1270."
+confidence = "inferred"
+evidence = "Called from the update 09AB1498 for monsters whose flags mask 1 is clear, and from EBOOT 088718F4 in traces."
+
+[[function]]
+module = "game_task"
+address = "09AB32C8"
+name = "monster_type_to_id_17cf_17df"
+purpose = "Maps a monster type byte to an id from 0x17CF to 0x17DF, grouping types as the allocator does, or 0xFFFF for any other type."
+confidence = "inferred"
+evidence = "Groups match 09AB16D8's cases; ran at quest load, what the id indexes is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB3560"
+name = "ptr_set32_remove"
+purpose = "Clears every entry equal to the value in a 32-slot pointer array and decrements the count byte at +0x80 for each."
+confidence = "confirmed"
+evidence = "Loop of 0x20 words and the count byte are the whole function."
+
+[[function]]
+module = "game_task"
+address = "09AB35A0"
+name = "ptr_set32_add"
+purpose = "If the count byte at +0x80 is below 32, stores the value in the first empty entry of the 32-slot array and increments the count."
+confidence = "confirmed"
+evidence = "Loop of 0x20 words and the count byte are the whole function."
+
+[[function]]
+module = "game_task"
+address = "09AB3600"
+name = "ptr_set32_clear"
+purpose = "Zeroes the 32-slot array and its count byte at +0x80."
+confidence = "confirmed"
+evidence = "Writes 0x20 words then the byte."
+
+[[function]]
+module = "game_task"
+address = "09AB36F0"
+name = "monster_manager_clear_ptr_sets"
+purpose = "Clears the pointer arrays at +0, +0x88, +0x108 and +0x188, their count bytes at +0x80 and +0x208..+0x20A, and byte +0x1210."
+confidence = "inferred"
+evidence = "Same struct offsets as the set tickers and 09AB37D0; ran once at quest start from EBOOT 08871BC4."
+
+[[function]]
+module = "game_task"
+address = "09AB37D0"
+name = "monster_manager_next_counter_1210"
+purpose = "Increments byte +0x1210 and returns its new value."
+confidence = "inferred"
+evidence = "Two lines; prefix from the struct cleared in 09AB36F0, callers ran at spawn frames."
+
+[[function]]
+module = "game_task"
+address = "09AB3940"
+name = "monster_manager_tick_set_108_timers"
+purpose = "For each entry of the pointer array at +0x108, decrements the entry's short +0x1A and drops it, decrementing count byte +0x209, once it reaches 0."
+confidence = "inferred"
+evidence = "Loop in the code; caller 09A627B8 also ticks the manager; entry class unread."
+
+[[function]]
+module = "game_task"
+address = "09AB3998"
+name = "monster_manager_tick_set_188_timers"
+purpose = "For each entry of the pointer array at +0x188, decrements the entry's short +0x1A and drops it, decrementing count byte +0x20A, once it reaches 0."
+confidence = "inferred"
+evidence = "Loop in the code; caller 09A627B8 also ticks the manager; entry class unread."
+
+[[function]]
+module = "game_task"
+address = "09AB3C88"
+name = "monster_manager_any_of_id_group_present"
+purpose = "Returns 1 if any monster slot holds a type in the -1-terminated list from id_group_table_get_list, optionally requiring object_29a_matches_game_6af0e (third argument 1) and excluding +0x298 equal to 5 (fourth argument 1); else 0."
+confidence = "inferred"
+evidence = "Nested loops over the list and the 20 slots at +0x1220."
+
+[[function]]
+module = "game_task"
+address = "09AB3DB0"
+name = "monster_load_model_from_asset"
+purpose = "Finds the type's asset buffer, allocates model memory, copies its display list into a VRAM slot (asset index + 0x25) if not already there, and initialises model, skeleton (a different routine for type 0x3B), textures and +0x1AC from the asset's offset-table sections."
+confidence = "inferred"
+evidence = "Calls object_init_model, object_init_texture_set, vram_get_slot_address, sceDmacMemcpy."
+
+[[function]]
+module = "game_task"
+address = "09AB43B0"
+name = "math_mat4_identity"
+purpose = "Writes a 4x4 identity matrix to the pointer."
+confidence = "confirmed"
+evidence = "vmidt_q stored to 16 words."
+
+[[function]]
+module = "game_task"
+address = "09AB43C8"
+name = "skeleton_data_next_record"
+purpose = "Returns the record pointer plus the size word at its +8."
+confidence = "inferred"
+evidence = "Used to step bone records in 09AB4468."
+
+[[function]]
+module = "game_task"
+address = "09AB43D8"
+name = "bone_set_link_148"
+purpose = "Stores a pointer at +0x148."
+confidence = "inferred"
+evidence = "Set from bone record +0x18 to another bone in 09AB4468; which relation it is is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB43E0"
+name = "bone_set_link_14c"
+purpose = "Stores a pointer at +0x14C."
+confidence = "inferred"
+evidence = "Set from bone record +0x14 to another bone in 09AB4468; which relation it is is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB43E8"
+name = "bone_set_link_144"
+purpose = "Stores a pointer at +0x144."
+confidence = "inferred"
+evidence = "Set from bone record +0x10 to another bone in 09AB4468; which relation it is is unread."
+
+[[function]]
+module = "game_task"
+address = "09AB4400"
+name = "skeleton_data_skip_header_c"
+purpose = "Returns the pointer plus 0xC."
+confidence = "inferred"
+evidence = "Applied to the skeleton section header in 09AB4468."
+
+[[function]]
+module = "game_task"
+address = "09AB4440"
+name = "skeleton_data_bone_count"
+purpose = "Returns word +4, less one if word +0 has mask 0x80000000 set."
+confidence = "inferred"
+evidence = "09AB4468 stores it at +0x124 and loops bones of stride 0x250 on it; 09AB3DB0 allocates by the same sum."
+
+[[function]]
+module = "game_task"
+address = "09AB4468"
+name = "skeleton_init_from_data"
+purpose = "Constructs the bones, initialises each from its data record, sets their links, records the root bones at +0x110 and their count at +0x120, then computes inverse bind matrices with a scale matrix from the float arguments and updates the bone roots and skin matrices."
+confidence = "inferred"
+evidence = "Calls bone_init_from_data, bone_compute_inverse_bind_tree, skeleton_update_bone_roots, skeleton_update_skin_matrices."
+
+[[function]]
+module = "game_task"
+address = "09AB4730"
+name = "bone_construct"
+purpose = "Sets the vtable to DAT_089bac28 and clears +0x1B4, +0x234, +0x144, +0x148 and +0x14C."
+confidence = "inferred"
+evidence = "Run on each 0x250-stride bone in 09AB4468 before setup; the cleared words include the link fields."
+
+[[function]]
+module = "game_task"
+address = "09AB4758"
+name = "monster_vram_alloc_model_slot"
+purpose = "Allocates VRAM slot (asset index for the id + 0x25) of the given size."
+confidence = "inferred"
+evidence = "Called from 09AB3DB0 with the type and display list size; calls vram_alloc_raw_slot."
+
+[[function]]
+module = "game_task"
+address = "09AB47A8"
+name = "monster_vram_free_model_slot"
+purpose = "Frees VRAM slot (asset index for the id + 0x25) if the id has an asset index."
+confidence = "inferred"
+evidence = "Same slot computation as 09AB4758; calls vram_free_slot; caller EBOOT 088718F4 also calls the removal routine."
