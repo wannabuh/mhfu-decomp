@@ -1,0 +1,103 @@
+[[function]]
+module = "game_task"
+address = "09B92D20"
+name = "class_089bd95c_init_parts_alloc_slots_play_sounds"
+purpose = "For the kind in byte +0xD, sets up each 0x60-byte part from +0xF0 (count from table 09C0A9A8) with type, delay, scale, rotation and tint, takes a slot from pool DAT_09C190D0 for each part and binds a member function to it, and plays kind-specific sounds through the owner at +0x10."
+confidence = "inferred"
+evidence = "Per-kind switch inside the part loop, 09B66D68 result stored at part +0x44, entity_play_sound_3d_if_29a_matches_game calls for kinds 6, 7, 0xA, 0xC, 0xE; called from the class's vtable +0x20 method in traces."
+
+[[function]]
+module = "game_task"
+address = "09B93CC8"
+name = "class_089bd95c_state_init"
+purpose = "Vtable +0x20 member-function state: clears timer +0xC2, fills vector +0xA0 and +0xB0 from per-kind tables and angles +0x90/+0x94, places position +0x40 from an owner bone or per-kind position tables, inits parts (09B93AE8 for kinds 0xF and 0x10, otherwise 09B92D20), runs the +0x24 method once and sets the next member function at +0x78."
+confidence = "inferred"
+evidence = "Vtable slot; object_get_bone_matrix with tables 09C0ABB0/09C0ABC8, kind branches 8, 0xC, 0xE; calls vtable +0x24 itself, then stores DAT_09C0ACD0 at +0x78."
+
+[[function]]
+module = "game_task"
+address = "09B949F0"
+name = "class_089bd95c_state_update_by_kind"
+purpose = "Vtable +0x24 per-frame method: increments timer +0xC2, ends when it exceeds the kind's duration from table 09C0A9D0 (1000 means no limit) by clearing +0x14 and +0x1D and storing a next member function at +0x78, otherwise runs a large per-kind switch (owner motion and flag checks, movement, sounds, spawned effects) and per-part updates."
+confidence = "inferred"
+evidence = "Vtable slot, run via member_fn_call in 09B67268; timer and duration test at entry, switch on +0xD; calls entity_play_sound_3d_if_29a_matches_game, 09C9BF08 and part helpers 09B9A5E8 and 09B9A730. Long body only partly read."
+
+[[function]]
+module = "game_task"
+address = "09B97D48"
+name = "class_089bd95c_release_part_slots"
+purpose = "For each part of the kind's count from table 09C0A9A8, hands non-null part +0x44 back to pool DAT_09C190D0 through 09B66DF8 and zeroes it."
+confidence = "inferred"
+evidence = "Loop stepping 0x60 from +0xF0; 09B66DF8 clears the byte of the matching pool entry; called from destructor 09B927C8 and method 09B97E48 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B97E48"
+name = "class_089bd95c_state_release_slots_and_finish"
+purpose = "Vtable +0x28 member-function state: hands slot +0x84 and the part slots back to pool DAT_09C190D0 (09B97DC8 for kinds 0xF and 0x10, otherwise 09B97D48), calls EBOOT 08884CD4 on DAT_08A62EAC for kinds 2, 3, 0xA, 0xD, clears +0x14 and stores the next member function at +0x78."
+confidence = "inferred"
+evidence = "Vtable slot, run via 09B67268; the body is these calls and writes; DAT_09C0AD90 copied to +0x78."
+
+[[function]]
+module = "game_task"
+address = "09B98978"
+name = "class_089bd95c_draw_part"
+purpose = "Draws one part given its pool slot (part index at slot +0x10, position at slot +0x20): picks a model group from the kind's table 09C0AA48, from an asset slot found by byte +0xC4 when mask 0x8000 is set, builds the matrix from scale, rotation and position with per-kind and per-type billboard modes and texture offsets, and draws it tinted with part colour +0x30."
+confidence = "inferred"
+evidence = "Called by 09B92A20 in traces after its area check; math_matrix_from_scale_rotation_translation, camera matrix at DAT_089CBD04 +0xC80, GE commands 0x4A and 0x4B and 0xE7 pushed to the display list, model_draw_group and model_draw_group_tinted."
+
+[[function]]
+module = "game_task"
+address = "09B9A5E8"
+name = "class_089bd95c_part_init_from_sequence_table"
+purpose = "Sets a part's type from table 09C098D8 at counter +0x8A (0xFF ends the sequence, leaving type -1), its field +0x4C from timer +0xC2 minus table 09C098E8, its angle +0x50 from +0x94 with a random offset for types 1 and 2, and advances the counter."
+confidence = "inferred"
+evidence = "Short body read in full; counter +0x8A indexes both tables and is incremented; called by 09B92D20 for kind 6 and by 09B949F0 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B9A730"
+name = "class_089bd95c_part_place_at_owner_bone_init_by_type"
+purpose = "Moves a part to the owner's bone (table 09C0ABB0 by kind) plus an offset from table 09C0ABC8, then sets its scale fields and random rotation by part type 2, 1 or 0; type 0 keeps its old height +0x14, and byte +0x8B equal to 2 scales types 1 and 2 by 2.5."
+confidence = "inferred"
+evidence = "Short body read in full: object_get_bone_matrix and vtfm3_t into part +0x10, switch on part type byte; called from 09B949F0 in traces."
+
+[[function]]
+module = "game_task"
+address = "09BA0AE0"
+name = "hunter_kind0_dispatch_state_299"
+purpose = "Runs the handler for state byte +0x299 when byte +0x1E8 is 0: states 0, 5-8 go to 09BA0CD8 modes 0-4, states 1, 9-0xC to 09BA1108 modes 0-4, states 2, 0xE-0x12 to 09BA15D8 modes 0, 2-6, state 3 to 09BA1E38, state 4 to 09BA1FB8, states 0x13-0x1D to 09BA2060 and 09BA2608 with modes; 0xD and 0x17 do nothing."
+confidence = "inferred"
+evidence = "Switch read in full; case 0 of hunter_action_state_dispatch_by_byte_1e8 (09A8AEB8), and the handlers use hunter_set_motion_id_both_parts."
+
+[[function]]
+module = "game_task"
+address = "09BA0CD8"
+name = "hunter_kind0_state_motion_057e_with_entry_modes"
+purpose = "Sub-state machine on +0x1D5: mode 0 starts motion 0x57E directly and modes 1-4 first play entry motion 0x589, 0x58D, 0x58F or 0x593 (modes 3, 4 add 0x2000 to yaw +0x1F4); on field +0x33D it does one camera shake and 09BA32E8, in frame windows it calls chain check 09BA2E68 with 1, and at motion end hunter_reset_to_base_state_and_motion."
+confidence = "inferred"
+evidence = "Motion ids, motion_frame_reached windows 72-98 and 78-104, camera_start_shake_from_object, sets mask 0x800 on +0x614 and +0x468 to 0x3C; ran in fight1 and fight2, not in shops."
+
+[[function]]
+module = "game_task"
+address = "09BA1108"
+name = "hunter_kind0_state_motion_057f_with_entry_modes"
+purpose = "Sub-state machine on +0x1D5: mode 0 starts motion 0x57F directly and modes 1-4 first play entry motion 0x588, 0x58B, 0x58E or 0x591 (modes 3, 4 subtract 0x2000 from yaw +0x1F4); on field +0x33D it does one camera shake and 09BA32E8, at frame 106 without that it passes a point ahead of the object to 09C572D0 and shakes the camera, in window 116-192 it calls chain check 09BA2E68 with 2."
+confidence = "inferred"
+evidence = "Same shape as 09BA0CD8 with its own motion ids and frames; offset (30, 0, -150) through the object matrix at +0x10; ran in fight2 3180-3200."
+
+[[function]]
+module = "game_task"
+address = "09BA15D8"
+name = "hunter_kind0_state_motion_0594_after_entry_motion"
+purpose = "Sub-state machine on +0x1D5: plays an entry motion chosen by mode (0x579, 0x58C, 0x58A, 0x57D, 0x590, 0x592, some followed by 0x595, 0x596 or 0x579), then motion 0x594; on field +0x33D it does one camera shake and 09BA32E8, at frame 42 without that it passes a point ahead to 09C572D0 and shakes the camera, in window 48-102 it calls chain check 09BA2E68 with 3; mode 4 sets mask 0x1000 on +0x111C."
+confidence = "inferred"
+evidence = "Motion ids and frame tests read in the switch; sets mask 8 on +0x410, mask 0x800 on +0x614, +0x468 to 0x3C; table 09C0BBA0 gives 0x594 start arguments; ran in fight1 and fight2."
+
+[[function]]
+module = "game_task"
+address = "09BA1E38"
+name = "hunter_kind0_state_motion_057c_chain_on_field_1120"
+purpose = "Plays motion 0x57C; in frames 2-60, when mask 1 of +0x614 is clear and +0x1120 is 1-3, it sets +0x1D6, and once that is set and frame 18 is reached it calls vtable +0x6C with (1, 0x10, 0xC); at motion end it calls hunter_reset_to_base_state_and_motion."
+confidence = "inferred"
+evidence = "Short body read in full; 09BA32E8 also requests state 3 through vtable +0x6C with (1, 3, 0), and state 3 dispatches here; ran in fight1 and fight2."

@@ -1,0 +1,287 @@
+[[function]]
+module = "game_task"
+address = "09B27960"
+name = "class_089bcc68_call_9c6f6e8_at_bone_with_y_2cc"
+purpose = "If the object's +0x29A matches game +0x6AF0E, takes a bone position, replaces its Y with field +0x2CC, and calls 09C6F6E8 with it, an id and a value scaled by +0x220."
+confidence = "inferred"
+evidence = "Body read; caller in traces is the 089BCC68 method 09B279E0; what 09C6F6E8 does is not settled."
+
+[[function]]
+module = "game_task"
+address = "09B279E0"
+name = "class_089bcc68_motion_frame_events"
+purpose = "Per motion id in +0x796 (synced from +0x324), fires calls at given motion frames: 09B65400 spawns, 09B27960, 09C8A530 and others, varying by type byte +0x1E8; some motions also set +0x575 and +0x276 to 2."
+confidence = "inferred"
+evidence = "Long if chain on motion ids with motion_frame_reached; vtable 089BCC68 +0x80, called from entity_tick_by_stage in traces; last 150 lines of the body not read."
+
+[[function]]
+module = "game_task"
+address = "09B28E00"
+name = "class_089bcc68_query_condition_by_id"
+purpose = "Answers condition ids 1 to 5 as true or false from fields +0x613, +0x4AE, +0x592, +0x7FB and +0x7FD, with types 0x43 and 0x57 tested and other types getting a fixed answer; other ids give 0."
+confidence = "inferred"
+evidence = "Switch-like chain on the id; vtable +0xDC, called from script_op79_switch_on_vfunc_dc in traces."
+
+[[function]]
+module = "game_task"
+address = "09B28F60"
+name = "entity_play_sound_3d_at_bone"
+purpose = "Reads a bone's position from the skeleton at +0x80 and passes it to entity_play_sound_3d_if_29a_matches_game, with a value from table 089AA2E8 indexed by type byte +0x1E8."
+confidence = "inferred"
+evidence = "Body read; the sound meaning comes from the callee's existing name; the prefix follows that callee."
+
+[[function]]
+module = "game_task"
+address = "09B29188"
+name = "class_089bcc68_tick_update_by_type_group"
+purpose = "Syncs +0x796 from motion id +0x324, then if +0x29A matches game +0x6AF0E sets +0x40C from a table column and calls 09B2E540 for types 0x49/0x42 or 09B29280 for types 0x57/0x56/0x43/0x30, both with +0x790."
+confidence = "inferred"
+evidence = "Vtable 089BCC68 +0x18, called from EBOOT 08864634 in traces; the two callees are not read."
+
+[[function]]
+module = "game_task"
+address = "09B30768"
+name = "class_089bcd64_link_owned_nodes_to_d19860_by_type"
+purpose = "Calls 09C57CA0 with mode 0 for types where vfunc +0x54 is true and mode 3 otherwise, and for type 0x59 also 09AAECA0; both allocate a node owned by this object and link it on the DAT_09d19860 list at +0x19030."
+confidence = "inferred"
+evidence = "Body and both callees read; vtable 089BCD64 +0x40; what the nodes are for is not settled."
+
+[[function]]
+module = "game_task"
+address = "09B307D8"
+name = "class_089bcd64_init_health_and_fields_by_type"
+purpose = "Sets health +0x2E4 and max health +0x41E from entity_scaled_health_from_type_table, sets bits via entity_set_bit_572 and starts a table motion, resets many fields from +0x7DC to +0x7F0, sets bytes +0x7E7 to +0x7E9 by type, optionally clears a +0x7E4 flag from a weighted pick, and calls vfunc +0xF4."
+confidence = "inferred"
+evidence = "Body read; caller in traces is the stage-0 method 09B30A38."
+
+[[function]]
+module = "game_task"
+address = "09B30A38"
+name = "class_089bcd64_stage0_init_and_enter_start_state"
+purpose = "For types 0x34/0x55 stores quest_rng_next in +0x7EC, runs the field init 09B307D8, overrides +0x29A, place and +0x1F4 for game +0x6AF12 value 0x277F, then enters a start state through vfunc +0x88 chosen from type, +0x4AE and game +0x6AF12 or +0x6AF10."
+confidence = "inferred"
+evidence = "Vtable 089BCD64 +0x74, called from entity_tick_stage0_init in traces; body read."
+
+[[function]]
+module = "game_task"
+address = "09B30D98"
+name = "class_089bcd64_set_state_with_per_state_setup"
+purpose = "Does setup for the requested group and state (motion and move distances, fields, RNG timers, table values, sometimes redirecting to another state or returning early when param_4 is 3 or 4 and +0x6DB is 0), then calls entity_set_state_by_global_flag_and_mode."
+confidence = "inferred"
+evidence = "Vtable +0x88; switch cases follow the groups and states the dispatchers 09B35740 and 09B36138 handle; ends in the base setter; the handlers call it to change state."
+
+[[function]]
+module = "game_task"
+address = "09B31B10"
+name = "class_089bcd64_reset_motion_fields_and_set_state_00_01"
+purpose = "Sets +0x4B0 to 1.0, clears +0x280 and +0x5F7, sets +0x4B5 to 1, and tail-calls vfunc +0x88 for group 0 state 1."
+confidence = "inferred"
+evidence = "Body read; called by state handlers when their motion ends; class prefix from those callers."
+
+[[function]]
+module = "game_task"
+address = "09B31B80"
+name = "class_089bcd64_pick_weighted_value_for_game_6af10"
+purpose = "Selects table 09BF4738 or 09BF4728 by the remapped game +0x6AF10 value (0xFFFF if neither applies), then uses the argument modulo the total weight to pick from (weight, value) pairs ending in 0xFFFF."
+confidence = "inferred"
+evidence = "Sum-then-walk weighted choice in the body; argument in traces is +0x7EC, the stored quest_rng_next value."
+
+[[function]]
+module = "game_task"
+address = "09B31CE8"
+name = "class_089bcd64_clear_flag_7e4_by_index"
+purpose = "Clears byte +0x7E4, +0x7E5 or +0x7E6 for index 0, 1 or 2."
+confidence = "inferred"
+evidence = "Body read; class prefix from the caller 09B307D8."
+
+[[function]]
+module = "game_task"
+address = "09B31D18"
+name = "class_089bcd64_flag_7e4_clear_by_index"
+purpose = "Returns 0 if byte +0x7E4, +0x7E5 or +0x7E6 is set for index 0, 1 or 2, or if 09AD7808(obj, 2) is true for index 6, and 1 otherwise, including all other indexes."
+confidence = "inferred"
+evidence = "Body read; class prefix from sibling functions at nearby addresses."
+
+[[function]]
+module = "game_task"
+address = "09B31DB8"
+name = "class_089bcd64_type_is_3d_or_3e"
+purpose = "Returns whether type byte +0x1E8 is 0x3D or 0x3E."
+confidence = "confirmed"
+evidence = "One-line unsigned range check; vtable 089BCD64 +0x54."
+
+[[function]]
+module = "game_task"
+address = "09B31DC8"
+name = "class_089bcd64_type_is_33_54_3d"
+purpose = "Returns whether type byte +0x1E8 is 0x33, 0x54 or 0x3D."
+confidence = "inferred"
+evidence = "Body read; class prefix from the caller 09B41D00 at a nearby address."
+
+[[function]]
+module = "game_task"
+address = "09B31E00"
+name = "class_089bcd64_type_is_34_55_3e"
+purpose = "Returns whether type byte +0x1E8 is 0x34, 0x55 or 0x3E."
+confidence = "inferred"
+evidence = "Body read; class prefix from callers at nearby addresses."
+
+[[function]]
+module = "game_task"
+address = "09B31E38"
+name = "class_089bcd64_type_is_35_or_59"
+purpose = "Returns whether type byte +0x1E8 is 0x35 or 0x59."
+confidence = "inferred"
+evidence = "Body read; class prefix from the caller 09B41D00 at a nearby address."
+
+[[function]]
+module = "game_task"
+address = "09B320B0"
+name = "class_089bcd64_field_613_nonzero"
+purpose = "Returns whether byte +0x613 is nonzero."
+confidence = "inferred"
+evidence = "One-line body; class prefix from the caller 09B400E8."
+
+[[function]]
+module = "game_task"
+address = "09B320C0"
+name = "class_089bcd64_get_byte_230_faded_by_height_above_2cc"
+purpose = "Returns byte +0x230 scaled by a factor: in group 2 state 0xB it is 0, in states 8 and 9 it falls from 1 to 0 as place Y minus +0x2CC goes from 2000 to 3500, otherwise 1."
+confidence = "inferred"
+evidence = "Body read; vtable 089BCD64 +0x30, called from draw function 09C57E08 which masks the result to a byte."
+
+[[function]]
+module = "game_task"
+address = "09B321E0"
+name = "class_089bcd64_update_timer_7de_by_mask_638_20"
+purpose = "While +0x638 has mask 0x20, counts +0x7DE up to a type-dependent limit through phase byte +0x7EF (types 0x35/0x59 call 09C9BBF0 on the first frame) and holds it there; while the mask is clear, resets the phase and counts +0x7DE down to 0."
+confidence = "inferred"
+evidence = "Body read; called first in 09B400E8 in traces; limits 0x96/0x3C for types 0x34/0x55, 0xF otherwise."
+
+[[function]]
+module = "game_task"
+address = "09B32328"
+name = "class_089bcd64_query_state_06_02_or_motion_0421_window"
+purpose = "In group 6 state 2 returns 2 if +0x7EE is 0, else 1; otherwise returns 1 while motion 0x421 is past frame 36 and before frame 382, else 0."
+confidence = "inferred"
+evidence = "Body read; caller 09B439D0 in traces; what the returned codes mean there is not read."
+
+[[function]]
+module = "game_task"
+address = "09B323F8"
+name = "class_089bcd64_step_bytes_7e7_7e9_toward_type_targets"
+purpose = "Moves bytes +0x7E7 to +0x7E9 stepwise toward three target values chosen by type and +0x638 mask 0x20, with a sine pulse of game +0x1C for types 0x34/0x55 and the health ratio for types 0x33/0x54; snaps when 09B32888 is true."
+confidence = "inferred"
+evidence = "Body read; called from 09B400E8 in traces; the values look like RGB but no reader of them was seen."
+
+[[function]]
+module = "game_task"
+address = "09B32888"
+name = "class_089bcd64_timer_7de_at_limit"
+purpose = "Returns whether +0x7DE equals its type-dependent limit, the same limits 09B321E0 uses: 0x96 or 0x3C by +0x638 mask 0x20 for types 0x34/0x55, 0xF otherwise."
+confidence = "inferred"
+evidence = "Body matches the limit logic of 09B321E0; caller 09B323F8."
+
+[[function]]
+module = "game_task"
+address = "09B32960"
+name = "class_089bcd64_29a_matches_game_and_613_set_and_vfunc_dc_false"
+purpose = "Returns 1 if +0x29A matches game +0x6AF0E, byte +0x613 is 1, and vfunc +0xDC returns 0; else 0."
+confidence = "inferred"
+evidence = "Body read; caller 09B400E8 in traces; the argument passed to vfunc +0xDC is not visible in the view."
+
+[[function]]
+module = "game_task"
+address = "09B33BE0"
+name = "class_089bcd64_state_00_01_play_motion_01_then_set_4b5"
+purpose = "On entry plays table motion entry 1 and clears +0x280; once +0xBC mask 1 is clear, sets +0x4B5 to 1 without changing state."
+confidence = "inferred"
+evidence = "Case 1 of dispatcher 09B35740; phase byte +0x1D5; entity_motion_play_table_entry."
+
+[[function]]
+module = "game_task"
+address = "09B34158"
+name = "class_089bcd64_state_00_06_play_motion_33"
+purpose = "On entry plays table motion entry 0x33; once +0xBC mask 1 is clear, returns to group 0 state 1 through 09B31B10."
+confidence = "inferred"
+evidence = "Case 6 of dispatcher 09B35740; body read."
+
+[[function]]
+module = "game_task"
+address = "09B34378"
+name = "class_089bcd64_state_00_08_09_play_motion_and_rotate_1f4"
+purpose = "On entry plays table motion entry 0x35, or 0x36 for param 1; adds an angle step to +0x1F4 scaled by +0x4B0 in motion frames 102 to 202 and 402 to 452, negated for param 1; returns to group 0 state 1 once +0xBC mask 1 is clear."
+confidence = "inferred"
+evidence = "Cases 8 and 9 of dispatcher 09B35740; steps 327.68 and 655.36 give half of 0x10000 over each frame window, so +0x1F4 reads as an angle."
+
+[[function]]
+module = "game_task"
+address = "09B34C90"
+name = "class_089bcd64_state_00_10_play_motion_55"
+purpose = "On entry plays table motion entry 0x55; once +0xBC mask 1 is clear, returns to group 0 state 1 through 09B31B10."
+confidence = "inferred"
+evidence = "Case 0x10 of dispatcher 09B35740; body read."
+
+[[function]]
+module = "game_task"
+address = "09B35268"
+name = "class_089bcd64_state_00_16_play_motion_by_type"
+purpose = "On entry clears +0x280 and +0x5F7 and plays table motion entry 0x3B for types 0x33/0x54 or 0x34 otherwise; once +0xBC mask 1 is clear, returns to group 0 state 1 through 09B31B10."
+confidence = "inferred"
+evidence = "Case 0x16 of dispatcher 09B35740; body read."
+
+[[function]]
+module = "game_task"
+address = "09B35740"
+name = "class_089bcd64_state_group_00_dispatch"
+purpose = "Calls the handler for state +0x299 within group 0, cases 0 to 0x2D, some handlers shared with a parameter."
+confidence = "inferred"
+evidence = "Switch on +0x299; case 0 of the +0x298 switch in 09B417E0; class prefix from the handlers' calls to vtable 089BCD64 +0x88 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B35A58"
+name = "class_089bcd64_state_01_00_09_turn_motion_toward_or_away"
+purpose = "On entry starts a turn motion from table 09BF46F0, toward the target for state 0 and away for state 9 (param 1); when object_update_turn_motion_to_saved_yaw reports done, returns to group 0 state 1."
+confidence = "inferred"
+evidence = "Cases 0 and 9 of dispatcher 09B36138; toward and away come from the callees' existing names."
+
+[[function]]
+module = "game_task"
+address = "09B35B10"
+name = "class_089bcd64_state_01_01_02_play_motion_and_advance_distance"
+purpose = "On entry plays table motion entry 3, or 9 for param 1 (type 0x3D also sets +0x769 to 0x19); when object_advance_move_distance(obj, 0x80, 0) reports done, returns to group 0 state 1."
+confidence = "inferred"
+evidence = "Cases 1 and 2 of dispatcher 09B36138; body read."
+
+[[function]]
+module = "game_task"
+address = "09B35BE8"
+name = "class_089bcd64_state_01_03_08_0a_turn_motion_then_return_or_state_02_08"
+purpose = "On entry starts a turn motion from table 09BF470C: away for param 2, toward for others, with param 1 first computing map_area_edge_point_toward_area_2e0 into +0x5D0; when done, param 1 requests group 2 state 8 with mode 4 and waits on +0x6DB, others return to group 0 state 1."
+confidence = "inferred"
+evidence = "Cases 3, 8 and 0xA of dispatcher 09B36138; vfunc +0x88 call with (2, 8, 4)."
+
+[[function]]
+module = "game_task"
+address = "09B35E50"
+name = "class_089bcd64_state_01_06_play_motion_10"
+purpose = "On entry plays table motion entry 0x10; once +0xBC mask 1 is clear, returns to group 0 state 1 through 09B31B10."
+confidence = "inferred"
+evidence = "Case 6 of dispatcher 09B36138; body read."
+
+[[function]]
+module = "game_task"
+address = "09B35EC8"
+name = "class_089bcd64_state_01_07_0f_play_motion_0a"
+purpose = "On entry plays table motion entry 0xA; once +0xBC mask 1 is clear, returns to group 0 state 1 through 09B31B10."
+confidence = "inferred"
+evidence = "Cases 7 and 0xF of dispatcher 09B36138; body read."
+
+[[function]]
+module = "game_task"
+address = "09B36138"
+name = "class_089bcd64_state_group_01_dispatch"
+purpose = "Calls the handler for state +0x299 within group 1, cases 0 to 0x11, some handlers shared with a parameter."
+confidence = "inferred"
+evidence = "Switch on +0x299; case 1 of the +0x298 switch in 09B417E0; class prefix from the handlers' calls to vtable 089BCD64 +0x88 in traces."

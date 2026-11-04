@@ -1,0 +1,335 @@
+[[function]]
+module = "game_task"
+address = "09B47F70"
+name = "entity_motion_sound_cues_types_34_3e_55"
+purpose = "When object_29a_matches_game_6af0e holds, reloads +0x40C from table_089aa344_lookup_column_for_id (column 2 for types 0x34/0x55, else 1); then switches on latched motion id +0x7D4 and calls entity_play_sound_at_bone_on_motion_frame with frame, sound id and bone lists, some ids from sound_pick_random_variant and some cases through 09ACB7A8, 09ACB988 and 09ACBCA8."
+confidence = "inferred"
+evidence = "Caller 09B41C50 latches +0x324 into +0x7D4 and picks this for type +0x1E8 0x3E, 0x55, 0x34; 09ACB620 plays a 3D sound at a bone; 09ACB7A8, 09ACB988 and 09ACBCA8 not read."
+
+[[function]]
+module = "game_task"
+address = "09B5B670"
+name = "class_089bd154_motion_sound_cues"
+purpose = "Vtable slot +0x18: when object_29a_matches_game_6af0e holds, reloads +0x40C from table_089aa344_lookup_column_for_id, latches motion id +0x324 into +0x7A6, then per motion id (some split by type +0x1E8 0x44, 5, 4, 0x20) calls entity_play_sound_at_bone_on_motion_frame with frame and sound id lists on bone 0."
+confidence = "inferred"
+evidence = "List of 09ACB620 calls keyed on the motion id, ids partly from sound_pick_random_variant; called from object_tick in traces."
+
+[[function]]
+module = "game_task"
+address = "09B5CED8"
+name = "class_089bd154_set_state_group_00"
+purpose = "Group 0 setup for the state change: per state 0xB-0x13 runs a setup call (09ACC4A0, 09ACC658, 09ACC580, 09ACC740, 09ACC8B8, 09ACCA30, 09ACF6C8, 09ACF788), clears +0x5F2 for state 0xD, sets +0x523 for 0x10/0x11, then clears +0x280 and calls entity_set_state_by_global_flag_and_mode with group 0."
+confidence = "inferred"
+evidence = "Case 0 of the +0x88 dispatcher 09B5D358; ends in 09AC8790 with group 0."
+
+[[function]]
+module = "game_task"
+address = "09B5CFE0"
+name = "class_089bd154_set_state_group_01"
+purpose = "Group 1 setup for the state change: states 9/0xA and 1/2 call entity_apply_target_mode_50a on +0x5D0, states 1/2 also call 09AD9960 with (2, 1000.0, 25.0), state 2 sets +0x414 to 0x708; then clears +0x280 and calls entity_set_state_by_global_flag_and_mode with group 1."
+confidence = "inferred"
+evidence = "Case 1 of the +0x88 dispatcher 09B5D358; ends in 09AC8790 with group 1."
+
+[[function]]
+module = "game_task"
+address = "09B5D358"
+name = "class_089bd154_set_state"
+purpose = "Vtable slot +0x88 (group, state, mode): if +0x6DB is clear and mode is 3 or 4 returns, if set calls entity_set_mode_1_for_first_hunter_in_mask_6d8; sets +0x4B0 to 1.0 and dispatches on group to per-group setup, group 5 state 2 repositions when the quest record is active, group 7 does nothing."
+confidence = "inferred"
+evidence = "Vtable slot +0x88 called with group and state by 09B60388 and state handlers; groups 0-4 go to helpers ending in 09AC8790."
+
+[[function]]
+module = "game_task"
+address = "09B5D6D8"
+name = "class_089bd154_init_health_and_save_place_790"
+purpose = "Starts motion record 1 from the type table, clears +0x280, sets health +0x2E4 and max health +0x41E from entity_scaled_health_from_type_table(+0x4AE), sets +0x4B5 and clears +0x4B6, clears shorts +0x7AC and +0x7AE, saves place X and Z +0x200/+0x208 into +0x790/+0x798 with +0x794 zero, and calls vtable slot +0xF4."
+confidence = "inferred"
+evidence = "Called from 09B5D768, ran once at frame 1580 in quest-q2; the field writes are in the code."
+
+[[function]]
+module = "game_task"
+address = "09B5D7B0"
+name = "class_089bd154_change_to_group_00_state_01"
+purpose = "Sets +0x4B0 to 1.0, clears +0x280, in +0x410 clears mask 0x2 and sets mask 0x1, sets +0x4B5, and tail-calls vtable slot +0x88 with group 0, state 1, mode 0."
+confidence = "inferred"
+evidence = "Direct code; called by state handlers 09B5DFD8, 09B5E108 and 09B5D800 when they finish."
+
+[[function]]
+module = "game_task"
+address = "09B5D800"
+name = "class_089bd154_state_g00_s01_motion_0a_until_done"
+purpose = "Step byte +0x1D5: step 0 clears +0x280 and starts table motion 1 with argument 10; step 1 waits for mask 0x1 of +0xBC to clear, then calls class_089bd154_change_to_group_00_state_01."
+confidence = "inferred"
+evidence = "Case 1 of group 0 dispatcher 09B5DE30; the meaning of +0xBC mask 0x1 not read."
+
+[[function]]
+module = "game_task"
+address = "09B5DE30"
+name = "class_089bd154_tick_group_00_states"
+purpose = "Copies +0x298/+0x299 into +0x460/+0x461 and dispatches on state +0x299 to the per-frame handlers of group 0 (states 0-0x15)."
+confidence = "inferred"
+evidence = "Case 0 of 09B608B8, which switches on group +0x298."
+
+[[function]]
+module = "game_task"
+address = "09B5DFD8"
+name = "class_089bd154_state_turn_toward_target_or_add_4000_yaw"
+purpose = "Step byte +0x1D5: step 0 clears +0x280 and with param_2 0 starts the turn toward the target, otherwise sets saved yaw +0x76A to yaw +0x1F4 plus 0x4000 and starts table motion 2, 4 or 5 by the difference (mask 0x20000 on +0x288 for motion 2); step 1 runs object_update_turn_motion_to_saved_yaw and when it returns 1 clears that flag and calls class_089bd154_change_to_group_00_state_01."
+confidence = "inferred"
+evidence = "Cases 0 and 6 of group 1 dispatcher 09B5E550; named helpers 09AD9ED0 and 09AD9EE0."
+
+[[function]]
+module = "game_task"
+address = "09B5E108"
+name = "class_089bd154_state_move_distance_then_group_00_state_01"
+purpose = "Step byte +0x1D5: step 0 clears +0x280 and starts table motion 2 (param_2 0) or 3 with argument 6; step 1 runs object_advance_move_distance(0x200, 0) and when it returns 1 calls class_089bd154_change_to_group_00_state_01."
+confidence = "inferred"
+evidence = "Cases 1 and 2 of group 1 dispatcher 09B5E550; 09AD9B10 named object_advance_move_distance."
+
+[[function]]
+module = "game_task"
+address = "09B5E550"
+name = "class_089bd154_tick_group_01_states"
+purpose = "Dispatches on state +0x299 to the per-frame handlers of group 1 (states 0-0xA)."
+confidence = "inferred"
+evidence = "Case 1 of 09B608B8, which switches on group +0x298."
+
+[[function]]
+module = "game_task"
+address = "09B60388"
+name = "class_089bd154_tick_damage_results_and_states"
+purpose = "Vtable slot +0x7C per-frame update: counts short +0x7AC down, ticks the alert and +0x576 timers, may call object_update_flag_546_from_health_ratio for mapped game byte +0x6AF10 of 0xB, 4 or 6, maps the entity_apply_pending_damage_and_choose_result_code result to state changes through vtable +0x88, handles a special case for game field +0x6AF12 0x2779 (group 6 state 1 for mapped id +0x29A 0x60), and runs state dispatcher 09B608B8, a second time if +0x4B7 is set."
+confidence = "inferred"
+evidence = "Caller 09AC5C30 entity_tick_stage1_active; switch on the 09AC7A08 code followed by the state dispatcher."
+
+[[function]]
+module = "game_task"
+address = "09B60970"
+name = "class_089bd154_method80_motion_frame_triggers"
+purpose = "Vtable slot +0x80: latches motion id +0x324 into +0x7A6, calls class_089bd154_motion_periodic_call_09c9bbf0, then per motion id on motion_frame_reached tests calls 09C6F470, 09C8A530 or, with a bone position and object_29a_matches_game_6af0e holding, 09C6F6E8, scaled from +0x220 and some only for type +0x1E8 0x44."
+confidence = "inferred"
+evidence = "Called from entity_tick_by_stage in traces; targets 09C6F470, 09C8A530 and 09C6F6E8 not read, so what they spawn is not stated."
+
+[[function]]
+module = "game_task"
+address = "09B60EA8"
+name = "class_089bd154_motion_periodic_call_09c9bbf0"
+purpose = "For motion ids 0x3F9, 0x3F6, 0x3F3, 0x3F2, 0x3EF, 0x3ED, 0x3EC, 0x3EB, 0x3EA, 0x3E9, when +0x638 has mask 0x20 and game counter +0x1C is a multiple of 0x2D, calls 09C9BBF0 with 0xD and +0x220 times 0.4."
+confidence = "inferred"
+evidence = "Called by 09B60970 with the latched motion id; target not read."
+
+[[function]]
+module = "game_task"
+address = "09B62A08"
+name = "owned_obj_mgr_construct"
+purpose = "Stores the manager in DAT_09C190D0, constructs 0x60 elements of 0x40 bytes at +0x50A0, inits a heap at +0x5000 over this object's first 0x5000 bytes, and clears list head +0x502C, tail +0x5030, count +0x5034 and counter +0x5028."
+confidence = "inferred"
+evidence = "cxx_array_construct and mem_heap_init calls; ran once at quest load frames."
+
+[[function]]
+module = "game_task"
+address = "09B62AA8"
+name = "owned_obj_pool_elem_construct"
+purpose = "Constructor of the 0x40-byte pool element: sets vtable 089BD34C then 089BD35C, clears +0x30, copies the member function value at DAT_09A5F254 into +0x34..+0x3C, and returns the element."
+confidence = "inferred"
+evidence = "Passed as the element constructor to cxx_array_construct by owned_obj_mgr_construct."
+
+[[function]]
+module = "game_task"
+address = "09B62B80"
+name = "owned_obj_mgr_free_all_and_reset_pool"
+purpose = "Destroys every listed entry (vtable +0x8 then mem_heap_free), empties the list, resets all 0x60 pool elements and their in-use bytes at +0x5038, and clears game bytes +0x38C and +0x38E."
+confidence = "inferred"
+evidence = "List walk with destructor and free, loop over 8 elements 12 times; caller game_task_init_subsystems."
+
+[[function]]
+module = "game_task"
+address = "09B62D90"
+name = "owned_obj_mgr_tick_and_remove_finished"
+purpose = "Per frame calls vtable slot +0xC of each listed entry; an entry whose member function at +0x78 is then unset is unlinked, destroyed through vtable +0x8 and freed from the heap."
+confidence = "inferred"
+evidence = "Called from the per-frame update 09A627B8; 09B67770 tests +0x78 with member_fn_is_set; list relinking and mem_heap_free in the code."
+
+[[function]]
+module = "game_task"
+address = "09B62EA0"
+name = "owned_obj_mgr_call_vslot14_all"
+purpose = "When the list is not empty, calls vtable slot +0x14 of every entry with param_2."
+confidence = "inferred"
+evidence = "Simple list walk; caller 09A628F8; what slot +0x14 does was not read."
+
+[[function]]
+module = "game_task"
+address = "09B62F00"
+name = "owned_obj_mgr_step_timing_records_all"
+purpose = "When the list is not empty, calls 09B67798 on every entry, which steps the entry's timers +0x1C/+0x1D and state +0x14 and may load the next record."
+confidence = "inferred"
+evidence = "Caller objects_update_lists; 09B67798 read: counts bytes +0x1C, +0x1D, and loads record +0x2F via 09B67438."
+
+[[function]]
+module = "game_task"
+address = "09B62F48"
+name = "owned_obj_spawn_kind_00_hunter"
+purpose = "Allocates 0xE0 bytes from the manager heap, zeroes them, constructs through 09B68258 and sets up through 09B682F0 with type byte 0, passing the owner and the two arguments; the setup links it into the list and reads the owner's hunter skill."
+confidence = "inferred"
+evidence = "09B682F0 calls hunter_has_active_skill on the owner and sets +0xC to 0; caller 09BA0CD8 is a hunter state calling hunter_set_motion_id_both_parts."
+
+[[function]]
+module = "game_task"
+address = "09B63240"
+name = "owned_obj_spawn_ctor_09b69ad8_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0xE0 bytes from the manager heap, zeroes them, constructs through 09B69AD8 and sets up through 09B69B70; returns the object or 0."
+confidence = "inferred"
+evidence = "Allocation and constructor sequence in the code; caller 09ADB268; ran in fight2 only in traces; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B63D58"
+name = "owned_obj_spawn_ctor_09b72ef0_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0xE0 bytes from the manager heap, zeroes them, constructs through 09B72EF0 and returns the result of setup 09B72F88 with the arguments, or 0."
+confidence = "inferred"
+evidence = "Allocation and constructor sequence in the code; caller 09B39130; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B63E30"
+name = "owned_obj_spawn_vtable_089bd548_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0x250 bytes from the manager heap, zeroes them, runs the base constructor, sets vtable 089BD548 and returns the result of setup 09B73428 with six arguments, or 0."
+confidence = "inferred"
+evidence = "Allocation and vtable write in the code; caller 09B09DB0; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B64580"
+name = "owned_obj_spawn_vtable_089bd624_kind_0b"
+purpose = "Allocates 0xE0 bytes from the manager heap, zeroes them, runs the base constructor, sets vtable 089BD624 and sets up through 09B85068, which stores type byte 0xB and the owner and links it into the list."
+confidence = "inferred"
+evidence = "09B85068 read; callers include class_89bc680_method80_motion_frame_triggers passing a small number."
+
+[[function]]
+module = "game_task"
+address = "09B646E8"
+name = "owned_obj_spawn_ctor_09b86938_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0xE0 bytes from the manager heap, zeroes them, constructs through 09B86938 and sets up through 09B869D0."
+confidence = "inferred"
+evidence = "Allocation and constructor sequence in the code; caller 09B08A08 passes a small number; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B64A08"
+name = "owned_obj_spawn_vtable_089beb6c_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0x100 bytes from the manager heap, zeroes them, runs the base constructor, sets vtable 089BEB6C and sets up through em20 09D2FF88."
+confidence = "inferred"
+evidence = "Allocation and vtable write in the code; caller and setup both in module em20; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B654C8"
+name = "owned_obj_spawn_ctor_09b8f950_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0x100 bytes from the manager heap, zeroes them, constructs through 09B8F950 and sets up through 09B8F9E8."
+confidence = "inferred"
+evidence = "Allocation and constructor sequence in the code; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B659B8"
+name = "owned_obj_spawn_vtable_089bd95c_if_29a_matches_game"
+purpose = "When object_29a_matches_game_6af0e holds for arg_a1, allocates 0xAF0 bytes from the manager heap, zeroes them, runs the base constructor, sets vtable 089BD95C and sets up through 09B92880 with five arguments."
+confidence = "inferred"
+evidence = "Allocation and vtable write in the code; caller 09B389D0; same frames as pool allocation 09B66D68 in fight2; setup not read."
+
+[[function]]
+module = "game_task"
+address = "09B66C80"
+name = "owned_obj_mgr_remove_entries_with_byte_75_clear"
+purpose = "Walks the list and unlinks, destroys through vtable +0x8 and frees every entry whose byte +0x75 is zero; entries with it set stay."
+confidence = "inferred"
+evidence = "Caller game_task_area_exit_unload_objects_and_stage; list relinking and mem_heap_free in the code; +0x75 setter not read."
+
+[[function]]
+module = "game_task"
+address = "09B66D68"
+name = "owned_obj_pool_alloc_elem"
+purpose = "Finds the first of 0x60 in-use bytes at +0x5038 that is clear, sets it, resets that element at +0x50A0 (flags +4 to 3 then mask 0x4 set, clears +8, +0xC, +0x30, member function to DAT_09A5F254) and returns the element, or 0 if none is free."
+confidence = "inferred"
+evidence = "Direct code; frees are 09B66DF8; ran in the same frames as spawners 09B63E30 and 09B659B8."
+
+[[function]]
+module = "game_task"
+address = "09B66DF8"
+name = "owned_obj_pool_free_elem"
+purpose = "Finds which of the 0x60 pool elements is param_2 and clears its in-use byte at +0x5038."
+confidence = "inferred"
+evidence = "Direct code; matches the allocation in 09B66D68."
+
+[[function]]
+module = "game_task"
+address = "09B66E30"
+name = "owned_obj_mgr_next_counter_5028_wrap_1f"
+purpose = "Adds 1 to byte +0x5028, keeps it within mask 0x1F, and returns it."
+confidence = "inferred"
+evidence = "Direct code; caller 09B672B8 stores it in entry byte +0xD8."
+
+[[function]]
+module = "game_task"
+address = "09B67130"
+name = "owned_obj_pool_elem_call_member_fn_34_on_30"
+purpose = "If pointer +0x30 is set and member function +0x34 is set, calls it with object +0x30."
+confidence = "inferred"
+evidence = "Offsets match the pool element constructor 09B62AA8; caller render_pass; runs in the same frames as the pool allocations."
+
+[[function]]
+module = "game_task"
+address = "09B67178"
+name = "owned_obj_base_construct"
+purpose = "Base constructor of list entries: sets vtable 089BD36C, +0x6C to 3, +0x6D to 0xFF, clears +0x76, +0x84 and +0xD9, copies the member function at DAT_09BFB7D0 into +0x78 when it is set, and returns the entry."
+confidence = "inferred"
+evidence = "Called by every spawner's constructor path after zeroing; +0x78 is what 09B67268 calls."
+
+[[function]]
+module = "game_task"
+address = "09B67210"
+name = "owned_obj_base_destructor"
+purpose = "Vtable slot +0x8: when the entry is not null, sets vtable 089BD36C and, if param_2 is positive, calls the empty 09B67260."
+confidence = "inferred"
+evidence = "Vtable slot +0x8 of 089BD36C; called with argument 1 before mem_heap_free in 09B62D90."
+
+[[function]]
+module = "game_task"
+address = "09B67268"
+name = "owned_obj_base_tick_call_state_fn_78"
+purpose = "Vtable slot +0xC of many entry classes: if member function +0x78 is set, calls it on the entry."
+confidence = "inferred"
+evidence = "Caller owned_obj_mgr_tick_and_remove_finished; member_fn_is_set and member_fn_call on +0x78."
+
+[[function]]
+module = "game_task"
+address = "09B672B8"
+name = "owned_obj_base_assign_counter_d8"
+purpose = "Vtable slot +0x20: stores the next value of the manager's wrapped counter in entry byte +0xD8."
+confidence = "inferred"
+evidence = "Calls 09B66E30 on DAT_09C190D0; called from entry setups; the use of +0xD8 not read."
+
+[[function]]
+module = "game_task"
+address = "09B67358"
+name = "owned_obj_base_clear_byte_14_set_state_fn_bfb7f0"
+purpose = "Vtable slot +0x28: clears byte +0x14 and, when the member function value at DAT_09BFB7F0 is set, stores it in +0x78."
+confidence = "inferred"
+evidence = "Reached by member_fn_call from 09B67268 in traces, so +0x78 is its own state slot; byte +0x14 is the state 09B67798 steps."
+
+[[function]]
+module = "game_task"
+address = "09B673F8"
+name = "owned_obj_base_clear_state_fn_78"
+purpose = "Vtable slot +0x38: writes the member function value at DAT_09A5F254 into +0x78, the same value the pool constructor uses for an empty slot, so the manager removes the entry on the same tick's check."
+confidence = "inferred"
+evidence = "Reached through 09B67268 in traces; 09B62D90 removes entries whose +0x78 member_fn_is_set reports unset; that DAT_09A5F254 reads as unset is inferred from that use."
+
+[[function]]
+module = "game_task"
+address = "09B67438"
+name = "owned_obj_load_timing_record"
+purpose = "Copies record param_3 (0x18 bytes) from the table at **(+0xC8) into +0x1C..+0x33, keeping the old +0x2A and masks 0x1F7 of +0x28 when they were set; sets +0xE from owner param_2's +0x1E6, state +0x14 to 1, clears +0x16, +0x68, +0x70; halves bytes +0x1C, +0x1D, +0x32 and +0x31 unless 0xFF; and takes a new id in +0x1A from serial_counter_2c_next."
+confidence = "inferred"
+evidence = "Direct code; 09B67798 counts +0x1C then +0x1D in states 1 and 2 and calls this for next-record index +0x2F."

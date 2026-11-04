@@ -1,0 +1,159 @@
+[[function]]
+module = "game_task"
+address = "09B366A0"
+name = "class_089bcd64_group2_state_jump_and_land"
+purpose = "For types 0x34, 0x55 and 0x3E (others go to the state reset 09B31B10): motion 0x30, at frame 26 sets upward speed +0x244, forward speed +0x248 and fall rate +0x254 by variant, then when +0x204 height falls to +0x2CC snaps to it, shakes the camera, plays motion 0x31 and resets on motion end."
+confidence = "inferred"
+evidence = "Positive +0x244 with negative +0x254, height snap and camera_start_shake_from_object; states 1, 0xE, 0xF, 0x13, 0x14 of group 2 in 09B37F10 pass variants 0-4."
+
+[[function]]
+module = "game_task"
+address = "09B37F10"
+name = "class_089bcd64_group2_dispatch_state"
+purpose = "Switches on state byte +0x299 (0 to 0x1A) to the handlers of state group 2, passing a variant argument to shared handlers."
+confidence = "confirmed"
+evidence = "The switch in the body; 09B417E0 calls it for +0x298 == 2 and is called from the 089BCD64 +0x7C method 09B400E8."
+
+[[function]]
+module = "game_task"
+address = "09B38598"
+name = "class_089bcd64_group3_state_motion_2b_2c_child_hit_steals_pouch_item"
+purpose = "Plays motion 0x2B or 0x2C, at frame 14 spawns a type 0x1B child (id 3/0x15 or 4/0x16 by vtable +0x54), and in the param_3 == 1 form calls 09B38808 on the object at +0x2E8 if +0x33D is set, it is the hunter in its manager slot with +4 mask 0x1, and the object at +0x2EC has type 0x1B; resets on motion end."
+confidence = "inferred"
+evidence = "hunter_manager_get_slot identity check and +0xC == 0x1B test; 09B654C8's init 09B8F9E8 writes 0x1B to the child's +0xC; states 2, 3, 0x26, 0x27 in 09B3B720."
+
+[[function]]
+module = "game_task"
+address = "09B389D0"
+name = "class_089bcd64_group3_state_motion_2d_spawn_child_6"
+purpose = "For types 0x34, 0x55 and 0x3E: plays motion 0x2D, at frame 110 calls the child spawner 09B659B8 with id 6 (argument 1 when type is 0x3E, else 0), and resets on motion end."
+confidence = "inferred"
+evidence = "motion_frame_reached(110) then 09B659B8, which allocates an 0xAF0-byte object with vtable 089BD95C; state 4 of group 3."
+
+[[function]]
+module = "game_task"
+address = "09B39130"
+name = "class_089bcd64_group3_state_motion_29_50_turn_and_shake"
+purpose = "For types 0x34, 0x55 and 0x3E: motion 0x29 with a type 0x1B child (id 0x1F) at frame 26, yaw +0x1F4 stepped by 0xCCC between frames 170 and 180, and at frame 200 if vtable +0x54 is 0 a 09B63D58 call and camera shake; then motion 0x50 (param_2 nonzero also spawns child 6) and reset on motion end."
+confidence = "inferred"
+evidence = "Frame checks, +0x7D stepped by 0xCCC, camera_start_shake_from_object; states 9 and 0x20 in 09B3B720 pass 0 and 1."
+
+[[function]]
+module = "game_task"
+address = "09B39350"
+name = "class_089bcd64_group3_state_motion_51_52_with_field_481_window"
+purpose = "For types 0x34 and 0x55: motion 0x51, at frame 40 spawns a type 0x1B child (id 0x20) and sets +0x481 until motion end, then motion 0x52 with child id 0x29 at frame 88, then reset."
+confidence = "inferred"
+evidence = "Body sets and clears +0x481; 09B400E8 reaction code 0xE calls vtable +0xF8 while group 3 state 10 has +0x481 == 1."
+
+[[function]]
+module = "game_task"
+address = "09B3A3A8"
+name = "class_089bcd64_group3_state_motion_13_wait_9ad9b10"
+purpose = "For types 0x34, 0x55 and 0x3E: plays motion 0x13, spawns a type 0x1B child (id 0x23 or 0x1D by vtable +0x54), then each frame calls 09AD9B10(this, 0x40, 0) and resets when it returns 1."
+confidence = "inferred"
+evidence = "Body read; state 0x17 in 09B3B720; 09AD9B10's meaning not read."
+
+[[function]]
+module = "game_task"
+address = "09B3B720"
+name = "class_089bcd64_group3_dispatch_state"
+purpose = "Switches on state byte +0x299 (0 to 0x3B) to the handlers of state group 3, passing variant arguments to shared handlers."
+confidence = "confirmed"
+evidence = "The switch in the body; 09B417E0 calls it for +0x298 == 3 and is called from the 089BCD64 +0x7C method 09B400E8."
+
+[[function]]
+module = "game_task"
+address = "09B400E8"
+name = "class_089bcd64_update_reactions_and_run_state"
+purpose = "Per-frame method: updates type- and quest-dependent fields, turns the code from 09AC7A08 into state changes through vtable +0x88 (groups 0, 4, 5, 6), forces group 6 states for quest ids 0x290E, 0x283E and 0x277F when their gamedata flags are clear, then runs the state machine 09B417E0, twice if +0x4B7 is set."
+confidence = "inferred"
+evidence = "Vtable 089BCD64 +0x7C; switch on 09AC7A08's result with vtable +0x88 calls; 09B417E0 call near the end; 0x6AF12 compared to the three ids is read as a quest id by context."
+
+[[function]]
+module = "game_task"
+address = "09B418A8"
+name = "class_089bcd64_slot_e8_types_33_54_call_9ad77e8"
+purpose = "When type is 0x33 or 0x54, param_2 is 4, +0x5A2 is nonzero and +0x3B4 has mask 0x2, calls 09AD77E8(this, 2)."
+confidence = "confirmed"
+evidence = "The whole body; vtable 089BCD64 +0xE8."
+
+[[function]]
+module = "game_task"
+address = "09B419A8"
+name = "class_089bcd64_call_9c6f6e8_at_bone_height_2cc"
+purpose = "If object_29a_matches_game_6af0e passes, takes the position of a bone, replaces its second component with +0x2CC and calls 09C6F6E8 with the id and a size scaled by +0x220."
+confidence = "inferred"
+evidence = "object_get_bone_position then +0x2CC copied to the next word; called from motion events in 09B41D00; 09C6F6E8 not read."
+
+[[function]]
+module = "game_task"
+address = "09B41A30"
+name = "class_089bcd64_periodic_call_9c9bbf0_for_listed_motions"
+purpose = "For listed motion ids and +0x638 mask 0x20, calls 09C9BBF0 when the +0x1C counter of DAT_089cc558 lines up with slot +0x1E6 (low 4 bits with id 0x27 for types 0x35/0x59, modulo 0x2D with id 7 otherwise)."
+confidence = "inferred"
+evidence = "Body read; called with +0x7D4 by 09B41D00; 09C9BBF0 forwards to 09C9C1B8, not read."
+
+[[function]]
+module = "game_task"
+address = "09B41C50"
+name = "class_089bcd64_motion_sound_cues_dispatch_by_type"
+purpose = "Copies motion id +0x324 to +0x7D4, then calls 09B4B1B8 for types 0x59/0x35, 09B47F70 for 0x3E/0x55/0x34, or 09B44CC0 otherwise."
+confidence = "confirmed"
+evidence = "The whole body; vtable 089BCD64 +0x18, called by object_tick 08864634 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B41D00"
+name = "class_089bcd64_motion_frame_events"
+purpose = "Syncs +0x7D4 to motion id +0x324, runs 09B41A30, then by motion id and motion_frame_reached fires children and effects-like calls (09B654C8, 09B659B8, 09B419A8, 09C8A530, 09C8ACE8, 09C79470, 09C7F520, 09C9BC28)."
+confidence = "inferred"
+evidence = "Switch on motion ids 0x3E9-0x442 with frame checks; vtable 089BCD64 +0x80; targets beyond 09B654C8 and 09B659B8 not read."
+
+[[function]]
+module = "game_task"
+address = "09B439D0"
+name = "class_089bcd64_update_model_group_material_alpha_color"
+purpose = "For each material of model group param_2, sets byte 3 from +0x230 then by type zeroes or scales it (by +0x7DE/15, table counters +0x582.., +0x579, 09B31D18) and may overwrite the colour bytes from +0x7E7..+0x7E9 or constants."
+confidence = "inferred"
+evidence = "model_data_group_material_* calls; 0x10-stride table at +0x58; vtable 089BCD64 +0x6C. Byte 3 read as alpha because bytes 0-2 are written as a colour."
+
+[[function]]
+module = "game_task"
+address = "09B44498"
+name = "class_089bcd64_query_by_selector"
+purpose = "Returns one of seven values by selector: +0x7DC >= 4, an id-list test on +0x29A, +0x613 set, +0x7EA, whether a same-+0x29A type 0x33/0x54 entity exists while state (0, 0x23) holds, +0x540 mapped to 0-0x10 or 0xFF, or a 09B31D18 summary."
+confidence = "inferred"
+evidence = "Switch on param_2; vtable 089BCD64 +0xDC, called by 09AC3798 in traces."
+
+[[function]]
+module = "game_task"
+address = "09B449C0"
+name = "class_089bcd64_clear_field_7ef"
+purpose = "Sets byte +0x7EF to 0."
+confidence = "confirmed"
+evidence = "One-line body; vtable 089BCD64 +0x8C."
+
+[[function]]
+module = "game_task"
+address = "09B449C8"
+name = "class_089bcd64_scale_bone_from_field_7de"
+purpose = "For types 0x35 and 0x59, calls bone_set_scale on the bone at (+0x190 pointer)+0x22B0 with X 1 + 6*v, Y 1 + 10*v, Z 1, where v is +0x7DE / 15."
+confidence = "confirmed"
+evidence = "The whole body; vtable 089BCD64 +0x84."
+
+[[function]]
+module = "game_task"
+address = "09B44B38"
+name = "class_089bcd64_is_type_59_with_field_638_mask_20"
+purpose = "Returns 1 when type +0x1E8 is 0x59 and +0x638 has mask 0x20, else 0."
+confidence = "confirmed"
+evidence = "The whole body."
+
+[[function]]
+module = "game_task"
+address = "09B44B70"
+name = "class_089bcd64_tick_timer_7f0_call_9acb710"
+purpose = "With param_2 0 clears timer +0x7F0; otherwise for type 0x59 with +0x638 mask 0x20 counts it down and on expiry reloads 0x1E and calls 09ACB710(this, 0x40, 2, 0)."
+confidence = "confirmed"
+evidence = "The whole body; 09B400E8 passes the result of 09B44B38."

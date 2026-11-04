@@ -1,7 +1,7 @@
 [[function]]
 module = "EBOOT"
 address = "088DD26C"
-name = "object_089baf48_draw_lit_alpha_tested"
+name = "class_089baf48_draw_lit_alpha_tested"
 purpose = "Vtable +0xC draw of class 089BAF48: sets its lights, writes GE commands turning on z test (func 5) and alpha test (ref 0xC0, func 7) and texture filter 0x107, calls its own slots +0x4C and, when the word at +0x614 has mask 0x400, +0x78, then refreshes the lights and turns lighting upload back off."
 confidence = "inferred"
 evidence = "Called by render_pass; GE words 0x23, 0xDE, 0xC6, 0x22, 0xDB pushed through DAT_089cc120; light helpers around them."
@@ -9,7 +9,7 @@ evidence = "Called by render_pass; GE words 0x23, 0xDE, 0xC6, 0x22, 0xDB pushed 
 [[function]]
 module = "EBOOT"
 address = "088DD3A8"
-name = "object_089baf48_run_state_function"
+name = "class_089baf48_run_state_function"
 purpose = "Vtable +0x14 update of class 089BAF48: calls the member function at +0x3FC if it is set."
 confidence = "inferred"
 evidence = "Called by object_list_update; member_fn_is_set then member_fn_call on +0x3FC."
