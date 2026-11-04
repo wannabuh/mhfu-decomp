@@ -1,0 +1,191 @@
+[[function]]
+module = "EBOOT"
+address = "088CE75C"
+name = "hunter_set_material_alpha_from_table"
+purpose = "Sets byte +3 of the 16-byte colour entry at +0x858 to 0xFF for every material in group 0 of +0x850, then zeroes it for the first material (table mask 0x2), else the second (mask 0x4), else all (mask 0x8); the mask comes from table 089B7C58 by byte +0x500 and short +0x55A, and only when category 2 of the player record has an id."
+confidence = "inferred"
+evidence = "Writes read directly; byte +3 taken as alpha since 088CEAB8 writes colour to bytes 0-2 of the same entries; prefix from vtable siblings using action +0x684."
+
+[[function]]
+module = "EBOOT"
+address = "088CEAB8"
+name = "hunter_set_first_material_color_from_4e4"
+purpose = "Writes the RGB bytes at +0x4E4..+0x4E6 into the first material of group 0 in the colour table at +0x858: times 0.65 to bytes 0-2, halved to bytes 4-6."
+confidence = "inferred"
+evidence = "Writes read directly; the meaning of the +0x4E4 colour is unknown; prefix inferred, callers 088DB608 and lobby_task."
+
+[[function]]
+module = "EBOOT"
+address = "088CEC84"
+name = "hunter_draw_with_alpha_230"
+purpose = "Vtable slot +0xC: sets lights, emits GE alpha blend and ambient alpha state from byte +0x230 (0xFF means opaque), calls slot +0x4C, slot +0x78 if +0x614 has mask 0x400, and slot +0x50, then restores the opaque GE state."
+confidence = "inferred"
+evidence = "GE opcodes 0x21, 0xDF, 0xDB, 0x5D written to the list at DAT_089CC120; calls light_block_set_colors_for_object; ran in traces before about frame 1500 and in the guild, not during quests."
+
+[[function]]
+module = "EBOOT"
+address = "088CEE68"
+name = "hunter_draw_equipment_parts"
+purpose = "Vtable slot +0x4C: for each of six parts, runs 088D3B94 (parts 0, 1, 4) or 088D3DBC (parts 2, 3, 5), applies the part tint to one material for every part but 1, and draws the part's meshes with model_draw_all_meshes."
+confidence = "inferred"
+evidence = "Loop of 0..5 calling model_draw_all_meshes; tint from 088CF094, whose modes come from player_record_part_entry_byte_13; called from 088CEC84 and game_task."
+
+[[function]]
+module = "EBOOT"
+address = "088CF094"
+name = "hunter_part_get_tint_color"
+purpose = "Fills an RGB output for a part by mode byte +0x10E4[part]: mode 1 is grey 0x80, mode 2 a table colour by the slot's low nibble at +0x10D0 (0xB uses 088DCB00), mode 3 the slot's RGB bytes +0x10D1..3 (high nibble 1 uses 088DCB00); returns 0 for mode 0, 1 otherwise, leaving other modes unwritten."
+confidence = "inferred"
+evidence = "Branches read directly; equip_category_to_slot_index picks the slot; 088CEE68 writes the result to a material's colour bytes."
+
+[[function]]
+module = "EBOOT"
+address = "088CF210"
+name = "model_effect_ops_prime"
+purpose = "Primes the op state of a model without applying it: runs the bone ops and then the material ops of each mesh of the model at +0xF60, with flags 0x11 when param_2 is 0 and 0x12 otherwise."
+confidence = "inferred"
+evidence = "Flag 0x10 is the state-update branch in both callees and 0x20, the apply branch, is not passed; flags 1 and 2 pick start values 0 and 1 in 088D08D4; ran only in traces during lobby setup up to about frame 1500."
+
+[[function]]
+module = "EBOOT"
+address = "088CF2C8"
+name = "model_effect_ops_run_bones"
+purpose = "Runs the op list at +0x7F4 on the bones at +0x1090, with flag 0x10 updating each op's state at +0x7F8 and flag 0x20 applying it; ops include random XYZ offset (0x10-0x12), a two-sine rotation (0x13) and keyframed values through 088D1398 and 088D153C (0xF), with variant param_2 choosing each op's value."
+confidence = "inferred"
+evidence = "Op type switch on the first byte of each record; ops 0x0-0xE only scanned, not read in full; 088CF210 and game_task are callers."
+
+[[function]]
+module = "EBOOT"
+address = "088D08D4"
+name = "model_effect_ops_run_mesh_materials"
+purpose = "Runs the material ops listed for mesh param_3 at +0x7F4, with flag 0x10 updating state and flag 0x20 applying it: GE texture offset U/V scrolled by the game counter (0x16, 0x17), colour or alpha from a set value or a sine (0x18, 0x19, 0x1B, 0x1C), a blend-fix grey pulsing by 088D1BA8's tier (0x1A) and the part 3 tint (0x1D)."
+confidence = "inferred"
+evidence = "GE opcodes 0x4A, 0x4B, 0xE0, 0x21, 0xDF, 0xDB written directly; calls 08862800, 088629DC and 08862BB8 with the model at +0xF60."
+
+[[function]]
+module = "EBOOT"
+address = "088D153C"
+name = "motion_sample_keyframe_table_2_values"
+purpose = "Finds the pair of (frame, a, b) records around the current motion frame in a table ended by frame -1, and outputs a and b linearly interpolated at the frame in +0x90; at the end marker it outputs the marker's a and b."
+confidence = "inferred"
+evidence = "motion_frame_reached on consecutive records and a lerp by (+0x90 - frame); called from 088CF2C8's op 0xF; ran in traces only in fight1 and fight2."
+
+[[function]]
+module = "EBOOT"
+address = "088D168C"
+name = "hunter_draw_attached_prop_for_324"
+purpose = "Vtable slot +0x50: by short +0x324 (less 1000 if game +0x6AF14 has mask 0x1), calls 088D1978 for 0x324-0x329, draws prop mesh 0x47 at bone 0x12 for 0x1A2 before motion frame 118, and prop mesh 0x46 at bone 0xE for 0x19F."
+confidence = "inferred"
+evidence = "object_build_bone_attach_matrix then 088D18F0; called as slot +0x50 straight after the slot +0x4C part draw in 088CEC84; which items these are is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088D18F0"
+name = "prop_model_draw_mesh_at_matrix"
+purpose = "Passes the matrix to 08862354 with the model in DAT_09D19860 +0x19040, sets mesh arg_a2's colour to grey 0x80 and calls 0886171C with +0x19460 and the mesh index."
+confidence = "guess"
+evidence = "08862354 and 0886171C were not read; drawing inferred from its call in 088D168C, slot +0x50; traces list game_task 09A97238 as caller; ran in traces at fight1 4350-4460."
+
+[[function]]
+module = "EBOOT"
+address = "088D1BA8"
+name = "hunter_field_672_tier"
+purpose = "Returns tier 0-3 from short +0x672 at thresholds 30, 60 and 80, the value scaled by 1.25 if id 0xD7 is in the list at +0x676 or by 0.8333 if id 0xD8 is; caches the tier in +0x60E when +0x1E6 equals game byte +0x28, and otherwise returns that cache."
+confidence = "inferred"
+evidence = "Read directly with 088D6A1C scanning six bytes at +0x676; what +0x672 measures is unknown; ran in traces only in fight1 and fight2."
+
+[[function]]
+module = "EBOOT"
+address = "088D1DD0"
+name = "hunter_tick_copy_324_to_684_count_682_call_slot_74"
+purpose = "Vtable slot +0x1C: copies short +0x324 to +0x6A4, counts short +0x6A2 down to 0, and calls vtable slot +0x74 when object_29a_matches_game_6af0e passes."
+confidence = "inferred"
+evidence = "Read directly; called from object_tick 08864634; prefix inferred."
+
+[[function]]
+module = "EBOOT"
+address = "088D1E40"
+name = "hunter_motion_frame_triggers"
+purpose = "Vtable slot +0x74: by action +0x684, on set motion frames or tick intervals, calls game_sub 09C6F018 or 09C6F168 directly or through 088D2674, with one action id calling 09C91648 on a one-in-four random roll."
+confidence = "inferred"
+evidence = "Chain of action ids with motion_frame_reached frame numbers; what the spawned records do was not read."
+
+[[function]]
+module = "EBOOT"
+address = "088D2674"
+name = "hunter_on_motion_frame_call_9c6f018"
+purpose = "When motion frame arg_f12 is reached, calls game_sub 09C6F018 with param_2 and a code mapped from param_3 (0, 3, 4, 5, 6, 7, 8, 0x14), with case 2 fixing param_2 to 5 and code 4."
+confidence = "inferred"
+evidence = "Switch read directly; 09C6F018 adds a record to a list in DAT_09D19860 +0x19030; its game meaning is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088D27BC"
+name = "method_34_set_both_outputs_to_4"
+purpose = "Vtable slot +0x34: writes 4.0 to both output floats."
+confidence = "confirmed"
+evidence = "The body is two stores of 0x40800000."
+
+[[function]]
+module = "EBOOT"
+address = "088D27F4"
+name = "hunter_check_4e9_6_1e8_5_4ec_mask_10"
+purpose = "Returns 1 if byte +0x4E9 is 6, byte +0x1E8 is 5 and short +0x4EC has mask 0x10, else 0."
+confidence = "inferred"
+evidence = "Read directly; field meanings unknown; prefix inferred from neighbours."
+
+[[function]]
+module = "EBOOT"
+address = "088D2830"
+name = "hunter_check_4e9_6_1e8_1_4ec_mask_80"
+purpose = "Returns 1 if byte +0x4E9 is 6, byte +0x1E8 is 1 and short +0x4EC has mask 0x80, else 0."
+confidence = "inferred"
+evidence = "Read directly; field meanings unknown; prefix inferred from neighbours; ran in traces only in fight2."
+
+[[function]]
+module = "EBOOT"
+address = "088D2894"
+name = "hunter_update_matrix_and_skeleton"
+purpose = "Rebuilds the world matrix, applies the +0x68C bone rotations, then updates the skeleton at +0x80 from the matrix at +0x10 with unit scale."
+confidence = "inferred"
+evidence = "Calls object_update_world_matrix, 088D28DC and skeleton_update_bone_roots in order; prefix inferred."
+
+[[function]]
+module = "EBOOT"
+address = "088D28DC"
+name = "hunter_rotate_bones_by_68c"
+purpose = "When short +0x68C is nonzero, multiplies the rotation matrices at +0x150 of bones 9, 10 and 19 by that angle times 0.3 and of bone 20 by it times 0.1, and also rotates bone 9 by the angle in +0x41A about another axis."
+confidence = "inferred"
+evidence = "Bone indices worked out from offsets 0x1620, 0x1870, 0x2D40 and 0x2F90 at stride 0x250 from +0x190; which body parts these bones are is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088D2C14"
+name = "hunter_spring_chains_setup"
+purpose = "Clears mask 0x200 of +0x410 and the chain state at +0x6D0..+0x7xx, then if the part at +0xA10 has over 4 bones looks up short +0x53A in a table chosen by byte +0x4E0 and category 2, stores up to 4 chain records at +0x6D4, and sets mask 0x200 if any were found."
+confidence = "inferred"
+evidence = "Record pointers from 089B74FC at stride 0x12 are the ones 088D2E18 reads; the bone count read at +0xB34 is +0x124 of +0xA10."
+
+[[function]]
+module = "EBOOT"
+address = "088D2E04"
+name = "hunter_spring_chains_step_part_a10"
+purpose = "Calls 088D2E18 with the part at +0xA10 and the +0xD0 matrices of main skeleton bones 20 and 10."
+confidence = "inferred"
+evidence = "One-call wrapper; offsets 0x2F10 and 0x17F0 from +0x190 at stride 0x250."
+
+[[function]]
+module = "EBOOT"
+address = "088D2E18"
+name = "hunter_spring_chains_step"
+purpose = "For each chain record at +0x6D4, steps a damped velocity stored at +0x700 along the bones of part param_2, with gravity-like and stiffness table values, an optional sphere push from 088D3ADC and clamped limits, writing the resulting rotation to each bone's +0x150 matrix."
+confidence = "inferred"
+evidence = "Cross products, velocity scaled by table 089B74E0 and stored back, limit table 089B7360; the end of the function was only partly read; which part it moves is not shown."
+
+[[function]]
+module = "EBOOT"
+address = "088D3A84"
+name = "hunter_cache_part_tint_modes"
+purpose = "Stores player_record_part_entry_byte_13 for categories 0-5 of player record +0x1E6 into the bytes at +0x10E4."
+confidence = "inferred"
+evidence = "Loop read directly; 088CF094 reads these bytes as its colour mode."

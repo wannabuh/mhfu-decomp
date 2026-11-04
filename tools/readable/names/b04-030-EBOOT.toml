@@ -1,0 +1,415 @@
+[[function]]
+module = "EBOOT"
+address = "088D897C"
+name = "hunter_recompute_active_skills"
+purpose = "Clears the six active entries (+0x676 skill id, +0x634 tree id, +0x63A points), walks the 7-byte rows of table 089B7C80, picks a row column from the summed points of that row's first byte (thresholds -20, -15, -10, +10, +15, +20), appends each match, then sorts the entries with positive points first."
+confidence = "inferred"
+evidence = "Point thresholds and the row layout, fed by equip_skill_points_for_skill through 088D8DF4; called again from the UI equipment preview functions in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088D8DA4"
+name = "hunter_active_skills_append"
+purpose = "If the count at param_3 is below 6, stores skill id at +0x676[count], the tree id at +0x634[count] when the skill id is nonzero, and the points at +0x63A[count], then increments the count even for skill id 0."
+confidence = "inferred"
+evidence = "Three parallel arrays written with a bounded counter; the only caller in traces is the skill recompute."
+
+[[function]]
+module = "EBOOT"
+address = "088D8DF4"
+name = "hunter_skill_tree_total_points"
+purpose = "Sums, truncated to a signed byte, the points for one tree id from the equipment records at +0x4E8, +0x4F4, +0x500, +0x518 and +0x524 plus hunter_skill_points_record_50c_multiplied."
+confidence = "inferred"
+evidence = "Calls equip_skill_points_for_skill five times and adds the result of 0885D1D4; the sum selects the row column in 088D897C."
+
+[[function]]
+module = "EBOOT"
+address = "088D8ED4"
+name = "hunter_recalc_attack_value"
+purpose = "Vtable +0x5C: for the hunter whose +0x1E6 equals game byte +0x28, computes short +0x420 (minimum 1) from equipment stat selector 0, pouch items 0x26 and 0x27 (+6, +9, skipped when game flags +0x6AF14 mask 8 is set), bytes +0x38A and +0x3D4, active skills, mask 2 of +0x6CC and low-health multipliers; for every hunter, sets float +0x380 to +0x420 / 100."
+confidence = "guess"
+evidence = "The arithmetic is read from the code; 'attack' is only suggested by the bonus pattern and readers of +0x420 and +0x380 were not checked."
+
+[[function]]
+module = "EBOOT"
+address = "088D92F8"
+name = "hunter_recalc_defense_value"
+purpose = "Vtable +0x60: for the hunter whose +0x1E6 equals game byte +0x28, computes short +0x422 from equipment stat selector 1 plus 1, pouch items 0x28 and 0x29, bytes +0x38B and +0x3D8, active skills, health at or below 40 percent, +0x6CC mask 4 multipliers and halving when 08856E34 is true and short +0x110E is positive, then sets float +0x384 to +0x422 / 2 with a minimum of 1.0."
+confidence = "guess"
+evidence = "The arithmetic is read from the code; 'defense' is only suggested by the bonus pattern and readers of +0x422 and +0x384 were not checked."
+
+[[function]]
+module = "EBOOT"
+address = "088D96BC"
+name = "hunter_recalc_resist_values"
+purpose = "Vtable +0x64: loads floats +0x39C..+0x3AC from equipment stat selectors 2, 3, 4, 5 and 0xD, adds active-skill adjustments, adds +20/+15/+10 for each of the five table ids at 089B6610 whose +0x6A0 entry is positive (level byte at +0x5F7 + id), adds the game bytes at +0x6993D and clamps."
+confidence = "guess"
+evidence = "The steps are read from the code; 'resist' is only suggested by five values clamped to plus or minus 100, and the fields' readers were not checked."
+
+[[function]]
+module = "EBOOT"
+address = "088D9880"
+name = "hunter_resist_values_add_skill_bonuses"
+purpose = "Adds active-skill bonuses to the five floats +0x39C..+0x3AC: skill ids 0x66..0x79 and 0xD4 change one float by 5 or 10 up or down, and skill ids 0x60..0x65 change all five by 3, 5 or 10 up or down."
+confidence = "guess"
+evidence = "Skill id checks through 088D6A1C are read from the code; 'resist' comes only from the guess made for caller 088D96BC."
+
+[[function]]
+module = "EBOOT"
+address = "088D9F3C"
+name = "hunter_resist_values_add_game_bytes_6993d"
+purpose = "Adds the five signed bytes at game +0x6993D..+0x69941 to floats +0x39C, +0x3A0, +0x3A4, +0x3A8 and +0x3AC."
+confidence = "guess"
+evidence = "The copy is read from the code; 'resist' comes only from the guess made for caller 088D96BC."
+
+[[function]]
+module = "EBOOT"
+address = "088DA008"
+name = "hunter_clamp_floats_39c_to_3ac_to_100"
+purpose = "Clamps the five floats +0x39C, +0x3A0, +0x3A4, +0x3A8 and +0x3AC to the range -100.0 to 100.0."
+confidence = "confirmed"
+evidence = "The function is nothing but these comparisons and stores."
+
+[[function]]
+module = "EBOOT"
+address = "088DA150"
+name = "hunter_short_array_6a0_entry_is_positive"
+purpose = "Returns 1 if the short at +0x6A0 + id*2 is greater than 0."
+confidence = "confirmed"
+evidence = "One-line body; hunter init zeroes this array of 21 shorts."
+
+[[function]]
+module = "EBOOT"
+address = "088DA1B0"
+name = "hunter_record8_lacks_list_entry_for_weapon_mask"
+purpose = "Returns 0 unless game byte +0x4C1 is 6 and the table kind for weapon +0x4C2 is not 10; otherwise recomputes active skills, gets a mask from 088D7D6C, and returns 0 if any of 24 (id, count) entries at game +0x43C8 has a positive count, table byte 0899D2B9 equal to 2 and its table bit set in the mask, else 1."
+confidence = "guess"
+evidence = "The checks are read from the code; +0x4C1 matches player record 8 field +0x61, and the entries' meaning (possibly ammunition) was not established; this list is at +0x43C8, not the live pouch at +0x6AEA6."
+
+[[function]]
+module = "EBOOT"
+address = "088DA2C4"
+name = "hunter_load_record_part_ids"
+purpose = "Stores player_record_part_id for parts 0 to 5 of record +0x1E6 into the shorts at +0x536..+0x540."
+confidence = "inferred"
+evidence = "Loop of six calls to player_record_part_id indexed by the hunter's record number."
+
+[[function]]
+module = "EBOOT"
+address = "088DA324"
+name = "hunter_state_in_27_to_2b_or_77_78"
+purpose = "Returns 1 if byte +0x298 is 0 and state +0x299 is 0x27..0x2B, 0x77 or 0x78."
+confidence = "inferred"
+evidence = "Direct comparisons; what the group of states means was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DA398"
+name = "hunter_weapon_value_by_selector"
+purpose = "Reads a weapon's value by selector 0..8 from table 0895A0F4-area stride 0x18 when +0x4E9 is 5, else 08960CBC-area stride 0x1C: selectors 0-3 and 7 match one type byte, 4-6 match another (only when +0x4E9 is 5) with multiplier pass 088DA740, and selector 8 returns a signed byte adjusted by skills 0x20..0x25 and, when positive and +0x4E9 is 5, by +0x5F2 levels 4, 5 and 6."
+confidence = "inferred"
+evidence = "Switch on the selector over two weapon tables; called in traces from game_task 09B68418 during hunts."
+
+[[function]]
+module = "EBOOT"
+address = "088DA940"
+name = "hunter_set_place_and_fields_from_src"
+purpose = "Copies a vec3 from the source to place +0x200, zeroes +0x1F0 and +0x1F8, and stores the short at source +0xC to +0x1F4 (zero-extended) and +0x320."
+confidence = "inferred"
+evidence = "Plain field copies; the meaning of the source record's short was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DA974"
+name = "hunter_copy_10d0_bytes_all_or_entry"
+purpose = "When the index byte is 0xFF copies 20 bytes to +0x10D0, otherwise copies 4 bytes to the entry at +0x10D0 + index*4."
+confidence = "inferred"
+evidence = "Byte copies; the init passes record +0x45 with index 0xFF."
+
+[[function]]
+module = "EBOOT"
+address = "088DAAA0"
+name = "hunter_sharpness_max_from_weapon"
+purpose = "Sets short +0x60C to 150 + 50 * table byte 0895A0F5 of weapon +0x4EA, then adds 50 up to a cap of 450 with skill 0x1D or 0xD1, or subtracts 50 down to a floor of 150 with skill 0x1E."
+confidence = "inferred"
+evidence = "+0x60C is fed to the level lookup 088DAB94 stored at +0x5F2, and game_task 09AD53C8 decreases it; 'sharpness' is the matching game term."
+
+[[function]]
+module = "EBOOT"
+address = "088DAB94"
+name = "hunter_sharpness_level_from_value"
+purpose = "When +0x4E9 is 5, walks seven shorts of a row from table 0897935C (chosen by weapon_kind_from_equip and table byte 0895A0F4) and returns the first index whose entry is not below the value; returns 7 if none qualify, and 0 when +0x4E9 is not 5."
+confidence = "inferred"
+evidence = "The init and 08821BD4 pass +0x60C and store the result at +0x5F2, which 088DA398 uses with levels 4 to 6; seven shorts per row fit sharpness levels."
+
+[[function]]
+module = "EBOOT"
+address = "088DAC58"
+name = "hunter_state_is_11_1b_or_3a"
+purpose = "Returns 1 if byte +0x298 is 0 and state +0x299 is 0x11, 0x1B or 0x3A."
+confidence = "inferred"
+evidence = "Direct comparisons; what the group of states means was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DACA4"
+name = "hunter_state_is_0_36_0_7a_or_0_48"
+purpose = "Returns 1 if object_state_is holds for (0, 0x36) or (0, 0x7A), through 088DACF8, or for (0, 0x48)."
+confidence = "inferred"
+evidence = "Direct object_state_is checks; what the states mean was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DACF8"
+name = "hunter_state_is_0_36_or_0_7a"
+purpose = "Returns 1 if object_state_is holds for (0, 0x36) or (0, 0x7A)."
+confidence = "inferred"
+evidence = "Direct object_state_is checks; what the states mean was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DAD58"
+name = "hunter_select_table_row_by_id_at_7f4"
+purpose = "Sets pointer +0x7F4 to default row 089B08C0, zeroes the 0x30 bytes at +0x7F8, and scans the 20-byte rows from 089B08D4 up to first short -1, setting +0x7F4 to the last row whose first short equals the id."
+confidence = "inferred"
+evidence = "Table scan read from the code; the init passes +0x534, the weapon base id."
+
+[[function]]
+module = "EBOOT"
+address = "088DAE98"
+name = "hunter_flags_6cc_test_mask"
+purpose = "Returns 1 if field +0x6CC has any bit of the given mask set."
+confidence = "confirmed"
+evidence = "One-line body; called on hunters with masks 2 and 4 by the stat recalculations."
+
+[[function]]
+module = "EBOOT"
+address = "088DAEA8"
+name = "hunter_flags_6cc_get"
+purpose = "Returns field +0x6CC."
+confidence = "confirmed"
+evidence = "One-line getter of the same field as 088DAE98."
+
+[[function]]
+module = "EBOOT"
+address = "088DAF18"
+name = "hunter_manager_construct_global"
+purpose = "Stores the manager in global DAT_09a4f204, zeroes the six slots at +0xC, the six stage words at +0x24, and +0x40 and +0x44, and sets the member function at +0 to 088DB1C0."
+confidence = "inferred"
+evidence = "Runs at frame 0 from static-init-like code; 'hunter' comes from the slots holding objects created by 088DB608."
+
+[[function]]
+module = "EBOOT"
+address = "088DAFC8"
+name = "hunter_manager_reset"
+purpose = "Zeroes the six slots at +0xC, the six stage words at +0x24 and the record cursor +0x3C, and sets the member function at +0 to 088DB1C0."
+confidence = "inferred"
+evidence = "Same setup as the constructor without the global, called from three task overlays in traces during loading."
+
+[[function]]
+module = "EBOOT"
+address = "088DB0A0"
+name = "hunter_list_add_to_render_queue"
+purpose = "Calls object_list_add_to_render_queue for object list 2."
+confidence = "inferred"
+evidence = "One call; 088DB608 links the hunters it creates into list 2."
+
+[[function]]
+module = "EBOOT"
+address = "088DB0B0"
+name = "hunter_manager_call_method_40_all"
+purpose = "For each of six slots, with mode 0 or mode 1 and nonzero byte +0x2A4, sets +0x1E6 to the slot number, copies game +0x6AF0E to +0x29A and calls vtable +0x40."
+confidence = "inferred"
+evidence = "Loop read from the code; what method +0x40 does was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DB15C"
+name = "hunter_manager_call_method_44_all"
+purpose = "Calls vtable +0x44 on every occupied slot of six."
+confidence = "inferred"
+evidence = "Loop read from the code; what method +0x44 does was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DB1C0"
+name = "hunter_manager_update_first_call"
+purpose = "Runs hunter_manager_call_method_40_all with mode 0, runs 088DB250 at once if DAT_09a4f1ac +0x88 is 0, and switches the member function at +0 to 088DB250."
+confidence = "inferred"
+evidence = "Installed by the constructor and reset, replaced after one run; dispatched by 088DB068."
+
+[[function]]
+module = "EBOOT"
+address = "088DB338"
+name = "hunter_manager_call_88d2894_on_active"
+purpose = "Calls 088D2894 for each occupied slot whose object has flags +4 mask 1 set."
+confidence = "inferred"
+evidence = "Loop read from the code; 088D2894 itself is not named."
+
+[[function]]
+module = "EBOOT"
+address = "088DB39C"
+name = "hunter_manager_call_88d2e04_on_flagged"
+purpose = "Calls 088D2E04 for each occupied slot whose object has flags +4 masks 1 and 2 set and +0x410 mask 0x200 set."
+confidence = "inferred"
+evidence = "Loop read from the code; 088D2E04 itself is not named."
+
+[[function]]
+module = "EBOOT"
+address = "088DB424"
+name = "hunter_manager_call_88d61cc_on_local_slot"
+purpose = "Calls 088D61CC on the slot given by game byte +0x28 when DAT_08a632c0 +0xF7A57C has mask 1 set, otherwise on slot 0, if that slot is occupied."
+confidence = "inferred"
+evidence = "Slot choice read from the code; called from 088DB250 in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DB488"
+name = "hunter_manager_set_slot"
+purpose = "Stores the object in slot n and writes n to its byte +0x1E4."
+confidence = "inferred"
+evidence = "Two stores; called from the hunter creation in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DB49C"
+name = "hunter_manager_clear_slots_holding"
+purpose = "Zeroes every one of six slots that holds the given pointer."
+confidence = "inferred"
+evidence = "Loop read from the code; called from the slot deletion in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DB4C8"
+name = "hunter_files_load_part_forward"
+purpose = "Forwards its arguments to file_slots_load_group_part with DAT_08a62d7c as the first argument and returns its result."
+confidence = "inferred"
+evidence = "Single tail call; used by the file loading steps in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DB4D4"
+name = "hunter_manager_unload_files_all"
+purpose = "Calls 088DB534 for every occupied slot of six."
+confidence = "inferred"
+evidence = "Loop read from the code."
+
+[[function]]
+module = "EBOOT"
+address = "088DB534"
+name = "hunter_manager_unload_files_for_slot"
+purpose = "Unloads parts 0 to 5 and slots 6 and 7 of the file group for the slot and zeroes that slot's stage word at +0x24."
+confidence = "inferred"
+evidence = "Calls file_slots_unload_group_part six times, then slot6 and slot7 unloads."
+
+[[function]]
+module = "EBOOT"
+address = "088DB608"
+name = "hunter_manager_create_hunter"
+purpose = "Picks a free slot when given -1, allocates and constructs one of three hunter classes by game flags +0x6AF14 (mask 1 lobby size 0x1120, masks 8/0x20/0x40 size 0x10F0, otherwise game_task size 0x11C0), links it at the tail of object list 2, sets up its models, stores +0x1E6, calls vtable +0x10 and +0x48 and 088CEAB8 and 088D3A84, and fills the slot."
+confidence = "inferred"
+evidence = "Allocation, list link and setup read from the code; the vtable +0x10 of the 0x10F0 class fills hunter health and equipment."
+
+[[function]]
+module = "EBOOT"
+address = "088DB990"
+name = "hunter_manager_create_hunters_from_records"
+purpose = "Creates a hunter in slot n for each of six player records whose byte +0x30 is nonzero."
+confidence = "inferred"
+evidence = "Loop over records of stride 0x8C calling the hunter creation."
+
+[[function]]
+module = "EBOOT"
+address = "088DBA0C"
+name = "hunter_manager_delete_slot"
+purpose = "Clears the slot, frees the object's model parts, unlinks it from its object list, calls its destructor (vtable +8 with 1) and frees its heap block."
+confidence = "inferred"
+evidence = "List unlink and model_parts_free_all read from the code; it mirrors the creation in 088DB608."
+
+[[function]]
+module = "EBOOT"
+address = "088DBB5C"
+name = "hunter_manager_delete_all"
+purpose = "Calls the slot deletion for every occupied slot of six."
+confidence = "inferred"
+evidence = "Loop read from the code."
+
+[[function]]
+module = "EBOOT"
+address = "088DBBBC"
+name = "hunter_manager_load_record_files_step"
+purpose = "Advances one record's file load by its stage word at +0x24: stages 0-5 load the part files (an inactive record at stage 0 returns 1), stage 6 loads slot 6 by the weapon base id, and stage 7 loads slot 7 then resets the stage and returns 1; returns 0 while loading."
+confidence = "inferred"
+evidence = "Stage switch over the named file_slots_load calls using player record getters."
+
+[[function]]
+module = "EBOOT"
+address = "088DBD98"
+name = "hunter_prepare_file_entry_for_weapon_kind"
+purpose = "If the record is active, calls 088DDBD8 on table DAT_09a4f210 entry record+1 with a short from 089B6660 indexed by the record's weapon kind."
+confidence = "inferred"
+evidence = "Weapon getter and kind lookup read from the code; 088DB608 later reads that table entry's pointer into the object."
+
+[[function]]
+module = "EBOOT"
+address = "088DBE28"
+name = "hunter_prepare_file_entries_for_weapon_kinds_all"
+purpose = "Calls 088DBD98 for records 0 to 5."
+confidence = "inferred"
+evidence = "Loop read from the code."
+
+[[function]]
+module = "EBOOT"
+address = "088DBEE0"
+name = "hunter_manager_load_files_next_record_step"
+purpose = "Runs the record file load step for record cursor +0x3C, advancing the cursor when that record finishes, and when the cursor reaches 4 resets it and returns 1; otherwise returns 0."
+confidence = "inferred"
+evidence = "Cursor logic read from the code; note it covers four records, not six."
+
+[[function]]
+module = "EBOOT"
+address = "088DBF3C"
+name = "hunter_manager_queue_record_sounds_step"
+purpose = "For an active record outside game flags +0x6AF14 mask 1, picks two id pairs from the weapon base id and record bytes +0x40 and +0x41 (with special cases for ids 0x6F, 0xAA, 0x185, 0x186, 0x217 and 0x218), queues them with sound_slot_queue_id_arrays_request and returns 0, then waits for sound_loader_is_busy to clear before returning 1."
+confidence = "inferred"
+evidence = "Calls the named sound request and busy check; 'sounds' rests on those callee names, and which sounds the ids select was not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DCD94"
+name = "hunter_manager_set_field_276_to_10_all"
+purpose = "Sets byte +0x276 to 10 on every occupied slot of six."
+confidence = "inferred"
+evidence = "Loop read from the code; ran in misc and quest-q5/q8/q9 only among listed recordings, meaning of +0x276 not established."
+
+[[function]]
+module = "EBOOT"
+address = "088DCDEC"
+name = "hunter_manager_clear_field_276_and_reset_local_hunter"
+purpose = "Zeroes byte +0x276 on all slots, then for the slot given by game byte +0x28 calls vtable +0x6C with (5, 0, 0) if its state is (5, 0), else game_task 09A678F8 with (0, 0, 0), and clears +0x614 mask 1."
+confidence = "inferred"
+evidence = "Read from the code; ran one frame each in misc and quest-q5/q8/q9, at the end of the 088DCD94 range."
+
+[[function]]
+module = "EBOOT"
+address = "088DCEBC"
+name = "hunter_manager_get_slot"
+purpose = "Returns the pointer in slot n, or 0 when n is outside 0..5."
+confidence = "inferred"
+evidence = "Bounds-checked read of the same array the hunter creation fills; many callers in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088DCF3C"
+name = "hunter_variant_10f0_construct"
+purpose = "Calls base constructor 088CE05C and sets the vtable to 089BAF48."
+confidence = "inferred"
+evidence = "Two statements; used by the hunter creation for the 0x10F0-sized class."
+
+[[function]]
+module = "EBOOT"
+address = "088DCFCC"
+name = "hunter_variant_10f0_init_from_record"
+purpose = "Vtable 089BAF48 +0x10: runs object_reset_defaults, sets health and max health to 100, state 0 and +0x62E to 300, copies equipment fields from player record +0x1E6, stores weapon kind at +0x1E8, zeroes +0x5F7, +0x6A0 and +0x6CC, and sets up the +0x7F4 row and +0x60C and +0x5F2."
+confidence = "inferred"
+evidence = "Field stores read from the code; runs at frame 700 with this one vtable in traces."

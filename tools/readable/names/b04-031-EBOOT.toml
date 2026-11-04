@@ -1,0 +1,344 @@
+[[function]]
+module = "EBOOT"
+address = "088DD26C"
+name = "object_089baf48_draw_lit_alpha_tested"
+purpose = "Vtable +0xC draw of class 089BAF48: sets its lights, writes GE commands turning on z test (func 5) and alpha test (ref 0xC0, func 7) and texture filter 0x107, calls its own slots +0x4C and, when the word at +0x614 has mask 0x400, +0x78, then refreshes the lights and turns lighting upload back off."
+confidence = "inferred"
+evidence = "Called by render_pass; GE words 0x23, 0xDE, 0xC6, 0x22, 0xDB pushed through DAT_089cc120; light helpers around them."
+
+[[function]]
+module = "EBOOT"
+address = "088DD3A8"
+name = "object_089baf48_run_state_function"
+purpose = "Vtable +0x14 update of class 089BAF48: calls the member function at +0x3FC if it is set."
+confidence = "inferred"
+evidence = "Called by object_list_update; member_fn_is_set then member_fn_call on +0x3FC."
+
+[[function]]
+module = "EBOOT"
+address = "088DD7C4"
+name = "asset_slot_clear"
+purpose = "Empties one 12-byte asset slot: flags +0 to 0, id +2 to 0xFFFF, buffer +4 to 0."
+confidence = "inferred"
+evidence = "Writes the three fields; used per slot by asset_slots_reset_all and asset_slot_free."
+
+[[function]]
+module = "EBOOT"
+address = "088DD838"
+name = "asset_slots_init_at_boot"
+purpose = "Resets all slots, then sets byte +0x216 to 0 and byte +0x215 to 1."
+confidence = "inferred"
+evidence = "Called by main_init_systems; ran at frame 0 only."
+
+[[function]]
+module = "EBOOT"
+address = "088DD868"
+name = "asset_slots_register_callbacks"
+purpose = "Adds 088DE560 and 088DE6A0 to the callback table with the slots object as their argument; the first handles events 1 and 2 by dropping the volatile region's slots, the second handles event 4 by setting +0x215 again."
+confidence = "inferred"
+evidence = "Two callback_table_add calls from main_init_systems; handlers read in build/read."
+
+[[function]]
+module = "EBOOT"
+address = "088DD8A8"
+name = "asset_slots_reset_all"
+purpose = "Clears all 0x2B slots and the volatile region fields +0x204 to +0x210, sets byte +0x216 to 1 and byte +0x214 to 0."
+confidence = "inferred"
+evidence = "Loop of asset_slot_clear plus field writes; those fields are used by asset_slots_lock_volatile_mem."
+
+[[function]]
+module = "EBOOT"
+address = "088DDA44"
+name = "asset_slots_update"
+purpose = "Per-frame: when +0x216 and +0x215 are set, +0x214 clear and game +0x480 clear, tries to lock volatile memory and on success sets +0x214, rewinds the cursor, clears mask 2 on slots 0x15-0x2A and cancels loader tag 1; then for every slot with mask 1 set and mask 2 clear whose id the loader vtable +0x3C returns 0 for, either empties it (status +8 is 1) or swaps mask 1 for mask 2."
+confidence = "inferred"
+evidence = "Runs across the whole of each recording from caller 0888FD38; calls asset_slots_lock_volatile_mem and file_load_queue_cancel_by_tag."
+
+[[function]]
+module = "EBOOT"
+address = "088DDBD8"
+name = "asset_slot_start_load"
+purpose = "Starts a load of a file id into a slot: size from loader vtable +0x18 unless a nonzero size is passed, buffer from the tagged heap (id 0x14) for slots outside 0x15-0x2A or bumped from the locked volatile region for slots inside it (returns without loading if it does not fit), then loader vtable +0x34, setting mask 1 and storing the id."
+confidence = "inferred"
+evidence = "Allocation split and cursor at +0x20C/+0x210; mask 1 read back by asset_slots_update."
+
+[[function]]
+module = "EBOOT"
+address = "088DDF10"
+name = "asset_slot_is_loading"
+purpose = "Returns 1 when the slot has mask 1 set and mask 2 clear."
+confidence = "inferred"
+evidence = "Same test asset_slots_update uses to poll the loader; asset_slot_start_load sets mask 1."
+
+[[function]]
+module = "EBOOT"
+address = "088DDF50"
+name = "asset_slot_free"
+purpose = "Frees the slot's buffer through the tagged heap and clears the slot."
+confidence = "inferred"
+evidence = "mem_tagged_heap_free_by_pointer then asset_slot_clear."
+
+[[function]]
+module = "EBOOT"
+address = "088DDF94"
+name = "asset_slots_9_12_find_buffer_by_id"
+purpose = "Returns the buffer of the slot among 9-12 with mask 2 set holding id (byte argument + 0x17DF), or 0."
+confidence = "inferred"
+evidence = "Scan from +0x6C for 4 slots."
+
+[[function]]
+module = "EBOOT"
+address = "088DE014"
+name = "asset_slots_15_2a_find_index_by_id"
+purpose = "Returns the index of the slot among 0x15-0x2A with mask 2 set holding the given id, or -1."
+confidence = "inferred"
+evidence = "Scan from +0xFC, index starting at 0x15."
+
+[[function]]
+module = "EBOOT"
+address = "088DE060"
+name = "asset_slots_9_12_find_index_by_id"
+purpose = "Returns the 0-3 position among slots 9-12 with mask 2 set holding id (byte argument + 0x17DF), or -1."
+confidence = "inferred"
+evidence = "Same scan as asset_slots_9_12_find_buffer_by_id, returning the index."
+
+[[function]]
+module = "EBOOT"
+address = "088DE0B8"
+name = "asset_slots_9_12_ensure_loaded"
+purpose = "Starts a load of id (byte argument + 0x17DF) in slots 9-12 unless already there: with index -1 it uses the first empty slot after skipping one per non-empty distinct id group at 08A62D9C +0x77C/+0x7A8, otherwise the given index."
+confidence = "inferred"
+evidence = "Called by quest_reserve_asset_slots_for_id_groups and quest_area_request_assets; calls asset_slot_start_load."
+
+[[function]]
+module = "EBOOT"
+address = "088DE3D4"
+name = "asset_slots_9_12_free_by_id"
+purpose = "Frees every slot among 9-12 with mask 1 or 2 set holding id (byte argument + 0x17DF)."
+confidence = "inferred"
+evidence = "Loop with mask 3 test calling asset_slot_free; called by quest_area_unload_objects."
+
+[[function]]
+module = "EBOOT"
+address = "088DE4BC"
+name = "asset_slots_lock_volatile_mem"
+purpose = "Calls sceKernelVolatileMemLock, resets the size +0x204 to 0 on failure, sets the cursor +0x20C and remaining +0x210 from the result, and returns 1 if the lock returned 0."
+confidence = "inferred"
+evidence = "Import name in the function; the slots prefix comes from its caller asset_slots_update."
+
+[[function]]
+module = "EBOOT"
+address = "088DE7C8"
+name = "game_flag_6addd_set_and_480_clear"
+purpose = "Returns 1 when byte +0x6ADDD of the game global is nonzero and byte +0x480 is zero."
+confidence = "confirmed"
+evidence = "The whole body; nothing else is read."
+
+[[function]]
+module = "EBOOT"
+address = "088EFFD8"
+name = "clear_buffer_188_and_bytes_0_a728"
+purpose = "Zeroes 0xA5A0 bytes at +0x188, and bytes +0xA728 and +0."
+confidence = "inferred"
+evidence = "mem_memset with those offsets; meaning of the block not visible; lobby_task callers in traces."
+
+[[function]]
+module = "EBOOT"
+address = "088FC618"
+name = "file_4f_load_to_vram_step"
+purpose = "Step function: state 0 allocates heap tag 0xD and starts loading file 0x4F, state 1 waits for loader vtable +0x38 to return 0 then loads the image to a VRAM slot and stores the slot byte at +0xC, later states return 1."
+confidence = "inferred"
+evidence = "Calls mem_tagged_heap_alloc and vram_load_tmh_image_to_slot; state word +4; 0x4F is fixed."
+
+[[function]]
+module = "EBOOT"
+address = "088FC71C"
+name = "file_4f_free_vram_and_heap"
+purpose = "Frees the VRAM slot stored at +0xC and frees heap tag 0xD."
+confidence = "inferred"
+evidence = "Undoes file_4f_load_to_vram_step: vram_free_slot and mem_tagged_heap_free_by_id with the same tag."
+
+[[function]]
+module = "EBOOT"
+address = "08903BB8"
+name = "sha1_update"
+purpose = "Adds bytes to a SHA-1 context: updates the 64-bit length at +0x18, buffers at +0x20, and byte-swaps and processes each 64-byte block."
+confidence = "confirmed"
+evidence = "Context set by sha1_init; 64-byte blocks to 08903FF0; called by rofs_sha1_feed_chunk."
+
+[[function]]
+module = "EBOOT"
+address = "08903D88"
+name = "sha1_final"
+purpose = "Pads with 0x80 and the big-endian bit length, processes the last block, byte-swaps the state, marks +0x16 finished, wipes the buffer and copies the 20-byte digest out."
+confidence = "confirmed"
+evidence = "Standard padding visible and 0x14 bytes copied to the output."
+
+[[function]]
+module = "EBOOT"
+address = "08903F84"
+name = "sha1_init"
+purpose = "Sets the five SHA-1 initial values and zeroes the length, buffer count +0x14 and finished flag +0x16."
+confidence = "confirmed"
+evidence = "Constants 67452301 EFCDAB89 98BADCFE 10325476 C3D2E1F0."
+
+[[function]]
+module = "EBOOT"
+address = "08903FF0"
+name = "sha1_process_block"
+purpose = "Loads the five hash words from the context, runs the rounds on one block and stores them back."
+confidence = "confirmed"
+evidence = "Called with a 16-word block by sha1_update and sha1_final; the hash words are carried in registers the decompile hides."
+
+[[function]]
+module = "EBOOT"
+address = "08904068"
+name = "sha1_rounds"
+purpose = "Runs the 80 steps over a 16-word block, computing the rotating message schedule."
+confidence = "confirmed"
+evidence = "0x140/4 steps; xor of words at t, t+2, t+8, t+13 rotated left by 1; round arithmetic is hidden from the decompile."
+
+[[function]]
+module = "EBOOT"
+address = "089041C0"
+name = "sha1_hash_buffer"
+purpose = "One-shot SHA-1 of a buffer (data, length, output): processes blocks, pads with 0x80 and the bit length, and writes the five hash words big-endian to the third argument."
+confidence = "confirmed"
+evidence = "Calls sha1_rounds, with padding and byte swaps visible; a separate fast path for 16-byte-aligned data of a multiple of 64 bytes."
+
+[[function]]
+module = "EBOOT"
+address = "089044B4"
+name = "math_udiv64"
+purpose = "Unsigned 64-bit division returning the quotient (arguments low, high, divisor low, divisor high)."
+confidence = "confirmed"
+evidence = "Normalising long division with the leading-zero table 08932B84; called by libc_vfprintf_r."
+
+[[function]]
+module = "EBOOT"
+address = "08904AC4"
+name = "math_umod64"
+purpose = "Unsigned 64-bit remainder (arguments low, high, divisor low, divisor high)."
+confidence = "confirmed"
+evidence = "Same long division as math_udiv64, shifting back the remainder; called by libc_vfprintf_r."
+
+[[function]]
+module = "EBOOT"
+address = "08906A54"
+name = "crt_module_start"
+purpose = "Records the SDK and compiler versions, creates the user_main thread on 08906B68 and starts it with the same arguments."
+confidence = "confirmed"
+evidence = "String user_main and sceKernelCreateThread, sceKernelStartThread, sceKernelSetCompiledSdkVersion500_505."
+
+[[function]]
+module = "EBOOT"
+address = "08906B68"
+name = "crt_user_main_thread"
+purpose = "Thread body: splits its argument block into up to 20 strings, sets up the thread's libc reent, registers an atexit function, runs user_main_loop_entry, passes the result to 0880A4B4 and exits the thread."
+confidence = "confirmed"
+evidence = "Passed to sceKernelCreateThread as user_main; calls str_len, libc_reent_init, libc_atexit, user_main_loop_entry."
+
+[[function]]
+module = "EBOOT"
+address = "0890BF74"
+name = "cxx_array_destroy"
+purpose = "Calls a destructor with argument -1 on each array element from last to first (array, function, element size, count)."
+confidence = "inferred"
+evidence = "Reverse walk mirroring cxx_array_construct's cleanup loop."
+
+[[function]]
+module = "EBOOT"
+address = "0890BFE0"
+name = "cxx_array_construct"
+purpose = "Calls a constructor with argument 1 on each array element in order (array, constructor, destructor, element size, count); the destructor loop is unreachable unless the constructor loop stops early."
+confidence = "inferred"
+evidence = "camera_construct passes two function pointers, size 0x1A0, count 6."
+
+[[function]]
+module = "EBOOT"
+address = "0890C3F8"
+name = "cxx_register_global_destructor"
+purpose = "Pushes a 3-word node {next, destructor, object} on the list at 09A5F250."
+confidence = "inferred"
+evidence = "Static init functions construct an object then pass (object, function, node), for example the stage_mgr one."
+
+[[function]]
+module = "EBOOT"
+address = "0890C41C"
+name = "crt_run_init_functions_and_add_range"
+purpose = "Calls every function pointer in [begin, end), then adds its other two arguments to the range table."
+confidence = "confirmed"
+evidence = "Loop over the pointer array then 0890DC48; the EBOOT list and overlay headers are passed to it."
+
+[[function]]
+module = "EBOOT"
+address = "0890C4C4"
+name = "member_fn_not_equal"
+purpose = "Returns whether two 3-word C++ member function pointers differ."
+confidence = "confirmed"
+evidence = "Word compare; a game_sub caller compares against static {word, word, function} values; sits next to member_fn_call and member_fn_is_set."
+
+[[function]]
+module = "EBOOT"
+address = "0890DC48"
+name = "crt_range_table_add"
+purpose = "Stores a pair (first, second minus 0xC) in the first of the 16 slots at 09A5F260 whose first word is 0; does nothing if all are taken."
+confidence = "inferred"
+evidence = "Writes visible; what the range holds is not; callers pass 0,0 or 089CBB90 twice."
+
+[[function]]
+module = "EBOOT"
+address = "0890DEBC"
+name = "overlay_run_startup"
+purpose = "With the base and size of a loaded image: flushes the data cache and invalidates the instruction cache, zeroes the bytes after the image by the length at +0x14, and runs the init functions at [+0x18, +0x1C)."
+confidence = "inferred"
+evidence = "Called by overlay_finish_load; sceKernelDcacheWritebackAll, sceKernelIcacheInvalidateAll, mem_memset."
+
+[[function]]
+module = "EBOOT"
+address = "0890DF34"
+name = "crt_run_eboot_static_init"
+purpose = "Runs the EBOOT's init function array 089BAB70-089BAB8C."
+confidence = "inferred"
+evidence = "crt_run_init_functions_and_add_range with fixed addresses; called from user_main_loop_entry at frame 0."
+
+[[function]]
+module = "EBOOT"
+address = "089B93D8"
+name = "static_init_set_words_0899ce6c_0899ce9c"
+purpose = "Writes 0x10080000 and 0x199CE44 to the word pairs at 0899CE6C and 0899CE9C."
+confidence = "confirmed"
+evidence = "First entry of the array crt_run_eboot_static_init runs; the writes are the whole body."
+
+[[function]]
+module = "EBOOT"
+address = "089B9428"
+name = "static_init_register_destructor_08a632d8"
+purpose = "Registers 08816AE4 as the destructor of the global at 08A632D8."
+confidence = "inferred"
+evidence = "Entry +4 of the static init array; one cxx_register_global_destructor call."
+
+[[function]]
+module = "EBOOT"
+address = "089B9444"
+name = "static_init_construct_globals"
+purpose = "Constructs many globals from 08A8C640 to 09A06BD0 (the camera at 09998E70 among them), fills shorts at 09A06BC0 with 0xFFFF, clears a word at 09A06BBC and registers 08897ED8 as destructor of 08A8C640."
+confidence = "inferred"
+evidence = "Entry +8 of the static init array; camera_construct is one of the calls."
+
+[[function]]
+module = "EBOOT"
+address = "089B9678"
+name = "static_init_construct_stage_mgr"
+purpose = "Constructs the stage manager global at 09A44DB0 and registers 088C3180 as its destructor."
+confidence = "inferred"
+evidence = "Entry +0xC of the static init array; stage_mgr_construct and cxx_register_global_destructor."
+
+[[function]]
+module = "EBOOT"
+address = "089B96B4"
+name = "static_init_copy_table_089b5750_fields"
+purpose = "Copies 6 words from +0 to +0x28 of each entry in a table at 089B5750, entries 0x44 apart with one larger gap after 089B6058."
+confidence = "confirmed"
+evidence = "Entry +0x10 of the static init array; straight word copies are the whole body; what the entries are is not read."
+

@@ -1,11 +1,12 @@
 # The game's structures: offsets, names and types only, never game code. tools/readable/gen_types.py makes a C header with
 # every offset checked at compile time, and the table the view applies. Types: u8 s8 u16 s16 u32 s32 f32, ptr, ptr:Name,
-# f32x3, f32x4. `size` only where confirmed; unknown spans stay padding, never guessed fields.
+# f32x3, f32x4. `size` only where confirmed; unknown spans stay padding, never guessed fields. `span` is how far offsets are
+# known to reach, kept generous: past it the decompiler prints self[1].field_X, which reads wrongly.
 # Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess.
 
 [[struct]]
 name = "Object"
-span = 0x420
+span = 0x2000
 vtables = []
 functions = [["EBOOT", "08864634"]]
 fields = [
@@ -26,7 +27,7 @@ fields = [
 
 [[struct]]
 name = "Hunter"
-span = 0x700
+span = 0x2000
 vtables = ["089BB3CC"]
 functions = [["game_task", "09A66198"], ["game_task", "09A665F0"]]
 fields = [
@@ -46,9 +47,12 @@ fields = [
   { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred" },
   { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed" },
   { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
+  { offset = 0x324, name = "motion_id", type = "u16", confidence = "inferred", note = "part 0's; 088D1DD0 copies it to +0x684" },
   { offset = 0x41C, name = "health_red_limit", type = "u16", confidence = "inferred", note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
   { offset = 0x41E, name = "health_max", type = "u16", confidence = "inferred", note = "100 + food + skill, capped at 150" },
   { offset = 0x55A, name = "stamina", type = "u16", confidence = "confirmed", note = "300 full" },
+  { offset = 0x60C, name = "sharpness_max", type = "u16", confidence = "inferred", note = "current at +0x10F2" },
   { offset = 0x62E, name = "stamina_max", type = "u16", confidence = "confirmed" },
-  { offset = 0x684, name = "action", type = "u32", confidence = "confirmed" },
+  { offset = 0x684, name = "motion_id_copy", type = "u16", confidence = "inferred", note = "copy of +0x324 (088D1DD0); docs/testing.md and ratecheck call it the action: its values are the weapons' moves" },
+  { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred" },
 ]
