@@ -46,6 +46,17 @@ static inline uint32_t call4(Ctx *c, void (*fn)(Ctx *), uint32_t a0, uint32_t a1
 }
 
 /* A virtual method called: the function in slot `slot` of the vtable at +0 of the object at `self` (a game address) */
+static inline uint32_t call_method0(Ctx *c, uint32_t self, uint32_t slot) {
+    c->r[4] = self;
+    rt_call(c, LW(LW(self) + slot));
+    return c->r[2];
+}
+static inline uint32_t call_method1(Ctx *c, uint32_t self, uint32_t slot, uint32_t a1) {
+    c->r[4] = self;
+    c->r[5] = a1;
+    rt_call(c, LW(LW(self) + slot));
+    return c->r[2];
+}
 static inline uint32_t call_method3(Ctx *c, uint32_t self, uint32_t slot, uint32_t a1, uint32_t a2, uint32_t a3) {
     c->r[4] = self;
     c->r[5] = a1;

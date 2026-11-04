@@ -1236,6 +1236,24 @@ evidence = "game_task 9A6D418; 9A6FB20"
 
 [[field]]
 struct = "Hunter"
+offset = 0x114C
+name = "timed_effect_0_paired_byte"
+type = "u8"
+confidence = "inferred"
+note = "first of 21 bytes, one per timed effect: entry i's is cleared with its timer. Not the level at +0x5F7"
+evidence = "game_task 9A68FC8 clears +0x114C+i when entry i expires, as do 9A682CC and 9A74AB8 elsewhere; 9BB1398 sets entry 0"
+
+[[field]]
+struct = "Hunter"
+offset = 0x2E6
+name = "ticks_2e6"
+type = "u8"
+confidence = "guess"
+note = "a countdown; 20 when set; while nonzero 9A63364's check answers 0. What it stands for isn't settled"
+evidence = "game_task 9A68FC8 counts it down; 9A65F1C sets 20, 9A65850 and 9A65B40 clear it; 9A6336C returns 0 while it is nonzero"
+
+[[field]]
+struct = "Hunter"
 offset = 0x11B0
 name = "button_200_hold_ticks"
 type = "u32"
