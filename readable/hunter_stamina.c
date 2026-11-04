@@ -9,6 +9,7 @@
 enum {
     SKILL_STAMINA_USE_HALVED = 0xA8,    /* costs half, or a cost of 1 every other time */
     SKILL_STAMINA_USE_SPIKES = 0xA9,    /* every fifth tick costs double */
+    TIMED_EFFECT_NO_STAMINA_LOSS = 5,   /* in the timed effects, from +0x6A0 */
 };
 
 static int is_local_hunter(Ctx *c, const Hunter *self) {
@@ -17,6 +18,17 @@ static int is_local_hunter(Ctx *c, const Hunter *self) {
 
 static int has_skill(Ctx *c, Hunter *self, uint32_t skill) {
     return (uint8_t)call2(c, hunter_has_active_skill, GAME_ADDR(self), skill) == 1;
+}
+
+/* game_task 09A6A808: spending is blocked for a while, or by a timed effect. Only for the local player's hunter. */
+void hand_hunter_stamina_loss_blocked(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    if (!is_local_hunter(c, self))
+        c->r[2] = 0;
+    else if (self->stamina_loss_block_ticks > 0)
+        c->r[2] = 1;
+    else
+        c->r[2] = (uint8_t)call2(c, hunter_short_array_6a0_entry_is_positive, GAME_ADDR(self), TIMED_EFFECT_NO_STAMINA_LOSS) == 1;
 }
 
 /* Adds to stamina, kept within 0 and the maximum. Something can block spending altogether. */

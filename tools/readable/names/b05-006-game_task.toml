@@ -90,7 +90,7 @@ evidence = "Called from the state functions 9A9B1E0, 9A9BA48, 9A9E288, 9A9E690, 
 module = "game_task"
 address = "09AA5FB0"
 name = "hunter_classify_move_input"
-purpose = "Returns a move class from field +0x49E: 0 below 0x28, 1 for 0x28-0x77, 3 from 0x78 up; returns 5 instead when the class is nonzero, +0x280 is 0, +0x410 mask 0x8 is clear and input mask 0x200 is held, unless the state is 0x24 with +0x630 nonzero; returns 0 for +0x1E8 values 1, 5, 10 with +0x410 mask 0x8 and +0x614 mask 0x1000."
+purpose = "Returns a move class from field +0x49E: 0 below 0x28, 1 for 0x28-0x77, 3 from 0x78 up; returns 5 instead when the class is nonzero, +0x280 is 0, +0x410 mask 0x8 is clear and input mask 0x200 (the PSP's R, the dash) is held, unless the state is 0x24 with +0x630 nonzero; returns 0 for +0x1E8 values 1, 5, 10 with +0x410 mask 0x8 and +0x614 mask 0x1000."
 confidence = "inferred"
 evidence = "Thresholds read directly; callers map 1, 3 and 5 to different move states, and 9A8B790 reads the angle beside it at +0x49C against the camera heading, so +0x49E as stick magnitude is inferred."
 

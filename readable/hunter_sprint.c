@@ -26,8 +26,8 @@ enum {
     MOTION_LINKED_SPRINT = 0x26,
     MOTION_LINKED_SPRINT_ENTERED_MOVING = 0x27,
     MOTION_ARG_BLEND = 4,           /* the motion setter's third argument, here; what it does isn't settled */
-    MOVE_INPUT_KEEP_GOING = 3,
-    MOVE_INPUT_COMMON = 5,
+    MOVE_INPUT_RUN = 3,              /* stick far over, R let go (hunter_input.c) */
+    MOVE_INPUT_DASH = 5,             /* R still held */
     BUTTON_SPRINT_ACTION = 0x4000,
     QUEST_FLAG_MONSTER_LINKED = 0x100,
     HUNTER_FLAG_MOVING = 4,         /* copied to bit 0x20 a tick; what it means beyond that isn't settled */
@@ -101,13 +101,13 @@ static void leave_sprint(Ctx *c, Hunter *self) {
 /* What the input says to do next, for the local player's hunter. Both sprints: only keep_going differs. */
 static void follow_input(Ctx *c, Hunter *self, void (*keep_going)(Ctx *, Hunter *)) {
     uint8_t input = (uint8_t)call1(c, hunter_classify_move_input, GAME_ADDR(self));
-    if (input == MOVE_INPUT_COMMON) {
+    if (input == MOVE_INPUT_DASH) {
         common_input(c, self);
     } else if (self->instance_index != GAME()->local_hunter_slot && (LW(LW(0x08A632C0u) + 0xF7A57Cu) & 1)) {
         common_input(c, self);      /* (it was the local player's a moment ago: only if the classifier changed that) */
     } else if ((uint8_t)call3(c, object_state_is, GAME_ADDR(self), 0, STATE_LOW_STAMINA_EXIT) != 0 && self->stamina <= 0) {
         set_state_virtual(c, self, STATE_OUT_OF_BREATH, 0);
-    } else if (input == MOVE_INPUT_KEEP_GOING) {
+    } else if (input == MOVE_INPUT_RUN) {
         keep_going(c, self);
     } else {
         leave_sprint(c, self);

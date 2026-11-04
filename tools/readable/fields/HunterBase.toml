@@ -531,6 +531,16 @@ evidence = "EBOOT 88D8000 reads it from the slot's item data +8 and indexes the 
 
 [[field]]
 struct = "HunterBase"
+offset = 0x5F0
+name = "ticks_5f0"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "a timer weapon code sets to 5 or 50 and tests for above 0; what it times isn't settled"
+evidence = "EBOOT 88D6488 counts it down; game_task 9B34EDC and 9B39F64 set it; 9B86340 tests it"
+
+[[field]]
+struct = "HunterBase"
 offset = 0x5F3
 name = "weapon_uses_load"
 type = "u8"

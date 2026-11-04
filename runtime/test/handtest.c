@@ -4,7 +4,7 @@
  * Takes the snapshot's hunter and game state, randomises what a function's branches depend on, then runs each version from the same
  * state and compares all of RAM but the stack (dead bytes there are not behaviour), the callee-saved registers and, where the
  * function returns one, v0. The random numbers are fixed, so a run repeats. Build it with HAND_FLAGS for coverage to see what it
- * reached. A new rewrite: a row in `cases`, and its inputs in randomise(), or a function of its own (the row's last column) if they
+ * reached. A new rewrite: a row in `cases`, and its inputs in randomise(), or a function of its own (the row's last columns) if they
  * shouldn't disturb the other cases: then its row goes last, as what it sets stays set.
  *
  * In a build generated with RECOMP_TRACE_ALL=1 it also tests each function alone (make build/handtest in that worktree): everything
@@ -32,18 +32,39 @@ typedef struct {
     int small_a1;       /* a1 is a mode, 0 to 2, not an amount */
     uint32_t addr;
     void (*randomise_more)(Ctx *, uint32_t hunter);     /* also: long chains of results that must be 0 are reached, callees change fields */
+    void (*inputs)(Ctx *, uint32_t hunter, uint32_t args[3]);   /* the function's own inputs and a1-a3 (a2, a3 otherwise rubbish). Its row goes last */
 } Case;
 
 static void randomise_upkeep(Ctx *c, uint32_t hunter);
+static void inputs_loss_blocked(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_active_skill(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_hunt_bonus(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_set_state(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_face_stick(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_set_flags(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_state_is(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_movement(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_classify(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_countdowns(Ctx *c, uint32_t hunter, uint32_t args[3]);
 
 static const Case cases[] = {
-    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL},
-    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370, NULL},
-    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480, NULL},
-    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288, NULL},
-    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690, NULL},
-    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8, NULL},
-    {"hunter_tick_upkeep 09A68FC8", f_game_task_09A68FC8, 0, 0, 0x09A68FC8, randomise_upkeep},
+    {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL, NULL},
+    {"hunter_stamina_use 09A6A370", f_game_task_09A6A370, 0, 0, 0x09A6A370, NULL, NULL},
+    {"hunter_stamina_use_alternate_ticks 09A6A480", f_game_task_09A6A480, 0, 0, 0x09A6A480, NULL, NULL},
+    {"hunter_state_sprint 09A9E288", f_game_task_09A9E288, 0, 1, 0x09A9E288, NULL, NULL},
+    {"hunter_state_sprint_linked 09A9E690", f_game_task_09A9E690, 0, 1, 0x09A9E690, NULL, NULL},
+    {"hunter_state_out_of_breath 09A9EAE8", f_game_task_09A9EAE8, 0, 1, 0x09A9EAE8, NULL, NULL},
+    {"hunter_tick_upkeep 09A68FC8", f_game_task_09A68FC8, 0, 0, 0x09A68FC8, randomise_upkeep, NULL},
+    {"hunter_stamina_loss_blocked 09A6A808", f_game_task_09A6A808, 1, 0, 0x09A6A808, NULL, inputs_loss_blocked},
+    {"hunter_has_active_skill 088D6A1C", f_EBOOT_088D6A1C, 1, 0, 0x088D6A1C, NULL, inputs_active_skill},
+    {"hunter_has_hunt_bonus 088D6A54", f_EBOOT_088D6A54, 1, 0, 0x088D6A54, NULL, inputs_hunt_bonus},
+    {"hunter_set_state_noted 09A67878", f_game_task_09A67878, 0, 0, 0x09A67878, NULL, inputs_set_state},
+    {"hunter_face_stick_direction 09A8B578", f_game_task_09A8B578, 0, 0, 0x09A8B578, NULL, inputs_face_stick},
+    {"object_set_state_flags 08865A64", f_EBOOT_08865A64, 0, 0, 0x08865A64, NULL, inputs_set_flags},
+    {"object_state_is 08865CB8", f_EBOOT_08865CB8, 1, 0, 0x08865CB8, NULL, inputs_state_is},
+    {"object_set_movement_mode_and_flags 09A6F5C0", f_game_task_09A6F5C0, 0, 0, 0x09A6F5C0, NULL, inputs_movement},
+    {"hunter_classify_move_input 09AA5FB0", f_game_task_09AA5FB0, 1, 0, 0x09AA5FB0, NULL, inputs_classify},
+    {"hunter_tick_countdowns 088D6488", f_EBOOT_088D6488, 0, 0, 0x088D6488, NULL, inputs_countdowns},
 };
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
@@ -315,6 +336,122 @@ static void randomise_upkeep(Ctx *c, uint32_t hunter) {
     }
 }
 
+/* -- the small functions' inputs ------------------------------------------------------------------------------------------------ */
+
+/* The local player's slot most of the time, or another, or one only the whole 16 bits tell from it */
+static uint16_t pick_slot(Ctx *c) {
+    uint8_t local = ((GameState *)MEM(LW(GAME_POINTER)))->local_hunter_slot;
+    switch (rnd() % 4) {
+    case 0: return (uint16_t)(rnd() % 4);
+    case 1: return (uint16_t)(local + 0x100);
+    default: return local;
+    }
+}
+
+/* A byte list, and just outside it, with everything but the id; then the id in it, or just outside, or nowhere */
+static void plant_id(uint8_t *list, int n, uint8_t id) {
+    for (int i = -1; i <= n; i++)
+        list[i] = (uint8_t)(id + 1 + rnd() % 200);
+    int at = (int)(rnd() % (uint32_t)(2 * n)) - 1;
+    if (at <= n)
+        list[at] = id;
+}
+
+/* an id in the low byte: what's above it isn't to count */
+static uint32_t with_high_bits(uint32_t low) { return low | PICK(0, 0, 0x100, 0xFFFFFF00, 0x7F00); }
+
+static void inputs_loss_blocked(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    ((Hunter *)MEM(hunter))->instance_index = pick_slot(c);
+}
+
+static void inputs_active_skill(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    uint8_t id = (uint8_t)(rnd() % 4 ? rnd() : 0);
+    plant_id(MEM(hunter + 0x676), 6, id);
+    args[0] = with_high_bits(id);
+}
+
+static void inputs_hunt_bonus(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    uint8_t id = (uint8_t)(rnd() % 4 ? rnd() : 0);
+    uint32_t game = LW(GAME_POINTER);
+    uint16_t slot = pick_slot(c);
+    ((Hunter *)MEM(hunter))->instance_index = slot;
+    plant_id(MEM(game + 0x69942), 5, id);
+    plant_id(MEM(game + 0xA9 + slot * 0x8Cu), 5, id);
+    args[0] = with_high_bits(id);
+}
+
+static void inputs_set_state(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->instance_index = pick_slot(c);
+    self->reset_place_mode = (uint8_t)PICK(0, 0, 1, 2, 3, 0x80);
+    self->misc_flags = rnd();
+    args[0] = PICK(0, 0, 1, 2, 4, 4, 5, 0x104, 0x8004, 0x10004, 0xFFFF0004);
+    args[1] = rnd() % 0x40;
+    args[2] = rnd() % 8;
+}
+
+static void inputs_face_stick(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->stick_angle = (uint16_t)rnd();
+    self->facing_target = (uint16_t)rnd();
+    uint32_t camera = LW(0x089CBD04u);      /* for the real callee */
+    SB(camera + 0xDC4, PICK(0, 0, -1));
+    SB(camera + 0xA8D, PICK(0, 0, 1));
+    SB(camera + 0x1DE, PICK(0, 1, 1));
+}
+
+static void inputs_set_flags(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Object *self = (Object *)MEM(hunter);
+    self->state_flags = rnd();
+    self->state_flags_high = rnd();
+    args[0] = PICK(0, 1, 0x80000000, 0x80000001, 0x7FFFFFFF, -1);
+    if (rnd() % 2)
+        args[0] = rnd();
+}
+
+static void inputs_state_is(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Object *self = (Object *)MEM(hunter);
+    self->state_group = (uint8_t)(rnd() % 4);
+    self->state = (uint8_t)(rnd() % 4);
+    args[0] = with_high_bits(rnd() % 2 ? self->state_group : rnd() % 4);
+    args[1] = with_high_bits(rnd() % 2 ? self->state : rnd() % 4);
+}
+
+static void inputs_movement(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Object *self = (Object *)MEM(hunter);
+    self->movement_mode = (uint8_t)PICK(0, 1, 2, 3, 0xFF);
+    self->state_flags = rnd();
+    self->state_flags_high = rnd();
+    args[0] = PICK(0, 1, 2, 3, 4, 0x8000, 0x8001, 0x8002, 0x8003, 0x101, 0x102, 0x7F02, 0xFF01, 0x10000, 0x10002, 0x18000, 0xFF);
+    args[1] = PICK(0, 0, 1, -1, 0x8000, 0x10000, 0xFFFF0000);
+    args[2] = PICK(0, 0, 1, -1, 0x8000, 0x10000, 0xFFFF0000);
+}
+
+static void inputs_classify(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->weapon_class = (uint8_t)(rnd() % 3 == 0 ? PICK(1, 5, 10) : rnd() % 3 == 0 ? rnd() : rnd() % 12);
+    self->misc_flags = PICK(0, 0, 8, ~8, -1);
+    self->hunter_flags = PICK(0, 0x1000, ~0x1000, -1);
+    self->stick_magnitude = (uint16_t)PICK(0, 39, 40, 41, 84, 85, 86, 119, 120, 121, 127, 0x7FFF, 0x8000, 0xFFFF);
+    self->movement_mode = (uint8_t)PICK(0, 0, 0, 1, 2, 0x80);
+    self->buttons_held = PICK(0, 0x200, 0x200, ~0x200, -1);
+    self->state_hold_timer = (int16_t)PICK(0, 0, 1, 30, -1);
+    self->state_group = (uint8_t)PICK(0, 0, 1);         /* for the real callee */
+    self->state = (uint8_t)PICK(0x24, 0x24, 0x25, 0);
+}
+
+static void inputs_countdowns(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    HunterBase *self = (HunterBase *)MEM(hunter);
+    self->refusal_message_cooldown = (uint8_t)PICK(0, 0, 1, 2, 0x80, 0xFF);
+    self->sound_cue_mute_timer = (uint8_t)PICK(0, 0, 1, 2, 0x80, 0xFF);
+    self->state_hold_timer = (int16_t)PICK(0, 0, 1, 2, 30, -1, -0x8000, 0x7FFF, 0x100);
+    self->ticks_5f0 = (int8_t)PICK(0, 0, 1, 2, 5, 50, -1, -0x80, 0x7F);
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs <signatures.tsv>] [only <part of a case's name>]\n", argv[0]);
@@ -373,10 +510,15 @@ int main(int argc, char **argv) {
             }
             if (cases[k].small_a1)
                 a1 = rnd() % 3;
+            uint32_t args[3] = {a1, 0xBAD00006u, 0xBAD00007u};
+            if (cases[k].inputs) {
+                cases[k].inputs(c, hunter, args);
+                a1 = args[0];
+            }
             memcpy(start, c->mem + SNAP_START, SNAP_SIZE);
             uint32_t saved[9], after[2][9], v0[2];
             for (int n = 0; n < MAX_CALLS; n++) {
-                results[n] = PICK(0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3, 5, 0x105, 0x100);   /* (a classifier's, a test's, a low byte's) */
+                results[n] = PICK(0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3, 5, 0x105, 0x100, 0x101);   /* (a classifier's, a test's, a low byte's) */
                 fresults[n] = rnd();
                 stub_stamina[n] = (int16_t)PICK(0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0, 0, -1, 1, 76, 300);
                 stub_slot[n] = (uint8_t)PICK(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 2);
@@ -411,6 +553,8 @@ int main(int argc, char **argv) {
                 c->r[29] = TEST_SP;
                 c->r[4] = hunter;
                 c->r[5] = a1;
+                c->r[6] = args[1];
+                c->r[7] = args[2];
                 for (int r = 0; r < 8; r++)
                     saved[r] = c->r[16 + r];
                 saved[8] = c->r[30];
@@ -450,7 +594,8 @@ int main(int argc, char **argv) {
             }
             if (!same) {
                 bad++;
-                printf("%s: DIFFERS a1=%08X tick30=%d\n", cases[k].name, a1, tick30);
+                printf("%s: DIFFERS a1=%08X a2=%08X a3=%08X tick30=%d", cases[k].name, a1, args[1], args[2], tick30);
+                printf(cases[k].returns ? " v0 generated %08X hand %08X\n" : "\n", v0[0], v0[1]);
                 for (uint32_t o = 0; o < SNAP_SIZE; o += 4)
                     if (memcmp(generated + o, c->mem + SNAP_START + o, 4))
                         printf("  %08X generated %08X hand %08X\n", SNAP_START + o, *(uint32_t *)(generated + o),

@@ -491,3 +491,16 @@ void hand_hunter_tick_upkeep(Ctx *c) {
     timed_effects(c, self);
     COUNT_DOWN(self->ticks_2e6);
 }
+
+/* EBOOT 088D6488: the timers the upkeep of any hunter counts down, the lobby's too. To 0 and no further, from either sign. */
+void hand_hunter_tick_countdowns(Ctx *c) {
+    HunterBase *self = OBJ(HunterBase, c->r[4]);
+    if (self->refusal_message_cooldown != 0)
+        self->refusal_message_cooldown--;
+    if (self->sound_cue_mute_timer != 0)
+        self->sound_cue_mute_timer--;
+    if (self->state_hold_timer != 0)
+        self->state_hold_timer--;
+    if (self->ticks_5f0 != 0)
+        self->ticks_5f0--;
+}
