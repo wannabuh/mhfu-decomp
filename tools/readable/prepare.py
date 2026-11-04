@@ -3,7 +3,7 @@
 
 Writes <work>/<module>/image.bin (the module's bytes at its base) and funcs.tsv: one line per function,
     start end how jr:target,target;jr:target,...     (hex; the last field is its jump tables, may be empty)
-and <work>/modules.tsv: name, base, size. The function boundaries and jump tables are tools/funcs.py's, so the view
+and <work>/modules.tsv: name, base, size; <work>/allfuncs.tsv: every function's start and module. The function boundaries and jump tables are tools/funcs.py's, so the view
 covers exactly what the recompiler translates. Everything written here comes from the game: keep <work> out of git.
 """
 import argparse
@@ -20,8 +20,9 @@ FUNCTIONS = os.path.join(HERE, "..", "..", "game", "analysis", "functions.json")
 
 
 def tables(func):
-    """Jump tables only: tail calls through tables of functions (fptables) stay calls, as in the recompiler."""
-    return ";".join(f"{jr:x}:" + ",".join(f"{t:x}" for t in sorted(set(targets)))
+    """Jump tables only: tail calls through tables of functions (fptables) stay calls, as in the recompiler. Each target
+    in its table's order, repeats kept: the decompiler works out the case labels from them."""
+    return ";".join(f"{jr:x}:" + ",".join(f"{t:x}" for t in targets)
                     for jr, _table, targets in func.get("tables", []))
 
 
@@ -35,6 +36,10 @@ def main():
         functions = json.load(f)
     mods = modules.load()
     os.makedirs(args.work, exist_ok=True)
+    with open(os.path.join(args.work, "allfuncs.tsv"), "w") as f:
+        for m in mods:
+            for func in functions[m.name]["functions"]:
+                f.write(f"{func['start']:x}\t{m.name}\n")
     with open(os.path.join(args.work, "modules.tsv"), "w") as index:
         for m in mods:
             index.write(f"{m.name}\t{m.base:x}\t{len(m.data):x}\n")
