@@ -298,6 +298,13 @@ def main():
                 how[key] = "ran"
             else:
                 other_args[f"{key[0]} {key[1]:x} {reg}"] = c
+    def stale_slot(m, v):
+        """A vtable is filled in once and stays: one built by an overlay still lists its addresses after another overlay takes
+        that region, where they then look like the newcomer's functions. Built by others in m's region, not by m: not m's."""
+        built_in = {c.split()[0] for c in ctors.get(v, [])}
+        return bool(built_in) and m not in built_in and any(by_name[o].region == by_name[m].region for o in built_in)
+
+    dropped = 0
     for k, slots in methods.items():
         m, a = k.split()
         key = (m, int(a, 16))
@@ -306,7 +313,9 @@ def main():
         ran = args.get(key, {}).get(A0)
         if ran and any(w not in vtables for w in ran):
             continue
-        c = lub({int(v, 16) for v, _o in slots})
+        real = {int(v, 16) for v, _o in slots if not stale_slot(m, int(v, 16))}
+        dropped += len(slots) > len(real)
+        c = lub(real)
         if c:
             this[key] = c
             how[key] = "slot"
@@ -465,6 +474,7 @@ def main():
     }
     with open(os.path.join(work, "classes.json"), "w") as f:
         json.dump(out, f)
+    print(f"slots of other overlays' vtables left out, for {dropped} functions")
     print(f"{len(vtables)} vtables; {len(parent)} with a base; {len(ctors)} with a constructor; {sum(1 for v in vtables if instances.get(v))} seen live")
     print("functions typed:", collections.Counter(how.values()), "of", len(funcs))
     print(f"other typed args: {len(other_args)}; typed globals: {len(global_type)}; pointer fields: {len(field_ptr)}")
