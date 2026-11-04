@@ -1075,7 +1075,7 @@ module = "em20"
 address = "09D2FF88"
 name = "em20_attack_volume_setup_from_owner_and_link_to_list"
 purpose = "Sets kind byte +0xC to 0x11 and +0xD to the argument, copies owner slot, motion id and the owner vector at +0x1F0, clears the owner bytes +0x33D and +0x3F8, flips the yaw copy for 0x28, copies the owner vector at +0x200 for 0x16, and links itself into the list at manager +0x502C."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body; game_task 9B64A08 calls it after setting vtable 089BEB6C."
 
 [[function]]
@@ -1099,7 +1099,7 @@ module = "em20"
 address = "09D30398"
 name = "em20_attack_volume_third_state_clear_14_set_next"
 purpose = "Clears byte +0x14 and sets the next state function from the word at 09D396B0."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Short whole body."
 
 [[function]]
@@ -1115,7 +1115,7 @@ module = "em20"
 address = "09D30410"
 name = "em20_attack_volume_call_vfunc_24"
 purpose = "Calls vtable +0x24 of its argument."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Generated C is only this call."
 
 [[function]]
@@ -1123,7 +1123,7 @@ module = "em20"
 address = "09D30420"
 name = "em20_attack_volume_call_vfunc_28_at_09d30420"
 purpose = "Calls vtable +0x28 of its argument."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Generated C is only this call."
 
 [[function]]
@@ -1131,7 +1131,7 @@ module = "em20"
 address = "09D30430"
 name = "em20_attack_volume_call_vfunc_28_at_09d30430"
 purpose = "Calls vtable +0x28 of its argument."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Generated C is only this call."
 
 [[function]]
@@ -1139,7 +1139,7 @@ module = "em20"
 address = "09D30440"
 name = "em20_attack_volume_call_vfunc_28_at_09d30440"
 purpose = "Calls vtable +0x28 of its argument."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Generated C is only this call."
 
 [[function]]
@@ -1147,6 +1147,6 @@ module = "em20"
 address = "09D30458"
 name = "em20_attack_volume_destructor"
 purpose = "Sets vtable 089BEB6C, runs owned_obj_base_destructor, and on a positive argument calls the delete stub."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Short whole body; classes.json lists it as the ctor site for that vtable, but it destroys."
 

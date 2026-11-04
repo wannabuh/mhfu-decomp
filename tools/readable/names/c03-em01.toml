@@ -11,7 +11,7 @@ module = "em01"
 address = "09D1A450"
 name = "em01_request_script_and_set_rest_state"
 purpose = "Sets script_run_requested, then state 2,2 if movement_mode is nonzero, else 0,0x11 when arg is 1 or 0,1."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; vtable +0x88 is the state setter, 77 state functions end through it."
 
 [[function]]
@@ -1275,7 +1275,7 @@ module = "em01"
 address = "09D26A78"
 name = "em01_state_04_0f_finish_motion_to_rest"
 purpose = "Restarts the script, waits for the running motion. Ends through 09D1A450 (requests a script run and sets the rest state)."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; Dispatched from 09D29828 case 0xf."
 
 [[function]]
@@ -1289,7 +1289,7 @@ evidence = "Whole body read."
 [[function]]
 module = "em01"
 address = "09D1F720"
-name = "em01_state_02_14_to_rest_state"
+name = "em01_state_02_14_request_script_set_00_01_or_02_02"
 purpose = "Only calls 09D1A450."
 confidence = "confirmed"
 evidence = "Whole body read; Dispatched from 09D29388 case 0x14."
@@ -1299,7 +1299,7 @@ module = "em01"
 address = "09D1CAB0"
 name = "em01_state_01_02_to_rest_state"
 purpose = "Only calls 09D1A450."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; Dispatched from 09D292C0 case 0x2."
 
 [[function]]
@@ -1307,7 +1307,7 @@ module = "em01"
 address = "09D1CAA0"
 name = "em01_state_01_01_to_rest_state"
 purpose = "Only calls 09D1A450."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; Dispatched from 09D292C0 case 0x1."
 
 [[function]]
