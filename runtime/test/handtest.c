@@ -45,6 +45,9 @@ typedef struct { uint32_t fn, a[8], f[8]; } Call;     /* a0-a3 t0-t3, f12-f19: o
 static int stubbing;            /* within the function under test */
 static uint32_t target;         /* it: not a stub */
 static uint32_t results[MAX_CALLS], fresults[MAX_CALLS];
+static int16_t stub_stamina[MAX_CALLS];     /* what a call leaves stamina at (0x7FFF: it leaves it alone): callees do change it */
+static uint8_t stub_slot[MAX_CALLS];        /* the same for the local player's slot (0xFF: alone) */
+static uint32_t stub_hunter;
 static Call calls[2][MAX_CALLS];
 static int ncalls[2], current;
 
@@ -99,6 +102,10 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         }
         c->r[2] = results[n];
         c->f[0].u = fresults[n];
+        if (stub_stamina[n] != 0x7FFF)
+            SH(stub_hunter + 0x55A, stub_stamina[n]);
+        if (stub_slot[n] != 0xFF)
+            SB(LW(0x089CC558u) + 0x28, stub_slot[n]);
     }
     return 1;
 }
@@ -170,6 +177,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "no hunter in this snapshot\n");
         return 2;
     }
+    stub_hunter = hunter;
     uint8_t *start = malloc(SNAP_SIZE), *generated = malloc(SNAP_SIZE);
     int failed = 0;
     for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
@@ -185,6 +193,8 @@ int main(int argc, char **argv) {
             for (int n = 0; n < MAX_CALLS; n++) {
                 results[n] = PICK(0, 0, 1, 1, 2, 3, 3, 5, 5, 0x105, 0x100);     /* (a classifier's, a test's, a low byte's) */
                 fresults[n] = rnd();
+                stub_stamina[n] = (int16_t)PICK(0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0, -1, 1, 74, 75, 76);
+                stub_slot[n] = (uint8_t)PICK(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 2);
             }
             ncalls[0] = ncalls[1] = 0;
             for (int mode = 0; mode < 2; mode++) {

@@ -61,7 +61,7 @@ void hand_hunter_stamina_use(Ctx *c) {
         return;
     if (amount < 0 && !apply_skills(c, self, &amount, &GAME()->tick_30ths))
         return;
-    stamina_add(c, self, amount);
+    call2(c, hunter_stamina_add_clamped, GAME_ADDR(self), (uint32_t)(int32_t)amount);
 }
 
 /* game_task 09A6A480: the same, on every other tick, and with the skills' count going at half speed. */
@@ -78,5 +78,5 @@ void hand_hunter_stamina_use_alternate_ticks(Ctx *c) {
     uint16_t half_tick = tick >> 1;
     if (amount < 0 && !apply_skills(c, self, &amount, &half_tick))
         return;
-    stamina_add(c, self, amount);
+    call2(c, hunter_stamina_add_clamped, GAME_ADDR(self), (uint32_t)(int32_t)amount);
 }
