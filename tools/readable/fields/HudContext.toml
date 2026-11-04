@@ -1,0 +1,1082 @@
+[[field]]
+struct = "HudContext"
+offset = 0x528
+name = "hud_flags"
+type = "u32"
+confidence = "inferred"
+note = "HUD state bits: 1 hunter-flag edge for the bracket sound, 2 draws button prompts, 8 swap items pending give-back, 0x20 select masked, 0x100 swap prompt, 0x400 HUD suspended, 0x2000 party list toggle"
+evidence = "EBOOT 883F270 hud_update tests 0x400 and 0x20 and sets 1; 8828884 uses 8; 8846FAC tests 2; 88351F0 and 88378A8 toggle 0x2000; a word of flags, not a pointer despite the view's void*"
+
+[[field]]
+struct = "HudContext"
+offset = 0x52C
+name = "hud_started"
+type = "u8"
+confidence = "confirmed"
+note = "0 on the first hud_update, which snapshots health then sets it to 1"
+evidence = "EBOOT 883F270: bVar2==0 sets it to 1 and copies hunter +0x2E4 and +0x41C; 8816BE4 clears it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x52D
+name = "quest_menu_open"
+type = "u8"
+confidence = "confirmed"
+note = "1 while the in-quest menu is open"
+evidence = "EBOOT 8848D30 quest_menu_open sets it, 88490C8 quest_menu_close clears it, 883F270 dispatches quest_menu_input when 1, 883FAD4 draws the menu"
+
+[[field]]
+struct = "HudContext"
+offset = 0x52E
+name = "supply_box_open"
+type = "u8"
+confidence = "inferred"
+note = "Mirror of hunter +0x614 bit 2; while set hud_update runs supply_box_menu_input"
+evidence = "EBOOT 883F270 assigns it each tick and calls supply_box_menu_input when nonzero"
+
+[[field]]
+struct = "HudContext"
+offset = 0x52F
+name = "swap_prompt_state"
+type = "u8"
+confidence = "confirmed"
+note = "Item swap prompt state 0-6: 0 idle, 1 wait message, 2-3 yes/no, 4 pick pouch slot, 5 confirm, 6 finish"
+evidence = "EBOOT 8828938 hud_item_swap_prompt_tick switches on it; 8818950 draws by it; 8832204 treats 0 and 6 as no pending item"
+
+[[field]]
+struct = "HudContext"
+offset = 0x530
+name = "local_hunter"
+type = "ptr"
+confidence = "confirmed"
+note = "The local player's hunter object"
+evidence = "EBOOT 8816BE4 stores hunter_manager_get_slot(mgr, g_world->field_28); every HUD function reads hunter fields through it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x534
+name = "gpu_draw_list"
+type = "u8"
+confidence = "confirmed"
+note = "Display list index that 2D HUD draws link into, set per layer (9-14); values of 0x14 and up skip the draw"
+evidence = "EBOOT 882BBE8 passes it to gpu_list_link_chunk behind a <0x14 check; 883F9F8, 883FAD4, 883FD44 set 9, 10, 11 before drawing"
+
+[[field]]
+struct = "HudContext"
+offset = 0x535
+name = "prompt_blink_timer"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "Counts 40 down to 0 and restarts; button sprites draw while it is at least 20"
+evidence = "EBOOT 8835F7C and 88375C8 reset it to 0x28, decrement it, pass it to hud_draw_sprite_if_timer_at_least(...,0x14)"
+
+[[field]]
+struct = "HudContext"
+offset = 0x537
+name = "confirm_cursor"
+type = "u8"
+confidence = "inferred"
+note = "Yes/no cursor of a confirm box: 0 commits"
+evidence = "EBOOT 8828938 state 5 commits when 0 and returns to state 4 otherwise, f_EBOOT_881C520 moves it, 8849CAC and arcade 9A6BF68 pick a string by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x538
+name = "tagged_heap_9_block"
+type = "ptr"
+confidence = "inferred"
+note = "0x44000-byte block from tagged heap 9, handed to the object at DAT_089cc11c when g_world +0xC is 0x81"
+evidence = "game_task 9A60298 allocates and passes it to f_EBOOT_884CDBC; game_task 9A61C78 frees heap id 9 when nonzero on leaving; contents not read"
+
+[[field]]
+struct = "HudContext"
+offset = 0x53C
+name = "party_status_icon_timer_0"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "Player 0: frames before the status icon row advances to the next set status bit, -1 when none set"
+evidence = "EBOOT 8841AB4 indexes the array by hunter +0x1E6, sets 0x14 and counts down, cycling the bit index at +0x544"
+
+[[field]]
+struct = "HudContext"
+offset = 0x53E
+name = "party_status_icon_timer_1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 1 entry of the status icon timer array"
+evidence = "EBOOT 8841AB4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x540
+name = "party_status_icon_timer_2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 2 entry of the status icon timer array"
+evidence = "EBOOT 8841AB4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x542
+name = "party_status_icon_timer_3"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 3 entry of the status icon timer array"
+evidence = "EBOOT 8841AB4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x548
+name = "party_status2_icon_timer_0"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 0: same cycling timer for the second status icon"
+evidence = "EBOOT 88421C4 hud_draw_party_member_second_status_icon indexes by hunter +0x1E6, sets 0x14, counts down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x54A
+name = "party_status2_icon_timer_1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 1 entry of the second status icon timer array"
+evidence = "EBOOT 88421C4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x54C
+name = "party_status2_icon_timer_2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 2 entry of the second status icon timer array"
+evidence = "EBOOT 88421C4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x54E
+name = "party_status2_icon_timer_3"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 3 entry of the second status icon timer array"
+evidence = "EBOOT 88421C4 array by player; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x554
+name = "paged_list_open"
+type = "u8"
+confidence = "inferred"
+note = "Mirror of hunter +0x614 bit 0x200; while set a left/right paged list runs and circle closes it, the normal HUD and full camera input are off"
+evidence = "EBOOT 883F270 assigns it and calls 8848630; 8848630 hides HUD parts via +0x1194; 883FAD4 and 888D600 test it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x558
+name = "clock_time_left"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "Quest time left in frames, refreshed each draw; the clock tints under 9000"
+evidence = "EBOOT 8840338 hud_draw_quest_clock from quest_get_time_left_or_limit(q,0); red pulse under 0x2329 and faster under 0x709"
+
+[[field]]
+struct = "HudContext"
+offset = 0x55C
+name = "clock_time_limit"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "Quest time limit in frames"
+evidence = "EBOOT 8840338 and 8816BE4 from quest_get_time_left_or_limit(q,1)"
+
+[[field]]
+struct = "HudContext"
+offset = 0x560
+name = "displayed_health"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "Health bar value: moves 1 per tick toward hunter health"
+evidence = "EBOOT 883F270 steps it toward hunter +0x2E4; 88405E4 draws it; game_task 9A68FC8 snaps it when max health caps health"
+
+[[field]]
+struct = "HudContext"
+offset = 0x562
+name = "hunter_red_health_copy"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Per-tick copy of hunter +0x41C, the value drawn as the red part of the health bar; no reader of this copy seen"
+evidence = "EBOOT 883F270 writes it; 88405E4 draws hunter +0x41C directly in colour C01010"
+
+[[field]]
+struct = "HudContext"
+offset = 0x564
+name = "minimap_scale_x"
+type = "f32"
+confidence = "inferred"
+note = "Scales hunter world X to minimap pixels, derived from the map's size tables"
+evidence = "EBOOT 8816BE4 from tables by g_world +0x6AF10; 8842F70 multiplies hunter +0x260 by it and 150"
+
+[[field]]
+struct = "HudContext"
+offset = 0x568
+name = "minimap_scale_z"
+type = "f32"
+confidence = "inferred"
+note = "Scales hunter world Z to minimap pixels"
+evidence = "EBOOT 8816BE4 from tables; 8842F70 multiplies hunter +0x268 by it and 150"
+
+[[field]]
+struct = "HudContext"
+offset = 0x56C
+name = "party_alert_timer_0"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 0: frames since an alert, -1 idle; plays sound 0x7B plus n every 20 frames, ends past 0x69"
+evidence = "EBOOT 883F8B4 advances four; 8841908 draws a marker per player; 8848E04 starts the local one on triangle in network play; 88AB7D8 message kind 9 starts a remote one"
+
+[[field]]
+struct = "HudContext"
+offset = 0x56E
+name = "party_alert_timer_1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 1 entry of the alert timer array"
+evidence = "EBOOT 883F8B4; game_task 9A7A0C0 starts this entry directly when it is negative"
+
+[[field]]
+struct = "HudContext"
+offset = 0x570
+name = "party_alert_timer_2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 2 entry of the alert timer array"
+evidence = "EBOOT 883F8B4 array of four; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x572
+name = "party_alert_timer_3"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Player 3 entry of the alert timer array"
+evidence = "EBOOT 883F8B4 array of four; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x576
+name = "minimap_alternate_view"
+type = "u8"
+confidence = "confirmed"
+note = "Nonzero draws the alternate map instead of the minimap; square in the top menu toggles it"
+evidence = "EBOOT 8842EE8 chooses by it; 8848E04 xors 1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x577
+name = "minimap_pulse_timer"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Frames left of the pulse over the minimap, also its parameter"
+evidence = "EBOOT 8844390 sets 0x1A; 883F270 decrements; 8844304 draws while nonzero"
+
+[[field]]
+struct = "HudContext"
+offset = 0x578
+name = "minimap_page"
+type = "u8"
+confidence = "confirmed"
+note = "Map page of the hunter's current area"
+evidence = "EBOOT 884469C stores minimap_page_for_area(hunter +0x29A); 8842F70 picks textures by it and compares other pages to it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x579
+name = "bracket_close_timer"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "Corner brackets close from 4 to 0 while the hunter condition holds, snaps to 4 otherwise"
+evidence = "EBOOT 883F270 counts it; 883FDF4 interpolates bracket positions by 4 minus it and pulses them at 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x57A
+name = "bracket_pulse_phase"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Phase of the corner brackets' alpha pulse, cleared while closing"
+evidence = "EBOOT 883FDF4 sines (phase & 0x1F), increments at bracket_close_timer 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x57C
+name = "menu_depth"
+type = "u8"
+confidence = "confirmed"
+note = "0 on the top quest menu list, 1 in a sub-screen"
+evidence = "EBOOT 8848E04 and 883FAD4 branch on it; 8848E04 increments it on entry"
+
+[[field]]
+struct = "HudContext"
+offset = 0x57D
+name = "menu_cursor"
+type = "u8"
+confidence = "confirmed"
+note = "Top menu cursor, also which sub-screen runs and draws"
+evidence = "EBOOT 8848E04 moves it over 12 entries; 8849214 and 883FAD4 switch on it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x57F
+name = "submenu_row_cursor"
+type = "u8"
+confidence = "inferred"
+note = "Row cursor inside a sub-screen"
+evidence = "EBOOT 88495AC moves it over 9 settings rows; 8849848 highlights it; arcade 9A66D38 wraps it; 883D40C sets a party index"
+
+[[field]]
+struct = "HudContext"
+offset = 0x580
+name = "arcade_blink_counter"
+type = "u8"
+confidence = "inferred"
+note = "Free-running counter in an arcade menu state, reset to 0xFF; a sprite draws while its low 5 bits are under 20"
+evidence = "arcade 9A675E0 increments and resets; 9A6BF68 draws sprite 0x33 by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x586
+name = "item_list_cursor"
+type = "u8"
+confidence = "confirmed"
+note = "Cursor over 24 pouch slots in item lists"
+evidence = "EBOOT 8828938 and arcade 9A675E0 call menu_cursor_move_paged_by_8(&it,..,0x18); 8818950 passes it to menu_draw_item_pouch_list"
+
+[[field]]
+struct = "HudContext"
+offset = 0x58C
+name = "swap_yes_no_cursor"
+type = "u8"
+confidence = "confirmed"
+note = "Swap prompt's first question: 0 goes on to pick a slot, 1 declines"
+evidence = "EBOOT 8828938 state 3 toggles and tests it; 8818950 draws it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x58D
+name = "swap_message_id"
+type = "u8"
+confidence = "confirmed"
+note = "Id of the queued swap prompt message, 0xFF before pushed; compared with g_world +0x381"
+evidence = "EBOOT 8828938 state 1 stores hud_message_queue_push's result"
+
+[[field]]
+struct = "HudContext"
+offset = 0x58E
+name = "swap_info_panel_id"
+type = "u16"
+confidence = "confirmed"
+note = "Panel id the swap prompt shows: 0x14-0x16 hints or item id plus 0x18"
+evidence = "EBOOT 8828938 sets it; 8818950 passes it to menu_draw_info_panel"
+
+[[field]]
+struct = "HudContext"
+offset = 0x590
+name = "swap_item_id"
+type = "u16"
+confidence = "confirmed"
+note = "Item offered by the swap prompt"
+evidence = "EBOOT 8828938 pouch_change_item_count on commit; 8832204 returns it; 8818950 prints its name"
+
+[[field]]
+struct = "HudContext"
+offset = 0x592
+name = "swap_message_wait"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "Countdown before the prompt window's message clears, -1 idle"
+evidence = "EBOOT 8828938 sets -1, 0 or 4, decrements; 8818950 draws the other title at 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x593
+name = "swap_item_count"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "How many of the item the prompt offers"
+evidence = "EBOOT 8828938 passes it to pouch_change_item_count; 8818950 prints plural text when 2 or more"
+
+[[field]]
+struct = "HudContext"
+offset = 0x594
+name = "swap_hint_blink"
+type = "s8"
+confidence = "inferred"
+note = "7-bit counter choosing hint or item panel in state 3, 64 frames each"
+evidence = "EBOOT 8828938 state 3"
+
+[[field]]
+struct = "HudContext"
+offset = 0x596
+name = "tracked_pouch_slot"
+type = "u16"
+confidence = "confirmed"
+note = "Last seen hunter +0x648; a change starts the item bar slide"
+evidence = "EBOOT 883F270; 8816BE4 seeds it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x598
+name = "item_bar_slide_timer"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "Frames of the item bar's slide animation left, starts at 2"
+evidence = "EBOOT 883F270 sets 2; 8845A34 decrements; 8845EA8 reads it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x599
+name = "item_bar_slide_direction"
+type = "s8"
+confidence = "inferred"
+note = "Item bar slide direction, 1 or -1, from hunter +0x674 bit 4"
+evidence = "EBOOT 883F270 sets it; 8845EA8 tests its sign"
+
+[[field]]
+struct = "HudContext"
+offset = 0x59A
+name = "second_bar_slide_timer"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "Frames of the second selector's slide left, starts at 2"
+evidence = "EBOOT 883F270 sets 2 when hunter +0x686 changes with +0x5F3 == 1; 8845A34 decrements; 8845EA8 reads it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x59B
+name = "second_bar_slide_direction"
+type = "s8"
+confidence = "inferred"
+note = "Second selector's slide direction, 1 or -1, from hunter +0x674 bit 0x10"
+evidence = "EBOOT 883F270 sets it; 8845EA8 reads it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x59C
+name = "tracked_second_selection"
+type = "u16"
+confidence = "inferred"
+note = "Last seen hunter +0x686; a change starts the second selector's slide"
+evidence = "EBOOT 883F270; 8816BE4 seeds it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x59E
+name = "supply_cursor_flash_timer"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Frames left of the supply box cursor flash"
+evidence = "EBOOT 884860C sets 0x1F; 883F270 decrements; 8847CB0 draws by low 5 bits"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5A0
+name = "supply_flash_cell"
+type = "u8"
+confidence = "inferred"
+note = "Supply box cell at flash start; written only, the draw reads the hunter's cell"
+evidence = "EBOOT 884860C copies hunter +0x55D"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5A1
+name = "item_fly_timer"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "Frames left of an item icon's flight in the supply box"
+evidence = "EBOOT 884853C sets it from distance; 883F270 decrements; 8847CB0 interpolates by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5A2
+name = "item_fly_duration"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "The flight's total frames, divides item_fly_timer"
+evidence = "EBOOT 884853C; 8847CB0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5A3
+name = "item_fly_cell"
+type = "u8"
+confidence = "confirmed"
+note = "Grid cell the flight starts from: low 3 bits column, rest row"
+evidence = "EBOOT 884853C; 8847CB0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5A4
+name = "item_fly_item_id"
+type = "u16"
+confidence = "confirmed"
+note = "Item shown flying, indexes the 0x18-byte item table"
+evidence = "EBOOT 884853C; 8847CB0 reads table DAT_0899d2bd by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DA
+name = "item_description_open"
+type = "u8"
+confidence = "confirmed"
+note = "Square toggled: the panel describes the item under the cursor"
+evidence = "EBOOT 8828938 state 4 toggles it and sets panel id item+0x18; arcade 9A675E0 and 8818950 agree"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DB
+name = "hud_hidden"
+type = "u8"
+confidence = "confirmed"
+note = "Nonzero skips the clock, bars, minimap and item bar this frame; option_hide_hud unless the item selector is open"
+evidence = "EBOOT 883F270 assigns from +0x5DC only when hunter +0x614 bit 1 is clear; 883F9F8, 8842EE8, 8845A34 test it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DC
+name = "option_hide_hud"
+type = "u8"
+confidence = "inferred"
+note = "Settings row 0: the HUD-hidden toggle"
+evidence = "EBOOT 88495AC row 0 xors it, row 1 refuses while it is set; 883F270 copies it into hud_hidden"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DD
+name = "option_hide_minimap"
+type = "u8"
+confidence = "inferred"
+note = "Settings row 1: toggle that hides the minimap"
+evidence = "EBOOT 88495AC row 1 xors it; 8842EE8 and 8844390 test it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DE
+name = "setting_row_2"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 2, three values, mirrors g_world +0x6ADE1"
+evidence = "EBOOT 8816BE4 loads; 88495AC cycles and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5DF
+name = "setting_row_3"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 3, three values, mirrors g_world +0x6ADDF"
+evidence = "EBOOT 8816BE4 loads; 88495AC cycles and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5E0
+name = "setting_row_4"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 4, three values, mirrors g_world +0x6ADE2"
+evidence = "EBOOT 8816BE4 loads; 88495AC cycles and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5E1
+name = "setting_row_5"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 5, three values, mirrors g_world +0x6ADE0"
+evidence = "EBOOT 8816BE4 loads; 88495AC cycles and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5E2
+name = "setting_row_6"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 6, toggle, mirrors g_world +0x6ADE4"
+evidence = "EBOOT 8816BE4 loads; 88495AC xors and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5E3
+name = "setting_row_7"
+type = "u8"
+confidence = "confirmed"
+note = "Settings row 7, toggle, mirrors g_world +0x6ADE5"
+evidence = "EBOOT 8816BE4 loads; 88495AC xors and saves"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5E8
+name = "menu_flags"
+type = "u32"
+confidence = "inferred"
+note = "Bits: 4 info panel shown, 0x80 timed popup requested, 2 and 0x40 hold the dialogue timer, 0x10 and 8 set and cleared on area start"
+evidence = "EBOOT 883FAD4 tests 4; 883D184 sets 0x80 and 883D0EC consumes it; 8825D38 tests 0x40 and 2; 8816BE4"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5EC
+name = "dialogue_text"
+type = "ptr"
+confidence = "confirmed"
+note = "String the dialogue box is revealing; a new pointer restarts the reveal"
+evidence = "EBOOT 883095C stores and compares it; 8830D3C prints from it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5F0
+name = "dialogue_flags"
+type = "u8"
+confidence = "confirmed"
+note = "Draw request and options for the dialogue box this frame, cleared after drawing: 1 draw, 2 and 4 prompt, 8 extra string, 0x10 no window, 0x20 window only"
+evidence = "EBOOT 883095C sets; 8830D3C tests; 883FD44 and 88346D8 draw and clear"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5F4
+name = "dialogue_last_tick"
+type = "u32"
+confidence = "inferred"
+decimal = true
+note = "Elapsed tick of the last reveal update; going backward restarts the reveal"
+evidence = "EBOOT 883095C compares param_3 and stores it; 8816BE4 sets -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5FC
+name = "info_panel_id"
+type = "u16"
+confidence = "confirmed"
+note = "Which entry the info panel describes, within info_panel_kind"
+evidence = "EBOOT 881908C passes it to menu_draw_info_panel; 8848E04 sets it from the cursor; arcade and lobby menus set it everywhere"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5FE
+name = "info_panel_kind"
+type = "u8"
+confidence = "confirmed"
+note = "Which table the info panel reads: 0 top menu, 1 items, 3 settings, 7 arcade prompts seen"
+evidence = "EBOOT 881908C remaps ids for kind 3; 8848D30 sets 0; 884953C sets 3; arcade 9A6DED8 sets 7"
+
+[[field]]
+struct = "HudContext"
+offset = 0x5FF
+name = "info_panel_variant"
+type = "s8"
+confidence = "inferred"
+note = "Fourth argument of the info panel: -1 default, 0 and 1 toggled in the item box"
+evidence = "EBOOT 881908C passes it; lobby 9ADD9B8 toggles it, 9ADCB48 sets -1, 9AE6CA8 passes it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x600
+name = "timed_popup_timer"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "Frames left of the five-line timed popup; starts at 150"
+evidence = "EBOOT 883D0EC sets 0x96, draws 883D290 and decrements, zeroes when the global state forbids"
+
+[[field]]
+struct = "HudContext"
+offset = 0x604
+name = "blocking_overlay_active"
+type = "u8"
+confidence = "guess"
+note = "Treated as a full-screen UI state: menus and the dialogue reveal skip while set; no setter found in the view, only clears"
+evidence = "EBOOT 883FAD4 and 883FD44 branch on it; 8830F74 ui_is_overlay_active; 883095C returns -1"
+
+[[field]]
+struct = "HudContext"
+offset = 0x608
+name = "list_option_row_0"
+type = "s8"
+confidence = "inferred"
+note = "Option in row 0 of a list screen, mirrors g_world +0x6ADE3"
+evidence = "EBOOT 8816BE4 loads, 8839B30 saves; 8839824 prints by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x609
+name = "list_option_row_2"
+type = "s8"
+confidence = "inferred"
+note = "Option in row 2 of the same screen, drawn only outside the 0xA57C bit 0 mode"
+evidence = "EBOOT 8839824"
+
+[[field]]
+struct = "HudContext"
+offset = 0x60A
+name = "list_option_row_1"
+type = "s8"
+confidence = "inferred"
+note = "Option in row 1 of the same screen, also picks info panel ids in kind 3"
+evidence = "EBOOT 8839824; 881908C"
+
+[[field]]
+struct = "HudContext"
+offset = 0x620
+name = "timed_popup_line_0_message"
+type = "s32"
+confidence = "confirmed"
+note = "Line 0's message id, -1 empty; the line's name string starts 0x14 bytes earlier"
+evidence = "EBOOT 883D184 fills or shifts; 883D274 resets; 883D290 prints it from table DAT_09b053c0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x638
+name = "timed_popup_line_1_message"
+type = "s32"
+confidence = "confirmed"
+note = "Line 1's message id"
+evidence = "EBOOT 883D184 and 883D290 with stride 0x18"
+
+[[field]]
+struct = "HudContext"
+offset = 0x650
+name = "timed_popup_line_2_message"
+type = "s32"
+confidence = "confirmed"
+note = "Line 2's message id"
+evidence = "EBOOT 883D184 and 883D290 with stride 0x18"
+
+[[field]]
+struct = "HudContext"
+offset = 0x668
+name = "timed_popup_line_3_message"
+type = "s32"
+confidence = "confirmed"
+note = "Line 3's message id"
+evidence = "EBOOT 883D184 and 883D290 with stride 0x18"
+
+[[field]]
+struct = "HudContext"
+offset = 0x680
+name = "timed_popup_line_4_message"
+type = "s32"
+confidence = "confirmed"
+note = "Line 4's message id"
+evidence = "EBOOT 883D184 and 883D290 with stride 0x18"
+
+[[field]]
+struct = "HudContext"
+offset = 0x10F8
+name = "message_queue_count"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "Messages waiting in the 20-entry queue at +0xE28"
+evidence = "EBOOT 88307BC and 8830728 refuse at 0x13 and increment; 8823B58 decrements; 8823C84 adds it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x10F9
+name = "message_queue_head"
+type = "s8"
+confidence = "confirmed"
+note = "Index of the next message to start, wraps at 20"
+evidence = "EBOOT 8823B58 reads and advances it; 88307BC appends at head plus count"
+
+[[field]]
+struct = "HudContext"
+offset = 0x10FA
+name = "message_start_cooldown"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "Set to 60 whenever a queued message starts; counted elsewhere"
+evidence = "EBOOT 8823B58; 88306DC clears"
+
+[[field]]
+struct = "HudContext"
+offset = 0x10FC
+name = "notice_view"
+type = "u8"
+confidence = "inferred"
+note = "0 the entry list, 1 reading one entry"
+evidence = "EBOOT 8896228 and 8896484 branch on it; circle returns to 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1108
+name = "notice_list_page"
+type = "u8"
+confidence = "inferred"
+note = "List page: entries start at page*8"
+evidence = "EBOOT 8896484 computes the first entry from it; 889615C clears"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1109
+name = "notice_page_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Pages in the entry list"
+evidence = "EBOOT 889615C computes (count+7)>>3; 8896228 only takes input when nonzero"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1111
+name = "notice_stage"
+type = "u8"
+confidence = "inferred"
+note = "Which stage's entries the list uses"
+evidence = "EBOOT 8895EA0 sets it from g_world +0x6AF12 minus 0x20 or 1; 8896C2C, 8896C58, 8896AD4, 889695C take it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1114
+name = "notice_entry_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Entries in the stage"
+evidence = "EBOOT 8895EA0 from quest_notice_stage_table_byte; 8896484 stops at it; 889615C derives the page count"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1117
+name = "notice_open"
+type = "u8"
+confidence = "inferred"
+note = "1 while the notice takes the input from the HUD"
+evidence = "EBOOT 8895FFC quest_notice_handle_input returns it, circle clears it; 883F270 skips other input when it returns nonzero"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1190
+name = "party_table_from_game_sub"
+type = "u8"
+confidence = "inferred"
+note = "Nonzero: a party member's table comes from DAT_09cfbcc8 rather than g_world +0x69BEC"
+evidence = "EBOOT 88392F4 chooses by it; game_sub 9C1FEF0 sets 1, 9C1FCD0, 9C223D0, 9C1AE18 clear"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1194
+name = "hud_hidden_parts"
+type = "u32"
+confidence = "confirmed"
+note = "Bits hiding HUD parts: 1 clock, 2 health and stamina, 4 minimap, 8 item bar, 0x10 weapon gauge and horn notes, 0x20 party rows"
+evidence = "EBOOT 8840338, 88405E4, 8842EE8, 8845A34, 8841100, 8841520, 8841908 each test one bit; 8848630 sets 0x33; 8848D30 clears it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x1198
+name = "file_load_step"
+type = "u32"
+confidence = "confirmed"
+note = "Step of the two small asynchronous file loaders"
+evidence = "EBOOT 883F0CC and 8831188 switch on it: 0 starts a read, 1 waits, on finishing back to 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x119E
+name = "swap_idle_countdown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Counted down while the swap prompt is idle; no setter seen but 8816A60's clear"
+evidence = "EBOOT 8828938 state 0"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A0
+name = "health_pulse_phase"
+type = "s16"
+confidence = "confirmed"
+note = "Phase of the health bar's colour pulse, 0x100 a tick"
+evidence = "EBOOT 8840E30 adds 0x100 and takes a cosine; 88405E4 clears"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A2
+name = "health_hot_pulse_phase"
+type = "s16"
+confidence = "inferred"
+note = "Same for the hot-area health bar colour"
+evidence = "EBOOT 8840F30 advances it; 88405E4 clears"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A4
+name = "horn_last_note_counter"
+type = "u8"
+confidence = "inferred"
+note = "Last seen hunter +0x1102, which changes as a note is played"
+evidence = "EBOOT 8841520 compares; hunter weapon class +0x1E8 == 8 only"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A5
+name = "horn_note_timer"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Frames of a note's animation left, starts at 7"
+evidence = "EBOOT 8841520 sets 7 on a change, decrements"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A6
+name = "horn_note_0"
+type = "u8"
+confidence = "inferred"
+note = "Newest note in the history: hunter +0x1103 at the change"
+evidence = "EBOOT 8841520 shifts the bytes down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A7
+name = "horn_note_1"
+type = "u8"
+confidence = "inferred"
+note = "Second newest note"
+evidence = "EBOOT 8841520 shifts the bytes down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A8
+name = "horn_note_2"
+type = "u8"
+confidence = "inferred"
+note = "Third newest note"
+evidence = "EBOOT 8841520 shifts the bytes down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11A9
+name = "horn_note_3"
+type = "u8"
+confidence = "inferred"
+note = "Fourth newest note"
+evidence = "EBOOT 8841520 shifts the bytes down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11AA
+name = "horn_note_4"
+type = "u8"
+confidence = "inferred"
+note = "Oldest note"
+evidence = "EBOOT 8841520 shifts the bytes down"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11AB
+name = "top_banner_shown"
+type = "u8"
+confidence = "inferred"
+note = "Target for the top banner's slide"
+evidence = "EBOOT 883F270 sets 1 and 0 with g_world +0x2A; 8849404 reads it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11AC
+name = "top_banner_slide"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Top banner slide position, 0 to 5"
+evidence = "EBOOT 8849404 steps it toward top_banner_shown"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11AD
+name = "end_banner_kind"
+type = "u8"
+confidence = "inferred"
+note = "Which hunt-end banner: 2 for mode 6, 1 for mode 7, 0 for mode 4"
+evidence = "EBOOT 884A6CC maps g_world +0x2E; 884A958 and 884AE14 draw by it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11AE
+name = "end_banner_active"
+type = "s8"
+confidence = "inferred"
+note = "Nonzero while the banner runs, for 300 frames"
+evidence = "EBOOT 884A6CC sets; 884A72C clears at 299; 884A958 draws; game_task 9A617A8 starts it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11B0
+name = "end_banner_settled"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "Counts frames after the banner slide reaches its stop"
+evidence = "EBOOT 884A72C"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11B1
+name = "end_banner_step"
+type = "u8"
+confidence = "inferred"
+note = "Banner stamp step 0-4; at 2 it picks a random offset, at 3 plays the sound"
+evidence = "EBOOT 884A72C; 884A958 draws from steps 2-4"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11B8
+name = "end_banner_random_offset"
+type = "s16"
+confidence = "inferred"
+note = "Random horizontal offset of the stamp"
+evidence = "EBOOT 884A72C from math_rng_next; 884A958 passes it"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11BA
+name = "end_banner_slide"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Banner's slide frames, stop by kind"
+evidence = "EBOOT 884A72C"
+
+[[field]]
+struct = "HudContext"
+offset = 0x11BC
+name = "end_banner_age"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "Frames since the banner started; its zigzag strip follows it"
+evidence = "EBOOT 884A72C; 884AE14 receives it"

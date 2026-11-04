@@ -1,0 +1,606 @@
+[[field]]
+struct = "Object"
+offset = 0x80
+name = "motion_player"
+type = "u32"
+confidence = "confirmed"
+note = "the embedded motion player, 0x140 bytes to +0x1C0; this word is its vtable"
+evidence = "EBOOT 88614DC installs vtable 089BAC48 here and zeroes 0x140 bytes; EBOOT 8861604 restores it; EBOOT 8865648 and 8865F68 pass &self->field_80 to motion_advance and skeleton_get_bone"
+
+[[field]]
+struct = "Object"
+offset = 0x190
+name = "skeleton"
+type = "ptr"
+confidence = "inferred"
+note = "the motion player's skeleton: bones of 0x250 bytes, each with its matrix at +0xD0"
+evidence = "game_sub 9C37898 and game_task 9AC59D0 index it by bone * 0x250 (+0xD0 is the matrix, per EBOOT 8865F68); EBOOT 8865648 passes it to motion_bind_tracks_for_group; it is the player's +0x110, as in EBOOT 88637C4"
+
+[[field]]
+struct = "Object"
+offset = 0x1A2
+name = "motion_layer_count"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "how many layers the motion player runs"
+evidence = "EBOOT 8865648 and 8865810 loop over layers up to it; the player's +0x122, the same bound in EBOOT 88637C4 and 8863E70"
+
+[[field]]
+struct = "Object"
+offset = 0x1AC
+name = "motion_table"
+type = "ptr"
+confidence = "inferred"
+note = "table of motion records looked up by id"
+evidence = "EBOOT 8865254 reads groups of {count, offset} from it by (id % 1000) / 100 and returns a record inside it, 0 when it is null; EBOOT 88DB608 sets it for a hunter"
+
+[[field]]
+struct = "Object"
+offset = 0x1E4
+name = "manager_slot"
+type = "u8"
+confidence = "confirmed"
+note = "its index in the manager's array of its kind"
+evidence = "EBOOT 88DB488 (hunters), game_task 9AB15E8 (monsters, of 20) and lobby_task 9ADB450 (NPCs, of 20) each store the object in an array and the index here"
+
+[[field]]
+struct = "Object"
+offset = 0x1E6
+name = "instance_index"
+type = "u16"
+confidence = "inferred"
+note = "which one of its kind: a hunter's player index, a monster's slot"
+evidence = "hunters compare it with g_world +0x28 (game_task 9A6B130) and EBOOT 88DCFCC indexes g_world's player records by it; game_task 9AB2B90 sets it to the monster's slot; lobby_task 9ADBC50 sets an NPC's from f_game_sub_9C1B580, unread"
+
+[[field]]
+struct = "Object"
+offset = 0x1E8
+name = "subtype"
+type = "u8"
+confidence = "inferred"
+note = "which of its kind: indexes the monster type table, picks an NPC's assets; a hunter's is weapon_class"
+evidence = "game_task 9AC5230 and many others index the 0x1D0-stride table at 09BB8AF0 by it; lobby_task 9ABB7B8 passes it as an NPC's asset slot; game_sub 9C38A88 reads a type table by it for kind 1; HunterBase names it weapon_class"
+
+[[field]]
+struct = "Object"
+offset = 0x1E9
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "0 hunter, 1 monster, 2 NPC, 3 the base's default"
+evidence = "constructors write it: EBOOT 88CE05C 0, game_task 9AC47B0 1, lobby_task 9AB83B0 2, EBOOT 8864440 3; game_sub 9C38A88 and EBOOT 8866284 branch on it"
+
+[[field]]
+struct = "Object"
+offset = 0x1F4
+name = "facing"
+type = "u32"
+confidence = "inferred"
+note = "Y angle, 16-bit units: the middle of three angles at +0x1F0"
+evidence = "EBOOT 88652DC converts +0x1F0 to radians and uses the second as the Y rotation; game_sub 9C417E0 builds a Y rotation from +0x1F4 for monsters; HunterBase already names it facing"
+
+[[field]]
+struct = "Object"
+offset = 0x220
+name = "scale"
+type = "f32x3"
+confidence = "confirmed"
+note = "the model's scale"
+evidence = "EBOOT 8864554 sets all three to 1.0; EBOOT 88652DC puts them on the matrix's diagonal; game_task 9AC7768 computes them; game_sub 9C417E0 scales its collision offset by them"
+
+[[field]]
+struct = "Object"
+offset = 0x230
+name = "alpha"
+type = "u8"
+confidence = "inferred"
+note = "draw alpha, 0xFF opaque"
+evidence = "EBOOT 8864554 resets to 0xFF; game_task 9AC4E30 emits it in GE command 0x5D (ambient alpha) and branches on 0xFF; EBOOT 88D3F68 and game_task 9A933C0 write it to material byte +3; lobby_task 9ABD5E8 steps it toward 0xFF or 0"
+
+[[field]]
+struct = "Object"
+offset = 0x260
+name = "place_plus_area_offset"
+type = "f32x3"
+confidence = "inferred"
+note = "place plus an offset from the table for its area"
+evidence = "EBOOT 8865BD0 computes it from the 0x20-stride table 09CDF040 indexed by +0x29A; game_task 9ABEA38 and others take an angle from it; what the table holds is not read"
+
+[[field]]
+struct = "Object"
+offset = 0x270
+name = "base_scale"
+type = "f32"
+confidence = "confirmed"
+note = "scale at 100% size; monsters only so far"
+evidence = "game_task 9AC6B60 loads it from type table 09BB8AF0; game_task 9AC7768 sets scale to it times +0x274 / 100"
+
+[[field]]
+struct = "Object"
+offset = 0x274
+name = "size_percent"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "size in percent; monsters only so far"
+evidence = "game_task 9AC7768 and 9AD9920 divide it by 100 and multiply a scale or a value by it"
+
+[[field]]
+struct = "Object"
+offset = 0x276
+name = "attached_effect_hide_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "countdown: while nonzero, the attached effect 089BDCB8 does not place its nodes"
+evidence = "EBOOT 8865934 decrements it (patches.py COUNTS: down each 30th); the only reader found besides that is game_sub 9C58900, which requires 0; many states set it to 2 each tick, game_task 9AC5C30 to 1 in mode 4; what the effect looks like was not read"
+
+[[field]]
+struct = "Object"
+offset = 0x278
+name = "map_contact_bits"
+type = "u32"
+confidence = "inferred"
+note = "bits set by the sweep against the map, cleared before it"
+evidence = "game_sub 9C417E0 clears it when its param_2 is 0; game_sub 9C392C8 and 9C38BA8 OR into it; game_task 9AA8AC8 and game_sub 9C55D68 test it with mask 0xE0000007"
+
+[[field]]
+struct = "Object"
+offset = 0x27C
+name = "map_collision_flags"
+type = "u16"
+confidence = "inferred"
+note = "flags for sweeps against the map; monsters only so far"
+evidence = "EBOOT 8865D54 loads it from the type table; game_sub 9C417E0 and game_task 9AD21E8 pass it as the flags of the collision calls"
+
+[[field]]
+struct = "Object"
+offset = 0x280
+name = "movement_mode"
+type = "u8"
+confidence = "inferred"
+note = "0 kept on the floor; 2 in the air (no floor snap, vertical pushes kept); 1, 3, 4 used by some classes"
+evidence = "game_task 9AC5C30 sets place Y to +0x2CC when 0, game_task 9AC69B0 unless 2 or 4; game_task 9A665F0 sets 2 and game_task 9A912F8 lowers height during 2; EBOOT 8865ADC sets 0-2; game_sub 9C417E0 adds a sweep flag for 2"
+
+[[field]]
+struct = "Object"
+offset = 0x285
+name = "hit_pending"
+type = "u8"
+confidence = "inferred"
+note = "set by the hit code; while set the object's own code applies the hit"
+evidence = "game_sub 9C43000 and 9C43558 set it to 2; game_task 9A6B130 (hunter) and 9AC7A08 (monster) return early when 0; EBOOT 8865EC0 (vtable +0x2C) clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x288
+name = "state_flags"
+type = "u32"
+confidence = "confirmed"
+note = "flag word; a state change keeps only some of its bits"
+evidence = "EBOOT 8865A64, 8865A9C and 8865C88 set, clear and test it, or +0x28C when the mask has 0x80000000; game_task 9AC8918 and 9A68700 mask it down to 0x100100 or 0x100 on a change"
+
+[[field]]
+struct = "Object"
+offset = 0x28C
+name = "state_flags_high"
+type = "u32"
+confidence = "confirmed"
+note = "second flag word, selected by bit 31 of the mask; a state change clears it"
+evidence = "EBOOT 8865A64, 8865A9C and 8865C88; game_task 9AC8918 and 9A68700 zero it"
+
+[[field]]
+struct = "Object"
+offset = 0x298
+name = "state_group"
+type = "u8"
+confidence = "confirmed"
+note = "first of the state pair, with +0x299 state"
+evidence = "EBOOT 8865CB8 compares both; game_task 9AC8918 writes the pair on a state change"
+
+[[field]]
+struct = "Object"
+offset = 0x29A
+name = "area_id"
+type = "u16"
+confidence = "inferred"
+note = "the area it is in"
+evidence = "EBOOT 8865BAC compares it with g_world +0x6AF0E, which the area change writes with the target id (see that task's name entry); game_task 9AC0DC8 and 9ACCBF8 compare objects by it; game_sub 9C37C68 pushes objects apart only when equal"
+
+[[field]]
+struct = "Object"
+offset = 0x2AC
+name = "light_color_0"
+type = "u32"
+confidence = "confirmed"
+note = "smoothed colour of light 0: eased a fifth of the way a game frame to the light's"
+evidence = "EBOOT 8860CB0 reads and writes +0x2AC + light * 4; EBOOT 8864554 resets to all ones, EBOOT 88DCFCC to 0x80808080; docs/testing.md's hunter tint"
+
+[[field]]
+struct = "Object"
+offset = 0x2B0
+name = "light_color_1"
+type = "u32"
+confidence = "confirmed"
+note = "smoothed colour of light 1: eased a fifth of the way a game frame to the light's"
+evidence = "EBOOT 8860CB0 reads and writes +0x2AC + light * 4; EBOOT 8864554 resets to all ones, EBOOT 88DCFCC to 0x80808080; docs/testing.md's hunter tint"
+
+[[field]]
+struct = "Object"
+offset = 0x2B4
+name = "light_color_2"
+type = "u32"
+confidence = "confirmed"
+note = "smoothed colour of light 2: eased a fifth of the way a game frame to the light's"
+evidence = "EBOOT 8860CB0 reads and writes +0x2AC + light * 4; EBOOT 8864554 resets to all ones, EBOOT 88DCFCC to 0x80808080; docs/testing.md's hunter tint"
+
+[[field]]
+struct = "Object"
+offset = 0x2BA
+name = "push_off_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "countdown: while nonzero, characters are not pushed apart"
+evidence = "game_sub 9C37C68 requires 0 on both before its push calls; game_task 9AC7620 and 9A68FC8 decrement it; em20 9D27910 and game_task 9A91130 set it"
+
+[[field]]
+struct = "Object"
+offset = 0x2BC
+name = "map_contact_blocks_push"
+type = "u16"
+confidence = "inferred"
+note = "nonzero stops two monsters being pushed apart; 2 while touching the map, else 0"
+evidence = "game_task 9AC5C30 writes 2 when +0x278 is nonzero and 0 otherwise; game_sub 9C37C68 requires 0 on both unless a monster is type 0x1D"
+
+[[field]]
+struct = "Object"
+offset = 0x2CC
+name = "floor_y"
+type = "f32"
+confidence = "inferred"
+note = "floor height under it"
+evidence = "collision_floor_height_and_surface_for_object fills it (game_task 9AC5C30, 9AC69B0); those functions set place Y to it; game_task 9A8E680 compares place Y with it + 63; game_sub 9C58900 puts effects at it"
+
+[[field]]
+struct = "Object"
+offset = 0x2F0
+name = "last_hit_record"
+type = "ptr"
+confidence = "inferred"
+note = "the hit record last received"
+evidence = "game_sub 9C43000 and 9C43558 store the record; game_task 9A87A30 reads its bytes +0xC and +0x10; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x324
+name = "motion_id"
+type = "u16"
+confidence = "inferred"
+note = "motion id of layer 0"
+evidence = "lobby_task 9ABB7B8 and EBOOT 88D5C7C look it up through vtable +0x20 and start it on layer 0; HunterBase already names it, here for NPCs and monsters too (game_task 9AC5AA8 clears it)"
+
+[[field]]
+struct = "Object"
+offset = 0x326
+name = "motion_id_layer1"
+type = "u16"
+confidence = "inferred"
+note = "motion id of layer 1"
+evidence = "EBOOT 88D5C7C and lobby_task 9ABB7B8 start it on layer 1; EBOOT 88D5C34 sets a hunter's to layer 0's + 100"
+
+[[field]]
+struct = "Object"
+offset = 0x328
+name = "motion_id_layer2"
+type = "u16"
+confidence = "inferred"
+note = "motion id of layer 2"
+evidence = "em20 9D1CAF8 and em14 9D1FD18 compare it next to a play on layer 2; EBOOT 8864554 clears it with the others"
+
+[[field]]
+struct = "Object"
+offset = 0x32A
+name = "motion_id_layer3"
+type = "u16"
+confidence = "guess"
+note = "by position, motion id of layer 3"
+evidence = "only cleared, with the others: EBOOT 8864554, game_task 9AC5AA8"
+
+[[field]]
+struct = "Object"
+offset = 0x32C
+name = "motion_start_frame"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "frame layer 0's next motion starts at"
+evidence = "EBOOT 88D5C7C and lobby_task 9ABCF48 pass it as the frame of motion_player_change_blended (EBOOT 8863E70); EBOOT 88D5C34 stores it"
+
+[[field]]
+struct = "Object"
+offset = 0x334
+name = "motion_blend_frames"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "frames layer 0's next motion blends over; 8865CEC takes its absolute value"
+evidence = "EBOOT 88D5C7C passes it as the blend count of EBOOT 8863E70; EBOOT 88D5C34 stores half its argument"
+
+[[field]]
+struct = "Object"
+offset = 0x33C
+name = "freeze_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "countdown: while nonzero its timers and motion do not advance"
+evidence = "EBOOT 8865934 skips counters and vtable +0x3C; EBOOT 88D5C7C sets motion speeds to 0; EBOOT 8865A2C counts it down (patches.py COUNTDOWN33C)"
+
+[[field]]
+struct = "Object"
+offset = 0x38C
+name = "pending_buildup_mask1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "amount from hits with mask 1, awaiting its meter"
+evidence = "game_sub 9C45008 adds hit +0x2A when hit +0x28 has 1; game_task 9A6B130 adds it to +0x446, game_task 9AC8450 passes it to entity_add_buildup_446; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x38E
+name = "pending_buildup_mask8"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "amount from hits with mask 8, awaiting its meter"
+evidence = "game_sub 9C45008 adds hit +0x2A when hit +0x28 has 8; game_task 9AC8450 passes it to entity_add_buildup_44c; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x390
+name = "pending_buildup_mask2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "amount from hits with mask 2, awaiting its meter"
+evidence = "game_sub 9C45008 adds hit +0x2A when hit +0x28 has 2; game_task 9AC8450 passes it to entity_add_buildup_388, game_task 9A6B130 to 9A6D0D8; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x392
+name = "pending_buildup_mask4"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "amount from hits with mask 4, awaiting its meter"
+evidence = "game_sub 9C45008 adds hit +0x2A when hit +0x28 has 4; game_task 9A6B130 adds it to +0x458, game_task 9AC8450 passes it to entity_add_buildup_458; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x394
+name = "pending_buildup_direct"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "amount from hit byte +0x30 rather than the mask word, awaiting its meter"
+evidence = "game_sub 9C43558 and 9C43000 add it; game_task 9A6B130 adds it to +0x440, game_task 9AC8450 passes it to entity_add_buildup_440; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x396
+name = "freeze_ticks_pending"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "amount the next tick adds to freeze_ticks"
+evidence = "EBOOT 8865A2C adds it to +0x33C and clears it; game_sub 9C43558 and 9C43000 set it from a hit record, on attacker and victim"
+
+[[field]]
+struct = "Object"
+offset = 0x3B0
+name = "pending_hit_bits_0"
+type = "u8"
+confidence = "inferred"
+note = "slot 0: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B1
+name = "pending_hit_bits_1"
+type = "u8"
+confidence = "inferred"
+note = "slot 1: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B2
+name = "pending_hit_bits_2"
+type = "u8"
+confidence = "inferred"
+note = "slot 2: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B3
+name = "pending_hit_bits_3"
+type = "u8"
+confidence = "inferred"
+note = "slot 3: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B4
+name = "pending_hit_bits_4"
+type = "u8"
+confidence = "inferred"
+note = "slot 4: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B5
+name = "pending_hit_bits_5"
+type = "u8"
+confidence = "inferred"
+note = "slot 5: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B6
+name = "pending_hit_bits_6"
+type = "u8"
+confidence = "inferred"
+note = "slot 6: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B7
+name = "pending_hit_bits_7"
+type = "u8"
+confidence = "inferred"
+note = "slot 7: bits of the hits awaiting application (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 ORs bits into +0x3B0 + slot; game_sub 9C43000 ORs hit +0x25 into slot 0; game_task 9AC8450 tests one slot by type table; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3B8
+name = "pending_damage_0"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 0: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3BA
+name = "pending_damage_1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 1: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3BC
+name = "pending_damage_2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 2: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3BE
+name = "pending_damage_3"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 3: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3C0
+name = "pending_damage_4"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 4: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3C2
+name = "pending_damage_5"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 5: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3C4
+name = "pending_damage_6"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 6: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3C6
+name = "pending_damage_7"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 7: damage awaiting application, negative heals (slot: part record +6 & 7; hunters use 0)"
+evidence = "game_sub 9C43558 adds to +0x3B8 + slot * 2; game_sub 9C43000 to slot 0; game_task 9AC8450 sums the 8; game_task 9A6B130 passes -slot 0 to vtable +0x68; EBOOT 8865EC0 clears them"
+
+[[field]]
+struct = "Object"
+offset = 0x3CE
+name = "pending_hit_flags"
+type = "u8"
+confidence = "inferred"
+note = "bits of hit byte +0x21 for the hits awaiting application"
+evidence = "game_sub 9C43000 and 9C43558 OR them in; game_task 9A6B130, 9A6C968 and 9A87A30 test mask 0xC0; EBOOT 8865EC0 clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x400
+name = "state_fn_word2"
+type = "u32"
+confidence = "confirmed"
+note = "second word of the state_fn member function pointer"
+evidence = "EBOOT 8864554 copies three words to +0x3FC; EBOOT 890C4F8 tests all three"
+
+[[field]]
+struct = "Object"
+offset = 0x404
+name = "state_fn_word3"
+type = "u32"
+confidence = "confirmed"
+note = "third word of the state_fn member function pointer"
+evidence = "EBOOT 8864554 copies three words to +0x3FC; EBOOT 890C4F8 tests all three"
+
+[[field]]
+struct = "Object"
+offset = 0x410
+name = "misc_flags"
+type = "u32"
+confidence = "inferred"
+note = "flag word of unrelated bits: 1 allows the map sweep, 2 cleared per state, 0x80 pushed this frame"
+evidence = "game_sub 9C417E0 requires bit 1; game_sub 9C37C68 clears 0x80 before its pushes; names entries for 9A68700 and the state-change functions clear 2 and 4; hunters test 8 in 74 places, not settled"
+
+[[field]]
+struct = "Object"
+offset = 0x45C
+name = "flagged_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "counts in 60ths while state_flags has 0x400001, zero otherwise; no reader found"
+evidence = "EBOOT 8865934; docs/native.md; game_task 9A68700 also clears it"
+
+[[field]]
+struct = "Object"
+offset = 0x6DB
+name = "locally_owned"
+type = "u8"
+confidence = "inferred"
+note = "monsters: this machine runs it; zero on a remote copy"
+evidence = "game_task 9AC5AA8 sets it from g_world +0x28 == +0x6DC; game_sub 9C44FD8 with 9C43000 records a hit and stops when zero; game_sub 9C37C68 pushes only when set; game_task 9AC7620 runs a timer only when set"

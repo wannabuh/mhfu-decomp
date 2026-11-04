@@ -38,8 +38,8 @@ fields = [
   { offset = 0x41C, name = "health_red_limit", type = "u16", confidence = "inferred", decimal = true, note = "the red part of the bar: health can recover up to it; docs/testing.md has called it health" },
   { offset = 0x41E, name = "health_max", type = "u16", confidence = "inferred", decimal = true, note = "100 + food + skill, capped at 150" },
   { offset = 0x55A, name = "stamina", type = "s16", confidence = "confirmed", decimal = true, note = "300 full" },
-  { offset = 0x60C, name = "sharpness_max", type = "u16", confidence = "inferred", decimal = true, note = "current at +0x10F2" },
-  { offset = 0x62E, name = "stamina_max", type = "u16", confidence = "confirmed", decimal = true },
+  { offset = 0x60C, name = "sharpness_max", type = "s16", confidence = "inferred", decimal = true, note = "current at +0x10F2" },
+  { offset = 0x62E, name = "stamina_max", type = "s16", confidence = "confirmed", decimal = true },
   { offset = 0x684, name = "motion_id_copy", type = "u16", confidence = "inferred", note = "copy of +0x324 (088D1DD0); docs/testing.md and ratecheck call it the action: its values are the weapons' moves" },
   { offset = 0x10F2, name = "sharpness", type = "u16", confidence = "inferred", decimal = true },
 ]
@@ -71,23 +71,23 @@ vtables = ["089BADFC"]
 # Structures with no vtable, reached through a global: `struct` makes one a class in classes.py. Without, a plain variable.
 [[global]]
 address = "089CC558"
-name = "g_world"
-struct = "World"
+name = "g_game"
+struct = "GameState"
 
 [[global]]
 address = "089CBD04"
-name = "g_camera_system"
-struct = "CameraSystem"
+name = "g_camera"
+struct = "Camera"
 
 [[global]]
 address = "089CBD0C"
-name = "g_global_089CBD0C"
-struct = "Global_089CBD0C"
+name = "g_hud"
+struct = "HudContext"
 
 [[global]]
 address = "08A632C8"
-name = "g_global_08A632C8"
-struct = "Global_08A632C8"
+name = "g_text"
+struct = "TextSystem"
 
 [[global]]
 address = "08A62EAC"
@@ -96,8 +96,8 @@ struct = "Global_08A62EAC"
 
 [[global]]
 address = "08A62D9C"
-name = "g_global_08A62D9C"
-struct = "Global_08A62D9C"
+name = "g_quest"
+struct = "QuestState"
 
 [[global]]
 address = "08A632C0"
@@ -105,19 +105,19 @@ name = "g_global_08A632C0"
 struct = "Global_08A632C0"
 
 [[struct]]
-name = "World"
+name = "GameState"
 vtables = ["089CC558"]
 
 [[struct]]
-name = "CameraSystem"
+name = "Camera"
 vtables = ["089CBD04"]
 
 [[struct]]
-name = "Global_089CBD0C"
+name = "HudContext"
 vtables = ["089CBD0C"]
 
 [[struct]]
-name = "Global_08A632C8"
+name = "TextSystem"
 vtables = ["08A632C8"]
 
 [[struct]]
@@ -125,7 +125,7 @@ name = "Global_08A62EAC"
 vtables = ["08A62EAC"]
 
 [[struct]]
-name = "Global_08A62D9C"
+name = "QuestState"
 vtables = ["08A62D9C"]
 
 [[struct]]

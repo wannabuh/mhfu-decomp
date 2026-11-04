@@ -1,0 +1,1956 @@
+[[field]]
+struct = "Monster"
+offset = 0x50
+name = "model"
+type = "ptr"
+confidence = "inferred"
+note = "model the object draws; +0x1C of it is tested before drawing"
+evidence = "game_task 09AC4E30: reads a short at +0x1C and passes &field to gpu_emit_model_mesh"
+
+[[field]]
+struct = "Monster"
+offset = 0x94
+name = "motion_layer0_speed"
+type = "f32"
+confidence = "confirmed"
+note = "motion layer 0's frames per tick; float written 2.0 at reset"
+evidence = "docs/native.md (motion player: layer +0x14 is speed, player at +0x80); game_task 09AC5C30 (tick) writes motion_speed_scale * (100+bonus)/100 * 2 to four layers"
+
+[[field]]
+struct = "Monster"
+offset = 0x9C
+name = "motion_layer0_end"
+type = "f32"
+confidence = "confirmed"
+note = "last frame of motion layer 0"
+evidence = "docs/native.md (+0x9C a layer's end); game_task 09AD9EE0 reads it for the turn rate"
+
+[[field]]
+struct = "Monster"
+offset = 0xBC
+name = "motion_layer0_flags"
+type = "u16"
+confidence = "inferred"
+note = "layer 0 flags: bit 0 tested in turn motion, bit 1 in motion restart"
+evidence = "game_task 09AD9EE0 tests &1; game_task 09AC5328 tests &2 per layer at stride 0x40"
+
+[[field]]
+struct = "Monster"
+offset = 0xBE
+name = "motion_frame_checks_off"
+type = "s8"
+confidence = "inferred"
+note = "nonzero makes motion frame checks answer no"
+evidence = "EBOOT 08864408 (player +0x3E) returns 0 when set; game_task 09AD9EE0 returns early on it"
+
+[[field]]
+struct = "Monster"
+offset = 0xD4
+name = "motion_layer1_speed"
+type = "f32"
+confidence = "confirmed"
+note = "motion layer 1's frames per tick"
+evidence = "as motion_layer0_speed, stride 0x40; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x114
+name = "motion_layer2_speed"
+type = "f32"
+confidence = "confirmed"
+note = "motion layer 2's frames per tick"
+evidence = "as motion_layer0_speed; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x154
+name = "motion_layer3_speed"
+type = "f32"
+confidence = "confirmed"
+note = "motion layer 3's frames per tick"
+evidence = "as motion_layer0_speed; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x194
+name = "bone_copy_target"
+type = "ptr"
+confidence = "inferred"
+note = "structure that receives copies of one bone's matrices; null skips"
+evidence = "game_task 09AC5718 returns when 0, else copies 0x40-byte blocks into +0x90, +0x2E0, +0x530 of it"
+
+[[field]]
+struct = "Monster"
+offset = 0x1F0
+name = "angle_x"
+type = "u32"
+confidence = "inferred"
+note = "16-bit angle kept in a word, beside facing +0x1F4; zeroed on the floor"
+evidence = "game_task 09AC7358 restores it with +0x1F4,+0x1F8 from a record; game_task 09AC5C30 (tick) masks to 16 bits and zeroes it when grounded"
+
+[[field]]
+struct = "Monster"
+offset = 0x1F8
+name = "angle_z"
+type = "u32"
+confidence = "inferred"
+note = "16-bit angle kept in a word, beside facing +0x1F4; zeroed on the floor"
+evidence = "as angle_x"
+
+[[field]]
+struct = "Monster"
+offset = 0x286
+name = "largest_damage_slot"
+type = "u8"
+confidence = "inferred"
+note = "which of the pending damage or slot values was largest in the hit"
+evidence = "game_task 09AC8450 records the largest of 8 pending shorts; game_task 09AC7A08 may override and uses it as a slot index"
+
+[[field]]
+struct = "Monster"
+offset = 0x2A0
+name = "surface_height"
+type = "f32"
+confidence = "inferred"
+note = "second height from the floor query; replaces the floor height under flag 0x40 of +0x410"
+evidence = "collision_floor_height_and_surface_for_object fills +0x2CC and this; game_task 09AC5C30 (tick) copies it into +0x2CC for most types"
+
+[[field]]
+struct = "Monster"
+offset = 0x2C4
+name = "distance_to_chosen_slot"
+type = "f32"
+confidence = "inferred"
+note = "distance tested by the script's distance switch; cleared by the sight update"
+evidence = "game_task 09ABA8F8 stores it and compares with script_distance_band_*; game_task 09AC9CB8 zeroes it"
+
+[[field]]
+struct = "Monster"
+offset = 0x2C8
+name = "push_priority"
+type = "u8"
+confidence = "inferred"
+note = "who moves when two objects overlap: equal both, lower one moves"
+evidence = "game_sub 09C38538 compares it between the two; game_task 09AC6B60 (reset) loads the type table byte >> 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x2E0
+name = "route_next_area"
+type = "u16"
+confidence = "inferred"
+note = "area to go to next on a route, 0xFFFF none; replaced by a neighbour of the current area"
+evidence = "game_task 09AD00D0 replaces it with the neighbour best bearing toward it; game_task 09AB9170 kind 3; game_task 09ACFF38 moves +0x29A to it"
+
+[[field]]
+struct = "Monster"
+offset = 0x2E4
+name = "health"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "current health; the hit function returns code 1 at zero unless held at 1"
+evidence = "game_task 09AC76A0 sets it with health_max from the scaled table; game_task 09AC7A08 subtracts summed damage, caps at health_max; game_task 09ABEE10 switches on percent of max"
+
+[[field]]
+struct = "Monster"
+offset = 0x2F4
+name = "target_object"
+type = "ptr"
+confidence = "inferred"
+note = "object the script's target resolved to (hunter or table slot); 0 none"
+evidence = "game_task 09AB9170 kinds 1, 0x0B, 0x0D store the slot's object or 0"
+
+[[field]]
+struct = "Monster"
+offset = 0x322
+name = "script_random_counter"
+type = "u16"
+confidence = "inferred"
+note = "counter used modulo n for script random choices; scripts step it"
+evidence = "game_task 09AC4518 increments it (ops 7B/84); game_task 09AB8AE0, 09ABA4B0, 09AB6788 take % count"
+
+[[field]]
+struct = "Monster"
+offset = 0x35E
+name = "point_check_block_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "while nonzero the area point cone check is skipped; counted down each tick"
+evidence = "game_task 09AC7620 decrements; game_task 09AD3EF8 returns when nonzero; game_task 09AD8808 and siblings set it to 5 or 10"
+
+[[field]]
+struct = "Monster"
+offset = 0x380
+name = "attack_scale"
+type = "f32"
+confidence = "inferred"
+note = "attack multiplier: quest table float, times a table value while boosted"
+evidence = "game_task 09AC6B60, 09AD24D0, 09AD88E8 set it; game_sub 09C43000 reads the attacker's"
+
+[[field]]
+struct = "Monster"
+offset = 0x384
+name = "damage_taken_scale"
+type = "f32"
+confidence = "inferred"
+note = "multiplier on pending damage; quest table float, times a table value while boosted"
+evidence = "game_task 09AC8450 and game_task 09AC7A08 multiply pending shorts by it; game_task 09AD24D0, 09AD88E8 set it"
+
+[[field]]
+struct = "Monster"
+offset = 0x388
+name = "status_04_buildup"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup of status bit 0x4 (the health drain); reaching the threshold starts it"
+evidence = "game_task 09ACC280 adds, tests status_04_threshold, sets bit 0x4; game_task 09AD2698 decays it"
+
+[[field]]
+struct = "Monster"
+offset = 0x3C8
+name = "pending_damage_of_type_slot"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "pending damage value of the slot named by the type table when a mask matches; else 0"
+evidence = "game_task 09AC8450"
+
+[[field]]
+struct = "Monster"
+offset = 0x3CA
+name = "last_hit_kind"
+type = "u16"
+confidence = "inferred"
+note = "kind from byte +0x1F of the hit record; 8, 9, 0xC and 0x1A..0x1E change the reaction"
+evidence = "game_sub 09C43000/09C43558 store it; game_task 09AC7A08 and game_task 09AC85F8 branch on it; game_task 09ADA5B0 clears"
+
+[[field]]
+struct = "Monster"
+offset = 0x3CF
+name = "status_hold_mode"
+type = "u8"
+confidence = "inferred"
+note = "0 free, 2 set on entering a status, also 3 and 4; the status hold timers run only at 0"
+evidence = "game_task 09ACC580/09ACC4A0 set 2 on entering a status, 09ACC658 clears; game_task 09AC5C30 (tick) runs status timers only when 0; game_task 09AC7A08 branches on it (2 gives code 10, 3 gives 0xD); script ops 09ABD308 set, 09AC00B0 test"
+
+[[field]]
+struct = "Monster"
+offset = 0x3D0
+name = "hit_mark_flag"
+type = "u8"
+confidence = "guess"
+note = "set with a long timer by certain hits; 0xFF never"
+evidence = "game_sub 09C43558 sets 1 and hit_mark_ticks = 18000; game_task 09AC7620 clears when the timer ends"
+
+[[field]]
+struct = "Monster"
+offset = 0x3D2
+name = "hit_mark_ticks"
+type = "s16"
+confidence = "guess"
+decimal = true
+note = "countdown of hit_mark_flag, loaded 18000"
+evidence = "game_task 09AC7620, game_task 09ACD6B0"
+
+[[field]]
+struct = "Monster"
+offset = 0x40C
+name = "sound_area_param"
+type = "u32"
+confidence = "inferred"
+note = "per-area value from a table, passed to 3D sound play"
+evidence = "game_task 09ADFCB8 loads it by area and column 1; game_task 09ACB4E0 passes it to sound_play_3d"
+
+[[field]]
+struct = "Monster"
+offset = 0x41E
+name = "health_max"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "maximum health"
+evidence = "game_task 09AC76A0 sets it with health; game_task 09AC7A08 caps health at it; game_task 09ABEE10, 09AD38F8 use percent of it"
+
+[[field]]
+struct = "Monster"
+offset = 0x440
+name = "status_10_buildup"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup of status bit 0x10"
+evidence = "game_task 09ACC3B8 adds and tests status_10_threshold; game_task 09AD2698 decays it"
+
+[[field]]
+struct = "Monster"
+offset = 0x442
+name = "status_10_decay_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks to the next decay step of status_10_buildup"
+evidence = "game_task 09ACC3B8 reloads, game_task 09AD2698 counts it"
+
+[[field]]
+struct = "Monster"
+offset = 0x444
+name = "status_02_threshold"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup needed for status bit 0x2; raised per trigger"
+evidence = "game_task 09ACC120 loads from the type table; game_task 09ACC1F8 compares; game_task 09ACC658 raises"
+
+[[field]]
+struct = "Monster"
+offset = 0x446
+name = "status_02_buildup"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup of status bit 0x2"
+evidence = "game_task 09ACC1F8, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x448
+name = "status_02_decay_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks to the next decay step of status_02_buildup"
+evidence = "game_task 09ACC1F8, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x44A
+name = "status_01_threshold"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup needed for status bit 0x1"
+evidence = "game_task 09ACC120, game_task 09ACC170"
+
+[[field]]
+struct = "Monster"
+offset = 0x44C
+name = "status_01_buildup"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup of status bit 0x1"
+evidence = "game_task 09ACC170, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x44E
+name = "status_01_decay_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks to the next decay step of status_01_buildup"
+evidence = "game_task 09ACC170, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x450
+name = "status_04_threshold"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup needed for status bit 0x4; raised by each trigger"
+evidence = "game_task 09ACC120, 09ACC280; game_task 09AD2698 adds a table value when it ends"
+
+[[field]]
+struct = "Monster"
+offset = 0x452
+name = "status_04_interval_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks to the next step: buildup decay, or health drain while active"
+evidence = "game_task 09ACC280, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x454
+name = "status_04_active_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks the drain of status bit 0x4 has left"
+evidence = "game_task 09ACC280 loads from the type table; game_task 09AD2698 counts it and clears the bit at zero"
+
+[[field]]
+struct = "Monster"
+offset = 0x456
+name = "status_08_threshold"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup needed for status bit 0x8"
+evidence = "game_task 09ACC120, game_task 09ACC330"
+
+[[field]]
+struct = "Monster"
+offset = 0x458
+name = "status_08_buildup"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup of status bit 0x8"
+evidence = "game_task 09ACC330, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x45A
+name = "status_08_decay_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks to the next decay step of status_08_buildup"
+evidence = "game_task 09ACC330, game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x494
+name = "meter_a"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "meter drained at table rates by mode; at zero sets request_meter_a_empty"
+evidence = "game_task 09AD3558, 09AD08B8 reduce it; 09AD38F8 takes percent of meter_a_max; 09AD21E8 compares to a table limit"
+
+[[field]]
+struct = "Monster"
+offset = 0x498
+name = "meter_b"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "meter drained at table rates by mode; at zero sets request_meter_b_empty"
+evidence = "game_task 09AD3470 reduces; game_task 09AC6B60 (reset) refills from a type table when below 1"
+
+[[field]]
+struct = "Monster"
+offset = 0x49C
+name = "meter_c"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "third meter, refilled from a global at reset and on status entry"
+evidence = "game_task 09AC6B60; game_task 09ACC4A0, 09ACC580 set it to DAT_09BC8050"
+
+[[field]]
+struct = "Monster"
+offset = 0x4A0
+name = "meter_b_max"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "full value of meter_b"
+evidence = "game_task 09AC6B60 from the same table record; game_task 09AC1488 passes half of it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4A4
+name = "meter_a_max"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "full value of meter_a"
+evidence = "game_task 09AD38F8 divides by it; game_task 09AC14D8 passes half"
+
+[[field]]
+struct = "Monster"
+offset = 0x4A8
+name = "meter_c_max"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "full value of meter_c"
+evidence = "game_task 09AC6B60; game_task 09AC1528 passes half"
+
+[[field]]
+struct = "Monster"
+offset = 0x4AE
+name = "spawn_variant"
+type = "s16"
+confidence = "inferred"
+note = "value from the spawn record +2; scripts and subclasses switch on it"
+evidence = "game_task 09AB2DC8 copies it; game_task 09ABB188 switch op 0x27; game_task 09AE07A0 uses it as a health row"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B0
+name = "motion_speed_scale"
+type = "f32"
+confidence = "inferred"
+note = "multiplier on the four motion layer speeds; 1.0 normal, table value while boosted"
+evidence = "game_task 09AC5C30 writes field * bonus * 2 to the layers and loads it from the boost table; 09AD88E8 resets 1.0"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B4
+name = "perception_pause_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "while nonzero the perception part of the tick is skipped; forced 0 when alert"
+evidence = "game_task 09AC5C30 counts it and skips sight; game_task 09ABD318 sets, 09ABFAD0 and 09ABB328 test from scripts; 09AC77C8 returns 0 on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B5
+name = "script_run_requested"
+type = "u8"
+confidence = "confirmed"
+note = "run the script once script_delay_ticks is out"
+evidence = "game_task 09AD8378: when the delay is out and this is set, calls monster_script_run and clears it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B6
+name = "sight_off_ticks"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "while nonzero sight sees nobody; counts down when end_vfunc_ec_ticks is 0"
+evidence = "game_task 09AC9CB8 clears the sight mask and returns; game_task 09AC5C30 (tick) counts it down; game_task 09ABD318 sets from scripts"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B7
+name = "state_just_set"
+type = "u8"
+confidence = "inferred"
+note = "set when a state is set; subclass state handlers test and clear it"
+evidence = "game_task 09AC88E8 sets 1; game_task 09ADAB30, 09AE3680 test and clear"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B8
+name = "script_suspend_arg"
+type = "u8"
+confidence = "inferred"
+note = "third argument of the script's suspend opcode 5; 1 retargets the first hunter in range"
+evidence = "game_task 09AB4C68 stores it; game_task 09AD10A8 acts when 1"
+
+[[field]]
+struct = "Monster"
+offset = 0x4B9
+name = "alert_mode"
+type = "u8"
+confidence = "inferred"
+note = "0 not alert, 1 alert with alert_timer running; scripts branch on it"
+evidence = "game_task 09AC93B0 sets it and clears hunter masks on 0; game_task 09AC9910 counts the timer and returns to 0; op 09AB7620"
+
+[[field]]
+struct = "Monster"
+offset = 0x4BA
+name = "hunters_engaged_mask"
+type = "u8"
+confidence = "inferred"
+note = "hunter bits set when a hunter takes this alert monster as its +0x2F4; +0x111C bit cleared on them when alert ends"
+evidence = "game_task 09A687C0 sets the bit; game_task 09AC93B0 clears their +0x111C bit 0 and this"
+
+[[field]]
+struct = "Monster"
+offset = 0x4BB
+name = "script_requests"
+type = "u8"
+confidence = "confirmed"
+note = "pending script interrupts by mask 0x2..0x80, each with its own entry"
+evidence = "game_task 09AB7230 takes them by priority; game_task 09AC5C30 (tick) and 09AD3228 set bits"
+
+[[field]]
+struct = "Monster"
+offset = 0x4BC
+name = "quest_scale_row"
+type = "s8"
+confidence = "inferred"
+note = "row of the quest tables used for health, attack and damage scaling"
+evidence = "game_task 09AC9120, 09AC9280, 09AC9318, 09AD3C88 index by +0x116 of a global, then this * 0x10"
+
+[[field]]
+struct = "Monster"
+offset = 0x4BE
+name = "alert_timer"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left alert; loaded from the type table on seeing a hunter; capped 900 with no one tracked"
+evidence = "game_task 09AC93B0, 09AC9910; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x4C0
+name = "cannot_die_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "while nonzero health stops at 1 and buildups do not grow"
+evidence = "game_task 09AC7A08 holds health at 1; 09AC8450 skips buildups; game_task 09AD2698; 09ACC4A0 sets 0x1E"
+
+[[field]]
+struct = "Monster"
+offset = 0x4C1
+name = "script_active_requests"
+type = "u8"
+confidence = "confirmed"
+note = "interrupt masks currently running; bit 0x1 is the point-table block"
+evidence = "game_task 09AB7230 sets them; game_task 09AB6788 clears each at its block end; 09AB7490 chooses a saved position by it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4C2
+name = "damage_slot_mode"
+type = "u8"
+confidence = "inferred"
+note = "how damage feeds the slots: 9 all nine, 8 all eight, 1 all into slot 0"
+evidence = "game_task 09AC91C0 loads it from the type table; game_task 09AC7A08 branches on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4C4
+name = "end_vfunc_ec_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "countdown; at zero clears sight_off_ticks and calls vtable +0xEC"
+evidence = "game_task 09AC5C30; game_task 09AF1B40 loads it from the type table; script op 09AB7520 tests it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4C8
+name = "script_header"
+type = "ptr"
+confidence = "confirmed"
+note = "script chosen by type and quest: table pointers at +0, +4, +0x08..."
+evidence = "game_task 09ABABC0 picks it from the type record; 09ABAB90 indexes +0, 09ABAAF8 +4"
+
+[[field]]
+struct = "Monster"
+offset = 0x4CC
+name = "script_position"
+type = "u32"
+confidence = "confirmed"
+note = "where the main script resumes"
+evidence = "game_task 09AB7490/09AB74D0 get and set it when no mask in script_active_requests chooses another"
+
+[[field]]
+struct = "Monster"
+offset = 0x4D0
+name = "script_position_request_20"
+type = "u32"
+confidence = "confirmed"
+note = "saved script position of interrupt 0x20"
+evidence = "game_task 09AB7230, 09AB7490, 09AB74D0"
+
+[[field]]
+struct = "Monster"
+offset = 0x4D4
+name = "script_position_request_10"
+type = "u32"
+confidence = "confirmed"
+note = "saved script position of interrupt 0x10"
+evidence = "game_task 09AB7230, 09AB7490, 09AB74D0"
+
+[[field]]
+struct = "Monster"
+offset = 0x4D8
+name = "script_position_point_block"
+type = "u32"
+confidence = "confirmed"
+note = "saved script position inside the point-table block (mask 1)"
+evidence = "game_task 09AB7490, 09AB74D0, 09ABD630"
+
+[[field]]
+struct = "Monster"
+offset = 0x4DC
+name = "script_position_request_08"
+type = "u32"
+confidence = "inferred"
+note = "entry taken for interrupt 0x8"
+evidence = "game_task 09AB7230"
+
+[[field]]
+struct = "Monster"
+offset = 0x4E0
+name = "script_position_request_02"
+type = "u32"
+confidence = "inferred"
+note = "entry taken for interrupt 0x2"
+evidence = "game_task 09AB7230"
+
+[[field]]
+struct = "Monster"
+offset = 0x4E4
+name = "script_position_request_04"
+type = "u32"
+confidence = "inferred"
+note = "entry taken for interrupt 0x4"
+evidence = "game_task 09AB7230"
+
+[[field]]
+struct = "Monster"
+offset = 0x4E8
+name = "script_return_level1"
+type = "u32"
+confidence = "confirmed"
+note = "where op 0x81 returns, at sub-code 1 of 0xFF"
+evidence = "game_task 09ABAAF8 saves it, game_task 09AB6788 returns it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4EC
+name = "script_return_table_24"
+type = "u32"
+confidence = "confirmed"
+note = "where op 0x16 returns, at sub-code 3 of 0xFF"
+evidence = "game_task 09ABD778 saves it, game_task 09AB6788 returns it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4F0
+name = "script_sequence_loop_start"
+type = "u32"
+confidence = "inferred"
+note = "where the id sequence loops back to"
+evidence = "game_task 09ABD818 saves it; game_task 09AB6788 sub-code 0xFB returns it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4F4
+name = "script_return_level2"
+type = "u32"
+confidence = "confirmed"
+note = "where op 0x82 returns, at sub-code 2 of 0xFF"
+evidence = "game_task 09ABAB38 saves it, game_task 09AB6788 returns it"
+
+[[field]]
+struct = "Monster"
+offset = 0x4F8
+name = "script_counted_loop_start"
+type = "u32"
+confidence = "confirmed"
+note = "start of the counted loop of op 0x24"
+evidence = "game_task 09ABF7C0"
+
+[[field]]
+struct = "Monster"
+offset = 0x4FC
+name = "script_return_link"
+type = "u32"
+confidence = "inferred"
+note = "where a link move returns, cleared on return"
+evidence = "game_task 09ABBD90 saves it; game_task 09AB6788 sub-codes 4 and 5 return and clear"
+
+[[field]]
+struct = "Monster"
+offset = 0x500
+name = "script_main_entry"
+type = "u16"
+confidence = "confirmed"
+note = "main table entry to run"
+evidence = "game_task 09AB7510 stores it; 09ABAB90 indexes the header's first table"
+
+[[field]]
+struct = "Monster"
+offset = 0x502
+name = "pickup_point_bone"
+type = "u8"
+confidence = "inferred"
+note = "bone the pickup point follows, 0 the object's place"
+evidence = "game_task 09AC94D8, 09AC9658"
+
+[[field]]
+struct = "Monster"
+offset = 0x503
+name = "hunters_tracked_mask"
+type = "u8"
+confidence = "inferred"
+note = "hunter bits kept for a timer after sight; the script's target pool"
+evidence = "game_task 09AC9C08 sets it from hunters_in_sight_mask and clears on timeout; ops 09ABA340, 09ABA440, 09ABA4B0"
+
+[[field]]
+struct = "Monster"
+offset = 0x504
+name = "target_param2"
+type = "u16"
+confidence = "inferred"
+note = "second parameter of the script's target: slot, point index or area"
+evidence = "game_task 09AB8E48 stores it, 09AB9170 uses it by kind"
+
+[[field]]
+struct = "Monster"
+offset = 0x506
+name = "target_kind"
+type = "u16"
+confidence = "confirmed"
+note = "how to find the script's target: 1 hunter slot, 3 area, 7 list point, 9 link point, 0xD object slot"
+evidence = "game_task 09AB8E48 stores it; 09AB9170 switches on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x508
+name = "target_param1"
+type = "u16"
+confidence = "inferred"
+note = "first parameter of the script's target: table or sub-kind"
+evidence = "game_task 09AB8E48 stores it, 09AB9170 uses it by kind"
+
+[[field]]
+struct = "Monster"
+offset = 0x50A
+name = "resolved_target_kind"
+type = "u16"
+confidence = "confirmed"
+note = "target_kind as last resolved"
+evidence = "game_task 09AB9170 copies at start and end; 09AD9960, 09ABA0C8 read"
+
+[[field]]
+struct = "Monster"
+offset = 0x50C
+name = "resolved_target_param1"
+type = "u16"
+confidence = "confirmed"
+note = "target_param1 as last resolved"
+evidence = "game_task 09AB9170"
+
+[[field]]
+struct = "Monster"
+offset = 0x50E
+name = "resolved_target_param2"
+type = "u16"
+confidence = "confirmed"
+note = "target_param2 as last resolved"
+evidence = "game_task 09AB9170"
+
+[[field]]
+struct = "Monster"
+offset = 0x510
+name = "pickup_point_index"
+type = "s8"
+confidence = "confirmed"
+note = "index of the pickup point this object made, -1 none"
+evidence = "game_task 09AC94D8 stores it; 09AC9708 removes and sets -1"
+
+[[field]]
+struct = "Monster"
+offset = 0x511
+name = "chosen_slot"
+type = "u8"
+confidence = "confirmed"
+note = "slot the script chose as target, 0xFF none"
+evidence = "game_task 09ABA440, 09ABA4B0, 09ABA858, 09AB8E48"
+
+[[field]]
+struct = "Monster"
+offset = 0x513
+name = "hunters_in_sight_mask"
+type = "u8"
+confidence = "inferred"
+note = "hunter bits passing range, height, angle and wall tests this tick"
+evidence = "game_task 09AC9CB8"
+
+[[field]]
+struct = "Monster"
+offset = 0x514
+name = "tracked_ticks_hunter0"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks hunter 0 stays in hunters_tracked_mask unseen"
+evidence = "game_task 09AC9C08 reloads from the type table while seen, counts down otherwise"
+
+[[field]]
+struct = "Monster"
+offset = 0x516
+name = "tracked_ticks_hunter1"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "as tracked_ticks_hunter0, hunter 1"
+evidence = "game_task 09AC9C08, stride 2"
+
+[[field]]
+struct = "Monster"
+offset = 0x518
+name = "tracked_ticks_hunter2"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "as tracked_ticks_hunter0, hunter 2"
+evidence = "game_task 09AC9C08, stride 2"
+
+[[field]]
+struct = "Monster"
+offset = 0x51A
+name = "tracked_ticks_hunter3"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "as tracked_ticks_hunter0, hunter 3"
+evidence = "game_task 09AC9C08, stride 2"
+
+[[field]]
+struct = "Monster"
+offset = 0x51C
+name = "script_level1_entry"
+type = "u16"
+confidence = "confirmed"
+note = "entry of the table at header +4 chosen by op 0x81"
+evidence = "game_task 09ABAAF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x51E
+name = "script_level2_entry"
+type = "u16"
+confidence = "confirmed"
+note = "entry chosen by op 0x82"
+evidence = "game_task 09ABAB38"
+
+[[field]]
+struct = "Monster"
+offset = 0x520
+name = "script_nest_level"
+type = "u8"
+confidence = "confirmed"
+note = "call depth: 0, 1 inside op 0x81, 2 inside op 0x82"
+evidence = "game_task 09ABAAF8, 09ABAB38, 09ABAB90, game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x521
+name = "held_status_code"
+type = "u8"
+confidence = "inferred"
+note = "which status holds the monster: 1, 2, 4, 5 for bits 0x1, 0x2, 0x8, 0x10; picks its hold timer"
+evidence = "game_task 09AC85F8 masks that bit out; game_task 09AC5C30 (tick) counts the matching timer; 09ACC580, 09ACC4A0 set"
+
+[[field]]
+struct = "Monster"
+offset = 0x522
+name = "status_mask"
+type = "u8"
+confidence = "inferred"
+note = "statuses in force: bits 0x1, 0x2, 0x4 (drain), 0x8, 0x10"
+evidence = "game_task 09ACC170, 09ACC1F8, 09ACC280, 09ACC330, 09ACC3B8 set; game_task 09AD2698 clears; 09AC85F8 reads"
+
+[[field]]
+struct = "Monster"
+offset = 0x523
+name = "script_requests_blocked"
+type = "u8"
+confidence = "inferred"
+note = "while set the tick raises no script interrupts; cleared when the script runs"
+evidence = "game_task 09AB4C68 clears; game_task 09AC5C30 (tick), 09ACCB18, 09AD3228 test; 09ACC4A0 sets"
+
+[[field]]
+struct = "Monster"
+offset = 0x524
+name = "status_02_trigger_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "times status bit 0x2 ended; each raises its threshold, capped"
+evidence = "game_task 09ACC658"
+
+[[field]]
+struct = "Monster"
+offset = 0x525
+name = "status_04_trigger_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "times the drain ended; each raises its threshold, capped 4 or 6"
+evidence = "game_task 09AD2698"
+
+[[field]]
+struct = "Monster"
+offset = 0x526
+name = "status_08_trigger_count"
+type = "u8"
+confidence = "guess"
+decimal = true
+note = "reset beside status_08_buildup; by analogy"
+evidence = "game_task 09AC6B60"
+
+[[field]]
+struct = "Monster"
+offset = 0x527
+name = "status_01_trigger_count"
+type = "u8"
+confidence = "guess"
+decimal = true
+note = "reset beside status_01_buildup; by analogy"
+evidence = "game_task 09AC6B60"
+
+[[field]]
+struct = "Monster"
+offset = 0x528
+name = "status_10_trigger_count"
+type = "u8"
+confidence = "guess"
+decimal = true
+note = "reset beside status_10_buildup; by analogy"
+evidence = "game_task 09AC6B60"
+
+[[field]]
+struct = "Monster"
+offset = 0x52B
+name = "meter_b_empty_latched"
+type = "u8"
+confidence = "inferred"
+note = "meter_b reached zero once; scripts can clear it"
+evidence = "game_task 09AD3470; game_task 09ABC858"
+
+[[field]]
+struct = "Monster"
+offset = 0x52C
+name = "meter_a_empty_latched"
+type = "u8"
+confidence = "inferred"
+note = "meter_a reached zero once"
+evidence = "game_task 09AD3558; game_task 09ABF108 clears"
+
+[[field]]
+struct = "Monster"
+offset = 0x52D
+name = "script_requests_off"
+type = "u8"
+confidence = "inferred"
+note = "set by a script op: suppresses the points and sight requests"
+evidence = "game_task 09ABF8C0 stores it; game_task 09AC5C30 (tick), 09AD3228 test"
+
+[[field]]
+struct = "Monster"
+offset = 0x52F
+name = "point_block_start_entry"
+type = "u8"
+confidence = "confirmed"
+note = "table 08 entry the point block repeats from"
+evidence = "game_task 09ABD630; game_task 09AB6788 sub-code 0xFF"
+
+[[field]]
+struct = "Monster"
+offset = 0x530
+name = "point_block_step_entry"
+type = "u8"
+confidence = "confirmed"
+note = "table 08 entry to go on with in the point block"
+evidence = "game_task 09ABD630; game_task 09AB6788 sub-code 0xFE"
+
+[[field]]
+struct = "Monster"
+offset = 0x531
+name = "point_block_order"
+type = "u8"
+confidence = "confirmed"
+note = "how the next point is chosen: 0 random other, 1 from a list, 2 next"
+evidence = "game_task 09ABD630; game_task 09AB6788 sub-code 0xFE; 09ABC9B8"
+
+[[field]]
+struct = "Monster"
+offset = 0x532
+name = "point_block_order_list"
+type = "u8"
+confidence = "inferred"
+note = "which list gives the order when point_block_order is 1"
+evidence = "game_task 09ABD630, 09ABC9B8"
+
+[[field]]
+struct = "Monster"
+offset = 0x533
+name = "point_block_visited"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "points reached so far"
+evidence = "game_task 09ABD630; game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x534
+name = "point_block_index"
+type = "s8"
+confidence = "confirmed"
+note = "current point index, -1 none; goes to target_param2"
+evidence = "game_task 09ABC9B8; game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x535
+name = "point_block_goal"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "points to visit before the block ends"
+evidence = "game_task 09ABD630; game_task 09AB6788 sub-code 0xFF"
+
+[[field]]
+struct = "Monster"
+offset = 0x536
+name = "point_block_point_count"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "points in the area's table"
+evidence = "game_task 09ABD630, 09ABC9B8"
+
+[[field]]
+struct = "Monster"
+offset = 0x537
+name = "script_table_24_entry"
+type = "u8"
+confidence = "confirmed"
+note = "entry chosen by op 0x16"
+evidence = "game_task 09ABD778"
+
+[[field]]
+struct = "Monster"
+offset = 0x538
+name = "id_sequence_list"
+type = "u8"
+confidence = "inferred"
+note = "list number of the id sequence"
+evidence = "game_task 09ABD7C0"
+
+[[field]]
+struct = "Monster"
+offset = 0x53A
+name = "id_sequence_length"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "length of the id sequence, -1 none"
+evidence = "game_task 09ABD7C0; game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x53B
+name = "id_sequence_position"
+type = "s8"
+confidence = "confirmed"
+note = "position in the id sequence"
+evidence = "game_task 09ABD7C0; game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x53C
+name = "id_sequence_loops"
+type = "u8"
+confidence = "confirmed"
+note = "at its end the sequence restarts rather than clears"
+evidence = "game_task 09ABD7C0; game_task 09AB6788 sub-code 0xFB"
+
+[[field]]
+struct = "Monster"
+offset = 0x53D
+name = "script_event_priority"
+type = "u8"
+confidence = "inferred"
+note = "priority of the raised script event, 0x40..0x80; lower requests are ignored"
+evidence = "game_task 09AD1070; 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x53E
+name = "previous_area"
+type = "u16"
+confidence = "inferred"
+note = "area left when moving through a link; 0xFFFF none; route avoids it"
+evidence = "game_task 09AB6788 stores +0x29A before changing it; 09AD00D0 skips it; op 09AC07C8 switches on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x540
+name = "route_final_area"
+type = "u16"
+confidence = "inferred"
+note = "destination of the route while route_next_area changes; 0xFFFF none"
+evidence = "game_task 09AD00D0 seeds it from route_next_area; 09AB9170 loads it to target_param1"
+
+[[field]]
+struct = "Monster"
+offset = 0x542
+name = "target_slot"
+type = "u8"
+confidence = "confirmed"
+note = "slot of the resolved target, 0xFF none; look target too"
+evidence = "game_task 09AB9170; 09AD52E0 looks at it"
+
+[[field]]
+struct = "Monster"
+offset = 0x543
+name = "alert_mode_copy"
+type = "u8"
+confidence = "inferred"
+note = "alert_mode copied at script branches; no reader seen at this level"
+evidence = "game_task 09AB7620, game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x544
+name = "script_event_active"
+type = "u8"
+confidence = "inferred"
+note = "1 when a script event is raised"
+evidence = "game_task 09AD1070 sets 1; op 09ABED10 tests; 09ABF108 clears"
+
+[[field]]
+struct = "Monster"
+offset = 0x545
+name = "script_event_code"
+type = "u8"
+confidence = "inferred"
+note = "code of the raised event, from a type table"
+evidence = "game_task 09AD1070; op 09ABEF68 switches on it"
+
+[[field]]
+struct = "Monster"
+offset = 0x546
+name = "request_low_health"
+type = "u8"
+confidence = "inferred"
+note = "asks for event priority 0x80: health under the type's ratio"
+evidence = "game_task 09AD36A8, 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x547
+name = "request_hunter_condition"
+type = "u8"
+confidence = "inferred"
+note = "asks for event priority 0x70: a hunter's +0x1138 nonzero"
+evidence = "game_task 09AC0018, 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x548
+name = "request_meter_a_empty"
+type = "u8"
+confidence = "inferred"
+note = "asks for event priority 0x60: meter_a at zero"
+evidence = "game_task 09AD3558, 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x549
+name = "request_meter_b_empty"
+type = "u8"
+confidence = "inferred"
+note = "asks for event priority 0x50: meter_b at zero"
+evidence = "game_task 09AD3470, 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x54A
+name = "request_lowest_priority"
+type = "u8"
+confidence = "inferred"
+note = "asks for event priority 0x40, only when not alert"
+evidence = "game_task 09AD0DF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x54B
+name = "script_counted_loop_count"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "iterations left of op 0x24's loop"
+evidence = "game_task 09ABF7C0, 09ABF8B0"
+
+[[field]]
+struct = "Monster"
+offset = 0x54C
+name = "nearby_point_group"
+type = "u8"
+confidence = "inferred"
+note = "byte +0x14 of the point found, 0xFF none; target_param1 of kind 7"
+evidence = "game_task 09AD21E8, 09ABFE90"
+
+[[field]]
+struct = "Monster"
+offset = 0x54D
+name = "nearby_point_id"
+type = "u8"
+confidence = "inferred"
+note = "byte +0x15 of the point found, 0xFF none; target_param2 of kind 7"
+evidence = "game_task 09AD21E8, 09ABFE90"
+
+[[field]]
+struct = "Monster"
+offset = 0x54E
+name = "area_table_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "countdown loaded for the area from a per-type table"
+evidence = "game_task 09AD0B38; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x550
+name = "alert_area_table_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "countdown running while alert, loaded for the area, plus a random offset"
+evidence = "game_task 09AD0C88, 09AD0C48; game_task 09AC5C30 (tick); op 09ABF9D0"
+
+[[field]]
+struct = "Monster"
+offset = 0x554
+name = "target_points_hunter0"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "hunter 0's points for choosing a target; 30000, 50000 are tiers"
+evidence = "game_task 09AD2EC0, 09AC9CB8 adds; 09ABA4B0 picks by tier"
+
+[[field]]
+struct = "Monster"
+offset = 0x558
+name = "target_points_hunter1"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as target_points_hunter0, hunter 1"
+evidence = "game_task 09ABA4B0, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x55C
+name = "target_points_hunter2"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as target_points_hunter0, hunter 2"
+evidence = "game_task 09ABA4B0, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x560
+name = "target_points_hunter3"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as target_points_hunter0, hunter 3"
+evidence = "game_task 09ABA4B0, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x566
+name = "status_10_threshold"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "buildup needed for status bit 0x10"
+evidence = "game_task 09ACC120, 09ACC3B8"
+
+[[field]]
+struct = "Monster"
+offset = 0x568
+name = "link_record_index"
+type = "u8"
+confidence = "confirmed"
+note = "which link record of the area"
+evidence = "game_task 09AB9170 kind 9, game_task 09AB6788 sub-codes 4/5, 09ABBD90"
+
+[[field]]
+struct = "Monster"
+offset = 0x569
+name = "link_point_index"
+type = "u8"
+confidence = "confirmed"
+note = "which point of the link record"
+evidence = "game_task 09AB9170 kind 9, game_task 09AB6788"
+
+[[field]]
+struct = "Monster"
+offset = 0x56A
+name = "link_retry_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "tries to reach a link point before going on, resets"
+evidence = "game_task 09AB6788: counts failed checks, past 9 goes to the first point or ends"
+
+[[field]]
+struct = "Monster"
+offset = 0x56B
+name = "link_script_entry"
+type = "u8"
+confidence = "inferred"
+note = "table 30 entry named by the link point"
+evidence = "game_task 09AB6788, 09ABBD90"
+
+[[field]]
+struct = "Monster"
+offset = 0x56C
+name = "boost_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left of the mode of flag 0x20 of +0x638"
+evidence = "game_task 09AD24D0 loads, 09AC5C30 counts, 09AD88E8 ends it"
+
+[[field]]
+struct = "Monster"
+offset = 0x56E
+name = "boost_meter"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "added to from damage by health band; full sets flag 0x400"
+evidence = "game_task 09AD38F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x570
+name = "boost_meter_full"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "value at which boost_meter is full, -1 if the type has none"
+evidence = "game_task 09AD5028, 09AD38F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x572
+name = "slot_scaling_mask"
+type = "u16"
+confidence = "inferred"
+note = "bits that let a slot's health be scaled by tables"
+evidence = "game_task 09AD3208 sets; 09AD3C88 tests"
+
+[[field]]
+struct = "Monster"
+offset = 0x576
+name = "rejoin_restart_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "ticks to a script restart request; set 2 when outside the game's area"
+evidence = "game_task 09AD3228, 09AD51E8; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x577
+name = "slots_zeroed_mask"
+type = "u8"
+confidence = "inferred"
+note = "damage slots that reached zero in this hit"
+evidence = "game_task 09AC7A08"
+
+[[field]]
+struct = "Monster"
+offset = 0x580
+name = "damage_slot0_health"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "slot 0's health, in stride 8 for 9 slots; 4000 at most, resets from the type table"
+evidence = "game_task 09AC7A08, 09AD3C88"
+
+[[field]]
+struct = "Monster"
+offset = 0x582
+name = "damage_slot0_break_count"
+type = "u8"
+confidence = "inferred"
+decimal = true
+note = "times slot 0 reached zero, 15 at most; slot stride 8"
+evidence = "game_task 09AC7A08; 09AD4A40 selects by it"
+
+[[field]]
+struct = "Monster"
+offset = 0x5C4
+name = "paired_monster"
+type = "ptr"
+confidence = "inferred"
+note = "another monster paired by type; scripts test its place and alert"
+evidence = "game_task 09ACD3B0; ops 09ABB548, 09ABC4D0, 09AC1E88"
+
+[[field]]
+struct = "Monster"
+offset = 0x5D0
+name = "move_target_place"
+type = "f32x3"
+confidence = "inferred"
+note = "resolved target point the move and turn functions use"
+evidence = "game_task 09AC22C0 resolves into it; 09AD9960 distance, 09AD9DD8 angle"
+
+[[field]]
+struct = "Monster"
+offset = 0x5E0
+name = "nearby_point_place"
+type = "f32x3"
+confidence = "inferred"
+note = "position of the point found near; target kind 8"
+evidence = "game_task 09AC77C8 copies it; 09AB9170 kind 8 reads"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F3
+name = "route_table_row"
+type = "u8"
+confidence = "inferred"
+note = "row of the area route tables; scripts switch on it"
+evidence = "game_task 09AD00D0's lookup by this and area; op 09AC1B20"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F4
+name = "sound_size_param"
+type = "s16"
+confidence = "inferred"
+note = "value from the size interpolation, passed to 3D sound play"
+evidence = "game_task 09AB2A58 sets from entity_interpolate_type_value_by_field_274; 09ACB4E0 passes it"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F6
+name = "sound_type_param"
+type = "u8"
+confidence = "inferred"
+note = "value looked up by type, first argument of 3D sound play"
+evidence = "game_task 09AB2A58 sets it; 09ACB4E0, 09ACBAC8 pass it"
+
+[[field]]
+struct = "Monster"
+offset = 0x5F8
+name = "look_yaw_target"
+type = "u16"
+confidence = "inferred"
+note = "yaw to look toward, relative to facing"
+evidence = "game_task 09AD53C8 computes it, 0 with tracking off"
+
+[[field]]
+struct = "Monster"
+offset = 0x5FA
+name = "look_yaw"
+type = "u16"
+confidence = "inferred"
+note = "current look yaw stepped toward the target"
+evidence = "game_task 09AD53C8"
+
+[[field]]
+struct = "Monster"
+offset = 0x5FC
+name = "look_yaw_share0"
+type = "u32"
+confidence = "inferred"
+note = "share 1/2 of look yaw, capped by type"
+evidence = "game_task 09AD5CF0"
+
+[[field]]
+struct = "Monster"
+offset = 0x600
+name = "look_yaw_share1"
+type = "u32"
+confidence = "inferred"
+note = "share 1/4 of look yaw"
+evidence = "game_task 09AD5CF0"
+
+[[field]]
+struct = "Monster"
+offset = 0x604
+name = "look_yaw_share2"
+type = "u32"
+confidence = "inferred"
+note = "share 1/8 of look yaw"
+evidence = "game_task 09AD5CF0"
+
+[[field]]
+struct = "Monster"
+offset = 0x608
+name = "look_yaw_share3"
+type = "u32"
+confidence = "inferred"
+note = "share 1/16 of look yaw"
+evidence = "game_task 09AD5CF0"
+
+[[field]]
+struct = "Monster"
+offset = 0x60C
+name = "look_turn_speed"
+type = "u16"
+confidence = "inferred"
+note = "step of the look yaw, adjusted by type limits"
+evidence = "game_task 09AD53C8"
+
+[[field]]
+struct = "Monster"
+offset = 0x60E
+name = "look_yaw_goal"
+type = "u16"
+confidence = "inferred"
+note = "working copy of the target during a turn"
+evidence = "game_task 09AD53C8"
+
+[[field]]
+struct = "Monster"
+offset = 0x610
+name = "look_state"
+type = "u8"
+confidence = "inferred"
+note = "state of the look turn: 0 off, 1..3 steps"
+evidence = "game_task 09AD53C8"
+
+[[field]]
+struct = "Monster"
+offset = 0x611
+name = "look_at_stored_point"
+type = "s8"
+confidence = "inferred"
+note = "look at the stored vector +0x620 rather than at target_slot"
+evidence = "game_task 09AD52E0"
+
+[[field]]
+struct = "Monster"
+offset = 0x630
+name = "timed_pickup_point_index"
+type = "s8"
+confidence = "inferred"
+note = "index of a point removed on a timer, -1 none"
+evidence = "game_task 09AD7850, 09AD7D88"
+
+[[field]]
+struct = "Monster"
+offset = 0x631
+name = "timed_pickup_point_count"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "count on that point, follows its +0x16"
+evidence = "game_task 09AD7850"
+
+[[field]]
+struct = "Monster"
+offset = 0x632
+name = "timed_pickup_point_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left of that point"
+evidence = "game_task 09AD7850"
+
+[[field]]
+struct = "Monster"
+offset = 0x634
+name = "part_mask_c_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "countdown; part records with mask 0xC answer while positive"
+evidence = "game_sub 09C45140; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x635
+name = "part_mask_3_ticks"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "countdown; part records with mask 0x3 answer while positive"
+evidence = "game_sub 09C45140; game_task 09AC5C30 (tick)"
+
+[[field]]
+struct = "Monster"
+offset = 0x637
+name = "moving_to_target"
+type = "u8"
+confidence = "inferred"
+note = "the move turns toward its target and ends on distance"
+evidence = "game_task 09AD9960, 09AD9B10"
+
+[[field]]
+struct = "Monster"
+offset = 0x638
+name = "monster_flags"
+type = "u32"
+confidence = "inferred"
+note = "bits: 0x1 swap motion table once, 0x10 script restart, 0x20 boost mode, 0x40 tested and cleared by script op 0x47, 0x80 place restored, 0x400 boost meter full, 0x800 floor taken in this area, 0x1000 area point in cone, 0x2000 slot 8 zero, 0x8000 until stage 2"
+evidence = "game_task 09ABAFF0, 09AC8B78, 09AD38F8, 09AD50C0, 09AC7A08 read and set them"
+
+[[field]]
+struct = "Monster"
+offset = 0x63C
+name = "next_motion_blend"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "blend length left for the next motion, from the motion table entry's +7"
+evidence = "game_task 09AC5328"
+
+[[field]]
+struct = "Monster"
+offset = 0x640
+name = "motion_table_b"
+type = "ptr"
+confidence = "confirmed"
+note = "8-byte-per-entry motion table"
+evidence = "game_task 09AC56E0, 09AC5328"
+
+[[field]]
+struct = "Monster"
+offset = 0x644
+name = "sight_params"
+type = "ptr"
+confidence = "inferred"
+note = "record of the type: max and min range, heights, half angle, range for +0x6D8"
+evidence = "game_task 09AC7478; 09AC9CB8, 09ACCBF8 read"
+
+[[field]]
+struct = "Monster"
+offset = 0x648
+name = "script_distance_band0"
+type = "f32"
+confidence = "inferred"
+note = "limit of the distance switch's first case, from the type block"
+evidence = "game_task 09AC74B0; op 09ABA8F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x64C
+name = "script_distance_band1"
+type = "f32"
+confidence = "inferred"
+note = "second case"
+evidence = "game_task 09AC74B0, 09ABA8F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x650
+name = "script_distance_band2"
+type = "f32"
+confidence = "inferred"
+note = "third case"
+evidence = "game_task 09AC74B0, 09ABA8F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x654
+name = "script_distance_band3"
+type = "f32"
+confidence = "inferred"
+note = "fourth case"
+evidence = "game_task 09AC74B0, 09ABA8F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x678
+name = "points_range_band0"
+type = "f32"
+confidence = "inferred"
+note = "first range band for approach points"
+evidence = "game_task 09AC74B0, 09ACCBF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x67C
+name = "points_range_band1"
+type = "f32"
+confidence = "inferred"
+note = "second range band"
+evidence = "game_task 09AC74B0, 09ACCBF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x680
+name = "points_range_band2"
+type = "f32"
+confidence = "inferred"
+note = "third range band"
+evidence = "game_task 09AC74B0, 09ACCBF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x684
+name = "points_range_band3"
+type = "f32"
+confidence = "inferred"
+note = "fourth range band"
+evidence = "game_task 09AC74B0, 09ACCBF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x688
+name = "approach_points_hunter0"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "hunter 0's points by range; past a threshold raises script request 0x10"
+evidence = "game_task 09ACD0F8, 09ACCB18"
+
+[[field]]
+struct = "Monster"
+offset = 0x68C
+name = "approach_points_hunter1"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as approach_points_hunter0, hunter 1"
+evidence = "game_task 09ACCB18, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x690
+name = "approach_points_hunter2"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as approach_points_hunter0, hunter 2"
+evidence = "game_task 09ACCB18, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x694
+name = "approach_points_hunter3"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "as approach_points_hunter0, hunter 3"
+evidence = "game_task 09ACCB18, stride 4"
+
+[[field]]
+struct = "Monster"
+offset = 0x6D8
+name = "hunters_in_range_mask"
+type = "u8"
+confidence = "inferred"
+note = "hunter bits within sight_params' range"
+evidence = "game_task 09ACCBF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x6D9
+name = "hunters_over_points_mask"
+type = "u8"
+confidence = "inferred"
+note = "hunter bits whose approach points passed the threshold"
+evidence = "game_task 09ACCB18; op 09AC2DE8 targets one"
+
+[[field]]
+struct = "Monster"
+offset = 0x6DA
+name = "points_threshold_row"
+type = "u8"
+confidence = "inferred"
+note = "row of the threshold table, 1 at reset"
+evidence = "game_task 09ACCB18, 09ACD0F8"
+
+[[field]]
+struct = "Monster"
+offset = 0x6DC
+name = "owner_slot"
+type = "u8"
+confidence = "inferred"
+note = "hunter slot that owns this monster; +0x6DB says the local one does"
+evidence = "game_task 09AC6FF8"
+
+[[field]]
+struct = "Monster"
+offset = 0x6DD
+name = "slots_zeroed_total_mask"
+type = "u8"
+confidence = "inferred"
+note = "slots that reached zero, in mode 1"
+evidence = "game_task 09AC7A08; 09ACE978 clears"
+
+[[field]]
+struct = "Monster"
+offset = 0x6DE
+name = "script_restart_sync_kind"
+type = "u8"
+confidence = "guess"
+note = "1 or 2, 1 wins; cleared when a sync message restarts the script"
+evidence = "game_task 09AC9BC8, 09ABAFF0, 09ACD6B0"
+
+[[field]]
+struct = "Monster"
+offset = 0x769
+name = "motion_speed_bonus_percent"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "percent added to motion_speed_scale; cleared when state set"
+evidence = "game_task 09AC5C30, 09AC88E8, 09AD9EE0"
+
+[[field]]
+struct = "Monster"
+offset = 0x76A
+name = "turn_target_yaw"
+type = "u16"
+confidence = "confirmed"
+note = "yaw the turn motion goes to"
+evidence = "game_task 09AD9DD8, 09AD9EE0"
+
+[[field]]
+struct = "Monster"
+offset = 0x76C
+name = "move_distance_left"
+type = "f32"
+confidence = "confirmed"
+decimal = true
+note = "distance left of the move"
+evidence = "game_task 09AD9960, 09AD9B10"
+
+[[field]]
+struct = "Monster"
+offset = 0x778
+name = "script_delay_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "ticks before the requested script run"
+evidence = "game_task 09AD8378; op 09AC1270 sets"
+
+[[field]]
+struct = "Monster"
+offset = 0x77C
+name = "status_02_hold_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left held by status bit 0x2; 5400 at entry"
+evidence = "game_task 09ACC4A0, 09AC5C30"
+
+[[field]]
+struct = "Monster"
+offset = 0x77E
+name = "status_01_hold_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left held by status bit 0x1; 5400 at entry"
+evidence = "game_task 09ACC580, 09AC5C30"
+
+[[field]]
+struct = "Monster"
+offset = 0x780
+name = "status_08_hold_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left held by status bit 0x8"
+evidence = "game_task 09AC5C30, 09ACC8B8"
+
+[[field]]
+struct = "Monster"
+offset = 0x782
+name = "status_10_hold_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left held by status bit 0x10"
+evidence = "game_task 09AC5C30, 09ACCA30"
+
