@@ -30,6 +30,15 @@ run of the 21 scenarios takes about 40 minutes at -j 4.
 - **state** - a save state saved and loaded at 60 (`MHFU_STATE_TEST=A,B`, default the end's last 400 to 100 frames):
   every frame after the load as before (savestate.c; the test prints the first words that differ).
 
+The suite runs on the software renderer. Game RAM differs between the renderers (on `quest.rec`, from between frames
+1100 and 1200), so compare runs within one renderer, and test save states on Vulkan, which is what is played: with
+`MHFU_HEADLESS=1`, leaving out `MHFU_RENDERER=soft`, it runs without a window, the same every time.
+
+Save states across builds (by hand, not in the suite yet): a second binary from a worktree with something unrelated
+changed (`-O1`, `-pie`, a `SAVED` variable added and another's `SAVED` taken off). One run with the first,
+`MHFU_STATE_SAVE=F,1 MHFU_RAM_HASH=1`; another with the second, the same recording and `MHFU_TICK_HZ`, `MHFU_STATEDIR` the
+first's, `MHFU_STATE_LOAD=30,1 MHFU_RAM_HASH=1`. Every frame's hash after F should be the same in both.
+
 What is after a replay's end (the game playing on alone until the run is stopped) is left out of all of them.
 
 ## Coverage

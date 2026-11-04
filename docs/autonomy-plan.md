@@ -24,8 +24,7 @@ of the session that built `tools/suite.py`; branch `native-fps` at `d7d7fcd`.
 - Replays take `poke` lines (game memory written at a frame; `hunter+<off>` for the hunter) - also recorded when
   the runtime writes memory for an input (`present_poke_hunter`, the item bar's chord).
 - Save states (`runtime/src/savestate.c`, F2/F4, `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` dumps
-  RAM) load only in the exact build that made them (a hash of the executable): the main obstacle to a reusable
-  library of situations. A state saved at 60 and loaded at 30 runs at half speed - compare rates with replays.
+  RAM) load in later builds on `auto/portable-states` (Phase 1). A state saved at 60 and loaded at 30 runs at half speed - compare rates with replays.
 - `tools/watch.py ADDR --frame N -- ENV...` (gdb watchpoint: who writes a PSP address, with the game call chain)
   works with a state load in the environment: the fastest way to find the code behind a field.
 - Quest swap: `poke 1355-1366 9B19F9C h N` on `quest.rec` loads quest N (monster quests 1, 2, 5, 8, 9);
@@ -41,7 +40,7 @@ of the session that built `tools/suite.py`; branch `native-fps` at `d7d7fcd`.
 
 The highest-leverage piece: with it the user records a library of situations once, and every later build uses it.
 
-Proposed design, awaiting the user's OK (2026-11-04). The obstacle is the threads' host stacks, whose return addresses
+Built on `auto/portable-states` (the user's OK 2026-11-04; `docs/runtime.md` describes it). The obstacle is the threads' host stacks, whose return addresses
 point into the executable, so names alone cannot make a state portable. A waiting thread is instead kept as its `Ctx`,
 its wait record and its post-wait step, and resumed by PSP return address: `recomp.py` labels each call's return point
 and adds an entry check to each generated function, and on load a loop enters the function holding `pc` and continues
@@ -58,9 +57,13 @@ Agreed with the readable-code session (branch `auto/readable-code`, also from `d
 - Hand code keeps no state of its own outside game memory unless it is `SAVED`.
 - `savestate.c`, `thread.c` and the resume runtime are this phase's; the shape of hand code is the readable session's;
   changes to what `recomp.py` emits are agreed first.
-- Open: that session reports game RAM differing between the soft and Vulkan renderers from around frames 900-1200,
-  cause unknown (not yet checked here). States recorded in Vulkan may then not run the same headless on soft.
-  Compare runs within one renderer until this is understood.
+- Open: game RAM differs between the soft and Vulkan renderers (on `quest.rec`, from between frames 1100 and 1200;
+  Vulkan is the same as itself over 6500 frames), cause unknown. Phase 1 is tested on Vulkan, the renderer played.
+  Should the suite move to it?
+
+Status: done - new format, old one removed; the same as the old build with no state (6500 frames on Vulkan at 30); four
+states loaded across builds, no frame differing in about 41,000 (Vulkan, 60). To do: the speed cost (not measured: the
+machine was busy), `MHFU_STATE_TEST` again since the audio fix, the suite, a cross-build check in `tools/suite.py`.
 
 1. Split what a state holds into the game's side and the runtime's side. Audit every `SAVED` variable
    (`grep -rn SAVED runtime/src`) and the registered spans (`savestate.c`): the game's RAM, the HLE kernel's state
@@ -72,7 +75,7 @@ Agreed with the readable-code session (branch `auto/readable-code`, also from `d
    executable's hash. After a load, reset the runtime's caches as a fresh boot would.
 3. Verify hard: `MHFU_STATE_TEST` round trips, and a cross-build test - save with one build, change unrelated code,
    rebuild, load, compare RAM and the hunter's trace frame by frame against the original build continuing.
-4. Keep the old fast path if useful (same build), but make the portable one the default for F2.
+4. The old fast path was removed at the user's choice: one format, so that every F2 and F4 tests it.
 
 ## Phase 2 - crash and hang capture
 
