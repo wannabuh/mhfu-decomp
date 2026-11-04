@@ -2259,7 +2259,13 @@ static int *match(int in_world) {
         loose_near = realloc(loose_near, (size_t)ncap);
     }
     memset(loose_near, 0, (size_t)latest->n);
-    match_loose(m, taken, 1, in_world);
+    /* the 2D (the HUD, menus, text) is the latest frame's as it is: a menu's text changing matched glyph to glyph
+     * nearby, blended from one to another, jittered (MHFU_BLEND_2D=1: matched and blended, as before) */
+    static int blend_2d = -1;
+    if (blend_2d < 0)
+        blend_2d = getenv("MHFU_BLEND_2D") && atoi(getenv("MHFU_BLEND_2D")) != 0;
+    if (blend_2d)
+        match_loose(m, taken, 1, in_world);
     match_loose(m, taken, 0, in_world);
     /* the frame's camera: as most of its draws say; a draw says otherwise only on clear evidence of its own (its move
      * with one camera a tenth of that with the other, and over 5 units) */
@@ -2827,7 +2833,134 @@ void gpu_state_loaded(void) {
  * state they set as they set it, the primitives drawn from the copies. What moves the list on (jumps, calls, BASE), or
  * reads memory then (CLUT loads, transfers), is left out. */
 
+/* -- the HUD smoothed between 30ths (the native frame rate) --------------------------------------------------------
+ *
+ * The HUD and menus are drawn by gated code: at a 30th, and the same again on the frames between. What moves in them
+ * (the gauges, the map turning with the camera, the item bar's slide) is drawn between its places at the last two
+ * 30ths by how far the frame is into the 30th - one 30th behind, as the world is (above). A 2D draw is matched to the
+ * 30th before's strictly: the same kind, the same picture (texture coordinates), none of its sides moved over HUD_MOVE
+ * pixels - and over HUD_NEAR only the next in the order drawn: text that changes is not matched letter to the same
+ * letter elsewhere (a dialogue's next page), and is drawn as it is. Its positions and
+ * colours are blended into a scratch area it is drawn (and recorded, MHFU_FPS) from. MHFU_HUD_SMOOTH=0: not smoothed. */
+#define HUD_MOVE 24.0f
+#define HUD_NEAR 4.0f               /* (moved further, a draw is matched only to the next in order) */
+#define SCRATCH_HUD 0x087C0000u     /* (to 0x08800000) */
+static Frame held_prev;             /* the 2D and the rest gated code drew at the 30th before */
+static Shape *hud_prev_shape;       /* its draws' shapes (ok -1: not 2D) */
+static uint8_t *hud_taken;
+static int hud_prev_cap, *hud_match, hud_match_cap, hud_cursor;
+static int held_index = -1;         /* (the kept draw gpu_held_draw is drawing again) */
+
+static int hud_on(void) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_HUD_SMOOTH") || atoi(getenv("MHFU_HUD_SMOOTH")) != 0;
+    return on && gpu_native_smoothing();
+}
+
+/* The 30th's kept draw i (2D, its run closed): its match in the 30th before, or -1 */
+static int hud_find(int i) {
+    if (i >= hud_match_cap) {
+        hud_match_cap = (i + 1) * 2;
+        hud_match = realloc(hud_match, sizeof *hud_match * (size_t)hud_match_cap);
+    }
+    hud_match[i] = -1;
+    const Draw *d = &held.draws[i];
+    Shape a = shape(&held, d);
+    if (!a.ok)
+        return -1;
+    int lo = hud_cursor - 8 > 0 ? hud_cursor - 8 : 0, hi = hud_cursor + 32 < held_prev.n ? hud_cursor + 32 : held_prev.n;
+    int best = -1, next = hud_cursor;
+    while (next < held_prev.n && (hud_taken[next] || hud_prev_shape[next].ok != 1))
+        next++;
+    float best_m = HUD_MOVE + 1;
+    for (int j = lo; j < hi; j++) {
+        const Draw *e = &held_prev.draws[j];
+        const Shape *b = &hud_prev_shape[j];
+        if (hud_taken[j] || b->ok != 1 || b->uvs != a.uvs || !same_kind(d, e))
+            continue;
+        float m = 0;
+        for (int k = 0; k < 4; k++)
+            m = fmaxf(m, fabsf(a.box[k] - b->box[k]));
+        if (m > HUD_NEAR && j != next)
+            continue;               /* (moved far: only as the next in order - a window sliding in, its letters in turn) */
+        if (m < best_m) {
+            best_m = m;
+            best = j;
+        }
+    }
+    if (best_m > HUD_MOVE)
+        return -1;
+    hud_taken[best] = 1;
+    hud_cursor = best + 1;
+    return hud_match[i] = best;
+}
+
+/* A 2D draw's vertices (count, at src) blended from its match's (j, the 30th before) by t, into SCRATCH_HUD */
+static void hud_blend(int j, uint32_t src, int count, const Layout *l, float t) {
+    const Draw *e = &held_prev.draws[j];
+    const Run *r = &held_prev.runs[e->run];
+    const uint8_t *from = held_prev.bytes + r->copy - r->lo;
+    uint32_t vt = reg[0x12];
+    int pos = (vt >> 7) & 3, col = (vt >> 2) & 7;
+    memcpy(PTR(SCRATCH_HUD), PTR(src), (size_t)(count * l->size));
+    for (int i = 0; i < count; i++) {
+        uint8_t *v = PTR(SCRATCH_HUD + (uint32_t)(i * l->size));
+        const uint8_t *q = from + i * l->size;
+        for (int k = 0; k < 3; k++) {
+            if (pos == 1) {
+                int8_t a = (int8_t)q[l->po + k], b = (int8_t)v[l->po + k];
+                v[l->po + k] = (uint8_t)(int8_t)lrintf(a + (b - a) * t);
+            } else if (pos == 2) {
+                int16_t a, b;
+                memcpy(&a, q + l->po + 2 * k, 2);
+                memcpy(&b, v + l->po + 2 * k, 2);
+                b = (int16_t)lrintf(a + (b - a) * t);
+                memcpy(v + l->po + 2 * k, &b, 2);
+            } else if (pos == 3) {
+                float a, b;
+                memcpy(&a, q + l->po + 4 * k, 4);
+                memcpy(&b, v + l->po + 4 * k, 4);
+                b = a + (b - a) * t;
+                memcpy(v + l->po + 4 * k, &b, 4);
+            }
+        }
+        if (col == 7) {
+            for (int k = 0; k < 4; k++)
+                v[l->co + k] = (uint8_t)lrintf(q[l->co + k] + (v[l->co + k] - q[l->co + k]) * t);
+        } else if (col >= 4) {          /* 565, 5551, 4444: each field */
+            static const int bits[3][4] = {{5, 6, 5, 0}, {5, 5, 5, 1}, {4, 4, 4, 4}};
+            uint16_t a, b, out = 0;
+            memcpy(&a, q + l->co, 2);
+            memcpy(&b, v + l->co, 2);
+            for (int k = 0, at = 0; k < 4; at += bits[col - 4][k], k++) {
+                int mask = (1 << bits[col - 4][k]) - 1, fa = (a >> at) & mask, fb = (b >> at) & mask;
+                out |= (uint16_t)(lrintf(fa + (fb - fa) * t) << at);
+            }
+            memcpy(v + l->co, &out, 2);
+        }
+    }
+}
+
 void gpu_held_clear(void) {
+    /* the 30th's kept draws become the 30th before's, their 2D's shapes noted */
+    close_run(&held);
+    Frame f = held_prev;
+    held_prev = held;
+    held = f;
+    if (held_prev.n > hud_prev_cap) {
+        hud_prev_cap = held_prev.n * 2;
+        hud_prev_shape = realloc(hud_prev_shape, sizeof *hud_prev_shape * (size_t)hud_prev_cap);
+        hud_taken = realloc(hud_taken, (size_t)hud_prev_cap);
+    }
+    for (int j = 0; j < held_prev.n; j++) {
+        const Draw *e = &held_prev.draws[j];
+        hud_prev_shape[j].ok = -1;
+        if (through_draw(e) && !e->ibytes)
+            hud_prev_shape[j] = shape(&held_prev, e);
+    }
+    memset(hud_taken, 0, (size_t)held_prev.n);
+    hud_cursor = 0;
     held.n = held.nruns = held.open = 0;
     held.used = 0;
     held_n = 0;
@@ -2872,7 +3005,9 @@ void gpu_held_draw(int chunk) {
         if (render_on)
             q_override(d->tex_slot, d->tex_w, d->tex_h);
         held_texture = d;
+        held_index = h->draw;
         prim(d->data);
+        held_index = -1;
         held_texture = NULL;
         if (render_on)
             q_override(0xFFFFFFFEu, 0, 0);
@@ -3481,6 +3616,63 @@ static void tl_group_draw(const TlGroup *g) {
     }
 }
 
+/* The game's sun flare (models of the map's drawn towards the sun: the Old Jungle's glare and rainbow ring, the
+ * Desert's glare), left out unless MHFU_SUN_FLARE=1: it stood in the middle of the picture wherever the sun was behind
+ * the trees or turned from, and moved about with the camera. Told by its textures (64 x 64): their data's hashes, as
+ * texture packs name them (the address they are at is the map's), or the glare's look - black, a glow in one corner
+ * (a quarter of it, drawn four times), the middle dim: unlike a fire's glow, bright in the middle. Each texture is
+ * looked at once, while it stays at its address */
+static const uint32_t flare_hashes[] = {0x16144919u, 0xBF92C2B0u, 0x48BCDF67u};
+static int glare_look(void) {
+    static uint32_t px[64 * 64];
+    gpu_decode_texture(px, 64, 64, reg);
+    float corner[5];
+    static const int at[5][2] = {{0, 0}, {60, 0}, {0, 60}, {60, 60}, {30, 30}};
+    for (int k = 0; k < 5; k++) {
+        float sum = 0;
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++) {
+                uint32_t c = px[(at[k][1] + y) * 64 + at[k][0] + x];
+                sum += (float)((c & 255) + ((c >> 8) & 255) + ((c >> 16) & 255)) / (3 * 255.0f);
+            }
+        corner[k] = sum / 16;
+    }
+    int bright = 0, dark = 0;
+    for (int k = 0; k < 4; k++)
+        bright += corner[k] > 0.8f, dark += corner[k] < 0.05f;
+    return bright == 1 && dark == 3 && corner[4] < 0.25f;
+}
+static int flare_texture(void) {
+    static int keep = -1;
+    if (keep < 0)
+        keep = getenv("MHFU_SUN_FLARE") && atoi(getenv("MHFU_SUN_FLARE")) != 0;
+    if (keep || !(reg[0x1E] & 1) || (reg[0xB8] & 0xF0F) != 0x606 || (reg[0x12] >> 23 & 1))
+        return 0;
+    uint32_t addr = (reg[0xA0] & 0xFFFFF0) | ((reg[0xA8] & 0x0F0000) << 8);
+    static struct { uint32_t addr, first[4]; int8_t flare; } seen[64];
+    static int nseen;
+    if (addr < 0x08800000u || addr >= 0x0A000000u)  /* (the game's memory: not VRAM) */
+        return 0;
+    int k;
+    for (k = 0; k < nseen; k++)
+        if (seen[k].addr == addr)
+            break;
+    if (k < nseen && !memcmp(seen[k].first, PTR(addr), 16))
+        return seen[k].flare;
+    if (k == nseen)
+        k = nseen < 64 ? nseen++ : (int)(addr >> 4 & 63);
+    uint64_t key;
+    uint32_t hash;
+    texpack_key(reg, 512, &key, &hash);
+    seen[k].addr = addr;
+    memcpy(seen[k].first, PTR(addr), 16);
+    seen[k].flare = (int8_t)glare_look();
+    for (size_t i = 0; i < sizeof flare_hashes / sizeof *flare_hashes; i++)
+        if (hash == flare_hashes[i])
+            seen[k].flare = 1;
+    return seen[k].flare;
+}
+
 /* The Snowy Mountains' haze drawn (patches.py: its mist dome's and its snowstorm's draws), unless MHFU_SNOW_HAZE=0 */
 int rt_snow_haze(void) {
     static int on = -1;
@@ -3489,9 +3681,50 @@ int rt_snow_haze(void) {
     return on;
 }
 
+static void prim_drawn(uint32_t data);
+
+/* A primitive: kept, if gated code draws it (for the frames between 30ths); the HUD's smoothed (above) */
 static void prim(uint32_t data) {
+    int count = data & 0xFFFF, j = -1;
+    uint32_t vt = reg[0x12];
+    if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
+        Layout l = layout();
+        record(&held, data, &l);
+        held_command(0x04000000u | data, 0, held.n - 1);
+        if ((vt >> 23 & 1) && !((vt >> 11) & 3) && hud_on()) {
+            close_run(&held);
+            j = hud_find(held.n - 1);
+        }
+    } else if (held_drawing && held_index >= 0 && held_index < hud_match_cap && (vt >> 23 & 1) && !((vt >> 11) & 3) &&
+               hud_on()) {
+        j = hud_match[held_index];
+    }
+    float t = (float)native_since30() * rt_frame_30ths();
+    Layout l = layout();
+    if (j < 0 || t >= 1 || count * l.size > 0x40000) {
+        prim_drawn(data);
+        return;
+    }
+    uint32_t v = vaddr;
+    hud_blend(j, v, count, &l, t);
+    vaddr = SCRATCH_HUD;
+    prim_drawn(data);
+    if (recording)
+        close_run(rec);             /* (its copy made now: the scratch area is used again) */
+    vaddr = v + (uint32_t)(count * l.size);
+}
+
+static void prim_drawn(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
+    if ((data & 0xFFFF) && flare_texture()) {      /* (left out: its vertices passed over) */
+        int n = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
+        if (idx)
+            iaddr += (uint32_t)(n * (idx == 1 ? 1 : 2));
+        else
+            vaddr += (uint32_t)(n * layout().size);
+        return;
+    }
     if (motion_log_on < 0) {
         motion_file = getenv("MHFU_MOTION_LOG") ? fopen(getenv("MHFU_MOTION_LOG"), "w") : NULL;
         motion_log_on = motion_file != NULL;
@@ -3502,10 +3735,6 @@ static void prim(uint32_t data) {
     Layout l = layout();
     if (texpack_active() && !in_replay && !held_drawing && count > 0)
         seen_v(count, &l);
-    if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
-        record(&held, data, &l);
-        held_command(0x04000000u | data, 0, held.n - 1);
-    }
     if (recording && count > 0) {
         /* (the native frame rate under MHFU_FPS: what ticks at 30 recorded smoothed, as it would be drawn) */
         int smooth = !in_replay && !(vt >> 23 & 1) && proj[11] != 0 && gpu_native_smoothing();

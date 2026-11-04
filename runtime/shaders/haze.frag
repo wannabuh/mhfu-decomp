@@ -30,7 +30,8 @@ vec3 hazed(vec3 c, ivec2 pix) {
     vec3 fog = vec3(float(bits & 255u), float((bits >> 8) & 255u), float((bits >> 16) & 255u)) / 255.0;
     vec3 air = mix(fog, vec3(luma(fog)) * vec3(0.92, 0.97, 1.08), 0.3);
     float towards = max(dot(dir, pc.sun.xyz), 0.0);
-    air += pc.sun_color.rgb * (pow(towards, 8.0) * 0.35 + pow(towards, 64.0) * 0.25);
+    // (a glow round the sun, narrow: wider, it washed out half the sky - and the sun the game draws is elsewhere in it)
+    air += pc.sun_color.rgb * (pow(towards, 48.0) * 0.12 + pow(towards, 512.0) * 0.15);
     return mix(c, min(air, vec3(1.0)), amount * 0.85);
 }
 

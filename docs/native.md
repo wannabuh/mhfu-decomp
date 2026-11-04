@@ -124,6 +124,13 @@ The rest is drawn as the game drew it. (A frame's display list is that game fram
 camera is the game's as it is drawn, and the 30th that frame's.) `MHFU_NATIVE_SMOOTH=0`: frames as the game draws
 them. `MHFU_FPS_STATS` gives the share of draws smoothed.
 
+The HUD and the menus (2D, drawn by gated code) are smoothed the same way (`gpu.c`, the HUD smoothed): each 2D draw
+matched to the 30th before's - the same kind and picture (texture coordinates), its sides moved 24 pixels at most, and
+over 4 only as the next in the order drawn (so that text that changes is not matched letter to the same letter
+elsewhere) - is drawn between its places by how far the frame is into the 30th, its colours too: the stamina and
+health gauges, the map's arrow, windows sliding in. What is not matched (other text) is drawn as it is.
+`MHFU_HUD_SMOOTH=0`: not smoothed.
+
 Where the game's camera moves only at 30ths (nothing converted: the village), it is shown between its places at the
 last two 30ths as what ticks at 30 is (gpu.c `native_camera_between`). When the game is well behind the wall clock (four frames, as it shows one) the next frame is not drawn - never two
 running, nothing kept from one frame to the next (a cadence that held on to drawing fewer locked at 48 or 72 frames a

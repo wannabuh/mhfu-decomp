@@ -1,5 +1,6 @@
 /* Water: the game's lakes and rivers are a texture scrolled over a flat surface, blended over what is under it. Those
- * draws are found (blended by their alpha, in the world, their texture's coordinates moving from frame to frame) and
+ * draws are found (blended by their alpha, in the world, their texture's coordinates moving from frame to frame, not
+ * the colour of sand) and
  * drawn as water instead (ge.frag): what is under it seen through it, bent by ripples and tinted by the water's colour
  * the deeper it is, what is above it reflected (found in the picture, screen space), the sky where nothing is, and the
  * sun glinting - as much reflected as the angle makes it (Fresnel). ge.frag also checks the surface faces up and is
@@ -93,6 +94,11 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
         offset_seen[slot][1] = v;
     }
     if (!moved_at[slot] || frame_no - moved_at[slot] > STILL_FRAMES)
+        return 0;
+    /* (sand flowing - the desert's sand sea, scrolled and blended as water is - told by its colour: red over green
+     * over blue, as sand and earth are; water is blue, green or grey) */
+    const float *c = tex_average[slot];
+    if (c[0] > c[2] * 1.25f && c[1] > c[2] * 1.05f)
         return 0;
     if (copied_frame != frame_no || copied != s->target) {
         flush();

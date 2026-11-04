@@ -28,7 +28,13 @@ for the rest, in the order it is needed to boot.
   texture scrolling, flat, facing up and below the eye - drawn as water: at the first one drawn into a picture its
   colour and depth are copied, and the water reads them - the picture under it bent by ripples (swells and drifting
   noise) and tinted by depth, the picture above reflected (marched through the depth, screen space; the sky where it
-  leaves the picture), Fresnel, the sun's glint. Interpolated frames move scrolled textures' offsets on too.
+  leaves the picture), Fresnel, the sun's glint. Interpolated frames move scrolled textures' offsets on too. Not
+  the desert's sand sea, scrolled and blended the same way: a texture the colour of sand (red over green over blue)
+  is not water (`render_water.c`).
+- **The sun flare** (`gpu.c` `flare_texture`): the Old Jungle's and the Desert's - a glare and a rainbow ring, models
+  of the map's - stood in the middle of the picture wherever the sun was behind trees or turned from, and moved about
+  with the camera. Left out: their draws told by their textures (64 x 64: the data's hashes, or the glare's look - black,
+  a glow in one corner, the middle dim). `MHFU_SUN_FLARE=1` keeps it.
 - **The Snowy Mountains' haze**: a dome of mist round the map (`game_sub 09CC0CE0`, an object's draw method, once a
   frame in the snowfields and the ice cave) and the snowstorm's sheets of fog (`game_sub 09C57E08`) - big flat
   triangles whose straight edges show as the camera turns. `MHFU_SNOW_HAZE=0` leaves both out (`patches.py` `SNOW`,
@@ -84,12 +90,13 @@ frame's matching primitive (same vertex and index addresses, format, type and co
 moment shown
 trailing the game by a frame (about 33 ms). A camera cut - the camera moving over 600 units or turning
 over 60 degrees in a frame - turns the interpolation off for that frame. In the village
-98-100% of primitives match and 144 fps holds. What the game writes the vertices of each frame - the 2D (the HUD, menus,
-text, fades, the loading screen) in the frame's display list, and its own grass in a ring of three buffers, a different
-place every frame - is matched by what it is instead (vertex format, primitive, count, texture) in the order drawn: the
-next of its kind if it shows the same picture nearby, else the nearest showing it, else the next of its kind nearby (64
-pixels in 2D, 150 units in the world). Matched, its vertices are blended too - positions and colours; what they show is
-the latest frame's. So the 2D moves with the rest, in step (it used to be drawn a frame ahead, at 30).
+98-100% of primitives match and 144 fps holds. What the game writes the vertices of each frame in a different place -
+its own grass in a ring of three buffers - is matched by what it is instead (vertex format, primitive, count, texture)
+in the order drawn: the next of its kind if it shows the same picture nearby, else the nearest showing it, else the
+next of its kind nearby (150 units). Matched, its vertices are blended too - positions and colours. The 2D (the HUD,
+menus, text, fades, the loading screen) is not interpolated: it is drawn as in the latest frame (matched so, a menu's
+text jittered as it changed - a letter blended into another nearby; `MHFU_BLEND_2D=1` as before). At the native frame
+rate what moves in it is smoothed between 30ths instead (`docs/native.md`).
 Running the game itself faster - the native frame rate - is in `docs/native.md` (`MHFU_TICK_HZ`, an experiment).
 The display's frames are drawn while the game waits (one host thread); when the game's clock falls behind the wall
 clock by more than a frame shown, frames are left out rather than the game slowed. Each primitive keeps only the span
