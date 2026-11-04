@@ -63,8 +63,11 @@ SAVED static uint32_t gate_site, gate_key;    /* the gate being run at a 30th (0
 SAVED static float real_scale = 1;        /* the frame's time scale and rt_tick30, whatever a gate has made them */
 SAVED static int real_tick30 = 1, real_ticks60 = 2;
 
+void gpu_hud_chunk(uint32_t start, uint32_t end);
+
 /* EBOOT 088596C8 (patched): a chunk of count words at start is linked into the frame's list, at the end of a layer */
 void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer) {
+    gpu_hud_chunk(start & 0x0FFFFFFFu, (start & 0x0FFFFFFFu) + 4 * count);      /* (if the HUD's part is drawn) */
     if (!gate_site || nchunks == MAX_CHUNKS)
         return;
     chunks[nchunks].site = gate_site;

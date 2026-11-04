@@ -29,6 +29,8 @@ enum {
 
 extern int rt_frame30;
 int window_in_menu(void);
+int gpu_hud_anchor(int part, float *ax, float *ay, float *scale);
+int gpu_hud_part(void);
 
 const float hint_palette[HINT_COLORS][4] = {
     {0.90f, 0.89f, 0.84f, 1}, {0.10f, 0.10f, 0.12f, 1}, {0.96f, 0.62f, 0.16f, 1}, {1, 1, 1, 1},
@@ -185,7 +187,12 @@ int rt_sprite(Ctx *c, uint32_t index, uint32_t x, uint32_t y, int w, int h) {
         pass = 1;
         nbuilding = 0;
     }
-    building[nbuilding++] = (Hint){(float)(int16_t)x, (float)(int16_t)y, (float)w, (float)h, button, from};
+    float hx = (float)(int16_t)x, hy = (float)(int16_t)y, hw = (float)w, hh = (float)h, ax, ay, k;
+    if (gpu_hud_anchor(gpu_hud_part(), &ax, &ay, &k)) {     /* (the HUD's part being drawn, made smaller: gpu.c) */
+        hx = ax + (hx - ax) * k, hy = ay + (hy - ay) * k;
+        hw *= k, hh *= k;
+    }
+    building[nbuilding++] = (Hint){hx, hy, hw, hh, button, from};
     return 1;
 }
 

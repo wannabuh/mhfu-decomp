@@ -1391,6 +1391,9 @@ static void prim(uint32_t data);
  * through the same vertex stage - its data copied back into a scratch area of PSP memory the game does not use (the
  * kernel's) - with its matrices interpolated between the two frames. */
 
+uint32_t gpu_cmd_at;                /* the command being run's address (ge.c) */
+static int draw_hud;                /* the HUD's part the draw being made is (hud_scaled): by its command, or recorded */
+
 typedef struct {
     uint32_t reg[256];
     float world[12], view[12], proj[16], bones[8][12];
@@ -1402,6 +1405,7 @@ typedef struct {
     uint32_t tex_slot;
     int tex_w, tex_h;
     int group;                      /* its group for the GPU's vertex stage (below), or -1 */
+    int hud;                        /* the HUD's part it is (draw_hud) */
 } Draw;
 
 /* Draws in a row the GPU's vertex stage can draw as one, replayed (MHFU_GPU_TL): the same state, matrices and texture -
@@ -1563,6 +1567,7 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
     }
     d->run = rec->nruns - 1;
     d->group = -1;
+    d->hud = draw_hud;
     d->tex_slot = 0xFFFFFFFFu;
     if (held_texture) {                 /* a kept draw drawn again: the texture it had (since written over, perhaps) */
         d->tex_slot = held_texture->tex_slot;
@@ -1873,6 +1878,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
     blend_t = t;
     q_override(d->tex_slot, d->tex_w, d->tex_h);
     replay_key = draw_key(d);
+    draw_hud = d->hud;
     prim(d->data);
     q_override(0xFFFFFFFEu, 0, 0);
     blend_from = NULL;
@@ -3006,6 +3012,7 @@ void gpu_held_draw(int chunk) {
             q_override(d->tex_slot, d->tex_w, d->tex_h);
         held_texture = d;
         held_index = h->draw;
+        draw_hud = d->hud;
         prim(d->data);
         held_index = -1;
         held_texture = NULL;
@@ -3683,10 +3690,110 @@ int rt_snow_haze(void) {
 
 static void prim_drawn(uint32_t data);
 
+/* The HUD smaller in the hunt (MHFU_HUD_SCALE, e.g. 0.75; 1: as the game draws it): its parts - the gauges (the clock,
+ * health, stamina, sharpness, the name), the map, the item bar - each scaled towards its corner of the screen (top left,
+ * top right, bottom right), whole, its text with it. A part is told by what is drawing (patches.py HUD: rt_hud_part):
+ * the chunks linked while it is (2D draws: their commands' addresses), and the texts it queues (drawn later, by the
+ * text's own code: their entries). The menus' windows, the supply box and other windows drawn among them are no part */
+#define HUD_CHUNKS 1024
+static struct { uint32_t start, end; unsigned long frame; int part; } hud_chunks[HUD_CHUNKS];
+static int hud_chunk_next, hud_part;
+#define HUD_TEXTS 256
+static struct { uint32_t entry; unsigned long frame; int part; } hud_texts[HUD_TEXTS];
+static int hud_text_next;
+static unsigned long gauges_frame;  /* (the last frame the gauges were drawn) */
+void rt_hud_part(int part) {
+    hud_part = part;
+    if (part == 1)
+        gauges_frame = present_frame_number();
+}
+int gpu_hud_part(void) { return hud_part; }
+void rt_hud_text_queued(uint32_t entry) {
+    hud_texts[hud_text_next].entry = entry;
+    hud_texts[hud_text_next].frame = present_frame_number();
+    hud_texts[hud_text_next].part = hud_part;
+    hud_text_next = (hud_text_next + 1) % HUD_TEXTS;
+}
+void rt_hud_text_drawn(uint32_t entry) {
+    unsigned long now = present_frame_number();
+    hud_part = 0;
+    for (int i = 0, k = hud_text_next; i < HUD_TEXTS; i++) {   /* (the latest entry there, queued this frame: the
+                                                                   * text's code draws them in the same pass) */
+        k = (k + HUD_TEXTS - 1) % HUD_TEXTS;
+        if (hud_texts[k].frame != now)
+            break;
+        if (hud_texts[k].entry == entry) {
+            hud_part = hud_texts[k].part;
+            return;
+        }
+    }
+    /* a text kept from before (the hunter's name, given once): the gauges' if it is on their name plate, while they
+     * are drawn (its place: the entry's first two halfwords) */
+    int16_t x = (int16_t)LH(entry), y = (int16_t)LH(entry + 2);
+    if (gauges_frame + 3 >= now && x >= 0 && x < 110 && y >= 50 && y < 80)
+        hud_part = 1;
+}
+void gpu_hud_chunk(uint32_t start, uint32_t end) {
+    if (!hud_part)
+        return;
+    hud_chunks[hud_chunk_next].start = start;
+    hud_chunks[hud_chunk_next].end = end;
+    hud_chunks[hud_chunk_next].frame = present_frame_number();
+    hud_chunks[hud_chunk_next].part = hud_part;
+    hud_chunk_next = (hud_chunk_next + 1) % HUD_CHUNKS;
+}
+/* The HUD's part a command (its address) is in: a chunk it linked the frame before - the list the GE runs is the one
+ * made then (they are double-buffered: one two frames old is in the same buffer, other draws where its were - matched,
+ * they were scaled into a corner, flashing); 0 none */
+static int hud_command(uint32_t at) {
+    at &= 0x0FFFFFFFu;
+    unsigned long now = present_frame_number();
+    for (int i = 0, k = hud_chunk_next; i < HUD_CHUNKS; i++) {
+        k = (k + HUD_CHUNKS - 1) % HUD_CHUNKS;
+        if (hud_chunks[k].frame + 1 < now || hud_chunks[k].end == 0)
+            break;
+        if (hud_chunks[k].frame + 1 == now && at >= hud_chunks[k].start && at < hud_chunks[k].end)
+            return hud_chunks[k].part;
+    }
+    return 0;
+}
+extern uint32_t rt_local_player;
+static float hud_scale_value(void) {
+    static float s = -1;
+    if (s < 0) {
+        s = getenv("MHFU_HUD_SCALE") ? (float)atof(getenv("MHFU_HUD_SCALE")) : 1.0f;
+        if (!(s >= 0.3f && s <= 1.5f))
+            s = 1.0f;
+    }
+    return s;
+}
+
+/* A part's corner (ax, ay, PSP pixels) and the scale: 0 if it is not scaled */
+int gpu_hud_anchor(int part, float *ax, float *ay, float *scale) {
+    *scale = hud_scale_value();
+    if (*scale == 1.0f || part < 1 || part > 3)
+        return 0;
+    *ax = part == 1 ? 0 : 480;
+    *ay = part == 3 ? 272 : 0;
+    return 1;
+}
+
+static void hud_scaled(ClipVertex *v, int n) {
+    float ax, ay, k;
+    if (n <= 0 || !gpu_hud_anchor(draw_hud, &ax, &ay, &k))
+        return;
+    for (int i = 0; i < n; i++) {
+        v[i].cx = ax + (v[i].cx - ax) * k;
+        v[i].cy = ay + (v[i].cy - ay) * k;
+    }
+}
+
 /* A primitive: kept, if gated code draws it (for the frames between 30ths); the HUD's smoothed (above) */
 static void prim(uint32_t data) {
     int count = data & 0xFFFF, j = -1;
     uint32_t vt = reg[0x12];
+    if (!held_drawing && !in_replay)    /* (the HUD's part: by where its command is) */
+        draw_hud = (vt >> 23 & 1) && hud_scale_value() != 1.0f ? hud_command(gpu_cmd_at) : 0;
     if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
         Layout l = layout();
         record(&held, data, &l);
@@ -3843,6 +3950,8 @@ static void prim_drawn(uint32_t data) {
             vertex(vaddr, n, &l, &v[i], &through);
         }
         blend_reg = NULL;
+        if (through)
+            hud_scaled(v, count);
         if (ps_at)
             ps_note(type, blend, count, ps_at);
         if (render_on) {

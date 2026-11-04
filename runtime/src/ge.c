@@ -22,6 +22,7 @@ typedef struct {
 int native_chunk_at(uint32_t at);
 void gpu_held_chunk(int chunk);
 void gpu_held_draw(int chunk);
+extern uint32_t gpu_cmd_at;         /* the command being run's address (gpu.c: the HUD's draws told by it) */
 
 SAVED static GeList lists[MAX_LISTS];
 SAVED static uint32_t next_id = 0x35000000u;     /* as the PSP numbers them */
@@ -77,6 +78,7 @@ static void run_list_on(GeList *l) {
             return;
         uint32_t cmd = LW(l->pc), op = cmd >> 24, data = cmd & 0xFFFFFF;
         uint32_t at = l->pc;
+        gpu_cmd_at = at;
         l->pc += 4;
         /* drawn by gated code at a 30th (its draws kept for the frames between: native.c), or a chunk's in its place */
         int chunk = native_chunk_at(at);

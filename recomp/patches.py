@@ -137,6 +137,12 @@ BOX = "the supply box's slots drawn: their places and the cursor noted, for the 
 # An item taken from the supply box (EBOOT 08847B74): the box's input ignored for 30 frames after (the hunter's byte
 # +0x55E, counted down by 088476F4 at 30ths) - a second between items; 3 instead, enough not to take twice on one press
 BOX_WAIT = "the supply box's wait after an item is taken: a tenth of a second, not a second"
+# The hunt's HUD (EBOOT 0883F270, the hunt's tick's last call): its gauges (0883F9F8, called at 0883F84C), and in
+# 0883FAD4 the map (08842EE8, at 0883FD18) and the item bar (08845A34, at 0883FD20) - each told apart while it is drawn
+# (rt_hud_part: the chunks it links, the text it queues - EBOOT 08891474 and its kin add a text's entry, 0889377C
+# draws one; 08895220 adds a number, 08892A88 draws them in turn), to be made smaller towards its corner (gpu.c,
+# MHFU_HUD_SCALE); not the menus' windows nor the supply box drawn there too, nor other windows
+HUD = "the hunt's HUD's parts (gauges, map, item bar) told apart as they are drawn, to be scaled (gpu.c)"
 # The HUD's sprites (EBOOT 0882AF70: a1 x, a2 y, a3 width, t0 height, t1 the sprite; 0882A9DC: a1 x, a2 y, a3 the
 # sprite, at its own size - the item bar's buttons): the PSP's buttons among them left out where the renderer shows
 # the keys or gamepad buttons bound instead (glyphs.c)
@@ -311,6 +317,20 @@ PATCHES = {
     ("EBOOT", 0x08848094): ("addiu $a3, $zero, 0x1A", "rt_menu_grid(0xE6, 0x36, 28, 24, 0x1A, 0x1A, 8, 24, c->r[23] + 0x55Du, 0x16); "
                             "rt_menu_sound(c); c->r[7] = 0x1Au;", BOX),
     ("EBOOT", 0x08847B98): ("addiu $v0, $zero, 0x1E", "c->r[2] = 3u;", BOX_WAIT),
+    ("EBOOT", 0x0883F9F8): ("addiu $sp, $sp, -0x10", "rt_hud_part(c->r[31] == 0x0883F854u ? 1 : 0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),
+    ("EBOOT", 0x0883FAD4): ("addiu $sp, $sp, -0x10", "rt_hud_part(0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),
+    ("EBOOT", 0x08842EE8): ("addiu $sp, $sp, -0x10", "rt_hud_part(c->r[31] == 0x0883FD20u ? 2 : 0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),
+    ("EBOOT", 0x08845A34): ("addiu $sp, $sp, -0x20", "rt_hud_part(c->r[31] == 0x0883FD28u ? 3 : 0); c->r[29] = c->r[29] + 0xFFFFFFE0u;", HUD),
+    ("EBOOT", 0x0883FD28): ("addu $a0, $s0, $zero", "rt_hud_part(0); c->r[4] = c->r[16] + 0;", HUD),
+    ("EBOOT", 0x088914F8): ("sb $v0, 0x134($v1)", "SB((c->r[3] + 0x134u), c->r[2]); rt_hud_text_queued(c->r[7]);", HUD),
+    ("EBOOT", 0x08891644): ("sb $v0, 0x134($v1)", "SB((c->r[3] + 0x134u), c->r[2]); rt_hud_text_queued(c->r[7]);", HUD),
+    ("EBOOT", 0x08891784): ("sb $v0, 0x134($v1)", "SB((c->r[3] + 0x134u), c->r[2]); rt_hud_text_queued(c->r[7]);", HUD),
+    ("EBOOT", 0x088918D0): ("sb $v0, 0x134($v1)", "SB((c->r[3] + 0x134u), c->r[2]); rt_hud_text_queued(c->r[7]);", HUD),
+    ("EBOOT", 0x0889377C): ("addiu $sp, $sp, -0x20", "rt_hud_text_drawn(c->r[5]); c->r[29] = c->r[29] + 0xFFFFFFE0u;", HUD),
+    ("EBOOT", 0x08893888): ("lw $s0, 0x8($sp)", "rt_hud_part(0); c->r[16] = LW((c->r[29] + 0x8u));", HUD),
+    ("EBOOT", 0x08895274): ("sh $a1, 0x0($v1)", "SH((c->r[3] + 0x0u), c->r[5]); rt_hud_text_queued(c->r[3]);", HUD),
+    ("EBOOT", 0x08892CAC): ("lbu $a0, 0x6($s4)", "rt_hud_text_drawn(c->r[20]); c->r[4] = LBU((c->r[20] + 0x6u));", HUD),
+    ("EBOOT", 0x08892E50): ("lw $fp, 0x28($sp)", "rt_hud_part(0); c->r[30] = LW((c->r[29] + 0x28u));", HUD),
     ("EBOOT", 0x0882AF70): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[9], c->r[5], c->r[6], c->r[7], c->r[8])) return; "
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "

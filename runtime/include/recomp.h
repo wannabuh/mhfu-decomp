@@ -59,6 +59,9 @@ int rt_next_frame30(void);      /* the next game frame is one a 30th falls on */
 /* gated code (fn, or a call to addr; at: the call, or the function gated): as at 30 a second */
 void rt_gate(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);
 void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer);  /* a display list chunk linked */
+void rt_hud_part(int part);        /* the hunt's HUD's part being drawn: 1 gauges, 2 map, 3 item bar, 0 none (gpu.c) */
+void rt_hud_text_queued(uint32_t entry);  /* a text's entry added (noted with the part) */
+void rt_hud_text_drawn(uint32_t entry);   /* a text's entry being drawn (its part, as noted) */
 void rt_gate_before(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* on the frames before a 30th */
 void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* an object's tick (a0) */
 void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* converted, under a gate */

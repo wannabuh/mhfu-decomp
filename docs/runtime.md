@@ -31,6 +31,14 @@ for the rest, in the order it is needed to boot.
   leaves the picture), Fresnel, the sun's glint. Interpolated frames move scrolled textures' offsets on too. Not
   the desert's sand sea, scrolled and blended the same way: a texture the colour of sand (red over green over blue)
   is not water (`render_water.c`).
+- **The HUD smaller** (`gpu.c` `hud_scaled`, `MHFU_HUD_SCALE`): in the hunt, the HUD's parts - the gauges (clock, health,
+  stamina, sharpness, the name), the map, the item bar - each scaled whole towards its corner (top left, top right,
+  bottom right). A part is told by the code drawing it (`patches.py` `HUD`: `0883F9F8`, `08842EE8`, `08845A34` called
+  from the HUD, `0883F270`): the display list chunks linked while it draws (its 2D draws, by their commands' addresses;
+  kept with recorded draws for the frames between 30ths and interpolated ones), the texts and numbers it queues (drawn
+  later by the text's code: by their entries; the name, given once, by its place). The menus' windows, the supply box
+  and the windows drawn among them (the quest's details, an item obtained) are no part. The button hints (`glyphs.c`)
+  with their part.
 - **The sun flare** (`gpu.c` `flare_texture`): the Old Jungle's and the Desert's - a glare and a rainbow ring, models
   of the map's - stood in the middle of the picture wherever the sun was behind trees or turned from, and moved about
   with the camera. Left out: their draws told by their textures (64 x 64: the data's hashes, or the glare's look - black,
