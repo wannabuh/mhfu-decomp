@@ -85,6 +85,14 @@ COUNTED = {
     **{f"em{n:02d}": {0x414} for n in (1, 2, 7, 14, 15, 17, 20, 21, 33, 40, 54, 55, 58, 59, 75, 82, 83)},
 }
 
+# Functions rewritten by hand, readably (readable/*.c): (module, address) -> the C function to run instead. The generated
+# code stays behind it: MHFU_HAND=0 runs that, so one build can be checked against itself (docs/readable.md).
+HAND = {
+    ("game_task", 0x09A6A2D0): "hand_hunter_stamina_add",
+    ("game_task", 0x09A6A370): "hand_hunter_stamina_use",
+    ("game_task", 0x09A6A480): "hand_hunter_stamina_use_alternate_ticks",
+}
+
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to
 # +0x200 or +0x208 (x, z) - the step a displacement worked out for the frame (a speed along the facing: a Popo knocked
 # back, game_task 09B01A28, 10.9 units a game frame) or a velocity (+0x240). Each times the time scale: as at 30 for

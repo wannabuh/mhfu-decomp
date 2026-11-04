@@ -15,9 +15,15 @@ GENFLAGS := $(CFLAGS) -w
 RUNTIME_OPT ?=
 # A file linked in, for a build generated with RECOMP_TRACE_ALL=1 (tools/readable/README in docs/readable.md)
 TRACE_HOOK ?=
+# Coverage of the hand-written code, for what the replays really run of it (docs/readable.md)
+HAND_FLAGS ?=
+HAND_LDFLAGS ?=
 
 RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
+# Game code rewritten by hand, readably (recomp/patches.py HAND)
+HAND_SRC := $(wildcard readable/*.c)
+RUNTIME_OBJ += $(patsubst readable/%.c,build/hand/%.o,$(HAND_SRC))
 
 all: build/mhfu build/difftest
 
@@ -48,6 +54,14 @@ build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(RUNTIME_OPT) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
 
+# The game's structures, offsets checked at compile time: from tools/readable/types.toml and fields/
+build/gen/mhfu_types.h: tools/readable/gen_types.py tools/readable/types.toml $(wildcard tools/readable/fields/*.toml) build/gen/.stamp
+	$(PY) tools/readable/gen_types.py --header $@
+
+build/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) $(HAND_FLAGS) -Ireadable -Wall -Wextra -c $< -o $@
+
 build/game.a: build/gen/.stamp
 	@$(MAKE) --no-print-directory $(GEN_OBJ)
 	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
@@ -56,7 +70,7 @@ build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
 	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(TRACE_HOOK) $(LIBS) -o $@
 
 build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(TRACE_HOOK) $(LIBS) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $^ $(TRACE_HOOK) $(LIBS) -o $@
 
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm

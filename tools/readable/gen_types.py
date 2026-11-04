@@ -27,7 +27,24 @@ def field_decl(f):
     return f"{CTYPE['ptr' if t.startswith('ptr:') else t]} {f['name']};"
 
 
+def load_types():
+    with open(os.path.join(HERE, "types.toml"), "rb") as f:
+        types = tomllib.load(f)
+    named = {s["name"]: s for s in types.get("struct", [])}
+    for path in sorted(glob.glob(os.path.join(HERE, "fields", "*.toml"))):      # fields named by system
+        with open(path, "rb") as f:
+            for fd in tomllib.load(f).get("field", []):
+                have = named[fd["struct"]].setdefault("fields", [])
+                if any(x["offset"] == fd["offset"] for x in have):
+                    raise SystemExit(f"{path}: {fd['struct']} +0x{fd['offset']:X} named twice")
+                have.append(fd)
+    return types, named
+
+
 def main():
+    if sys.argv[1] == "--header":       # the build's: needs nothing from the view's work directory
+        write_header(sys.argv[2], load_types()[1])
+        return
     work = sys.argv[1]
     header = sys.argv[2] if len(sys.argv) > 2 else None
     owners = {}
@@ -51,16 +68,7 @@ def main():
             purpose = " ".join(e.get("purpose", "").split())
             name = e["name"] if counts[e["name"]] == 1 else f"{e['name']}_{a:08X}"
             f.write(f"{m}\t{a:x}\t{name}\t{e['confidence']}\t{purpose}\n")
-    with open(os.path.join(HERE, "types.toml"), "rb") as f:
-        types = tomllib.load(f)
-    named = {s["name"]: s for s in types.get("struct", [])}
-    for path in sorted(glob.glob(os.path.join(HERE, "fields", "*.toml"))):      # fields named by system
-        with open(path, "rb") as f:
-            for fd in tomllib.load(f).get("field", []):
-                have = named[fd["struct"]].setdefault("fields", [])
-                if any(x["offset"] == fd["offset"] for x in have):
-                    raise SystemExit(f"{path}: {fd['struct']} +0x{fd['offset']:X} named twice")
-                have.append(fd)
+    types, named = load_types()
     write_view_types(work, types)
     if header:
         write_header(header, named)
@@ -96,10 +104,7 @@ def write_header(path, named):
             note = fd.get("note")
             lines.append(f"    {field_decl(fd)}  /* +0x{fd['offset']:X} {fd.get('confidence', 'guess')}{': ' + note if note else ''} */")
             at = fd["offset"] + size_of(fd["type"])
-        span = s.get("span", SPAN)
-        if at > span:
-            raise SystemExit(f"{s['name']}: its fields go past its span")
-        lines.append(f"    uint8_t pad{pad}[0x{span - at:X}];")
+        lines.append(f"    uint8_t pad{pad}[0x{max(s.get('span', SPAN), at + 0x100) - at:X}];")
         lines.append(f"}} {s['name']};")
         for fd in fields:
             lines.append(f"_Static_assert(offsetof({s['name']}, {fd['name']}) == 0x{fd['offset']:X}, \"{fd['name']}\");")
@@ -163,10 +168,12 @@ def write_view_types(work, types):
                 for off, p in classes[a]["pointer_only"].items():
                     m = merged.setdefault(int(off, 16), {"access": [], "pointer": None, "deref": False})
                     m["pointer"] = m["pointer"] or p
-            span = max(SPAN, c["extent"] + 0x100)
+            s = next((named_by_vt[a] for a in chain if a in named_by_vt), None)
+            own = inherited(s, named) if s else []
+            span = max([SPAN, c["extent"] + 0x100, s.get("span", 0) if s else 0]
+                       + [fd["offset"] + size_of(fd["type"]) + 0x100 for fd in own])
             out.write(f"S\t{names[v]}\t{span:x}\n")
             placed = []     # (offset, end)
-            s = next((named_by_vt[a] for a in chain if a in named_by_vt), None)
             for fd in inherited(s, named) if s else []:
                 placed.append((fd["offset"], fd["offset"] + size_of(fd["type"])))
                 rows.append(f"F\t{names[v]}\t{fd['offset']:x}\t{fd['type']}\t{fd['name']}\n")

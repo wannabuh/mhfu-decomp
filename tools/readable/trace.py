@@ -68,7 +68,8 @@ def main():
                             want = re.findall(r"ram hash \d+ \w+", f.read())
                         n = min(len(want), len(hashes))
                         verdict = f", {n} hashes " + ("match" if n and want[:n] == hashes[:n] else "DIFFER")
-                size = os.path.getsize(os.path.join(args.out, name + ".trace"))
+                trace = os.path.join(args.out, name + ".trace")
+                size = os.path.getsize(trace) if os.path.exists(trace) else 0   # (a build without the trace hook has none)
                 print(f"{name}: {'done' if done else 'NOT DONE'} in {time.time() - t0:.0f}s, trace {size >> 10} KB{verdict}",
                       flush=True)
                 running.remove(r)

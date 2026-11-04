@@ -118,6 +118,7 @@ vtables = ["089CBD0C"]
 
 [[struct]]
 name = "TextSystem"
+span = 0x30000
 vtables = ["08A632C8"]
 
 [[struct]]
