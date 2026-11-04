@@ -126,7 +126,7 @@ static void randomise(Ctx *c, uint32_t hunter, uint32_t *a1, int *tick30) {
     GameState *g = (GameState *)MEM(LW(GAME_POINTER));
     *a1 = PICK(-1, -1, -2, -3, -4, -5, -7, -10, -300, -301, -32768, 0, 1, 2, 4, 300, 32767, 0x12345, -0x12345);
     *tick30 = rnd() % 4 != 0;
-    h->stamina = (int16_t)PICK(0, 1, 2, 5, 75, 76, 150, 299, 300, 301, 32767, -1, -32768);
+    h->stamina = (int16_t)PICK(0, 1, 2, 5, 75, 76, 77, 150, 150, 299, 300, 300, 301, 32767, -1, -32768);
     h->stamina_max = (int16_t)PICK(0, 50, 150, 300, 32767, -1);
     SH(hunter + 0x1E6, rnd() % 3 == 0 ? rnd() % 4 : g->local_hunter_slot);
     g->tick_30ths = (uint16_t)(rnd() % 8 == 0 ? rnd() : rnd() % 64);
@@ -191,9 +191,9 @@ int main(int argc, char **argv) {
             memcpy(start, c->mem + SNAP_START, SNAP_SIZE);
             uint32_t saved[9], after[2][9], v0[2];
             for (int n = 0; n < MAX_CALLS; n++) {
-                results[n] = PICK(0, 0, 1, 1, 2, 3, 3, 5, 5, 0x105, 0x100);     /* (a classifier's, a test's, a low byte's) */
+                results[n] = PICK(0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3, 5, 0x105, 0x100);   /* (a classifier's, a test's, a low byte's) */
                 fresults[n] = rnd();
-                stub_stamina[n] = (int16_t)PICK(0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0, -1, 1, 74, 75, 76);
+                stub_stamina[n] = (int16_t)PICK(0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0x7FFF, 0, 0, -1, 1, 76, 300);
                 stub_slot[n] = (uint8_t)PICK(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0, 1, 2);
             }
             ncalls[0] = ncalls[1] = 0;
