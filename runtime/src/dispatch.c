@@ -110,6 +110,46 @@ void rt_call(Ctx *c, uint32_t addr) {
     f(c);
 }
 
+uint32_t rt_resume_pc;
+
+/* The function holding a return point in the module resident there; 0 if it is the start of a function (a call that
+ * was a function's last instruction), which is then entered as usual */
+static RecompFunc find_return(const RecompModule *m, uint32_t addr) {
+    int lo = 0, hi = m->nreturns - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (m->returns[mid].addr == addr)
+            return m->returns[mid].func;
+        if (m->returns[mid].addr < addr)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return NULL;
+}
+
+/* A thread of a save state, its kernel call just over: the game's code goes on from the return address, and each
+ * function it returns from goes on at its own - without the host stack the calls would have made (every register is
+ * in c, and a function returns to r31) - until the thread's entry returns to `end`. */
+void rt_resume_run(Ctx *c, uint32_t end) {
+    for (;;) {
+        uint32_t pc = c->r[31] & ADDR_MASK;
+        if (pc == end)
+            return;
+        const RecompModule *m;
+        RecompFunc start = rt_lookup(pc, &m);
+        RecompFunc f = m ? find_return(m, pc) : NULL;
+        if (f) {
+            rt_resume_pc = pc;
+            f(c);
+        } else if (start) {
+            start(c);
+        } else {
+            rt_fatal(c, "a save state's thread: no return point at %08X in %s", pc, m ? m->name : "(no module resident)");
+        }
+    }
+}
+
 void rt_bad_jump(Ctx *c, uint32_t value, uint32_t at) {
     rt_fatal(c, "jump table at %08X: no case for %08X", at, value);
 }

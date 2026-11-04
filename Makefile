@@ -2,8 +2,6 @@
 # needs game/analysis/functions.json first (tools/funcs.py).
 PY      := tools/.venv/bin/python
 CC      := clang
-# (no stack protector, and the program at a fixed address: a save state holds the threads' host stacks - return
-# addresses, and no canary of another run's - so that the same build loads it in another run: runtime/src/savestate.c)
 CFLAGS  := -O2 -g -fno-stack-protector -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
 LDFLAGS := -no-pie
 LIBS    := -lm -lpng -lz -lSDL3 -lvulkan -lavcodec -lavutil

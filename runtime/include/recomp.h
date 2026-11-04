@@ -43,6 +43,12 @@ typedef void (*RecompFunc)(Ctx *c);
 void rt_call(Ctx *c, uint32_t addr);
 void hle_call(Ctx *c, uint32_t stub);
 
+/* Save states (savestate.h): set, the next function entered goes on from this return point, not from its start; and a
+ * count of the frames holding C state on any thread's host stack (gated code, callbacks, hand-written functions): no
+ * thread beneath one can be kept in a state, so a save waits until there are none. */
+extern uint32_t rt_resume_pc;
+extern int rt_no_resume;
+
 /* A jump table index with no case, a `break`, code nothing should reach. */
 void rt_bad_jump(Ctx *c, uint32_t value, uint32_t at);
 void rt_break(Ctx *c, uint32_t at);
@@ -138,6 +144,8 @@ typedef struct {
     uint32_t base;
     const RecompEntry *funcs;       /* sorted by address */
     int nfuncs;
+    const RecompEntry *returns;     /* where calls return to, and the function each is in: sorted by address */
+    int nreturns;
 } RecompModule;
 
 extern const RecompModule recomp_modules[];

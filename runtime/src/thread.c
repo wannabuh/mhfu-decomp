@@ -18,6 +18,8 @@
 enum { TS_RUNNING = 1, TS_READY = 2, TS_WAITING = 4, TS_SUSPEND = 8, TS_DORMANT = 16, TS_DEAD = 32 };
 enum { WAIT_NONE, WAIT_SLEEP, WAIT_DELAY, WAIT_SEMA, WAIT_EVENTFLAG, WAIT_THREADEND };
 
+enum { AFTER_WAIT = 1, AFTER_DELAY, AFTER_AUDIO };
+
 #define HOST_STACK_SIZE ST_STACK_SIZE
 #define THREAD_RETURN 0x08000000u      /* ra for a thread's entry: returning from it ends the thread */
 
@@ -33,6 +35,9 @@ typedef struct Thread {
     uint32_t wait_result;
     int wakeup_count;
     uint32_t exit_status;
+    int after;                         /* a save state's thread: what its kernel call has left to do after the wait */
+    int after_callbacks;               /* ... and if it runs its callbacks then */
+    uint64_t after_length;             /* ... and AFTER_AUDIO: the buffer's length */
     Ctx ctx;
     ucontext_t uc;
     void *host_stack;
@@ -342,6 +347,15 @@ static void reschedule(void) {
     swapcontext(&t->uc, &sched_uc);
 }
 
+/* A wait over: the timeout's time left written back, and its result */
+static uint32_t wait_over(Thread *t) {
+    if (t->wait_timeout_ptr) {
+        uint64_t now = time_us();
+        SW(t->wait_timeout_ptr, t->wait_until > now ? (uint32_t)(t->wait_until - now) : 0);
+    }
+    return t->wait_result;
+}
+
 /* Block the current thread; returns the wait's result (0, or an error such as a timeout) once woken. */
 static uint32_t wait_current(int type, uint32_t uid, uint32_t timeout_ptr) {
     Thread *t = current;
@@ -351,12 +365,9 @@ static uint32_t wait_current(int type, uint32_t uid, uint32_t timeout_ptr) {
     t->wait_result = 0;
     t->wait_timeout_ptr = timeout_ptr;
     t->wait_until = timeout_ptr ? time_us() + LW(timeout_ptr) : 0;
+    t->after = AFTER_WAIT;
     reschedule();
-    if (timeout_ptr) {
-        uint64_t now = time_us();
-        SW(timeout_ptr, t->wait_until > now ? (uint32_t)(t->wait_until - now) : 0);
-    }
-    return t->wait_result;
+    return wait_over(t);
 }
 
 static void wake(Thread *t, uint32_t result) {
@@ -399,7 +410,7 @@ static void thread_main(void) {
     setcontext(&sched_uc);
 }
 
-static void make_coroutine(Thread *t) {
+static void make_coroutine(Thread *t, void (*entry)(void)) {
     if (!t->host_stack) {
         t->host_stack = st_stack_alloc();
     }
@@ -407,23 +418,55 @@ static void make_coroutine(Thread *t) {
     t->uc.uc_stack.ss_sp = t->host_stack;
     t->uc.uc_stack.ss_size = HOST_STACK_SIZE;
     t->uc.uc_link = &sched_uc;
-    makecontext(&t->uc, thread_main, 0);
+    makecontext(&t->uc, entry, 0);
     t->has_coroutine = 1;
 }
 
-/* The used part of each thread's host stack (savestate.c): from its stack pointer as it waits (less the 128 bytes
- * below it a function may use) to its top */
-void thread_stack_spans(void (*f)(void *lo, size_t size)) {
-    for (Thread *t = threads; t; t = t->next) {
-        if (!t->has_coroutine || !t->host_stack || t == current)
-            continue;
-        uint8_t *top = (uint8_t *)t->host_stack + HOST_STACK_SIZE;
-        uint8_t *lo = (uint8_t *)t->uc.uc_mcontext.gregs[REG_RSP] - 128;
-        if (lo < (uint8_t *)t->host_stack)
-            lo = t->host_stack;
-        if (lo < top)
-            f(lo, (size_t)(top - lo));
+/* A thread of a save state, woken: what its kernel call had left to do, and the game's code from where the call returns
+ * to. A state holds no host stack: a thread that waits is its registers, its wait and t->after. */
+static void thread_resume_main(void) {
+    Thread *t = current;
+    Ctx *c = &t->ctx;
+    switch (t->after) {
+    case AFTER_WAIT:
+        RET(wait_over(t));
+        break;
+    case AFTER_DELAY:
+        RET(0);
+        break;
+    case AFTER_AUDIO:
+        audio_output_finish(c, t->after_length);
+        break;
+    default:
+        rt_fatal(c, "a save state's thread %s: what it waited in is not known", t->name);
     }
+    if (t->after_callbacks) {
+        t->after_callbacks = 0;
+        run_callbacks();
+    }
+    hle_after_call(c);
+    rt_resume_run(c, THREAD_RETURN);
+    thread_end(t, c->r[2]);
+    setcontext(&sched_uc);
+}
+
+/* A state loaded: no thread has a host stack now; each that waits gets one, to go on from its wait */
+void threads_state_loaded(void) {
+    st_stacks_reset();
+    intr_ctx.mem = rt_mem;
+    for (Thread *t = threads; t; t = t->next) {
+        t->ctx.mem = rt_mem;
+        t->host_stack = NULL;
+        t->has_coroutine = 0;
+        if (t->status == TS_WAITING)
+            make_coroutine(t, thread_resume_main);
+    }
+}
+
+/* What a state's arena depends on (savestate.c) */
+uint64_t thread_layout(void) {
+    return ((uint64_t)sizeof(Thread) << 32) ^ ((uint64_t)sizeof(Sema) << 24) ^ ((uint64_t)sizeof(EventFlag) << 16) ^
+           ((uint64_t)sizeof(Callback) << 8) ^ sizeof(VTimer);
 }
 
 void scheduler_run(void) {
@@ -440,7 +483,7 @@ void scheduler_run(void) {
         current = t;
         t->status = TS_RUNNING;
         if (!t->has_coroutine)
-            make_coroutine(t);
+            make_coroutine(t, thread_main);
         swapcontext(&sched_uc, &t->uc);
         if (current && current->status == TS_RUNNING)
             current->status = TS_READY;
@@ -677,23 +720,32 @@ void hle_sceKernelDelayThread(Ctx *c) {
     current->wait_type = WAIT_DELAY;
     current->wait_until = time_us() + us;
     current->wait_timeout_ptr = 0;
+    current->after = AFTER_DELAY;
     reschedule();
     RET(0);
 }
 
-void hle_sceKernelDelayThreadCB(Ctx *c) {
+/* A kernel call that runs the thread's callbacks before and after its wait */
+static void with_callbacks(Ctx *c, void (*call)(Ctx *c)) {
+    Thread *t = current;
     run_callbacks();
-    hle_sceKernelDelayThread(c);
+    t->after_callbacks = 1;
+    call(c);
+    t->after_callbacks = 0;
     run_callbacks();
 }
 
-void thread_delay_until(uint64_t us) {
+void hle_sceKernelDelayThreadCB(Ctx *c) { with_callbacks(c, hle_sceKernelDelayThread); }
+
+void thread_delay_until(uint64_t us, uint64_t audio_length) {
     if (in_interrupt || !current || us <= time_us())
         return;
     current->status = TS_WAITING;
     current->wait_type = WAIT_DELAY;
     current->wait_until = us;
     current->wait_timeout_ptr = 0;
+    current->after = AFTER_AUDIO;       /* (audio.c's the only caller: a state's thread goes on with what it does next) */
+    current->after_length = audio_length;
     reschedule();
 }
 
@@ -706,11 +758,7 @@ void hle_sceKernelSleepThread(Ctx *c) {
     RET(wait_current(WAIT_SLEEP, 0, 0));
 }
 
-void hle_sceKernelSleepThreadCB(Ctx *c) {
-    run_callbacks();
-    hle_sceKernelSleepThread(c);
-    run_callbacks();
-}
+void hle_sceKernelSleepThreadCB(Ctx *c) { with_callbacks(c, hle_sceKernelSleepThread); }
 
 void hle_sceKernelWakeupThread(Ctx *c) {
     Thread *t = find_thread(ARG0);
@@ -852,11 +900,7 @@ static void wait_sema(Ctx *c) {
 }
 
 void hle_sceKernelWaitSema(Ctx *c) { wait_sema(c); }
-void hle_sceKernelWaitSemaCB(Ctx *c) {
-    run_callbacks();
-    wait_sema(c);
-    run_callbacks();
-}
+void hle_sceKernelWaitSemaCB(Ctx *c) { with_callbacks(c, wait_sema); }
 
 void hle_sceKernelPollSema(Ctx *c) {
     Sema *s = kobj_get(ARG0, OBJ_SEMA);
@@ -961,11 +1005,7 @@ static void wait_evf(Ctx *c) {
 }
 
 void hle_sceKernelWaitEventFlag(Ctx *c) { wait_evf(c); }
-void hle_sceKernelWaitEventFlagCB(Ctx *c) {
-    run_callbacks();
-    wait_evf(c);
-    run_callbacks();
-}
+void hle_sceKernelWaitEventFlagCB(Ctx *c) { with_callbacks(c, wait_evf); }
 
 void hle_sceKernelPollEventFlag(Ctx *c) {
     EventFlag *e = kobj_get(ARG0, OBJ_EVENTFLAG);
@@ -1024,7 +1064,9 @@ static void run_callbacks(void) {
         c->r[6] = cb->arg;
         c->r[29] -= 0x40;
         c->r[31] = THREAD_RETURN;
+        rt_no_resume++;
         rt_call(c, cb->func);
+        rt_no_resume--;
         *c = saved;
     }
 }

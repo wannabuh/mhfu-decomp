@@ -50,6 +50,11 @@ typedef struct Block { uint32_t addr, size; int used; char name[32]; struct Bloc
 SAVED static Block *blocks;
 #define USER_END 0x0A000000u
 
+/* What a state's arena depends on (savestate.c) */
+uint64_t kernel_layout(void) {
+    return (uint64_t)sizeof(Block) << 16;
+}
+
 void kmem_init(uint32_t used_end) {
     blocks = st_calloc(1, sizeof *blocks);
     blocks->addr = (used_end + 0xFF) & ~0xFFu;

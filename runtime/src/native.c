@@ -46,8 +46,7 @@ SAVED static struct {
     uint32_t site, key;             /* the gate it was linked or made under */
     uint32_t mgr, layer;            /* a chunk: the list's (its manager), the layer */
     uint32_t start, end;            /* its commands, while that frame's list is run */
-    void (*fn)(Ctx *c);             /* a call: its function (or with none, addr) and its arguments */
-    uint32_t addr, a[4];
+    uint32_t addr, a[4];            /* a call: its function and its arguments */
     uint32_t slots[4];              /* (a call: the game's states as it was made - their objects) */
 } chunks[MAX_CHUNKS];
 
@@ -76,7 +75,6 @@ void rt_list_link(uint32_t mgr, uint32_t start, uint32_t count, uint32_t layer) 
     chunks[nchunks].layer = layer;
     chunks[nchunks].start = start & 0x0FFFFFFFu;
     chunks[nchunks].end = (start & 0x0FFFFFFFu) + 4 * count;
-    chunks[nchunks].fn = NULL;
     chunks[nchunks].addr = 0;
     nchunks++;
 }
@@ -243,7 +241,9 @@ static void run_as_30(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at, ui
         gate_site = at;
         gate_key = key;
     }
+    rt_no_resume++;
     fn ? fn(c) : rt_call(c, addr);
+    rt_no_resume--;
     gate_site = site;
     gate_key = k;
     rt_time_scale = scale;
@@ -261,7 +261,9 @@ static void run_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr) {
     rt_tick30 = real_tick30;
     rt_ticks60 = real_ticks60;
     gate_site = gate_key = 0;
+    rt_no_resume++;
     fn ? fn(c) : rt_call(c, addr);
+    rt_no_resume--;
     gate_site = site;
     gate_key = k;
     rt_time_scale = scale;
@@ -275,7 +277,7 @@ static void skipped(Ctx *c, uint32_t at, uint32_t key) {
     for (int i = 0; i < nchunks; i++) {
         if (chunks[i].site != at || chunks[i].key != key)
             continue;
-        if (!chunks[i].fn && !chunks[i].addr) {
+        if (!chunks[i].addr) {
             link_marker(i);
             continue;
         }
@@ -286,7 +288,7 @@ static void skipped(Ctx *c, uint32_t at, uint32_t key) {
         uint32_t a[4] = {c->r[4], c->r[5], c->r[6], c->r[7]};
         for (int j = 0; j < 4; j++)
             c->r[4 + j] = chunks[i].a[j];
-        run_native(c, chunks[i].fn, chunks[i].addr);
+        run_native(c, NULL, chunks[i].addr);
         for (int j = 0; j < 4; j++)
             c->r[4 + j] = a[j];
     }
@@ -357,7 +359,6 @@ void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at) {
         chunks[nchunks].site = gate_site;
         chunks[nchunks].key = gate_key;
         chunks[nchunks].start = chunks[nchunks].end = 0;
-        chunks[nchunks].fn = fn;
         chunks[nchunks].addr = addr;
         for (int j = 0; j < 4; j++)
             chunks[nchunks].a[j] = c->r[4 + j];

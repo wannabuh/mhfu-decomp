@@ -1,13 +1,17 @@
-/* Save states (savestate.h): the game's memory, the runtime's state of it (the SAVED section, the arena) and its
- * threads' host stacks, copied whole at a point where every thread waits - the scheduler's idle loop - and copied back
- * there. The threads are coroutines on host stacks of their own: a thread that waits is its registers (in its ucontext,
- * in the arena) and its stack's used part, so a copy of those is the thread as it was, to be resumed where it waited.
+/* Save states (savestate.h): the game's memory and the runtime's state of it (the SAVED section, the arena), copied whole
+ * at a point where every thread waits - the scheduler's idle loop - and copied back there.
  *
- * Every host address in what is copied - the runtime's code and variables, the arena, the stacks, the game's memory -
- * is at a fixed place in the address space (the program built without PIE, the rest mapped there; no stack protector,
- * whose canary is another in each run), so that a state written to disk is loaded by the same build in another run:
- * each slot is kept in memory and written to a file (compressed, by a thread of its own) - states/stateN.bin by the
- * saves (MHFU_STATEDIR: elsewhere), with a hash of the program, as a state from another build would not load.
+ * The threads' host stacks are not kept: they hold addresses in the program, so no other build could use them. A thread
+ * that waits is in a kernel call, with every register of the game's in its Ctx, and generated code keeps nothing else
+ * across a call: after a load it finishes the call and goes on from the return address (thread.c thread_resume_main,
+ * dispatch.c rt_resume_run). What cannot be left that way is a frame with C state on a thread's stack (gated code, a
+ * callback, a hand-written function: rt_no_resume) - a save waits for a point with none.
+ *
+ * On disk (states/stateN.bin; MHFU_STATEDIR: elsewhere): a header, then named chunks compressed - the memory ("mem:..."),
+ * the arena ("arena"), each SAVED variable by file and name ("var:camera.c:left", from the program's own symbol table,
+ * which so must not be stripped). A later build loads it: a variable it does not have is ignored, one the state does not
+ * have takes its value at boot, one of another size refuses the load and is named. The arena's structs stay as they were
+ * (ST_LAYOUT and their sizes), and at its fixed address, the pointers in it good.
  *
  * MHFU_STATE_TEST=A,B: a save at game frame A, then at frame B the game's RAM noted and the state loaded; at B again,
  * the RAM compared with what was noted (with a replay, every frame from A to B is the same again). */
@@ -15,6 +19,7 @@
 #include "hle.h"
 #include "render_queue.h"
 
+#include <elf.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -31,6 +36,8 @@
 #define ARENA_SIZE ((size_t)1 << 32)
 #define CLASSES 40                  /* blocks of 16 << class bytes, a header's 16 bytes in them */
 #define HEADER 16
+
+SAVED int rt_no_resume;
 
 static uint8_t *arena;
 SAVED static size_t arena_top;      /* bytes of the arena handed out */
@@ -102,21 +109,18 @@ void *st_realloc(void *p, size_t size) {
     return n;
 }
 
+
 /* -- the threads' host stacks ------------------------------------------------------------------------------------- */
 
-#define STACKS_AT ((uintptr_t)0x5B0000000000ull)
 #define STACK_SLOTS 128
 
 static uint8_t *stacks;
-SAVED static uint64_t stacks_used[STACK_SLOTS / 64];
+static uint64_t stacks_used[STACK_SLOTS / 64];
 
 void *st_stack_alloc(void) {
     if (!stacks) {
-        void *p = mmap((void *)STACKS_AT, (size_t)STACK_SLOTS * ST_STACK_SIZE, PROT_READ | PROT_WRITE,
-                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_STACK | MAP_FIXED_NOREPLACE, -1, 0);
-        if (p == MAP_FAILED)
-            p = mmap(NULL, (size_t)STACK_SLOTS * ST_STACK_SIZE, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_STACK, -1, 0);
+        void *p = mmap(NULL, (size_t)STACK_SLOTS * ST_STACK_SIZE, PROT_READ | PROT_WRITE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE | MAP_STACK, -1, 0);
         if (p == MAP_FAILED)
             rt_fatal(NULL, "out of memory for the threads' stacks");
         stacks = p;
@@ -135,58 +139,138 @@ void st_stack_free(void *stack) {
         stacks_used[i / 64] &= ~(1ull << (i % 64));
 }
 
-/* -- states ------------------------------------------------------------------------------------------------------- */
+void st_stacks_reset(void) {
+    memset(stacks_used, 0, sizeof stacks_used);
+}
+
+/* -- the SAVED variables, by name ---------------------------------------------------------------------------------- */
 
 extern uint8_t __start_mhfu_state[], __stop_mhfu_state[];
 
-static const struct { uint32_t start, size; } regions[] = {
-    {SCRATCHPAD_START, SCRATCHPAD_SIZE},
-    {VRAM_START, VRAM_SIZE},
-    {RAM_START, RAM_SIZE},
+typedef struct {
+    char name[120];                 /* "var:file.c:name"; a global, "var:name" */
+    uint8_t *at;
+    size_t size;
+} Var;
+
+static Var *vars;
+static int nvars;
+static uint8_t *section_at_boot;    /* the section's bytes in the program's file */
+
+/* From the program's own symbol table, once. A local symbol's file is the last FILE symbol before it. */
+static int vars_init(void) {
+    static int done;
+    if (done)
+        return nvars > 0;
+    done = 1;
+    size_t section = (size_t)(__stop_mhfu_state - __start_mhfu_state);
+    FILE *f = fopen("/proc/self/exe", "rb");
+    if (!f)
+        return 0;
+    fseeko(f, 0, SEEK_END);
+    size_t file_size = (size_t)ftello(f);
+    uint8_t *e = mmap(NULL, file_size, PROT_READ, MAP_PRIVATE, fileno(f), 0);
+    fclose(f);
+    if (e == MAP_FAILED)
+        return 0;
+    const Elf64_Ehdr *eh = (const Elf64_Ehdr *)e;
+    const Elf64_Shdr *sh = (const Elf64_Shdr *)(e + eh->e_shoff);
+    const char *names = (const char *)e + sh[eh->e_shstrndx].sh_offset;
+    size_t saved = 0, symtab = 0;
+    for (size_t i = 1; i < eh->e_shnum; i++) {
+        if (!strcmp(names + sh[i].sh_name, "mhfu_state"))
+            saved = i;
+        if (sh[i].sh_type == SHT_SYMTAB)
+            symtab = i;
+    }
+    if (saved && symtab) {
+        section_at_boot = malloc(section);
+        memcpy(section_at_boot, e + sh[saved].sh_offset, section);
+        const Elf64_Sym *sym = (const Elf64_Sym *)(e + sh[symtab].sh_offset);
+        size_t n = sh[symtab].sh_size / sizeof *sym, covered = 0;
+        const char *strs = (const char *)e + sh[sh[symtab].sh_link].sh_offset, *file = "";
+        vars = malloc(n && section ? section / 4 * sizeof *vars : sizeof *vars);
+        for (size_t i = 1; i < n; i++) {
+            if (ELF64_ST_TYPE(sym[i].st_info) == STT_FILE)
+                file = strs + sym[i].st_name;
+            if (sym[i].st_shndx != saved || ELF64_ST_TYPE(sym[i].st_info) != STT_OBJECT || !sym[i].st_size)
+                continue;
+            Var *v = &vars[nvars++];
+            if (ELF64_ST_BIND(sym[i].st_info) == STB_LOCAL)
+                snprintf(v->name, sizeof v->name, "var:%s:%s", file, strs + sym[i].st_name);
+            else
+                snprintf(v->name, sizeof v->name, "var:%s", strs + sym[i].st_name);
+            v->at = (uint8_t *)sym[i].st_value;
+            v->size = sym[i].st_size;
+            covered += v->size;
+        }
+        for (int i = 0; i < nvars; i++)
+            for (int j = 0; j < i; j++)
+                if (!strcmp(vars[i].name, vars[j].name))
+                    rt_fatal(NULL, "save states: two variables named %s", vars[i].name + 4);
+        if (section - covered >= 4096)      /* (a little is padding between them) */
+            fprintf(stderr, "save states: %zu bytes of the section have no name\n", section - covered);
+    }
+    munmap(e, file_size);
+    return nvars > 0;
+}
+
+/* -- states ------------------------------------------------------------------------------------------------------- */
+
+static const struct { const char *name; uint32_t start, size; } regions[] = {
+    {"mem:scratchpad", SCRATCHPAD_START, SCRATCHPAD_SIZE},
+    {"mem:vram", VRAM_START, VRAM_SIZE},
+    {"mem:ram", RAM_START, RAM_SIZE},
 };
 #define NMEM (sizeof regions / sizeof regions[0])
 
 typedef struct {
-    void *at;
+    char *name;
     size_t size;
-    uint8_t *copy;
-} Span;
+    uint8_t *data;
+} Chunk;
 
 typedef struct {
     int used;
-    uint8_t *memory[NMEM];
-    uint8_t *section;
-    size_t arena_bytes;
-    uint8_t *arena;
-    Span *spans;
-    int nspans, spans_cap;
+    Chunk *chunks;
+    int nchunks;
+    uint64_t game, layout;
 } State;
 
 static State states[ST_SLOTS];
 
-static State *filling;
+static uint64_t state_layout(void) {
+    uint64_t h = 0xCBF29CE484222325ull;
+    uint64_t parts[] = {ST_LAYOUT, thread_layout(), kernel_layout()};
+    for (size_t i = 0; i < sizeof parts / sizeof parts[0]; i++)
+        h = (h ^ parts[i]) * 0x100000001B3ull;
+    return h;
+}
 
-static void take_span(void *lo, size_t size) {
-    State *s = filling;
-    if (s->nspans == s->spans_cap) {
-        s->spans_cap = s->spans_cap ? s->spans_cap * 2 : 64;
-        s->spans = realloc(s->spans, sizeof *s->spans * (size_t)s->spans_cap);
-    }
-    Span *sp = &s->spans[s->nspans++];
-    sp->at = lo;
-    sp->size = size;
-    sp->copy = malloc(size);
-    memcpy(sp->copy, lo, size);
+static Chunk *chunk_add(State *s, const char *name, size_t size, const void *from) {
+    s->chunks = realloc(s->chunks, sizeof *s->chunks * (size_t)(s->nchunks + 1));
+    Chunk *k = &s->chunks[s->nchunks++];
+    k->name = strdup(name);
+    k->size = size;
+    k->data = malloc(size ? size : 1);
+    if (from)
+        memcpy(k->data, from, size);
+    return k;
+}
+
+static Chunk *chunk_find(const State *s, const char *name) {
+    for (int i = 0; i < s->nchunks; i++)
+        if (!strcmp(s->chunks[i].name, name))
+            return &s->chunks[i];
+    return NULL;
 }
 
 static void state_clear(State *s) {
-    for (size_t r = 0; r < NMEM; r++)
-        free(s->memory[r]);
-    free(s->section);
-    free(s->arena);
-    for (int i = 0; i < s->nspans; i++)
-        free(s->spans[i].copy);
-    free(s->spans);
+    for (int i = 0; i < s->nchunks; i++) {
+        free(s->chunks[i].name);
+        free(s->chunks[i].data);
+    }
+    free(s->chunks);
     memset(s, 0, sizeof *s);
 }
 
@@ -194,45 +278,94 @@ static void writer_wait(int slot);
 static void write_slot(int slot);
 
 static void save(int slot) {
+    if (!vars_init()) {
+        fprintf(stderr, "state %d not saved: the program has no symbol table\n", slot + 1);
+        return;
+    }
     writer_wait(slot);                  /* (its copy being written: not changed under it) */
     State *s = &states[slot];
     state_clear(s);
-    for (size_t r = 0; r < NMEM; r++) {
-        s->memory[r] = malloc(regions[r].size);
-        memcpy(s->memory[r], rt_mem + regions[r].start, regions[r].size);
-    }
-    size_t section = (size_t)(__stop_mhfu_state - __start_mhfu_state);
-    s->section = malloc(section);
-    memcpy(s->section, __start_mhfu_state, section);
+    s->game = io_game_id();
+    s->layout = state_layout();
+    for (size_t r = 0; r < NMEM; r++)
+        chunk_add(s, regions[r].name, regions[r].size, rt_mem + regions[r].start);
     arena_init();
-    s->arena_bytes = arena_top;
-    s->arena = malloc(arena_top ? arena_top : 1);
-    memcpy(s->arena, arena, arena_top);
-    filling = s;
-    thread_stack_spans(take_span);
-    filling = NULL;
+    chunk_add(s, "arena", arena_top, arena);
+    for (int i = 0; i < nvars; i++)
+        chunk_add(s, vars[i].name, vars[i].size, vars[i].at);
     s->used = 1;
-    size_t stack_bytes = 0;
-    for (int i = 0; i < s->nspans; i++)
-        stack_bytes += s->spans[i].size;
-    fprintf(stderr, "state %d saved: %zu KB of the runtime's, %zu KB of its arena, %d stacks (%zu KB)\n", slot + 1,
-            section / 1024, s->arena_bytes / 1024, s->nspans, stack_bytes / 1024);
+    fprintf(stderr, "state %d saved: %d variables, %zu KB of its arena\n", slot + 1, nvars, arena_top / 1024);
     if (slot < ST_SLOTS - 1)            /* (the last slot is the test's: memory only) */
         write_slot(slot);
 }
 
+/* Whether this build can load a state; if not, why */
+static int state_fits(const State *s, char *why, size_t n) {
+    if (!vars_init()) {
+        snprintf(why, n, "the program has no symbol table");
+        return 0;
+    }
+    if (s->game != io_game_id()) {
+        snprintf(why, n, "made with another copy of the game");
+        return 0;
+    }
+    if (s->layout != state_layout()) {
+        snprintf(why, n, "the kernel's structs have changed since");
+        return 0;
+    }
+    arena_init();
+    if ((uintptr_t)arena != ARENA_AT) {
+        snprintf(why, n, "the arena is not at its place");
+        return 0;
+    }
+    for (size_t r = 0; r < NMEM; r++) {
+        const Chunk *k = chunk_find(s, regions[r].name);
+        if (!k || k->size != regions[r].size) {
+            snprintf(why, n, "no %s", regions[r].name);
+            return 0;
+        }
+    }
+    if (!chunk_find(s, "arena")) {
+        snprintf(why, n, "no arena");
+        return 0;
+    }
+    for (int i = 0; i < nvars; i++) {
+        const Chunk *k = chunk_find(s, vars[i].name);
+        if (k && k->size != vars[i].size) {
+            snprintf(why, n, "%s was %zu bytes, now %zu", vars[i].name + 4, k->size, vars[i].size);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void load(int slot) {
-    State *s = &states[slot];
-    if (!s->used)
-        return;
+    const State *s = &states[slot];
     render_queue_sync();                /* (the renderer done with what it reads of the memory) */
     atrac_state_loading();
     for (size_t r = 0; r < NMEM; r++)
-        memcpy(rt_mem + regions[r].start, s->memory[r], regions[r].size);
-    memcpy(__start_mhfu_state, s->section, (size_t)(__stop_mhfu_state - __start_mhfu_state));
-    memcpy(arena, s->arena, s->arena_bytes);
-    for (int i = 0; i < s->nspans; i++)
-        memcpy(s->spans[i].at, s->spans[i].copy, s->spans[i].size);
+        memcpy(rt_mem + regions[r].start, chunk_find(s, regions[r].name)->data, regions[r].size);
+    for (int i = 0; i < nvars; i++) {
+        const Chunk *k = chunk_find(s, vars[i].name);
+        if (k) {
+            memcpy(vars[i].at, k->data, k->size);
+        } else {
+            fprintf(stderr, "state %d: no %s in it: as at boot\n", slot + 1, vars[i].name + 4);
+            memcpy(vars[i].at, section_at_boot + (vars[i].at - __start_mhfu_state), vars[i].size);
+        }
+    }
+    for (int i = 0; i < s->nchunks; i++)
+        if (!strncmp(s->chunks[i].name, "var:", 4)) {
+            int known = 0;
+            for (int j = 0; j < nvars && !known; j++)
+                known = !strcmp(vars[j].name, s->chunks[i].name);
+            if (!known)
+                fprintf(stderr, "state %d: %s is no more: left out\n", slot + 1, s->chunks[i].name + 4);
+        }
+    const Chunk *a = chunk_find(s, "arena");
+    memcpy(arena, a->data, a->size);
+    rt_no_resume = 0;
+    threads_state_loaded();
     audio_state_loaded();
     atrac_state_loaded();
     gpu_state_loaded();
@@ -242,32 +375,18 @@ static void load(int slot) {
 
 /* -- on disk ------------------------------------------------------------------------------------------------------ */
 
-#define MAGIC "MHFUSTA1"
+#define MAGIC "MHFUPST1"
+#define FORMAT 1
 typedef struct {
     char magic[8];
-    uint64_t build;                 /* the program's hash */
-    uint64_t section, arena;        /* their sizes */
-    uint32_t nspans, unused;
+    uint32_t format, nchunks;
+    uint64_t game, layout;
     int64_t saved_at;               /* (the time: seconds since 1970) */
+    uint64_t frame;                 /* (the game's frame, to read) */
 } Header;
 
-/* A hash of the program's file (once): a state is for the build that made it */
-static uint64_t build_hash(void) {
-    static uint64_t h;
-    if (h)
-        return h;
-    h = 0xCBF29CE484222325ull;
-    FILE *f = fopen("/proc/self/exe", "rb");
-    if (f) {
-        static uint64_t buf[1 << 15];
-        size_t n;
-        while ((n = fread(buf, 8, sizeof buf / 8, f)) > 0)
-            for (size_t i = 0; i < n; i++)
-                h = (h ^ buf[i]) * 0x100000001B3ull;
-        fclose(f);
-    }
-    return h;
-}
+/* Each chunk, in the compressed stream: this, its name, its data */
+typedef struct { uint32_t name, unused; uint64_t size; } ChunkHeader;
 
 /* Where states go: MHFU_STATEDIR, else "states" beside the saves */
 static const char *state_dir(void) {
@@ -300,7 +419,7 @@ static void state_path(int slot, char *out, size_t n) {
 }
 
 static int deflate_out(z_stream *z, FILE *f, const void *data, size_t size, int flush) {
-    static uint8_t out[1 << 16];
+    static _Thread_local uint8_t out[1 << 16];  /* (each slot has a writer of its own) */
     z->next_in = (Bytef *)data;
     z->avail_in = (uInt)size;
     do {
@@ -315,29 +434,25 @@ static int deflate_out(z_stream *z, FILE *f, const void *data, size_t size, int 
     return 1;
 }
 
-static int write_state(const State *s, const char *path, int64_t when) {
+static int write_state(const State *s, const char *path, int64_t when, uint64_t frame) {
     char tmp[4200];
     snprintf(tmp, sizeof tmp, "%s.tmp", path);
     FILE *f = fopen(tmp, "wb");
     if (!f)
         return 0;
-    Header h = {{0}, build_hash(), (uint64_t)(__stop_mhfu_state - __start_mhfu_state), s->arena_bytes,
-                (uint32_t)s->nspans, 0, when};
+    Header h = {{0}, FORMAT, (uint32_t)s->nchunks, s->game, s->layout, when, frame};
     memcpy(h.magic, MAGIC, 8);
     int ok = fwrite(&h, sizeof h, 1, f) == 1;
-    for (int i = 0; i < s->nspans && ok; i++) {
-        uint64_t at[2] = {(uint64_t)(uintptr_t)s->spans[i].at, s->spans[i].size};
-        ok = fwrite(at, sizeof at, 1, f) == 1;
-    }
     z_stream z;
     memset(&z, 0, sizeof z);
     ok = ok && deflateInit(&z, 1) == Z_OK;
-    for (size_t r = 0; r < NMEM && ok; r++)
-        ok = deflate_out(&z, f, s->memory[r], regions[r].size, Z_NO_FLUSH);
-    ok = ok && deflate_out(&z, f, s->section, h.section, Z_NO_FLUSH);
-    ok = ok && deflate_out(&z, f, s->arena, s->arena_bytes, Z_NO_FLUSH);
-    for (int i = 0; i < s->nspans && ok; i++)
-        ok = deflate_out(&z, f, s->spans[i].copy, s->spans[i].size, Z_NO_FLUSH);
+    for (int i = 0; i < s->nchunks && ok; i++) {
+        const Chunk *k = &s->chunks[i];
+        ChunkHeader ch = {(uint32_t)strlen(k->name), 0, k->size};
+        ok = deflate_out(&z, f, &ch, sizeof ch, Z_NO_FLUSH);
+        ok = ok && deflate_out(&z, f, k->name, ch.name, Z_NO_FLUSH);
+        ok = ok && deflate_out(&z, f, k->data, k->size, Z_NO_FLUSH);
+    }
     ok = ok && deflate_out(&z, f, NULL, 0, Z_FINISH);
     deflateEnd(&z);
     ok = fclose(f) == 0 && ok;
@@ -358,57 +473,42 @@ static int inflate_into(z_stream *z, void *dst, size_t size) {
     return 1;
 }
 
-/* A state from its file, into s; 0 with a reason if none, or another build's */
+/* A state from its file, into s; 0 with a reason if none, or not one */
 static int read_state(State *s, const char *path, const char **why) {
     *why = "none saved";
     FILE *f = fopen(path, "rb");
     if (!f)
         return 0;
     Header h;
-    *why = "not a state";
-    if (fread(&h, sizeof h, 1, f) != 1 || memcmp(h.magic, MAGIC, 8)) {
-        fclose(f);
-        return 0;
-    }
-    *why = "made by another build";
-    if (h.build != build_hash() || h.section != (uint64_t)(__stop_mhfu_state - __start_mhfu_state)) {
+    *why = "not a state, or from before states loaded in later builds";
+    if (fread(&h, sizeof h, 1, f) != 1 || memcmp(h.magic, MAGIC, 8) || h.format != FORMAT) {
         fclose(f);
         return 0;
     }
     state_clear(s);
-    s->nspans = s->spans_cap = (int)h.nspans;
-    s->spans = calloc(h.nspans ? h.nspans : 1, sizeof *s->spans);
-    int ok = 1;
-    for (uint32_t i = 0; i < h.nspans && ok; i++) {
-        uint64_t at[2];
-        ok = fread(at, sizeof at, 1, f) == 1;
-        s->spans[i].at = (void *)(uintptr_t)at[0];
-        s->spans[i].size = at[1];
-        s->spans[i].copy = malloc(at[1] ? at[1] : 1);
-    }
+    s->game = h.game;
+    s->layout = h.layout;
     long start = ftell(f);
     fseek(f, 0, SEEK_END);
     long end = ftell(f);
     fseek(f, start, SEEK_SET);
     uint8_t *packed = malloc((size_t)(end - start) + 1);
-    ok = ok && fread(packed, 1, (size_t)(end - start), f) == (size_t)(end - start);
+    int ok = fread(packed, 1, (size_t)(end - start), f) == (size_t)(end - start);
     fclose(f);
     z_stream z;
     memset(&z, 0, sizeof z);
     z.next_in = packed;
     z.avail_in = (uInt)(end - start);
     ok = ok && inflateInit(&z) == Z_OK;
-    for (size_t r = 0; r < NMEM && ok; r++) {
-        s->memory[r] = malloc(regions[r].size);
-        ok = inflate_into(&z, s->memory[r], regions[r].size);
+    for (uint32_t i = 0; i < h.nchunks && ok; i++) {
+        ChunkHeader ch;
+        char name[256];
+        ok = inflate_into(&z, &ch, sizeof ch) && ch.name < sizeof name && inflate_into(&z, name, ch.name);
+        if (ok) {
+            name[ch.name] = 0;
+            ok = inflate_into(&z, chunk_add(s, name, ch.size, NULL)->data, ch.size);
+        }
     }
-    s->section = malloc(h.section);
-    ok = ok && inflate_into(&z, s->section, h.section);
-    s->arena_bytes = h.arena;
-    s->arena = malloc(h.arena ? h.arena : 1);
-    ok = ok && inflate_into(&z, s->arena, h.arena);
-    for (uint32_t i = 0; i < h.nspans && ok; i++)
-        ok = inflate_into(&z, s->spans[i].copy, s->spans[i].size);
     inflateEnd(&z);
     free(packed);
     *why = "damaged";
@@ -420,17 +520,19 @@ static int read_state(State *s, const char *path, const char **why) {
     return 1;
 }
 
+unsigned long present_frame_number(void);
+
 /* Each slot's file written by a thread of its own, from the slot's copy in memory (left alone till it is done) */
 static pthread_t writers[ST_SLOTS];
 static int writing[ST_SLOTS];
 
-typedef struct { int slot; int64_t when; } Job;
+typedef struct { int slot; int64_t when; uint64_t frame; } Job;
 
 static void *writer(void *arg) {
     Job *j = arg;
     char path[4200];
     state_path(j->slot, path, sizeof path);
-    if (!write_state(&states[j->slot], path, j->when))
+    if (!write_state(&states[j->slot], path, j->when, j->frame))
         fprintf(stderr, "state %d: could not write %s (%s)\n", j->slot + 1, path, strerror(errno));
     free(j);
     return NULL;
@@ -457,6 +559,7 @@ static void write_slot(int slot) {
     Job *j = malloc(sizeof *j);
     j->slot = slot;
     j->when = (int64_t)time(NULL);
+    j->frame = present_frame_number();
     if (pthread_create(&writers[slot], NULL, writer, j) == 0)
         writing[slot] = 1;
     else
@@ -486,8 +589,6 @@ int state_slot_used(int slot) {
     state_path(slot, path, sizeof path);
     return stat(path, &st) == 0;
 }
-
-unsigned long present_frame_number(void);
 
 /* MHFU_STATE_TEST=A,B (above) */
 static void state_test(void) {
@@ -650,8 +751,23 @@ static void state_script(void) {
 int state_point(void) {
     state_test();
     state_script();
-    char note[64];
-    if (want_save >= 0) {
+    char note[256];
+    static long deferred_from = -1;
+    long f = (long)present_frame_number();
+    if (want_save >= 0 && rt_no_resume > 0) {   /* (a frame with C state on a thread's stack: not yet) */
+        if (deferred_from < 0) {
+            deferred_from = f;
+            fprintf(stderr, "state %d: the save waits, at frame %ld (%d frames holding C state)\n", want_save + 1, f,
+                    rt_no_resume);
+        } else if (f == deferred_from + 300) {
+            snprintf(note, sizeof note, "state %d: cannot be saved here yet", want_save + 1);
+            window_note(note);
+            fprintf(stderr, "%s\n", note);
+        }
+    } else if (want_save >= 0) {
+        if (deferred_from >= 0)
+            fprintf(stderr, "state %d: saved %ld frames late\n", want_save + 1, f - deferred_from);
+        deferred_from = -1;
         save(want_save);
         snprintf(note, sizeof note, "state %d saved", want_save + 1);
         window_note(note);
@@ -661,13 +777,18 @@ int state_point(void) {
         int slot = want_load;
         want_load = -1;
         const char *why = "none saved";
-        char path[4200];
+        char path[4200], unfit[200];
         state_path(slot, path, sizeof path);
         if (states[slot].used || read_state(&states[slot], path, &why)) {
-            load(slot);
-            snprintf(note, sizeof note, "state %d loaded", slot + 1);
-            window_note(note);
-            return 1;
+            if (state_fits(&states[slot], unfit, sizeof unfit)) {
+                want_save = -1;         /* (one that waited: of a game no more) */
+                deferred_from = -1;
+                load(slot);
+                snprintf(note, sizeof note, "state %d loaded", slot + 1);
+                window_note(note);
+                return 1;
+            }
+            why = unfit;
         }
         snprintf(note, sizeof note, "state %d: %s", slot + 1, why);
         window_note(note);
