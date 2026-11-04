@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Names carried to identical code: carry_names.py WORK VIEW. A function whose body is the same as a named function's, at least
-MIN_LINES long and calling the same things, takes its name, purpose and at most `inferred`. Overlays repeat a lot: the stages
+MIN_LINES long, reading the same data and calling the same things, takes its name, purpose and at most `inferred`. Overlays repeat a lot: the stages
 especially. Writes tools/readable/names/carried.toml, which an entry of a function's own always outranks."""
 import collections
 import glob
@@ -14,9 +14,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 MIN_LINES = 8
 
 
-def norm(text):
-    text = re.sub(r"\bf_[A-Za-z0-9_]+?_[0-9A-F]{6,8}\b|\bFUN_[0-9a-f]+\b|\bDAT_[0-9a-f]+\b|\bLAB_[0-9a-f]+\b|\bPTR_\w+\b|"
-                  r"\b0x[0-9a-f]{7,8}\b|\bswitchD_\w+\b|\bcode_r0x\w+\b|\bcaseD_\w+\b|\bs_\w+_[0-9a-f]{8}\b", "X", text)
+def norm(text, module, addr):
+    """Calling the same things is part of being the same code: a call within the module counts by how far it is from this
+    function (overlays load at one base, with the same layout when they are copies), any other by what it calls."""
+    def call(m):
+        target = m.group(1)
+        if target == module:
+            return f"L{int(m.group(2), 16) - addr:x}"
+        return m.group(0)
+    text = re.sub(r"\bf_([A-Za-z0-9_]+?)_([0-9A-F]{6,8})\b", call, text)
+    text = re.sub(r"\b" + re.escape(module) + r"_", "M_", text)
+    text = re.sub(r"\bFUN_[0-9a-f]+\b|\bLAB_[0-9a-f]+\b|\bswitchD_\w+\b|\bcode_r0x\w+\b|\bcaseD_\w+\b", "X", text)
     return hashlib.md5(text.encode()).hexdigest()
 
 
@@ -48,7 +56,7 @@ def main():
             sig_end = body.find("\n{")
             code = body[sig_end:] if sig_end >= 0 else body
             if n >= MIN_LINES:
-                groups[norm(code)].append((mod, addr))
+                groups[norm(code, mod, addr)].append((mod, addr))
     out = []
     for keys in groups.values():
         have = [k for k in keys if k in named]

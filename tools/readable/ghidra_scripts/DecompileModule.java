@@ -273,6 +273,8 @@ public class DecompileModule extends GhidraScript {
         Files.createDirectories(out);
         mapRest(work, module);
 
+        loadNames(work);
+        loadTypes(work);
         List<String[]> funcs = new ArrayList<>();
         for (String line : Files.readAllLines(work.resolve(module).resolve("funcs.tsv"))) funcs.add(line.split("\t", -1));
 
@@ -294,8 +296,6 @@ public class DecompileModule extends GhidraScript {
                 : "f_" + module + "_" + f[0].toUpperCase();
             fm.createFunction(own, at(start), body, SourceType.USER_DEFINED);
         }
-        loadNames(work);
-        loadTypes(work);
         Map<Long, List<String>> owners = loadOwners(work);
         linkTargets(module, owners);
         applySignatures(work, module, owners);

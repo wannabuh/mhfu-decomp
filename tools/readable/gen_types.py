@@ -2,6 +2,7 @@
 """From tools/readable/types.toml and names/*.toml: gen_types.py WORK [HEADER]. Writes WORK/view-names.tsv and WORK/view-types.tsv
 for the view (DecompileModule.java) and the C header, whose offsets are checked at compile time. A vtable's methods get their
 struct as `this`, from WORK/methods.json."""
+import collections
 import glob
 import json
 import os
@@ -42,10 +43,13 @@ def main():
                 rank = {"confirmed": 2, "inferred": 1, "guess": 0}[e["confidence"]]
                 if key not in seen or rank > seen[key][0] or os.path.basename(path) == "known.toml":
                     seen[key] = (rank, e)
+    # A name says one function: where several have the same one, each takes its address (names/ keeps the shared name)
+    counts = collections.Counter(e["name"] for _r, e in seen.values())
     with open(os.path.join(work, "view-names.tsv"), "w") as f:
         for (m, a), (_r, e) in sorted(seen.items()):
             purpose = " ".join(e.get("purpose", "").split())
-            f.write(f"{m}\t{a:x}\t{e['name']}\t{e['confidence']}\t{purpose}\n")
+            name = e["name"] if counts[e["name"]] == 1 else f"{e['name']}_{a:08X}"
+            f.write(f"{m}\t{a:x}\t{name}\t{e['confidence']}\t{purpose}\n")
     with open(os.path.join(HERE, "types.toml"), "rb") as f:
         types = tomllib.load(f)
     methods = {}
