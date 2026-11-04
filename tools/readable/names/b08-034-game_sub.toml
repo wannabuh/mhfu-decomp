@@ -1,0 +1,207 @@
+[[function]]
+module = "game_sub"
+address = "09C56FD8"
+name = "fx_base_init"
+purpose = "Clears render-node count +0x41 and node array +0x44, sets flags +0x48 to 1, and if the member function at DAT_09ce55b0 is set stores it as the object's state function at +0x4C; returns that check."
+confidence = "inferred"
+evidence = "Shared at slot +0x18 of many vtables and called by each spawner after allocation; the fx prefix comes from the classes seen, which only draw models on an owner."
+
+[[function]]
+module = "game_sub"
+address = "09C57068"
+name = "fx_base_release_render_nodes"
+purpose = "Clears mask 0x1 of flags +0x48 and, if +0x41 and +0x44 are nonzero, returns the +0x41 nodes at +0x44 to the manager DAT_09d19860 through 09C33970."
+confidence = "inferred"
+evidence = "Slot +0x24 of many vtables; 09C33970 clears the in-use bytes of the node pool that 09C337F0 hands out."
+
+[[function]]
+module = "game_sub"
+address = "09C570B0"
+name = "fx_vec3_multiply_by_scale_factor"
+purpose = "Multiplies x, y and z of the vector in place by the constant from fx_get_scale_factor (0.3), keeping the fourth word."
+confidence = "inferred"
+evidence = "vscl_t by 09C570F0's result; class_089bdce0_draw_node calls it on the vector it uses as draw scale."
+
+[[function]]
+module = "game_sub"
+address = "09C570F0"
+name = "fx_get_scale_factor"
+purpose = "Returns the constant 0.3, used as a scale multiplier."
+confidence = "inferred"
+evidence = "Body returns 0.3; 09C570B0 and 09C7D518 multiply a size by it."
+
+[[function]]
+module = "game_sub"
+address = "09C57100"
+name = "fx_owner_field_534_table_index_if_field_1e8_06"
+purpose = "If the object's byte +0x1E8 is 6, returns the index of its +0x534 in the -1 terminated short table DAT_09ce5540; otherwise, or if not found, returns -1."
+confidence = "inferred"
+evidence = "Table walk in the code; class_089bdd08_state_acquire_nodes and 09C601B8 store the result as an index into per-entry tables."
+
+[[function]]
+module = "game_sub"
+address = "09C57CA0"
+name = "class_089bdcb8_spawn_for_owner"
+purpose = "For a nonzero owner, allocates a 089BDCB8 object (kind 4 picks an asset slot from the owner's +0x1E8), stores owner +0xC and kind +0x24 and links it at the head of the manager's list +0x19030; kind 1 with owner +0x1E9 zero stops there, setting mask 0x4 of +0x48 unless game +0x6AF14 has mask 0x1; otherwise it sets +0x40 from owner +0x1E6, position from bone 10 with y from owner +0x2CC, and mask 0x4 if owner +0x1E8 is 0xC."
+confidence = "inferred"
+evidence = "09C2D6C0 installs vtable 089BDCB8; callers in EBOOT, em20 and game_task pass the object itself with kinds such as 0 and 1, mostly around object setup at boot end."
+
+[[function]]
+module = "game_sub"
+address = "09C585F8"
+name = "class_089bdcb8_queue_render_nodes"
+purpose = "For each of the +0x41 nodes (0x30 bytes each) at +0x44 without mask 0x4 at node +4, inserts it in the depth-sorted render queue with bucket 6 and its +0x10 as position."
+confidence = "confirmed"
+evidence = "Vtable 089BDCB8 +0x14 and the loop calling render_queue_insert_depth_sorted; 09C2D518 calls slot +0x14 on list objects with flag mask 0x10."
+
+[[function]]
+module = "game_sub"
+address = "09C58688"
+name = "class_089bdcb8_state_acquire_render_nodes"
+purpose = "If flag mask 0x2 is set only moves to the next state (DAT_09ce5608); otherwise acquires 5 nodes for kind 2 or 1 node for other kinds from the manager, binds them to the object, calls the object's slot +0x20 and moves to state DAT_09ce5638; on failure clears mask 0x10 and moves to DAT_09ce5618 or DAT_09ce5628."
+confidence = "inferred"
+evidence = "Vtable slot +0x1C, run through the member-function caller 09C56F68; 09C337F0 returns node arrays from a pool, chosen by mask 0x4 for the non-kind-2 case."
+
+[[function]]
+module = "game_sub"
+address = "09C58900"
+name = "class_089bdcb8_tick_place_nodes_at_owner_bones"
+purpose = "With flag mask 0x2 clear, sets mask 0x10 and hides all nodes, then if the owner passes its visibility, object_29a_matches_game_6af0e and +0x276 checks (and is not the owner matching game +0x28 with +0x564 set) shows them: kind 2 places 5 nodes at the bones in DAT_09ce55e0, each shown only if at least 8 above the height from 09C3DB00 and then put 5 above it; kind 1 uses bone 10 x and z, other kinds bone 2, both with y from owner +0x2CC. With mask 0x2 set, clears mask 0x10 and moves to state DAT_09ce5648."
+confidence = "inferred"
+evidence = "Vtable slot +0x20 with the bone lookups, called through 09C56F68 and by the setup state in every recording."
+
+[[function]]
+module = "game_sub"
+address = "09C58C48"
+name = "class_089bdce0_spawn_at_position_opposite_owner_angle"
+purpose = "If the owner is nonzero and passes object_29a_matches_game_6af0e, allocates a 089BDCE0 object with kind from the argument, scale 1.0, the given position and angle +0x3A equal to owner +0x360 minus 0x8000, and links it on the manager's list."
+confidence = "inferred"
+evidence = "09C2D8B0 installs vtable 089BDCE0; the draw method turns +0x3A from 16-bit units into radians; in traces called from 09C2C370 with kinds 0, 5, 6 and 0xC."
+
+[[function]]
+module = "game_sub"
+address = "09C58E68"
+name = "class_089bdce0_spawn_at_position_with_angle_and_scale"
+purpose = "If the owner is nonzero and passes object_29a_matches_game_6af0e, allocates a 089BDCE0 object with the given angle +0x3A, kind +0x24, sub-value +0x29, position and scale +0x3C, clears +0x2B, sets +0x40 from owner +0x1E8 when owner +0x1E9 is 1 (else 0), and links it on the manager's list."
+confidence = "inferred"
+evidence = "Same allocator as 09C58C48; 09C2C370 and 09C7D518 pass kinds 3 and 4 with position and float size."
+
+[[function]]
+module = "game_sub"
+address = "09C59538"
+name = "class_089bdce0_draw_node"
+purpose = "Draws the object's node by kind +0x24: builds a rotation and scale matrix from angle +0x3A, bytes +0x2A, +0x2B and scale +0x3C, emits GPU state words and calls model_draw_group with a model group derived from frame +0x38 halved plus a per-kind base."
+confidence = "inferred"
+evidence = "Vtable 089BDCE0 +0x10, reached through 09C56EC0; the switch ends in gpu_set_world_matrix_scaled and model_draw_group; parts of the long body were read only at the start and end."
+
+[[function]]
+module = "game_sub"
+address = "09C5A708"
+name = "class_089bdce0_queue_render_node"
+purpose = "If node +0x44 is nonzero, inserts it in the depth-sorted render queue with bucket byte +0x60 and its +0x10 as position."
+confidence = "confirmed"
+evidence = "Vtable 089BDCE0 +0x14 and one render_queue_insert_depth_sorted call."
+
+[[function]]
+module = "game_sub"
+address = "09C5A740"
+name = "class_089bdce0_state_randomize_by_kind_and_acquire_node"
+purpose = "Clears frame +0x38 and randomises per kind (angle, scale, bytes +0x2A and +0x2B, or for kind 8 a position offset from bone +0x29; kind 0 and kinds 9-0xB can start the frame negative; kind 0xC sets scale 2.0), then acquires one node and moves to state DAT_09ce56f8, or on failure clears mask 0x10 and moves to DAT_09ce56e8."
+confidence = "inferred"
+evidence = "Vtable slot +0x1C with math_rng_next in each case and 09C337F0 at the end."
+
+[[function]]
+module = "game_sub"
+address = "09C5AB50"
+name = "class_089bdce0_tick_age_and_place_node"
+purpose = "Sets flag mask 0x10 and adds 2 to frame +0x38; past the kind's limit (8 to 0x20, default 0x1E) clears mask 0x10 and moves to state DAT_09ce5708; otherwise, with positive frame, copies the object's position to the node with bucket 5, or for kinds 4, 6 and 0xC adds an offset through the matrix at DAT_089cbd04+0xC80 with bucket 7; kinds 0, 2, 3 and 8 also lower y over time."
+confidence = "inferred"
+evidence = "Vtable slot +0x20; the per-kind limit switch and writes to node +0x10 and bucket +0x60 read by class_089bdce0_queue_render_node."
+
+[[function]]
+module = "game_sub"
+address = "09C5AED0"
+name = "class_089bdd08_spawn_for_owner"
+purpose = "For a nonzero owner, allocates a 089BDD08 object with kind from the argument, +0x40 from owner +0x1E6 and flag mask 0x4, and links it on the manager's list."
+confidence = "inferred"
+evidence = "09C2D9E8 installs vtable 089BDD08; in traces called once from hunter_init_089bb3cc with kind 0."
+
+[[function]]
+module = "game_sub"
+address = "09C5AFA8"
+name = "class_089bdd08_draw_node_group_003b"
+purpose = "Builds the bone matrix for the node's entry with class_089bdd08_build_entry_matrix mode 1, sets its translation to the node's position and draws model group 0x3B tinted with DAT_09ce6468, between GPU words 0xE7000001 and 0xE7000000."
+confidence = "inferred"
+evidence = "Vtable 089BDD08 +0x10, reached through 09C56EC0; model_draw_group_tinted call."
+
+[[function]]
+module = "game_sub"
+address = "09C5B088"
+name = "class_089bdd08_queue_render_nodes"
+purpose = "For each entry at +0x60 (count from table DAT_09ce6460 by kind) with mask 0x1 at entry +0x22 and a node, inserts the node in the depth-sorted render queue with bucket 7."
+confidence = "confirmed"
+evidence = "Vtable 089BDD08 +0x14 and the loop calling render_queue_insert_depth_sorted."
+
+[[function]]
+module = "game_sub"
+address = "09C5B120"
+name = "class_089bdd08_state_acquire_nodes"
+purpose = "Clears +0x29, +0x2A and +0x38; if flag mask 0x2 is clear and the owner's table index from fx_owner_field_534_table_index_if_field_1e8_06 is not -1, stores it at +0xC0, sets up each entry with its index and acquires one node per entry and moves to state DAT_09ce6480; otherwise moves to DAT_09ce6470."
+confidence = "inferred"
+evidence = "Vtable slot +0x1C; per-kind count from DAT_09ce6460 and calls to 09C337F0."
+
+[[function]]
+module = "game_sub"
+address = "09C5B2C0"
+name = "class_089bdd08_tick_place_entries_on_bones_alternating"
+purpose = "Clears mask 0x10; with mask 0x2 set moves to state DAT_09ce6490; otherwise, if the owner passes its visibility and object_29a_matches_game_6af0e checks, game +0x422 is not 1, owner +0x298 is not 2 or 6, and motion rules hold (owner +0x424 mask 0x8000 or motion 0x3FB before frame 22; not motion 0x3FA before frame 32; not motion 0x3C or 0x3D), sets mask 0x10, flips each entry's mask 0x1 at +0x22 and places it at the bone position plus its rotated table offset, copying to the node when the mask is on."
+confidence = "inferred"
+evidence = "Vtable slot +0x20; motion_frame_reached checks and the xor at entry +0x22, which class_089bdd08_queue_render_nodes reads."
+
+[[function]]
+module = "game_sub"
+address = "09C5B5E8"
+name = "class_089bdd08_build_entry_matrix"
+purpose = "Copies the owner's bone matrix to the output, bone 0xE for entry index 0 and bone 0x12 otherwise; mode 1 also applies fixed rotations (a half turn for the second entry, a quarter turn for both) and scales the axes by the table values at DAT_09ce5730 or DAT_09ce5750 indexed by +0xC0; mode 0 stops at the copy."
+confidence = "inferred"
+evidence = "object_get_bone_matrix calls and matrix multiplies in the code; called with mode 1 by the draw and mode 0 by the tick."
+
+[[function]]
+module = "game_sub"
+address = "09C5B908"
+name = "class_089bdd08_get_entry_offset"
+purpose = "Copies a vec4 from the table at DAT_09ce5720 (entry index 0) or DAT_09ce5740 (others) indexed by +0xC0 times 0x40, adding 10 to x for index 0 and subtracting 10 for others."
+confidence = "inferred"
+evidence = "Table lookups in the code; in traces called by class_089bdd08_tick_place_entries_on_bones_alternating before transforming the result."
+
+[[function]]
+module = "game_sub"
+address = "09C5F7E0"
+name = "class_089bdd58_spawn_for_owner"
+purpose = "Spawns a 089BDD58 object for the owner with +0x38, kind and +0x62 from the arguments and motion +0x3A from owner +0x324, linked on the manager's list: kind 5 becomes 6 when owner +0x1140 is 100, kind 2 is refused when owner +0x424 has mask 0x8000, kind 3 skips the object_29a_matches_game_6af0e check and sets flag mask 0x4."
+confidence = "inferred"
+evidence = "09C2DC98 installs vtable 089BDD58; in traces called from hunter states in game_task and hunter_init_089bb3cc."
+
+[[function]]
+module = "game_sub"
+address = "09C5F960"
+name = "class_089bdd58_draw_interpolated_strip_node"
+purpose = "Sets skeleton bone matrices of the object's +0x34 model along a strip, interpolating 4 sections of 6 steps from the points stored at +0x70 stride 0x80, then picks colour, alpha and blend mode by kind (kind 5 from owner +0x1140) and draws the model group from table DAT_09ce7188 through gpu_emit_model_mesh."
+confidence = "inferred"
+evidence = "Vtable 089BDD58 +0x10; interpolation loop writing at stride 0x250, skeleton_update_skin_matrices and gpu_emit_model_mesh."
+
+[[function]]
+module = "game_sub"
+address = "09C60010"
+name = "math_matrix_basis_from_two_vectors"
+purpose = "Writes an orthonormal basis to a 4x4 matrix: row 0 is the first vector normalised, row 2 the normalised cross of it with the second vector, row 1 the cross of row 2 with row 0; sets the fourth column to 0, 0, 0, 1 and leaves the translation row alone."
+confidence = "inferred"
+evidence = "vdot, vrsq, vscl and vcrsp sequence and the output writes."
+
+[[function]]
+module = "game_sub"
+address = "09C60128"
+name = "class_089bdd58_queue_render_nodes"
+purpose = "For each of the +0x41 nodes (0x30 bytes each) at +0x44 without mask 0x4 at node +4, inserts it in the depth-sorted render queue with bucket 7 and its +0x10 as position."
+confidence = "confirmed"
+evidence = "Vtable 089BDD58 +0x14 and the loop calling render_queue_insert_depth_sorted."

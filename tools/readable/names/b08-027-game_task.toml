@@ -1,0 +1,263 @@
+[[function]]
+module = "game_task"
+address = "09BA2060"
+name = "hunter_weapon0_state_count_672_while_field_1124_is_2_store_tier"
+purpose = "Sub-state machine on +0x1D5 (modes 1, 2, 6 play 0x597, 0x58C, 0x592 then 0x579; modes 3, 5 play 0x58A, 0x590; others 0x579): sets +0x414 to 0x5A (times 0.8 with skill 0xD7, 1.2 with 0xD8); from a mode-specific frame the local hunter with +0x1124 equal to 2 sets +0x69C to 0.5, increments +0x672 and decrements +0x414, and +0x1124 not 2 or +0x414 below 1 sets +0x1D6; at the end frame with +0x1D6 at 1 it stores hunter_field_672_tier in +0x60E and calls 09A67878(1)."
+confidence = "inferred"
+evidence = "Code reads frames, +0x1124, +0x672 and skills; what sets +0x1124 not read; kind 0 from the dispatcher."
+
+[[function]]
+module = "game_task"
+address = "09BA2608"
+name = "hunter_weapon0_state_motion_0594_apply_tier_60e_chain_code_4"
+purpose = "Sub-state machine on +0x1D5: by mode plays entry motion 0x582, 0x596 or 0x595 then 0x594 (or 0x594 directly), applies tier via 09BA3200, turns +0x320 by 0x1000 by direction when +0x60E is above 0; on field +0x33D does one camera shake and 09BA32E8, at frame 42 without that passes a point ahead to 09C572D0 (tier 3 calls 09CB1D58(10) instead in step 2) and shakes the camera, in window 48-102 calls 09BA2E68(4) and clears +0x672 and +0x60E; steps 3 and 5 call 09C5F7E0(0x1C) once +0x558 is zero."
+confidence = "inferred"
+evidence = "Reached from the kind 0 dispatch; motion and frame constants in code."
+
+[[function]]
+module = "game_task"
+address = "09BA2D10"
+name = "hunter_weapon0_pick_state_from_field_1120"
+purpose = "Clears +0x111C mask 0x800 and calls 09A8BC90, then by 09BA2E28 of +0x1120 sets state (1,0x13), (1,1) or (1,0); otherwise +0x484 mask 0x1 sets (1,4), or +0x484 mask 0x4000 with stamina above 0x4A sets (0,0x1C)."
+confidence = "inferred"
+evidence = "Case 0 of hunter_dispatch_on_1e8_if_9a8b058; vtable +0x6C calls in code."
+
+[[function]]
+module = "game_task"
+address = "09BA2E28"
+name = "hunter_weapon0_map_field_1120_to_code"
+purpose = "Maps +0x1120: 1 to 1, 2 to 4, 3 to 2, anything else to 0xFF."
+confidence = "inferred"
+evidence = "Code; callers are kind 0 functions in traces."
+
+[[function]]
+module = "game_task"
+address = "09BA2E68"
+name = "hunter_weapon0_call_9a8b100_then_chain_state_from_field_1120"
+purpose = "If 09A8B058 allows: calls 09A8B100, clears +0x111C mask 0x800, calls 09A8BC90, then if the 09BA2E28 code differs from the argument picks a state with vtable +0x6C by code, argument and a direction test (masks 0x200000 or 0x800000): states 0x15/0x16/0x18/0x19 for code 4, 9-0xC for code 2, 5-8 for code 1."
+confidence = "guess"
+evidence = "Table of vtable +0x6C calls; called in frame windows by kind 0 motion states with arguments 1 to 4."
+
+[[function]]
+module = "game_task"
+address = "09BA31B0"
+name = "hunter_weapon0_enter_state_14_set_111c_mask_800"
+purpose = "Sets +0x111C mask 0x800, calls 09A8BC90, and sets state (1,0x14,4)."
+confidence = "inferred"
+evidence = "Case 0 of a +0x1E8 switch in hunter_common_input_handler."
+
+[[function]]
+module = "game_task"
+address = "09BA3200"
+name = "hunter_weapon0_apply_tier_60e_set_10f0_spawn_owned_obj"
+purpose = "By tier byte +0x60E (3, 2, 1, other) sets byte +0x10F0 to 0x82, 0x78, 0x6E or 0x64 and calls owned_obj_spawn_kind_00_hunter with 0x5D, 0x5C, 0x5B or 3; then clears +0x111C mask 0x800."
+confidence = "inferred"
+evidence = "Code; called when 09BA2608 starts motion 0x594."
+
+[[function]]
+module = "game_task"
+address = "09BA32E8"
+name = "hunter_weapon0_react_byte_397_restart_motion_or_state_03"
+purpose = "By byte +0x397: 2 or 3 restart motion +0x324 at float +0x90 minus 2, set +0x46A to 2 and return 1; 1 clears +0x33C and +0x396 (and +0x614 mask 0x800 when the argument is 0) and sets state (1,3,0); 0 calls 09C5F7E0(0xF,0,0). All paths but the restart return 0."
+confidence = "inferred"
+evidence = "Code; callers call it when field +0x33D is set, after a camera shake."
+
+[[function]]
+module = "game_task"
+address = "09BA7EF0"
+name = "hunter_weapon4_dispatch_state_299"
+purpose = "Runs the handler for state byte +0x299: states 0, 6, 7, 8 to 09BA7FF8 modes 0-3, states 1, 9, 0xA to 09BA8450 modes 0-2, state 2 to 09BA8700, state 3 to 09BA8818, states 4, 0xB, 0xC to 09BA88D8 modes 0-2, state 5 to 09BA8BC0."
+confidence = "inferred"
+evidence = "Case 4 of hunter_action_state_dispatch_by_byte_1e8."
+
+[[function]]
+module = "game_task"
+address = "09BA7FF8"
+name = "hunter_weapon4_state_motion_0579_057a_057b_chain_on_field_1120"
+purpose = "Modes 0, 3: motion 0x579 (mode 3 starts at frame 10 and calls 09C5F7E0(8,1,0)), mode 1: 0x57A, mode 2: 0x57B, each spawning an owned object; in a frame window +0x1120 values 1 or 2 latch +0x1D6, which later sets state 2, 6 or 7 (mode 0/3 uses 6, mode 1 uses 7), otherwise 09BA8E30 before a mode-specific end frame; at motion end hunter_reset_to_base_state_and_motion with 6."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 0, 6, 7, 8."
+
+[[function]]
+module = "game_task"
+address = "09BA8450"
+name = "hunter_weapon4_state_motion_057c_chain_state_04"
+purpose = "Modes 0, 2: motion 0x57C directly (mode 2 sets +0x111C mask 0x1000); mode 1: motion 0x3F2 with +0x410 mask 8 first, then 0x57C from frame 8 and clears +0x111C mask 0x800; in window 20-60 +0x1120 of 2 sets +0x1D6, from frame 34 that sets state (1,4,4), otherwise 09BA8E30 before frame 60; at motion end hunter_reset_to_base_state_and_motion with 4."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 1, 9, 0xA."
+
+[[function]]
+module = "game_task"
+address = "09BA8700"
+name = "hunter_weapon4_state_motion_057d"
+purpose = "Plays motion 0x57D and calls owned_obj_spawn_kind_00_hunter(0x17); after frames 20 and 40 are both reached calls 09BA8E30; at motion end hunter_reset_to_base_state_and_motion with 6."
+confidence = "inferred"
+evidence = "Code; state 2 of the kind 4 dispatch."
+
+[[function]]
+module = "game_task"
+address = "09BA88D8"
+name = "hunter_weapon4_state_motion_057e_chain_states_02_08"
+purpose = "Modes 0, 1: motion 0x57E (mode 1 from frame 8) and spawn 0x1E; mode 2: motion 0x589, spawn 0x64 at frame 18, then 0x57E from frame 0x10; in window 26-60 +0x1120 values 1 or 2 latch +0x1D6, which from frame 26 sets state 2 or 8, otherwise 09BA8E30 before frame 60; at motion end hunter_reset_to_base_state_and_motion with 6."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 4, 0xB, 0xC."
+
+[[function]]
+module = "game_task"
+address = "09BA8D40"
+name = "hunter_weapon4_pick_state_from_field_1120"
+purpose = "Clears +0x111C mask 0x800 and calls 09A8BC90, then +0x1120 of 1, 2 or 3 sets state (1,2,4), (1,0,4) or (1,1,4); otherwise +0x484 mask 0x4000 with stamina above 0x4A sets (0,0x1C,4)."
+confidence = "inferred"
+evidence = "Case 4 of hunter_dispatch_on_1e8_if_9a8b058."
+
+[[function]]
+module = "game_task"
+address = "09BA8E30"
+name = "hunter_weapon4_try_evade_clear_111c_mask_800"
+purpose = "If 09A8B058 returns nonzero, calls 09A8B100, clears +0x111C mask 0x800 and calls 09A8BC90."
+confidence = "inferred"
+evidence = "Code; callee names; called from kind 4 motion states."
+
+[[function]]
+module = "game_task"
+address = "09BA8E80"
+name = "hunter_weapon4_enter_state_09_set_111c_mask_800"
+purpose = "Sets +0x111C mask 0x800, calls 09A8BC90, and sets state (1,9,4)."
+confidence = "inferred"
+evidence = "Case 4 of a +0x1E8 switch in hunter_common_input_handler."
+
+[[function]]
+module = "game_task"
+address = "09BA8F40"
+name = "hunter_weapon4_state_0c_or_try_gather_from_field_1120"
+purpose = "Clears +0x111C mask 0x800 and calls 09A8BC90, then +0x1120 of 2 sets state (1,0xC,4), and +0x1120 of 4 calls hunter_try_start_gather(2), 09AA7580(0) and sets byte +0x674 mask 1."
+confidence = "inferred"
+evidence = "Called by hunter_reaction_state_3_motion_3ed_584_58a_by_byte_1e8 when +0x1E8 is 4."
+
+[[function]]
+module = "game_task"
+address = "09BA9020"
+name = "hunter_weapon6_dispatch_state_299"
+purpose = "Runs the handler for state byte +0x299: states 0, 9, 0xA, 0xB to 09BA91A8 modes 0-3, 1, 0xC, 0xD, 0xE to 09BA9760 modes 0-3, 2, 0xF, 0x10 to 09BA98F0 modes 0-2, 3, 0x11 to 09BA9C70 modes 0-1, 4, 0x12, 0x13 to 09BA9EC0 modes 0-2, 5, 0x14 to 09BAA178 modes 0-1, and 6, 7, 8 to 09BAA6E8, 09BAA918, 09BAA9A8."
+confidence = "inferred"
+evidence = "Case 6 of hunter_action_state_dispatch_by_byte_1e8."
+
+[[function]]
+module = "game_task"
+address = "09BA91A8"
+name = "hunter_weapon6_state_motion_0579_057a_057b_chain_on_field_1120"
+purpose = "Modes 0, 3: motion 0x579 (mode 3 from frame 10 and calls 09C5F7E0(8,1,0)), mode 1: 0x57A, mode 2: 0x57B, with owned-object spawns at start and later frames; in a frame window +0x1120 of 1, 2 or 3 latches +0x1D6, which from a mode-specific frame calls 09BAAE38 or sets state 9 (modes 0, 3) or 10 (mode 1), otherwise 09BAAC38(0) before an end frame; at motion end hunter_reset_to_base_state_and_motion with 4."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 0, 9, 0xA, 0xB."
+
+[[function]]
+module = "game_task"
+address = "09BA9760"
+name = "hunter_weapon6_state_motion_from_table_09c0bbd0_spawn_2d_2e_2f"
+purpose = "Plays the motion and start frame the mode indexes in tables 09C0BBD0 (shorts) and 09C0BBD8 (bytes), spawns owned objects 0x2D at start, 0x2E from frame 24, 0x2F from frame 34; from frame 50 calls 09BAAC38(0); at motion end hunter_reset_to_base_state_and_motion with 6."
+confidence = "inferred"
+evidence = "Code; dispatched by states 1, 0xC, 0xD, 0xE."
+
+[[function]]
+module = "game_task"
+address = "09BA98F0"
+name = "hunter_weapon6_state_motion_057c_chain_state_03"
+purpose = "Modes 0, 2: motion 0x57C and spawns 0x65, 0x66 (mode 2 sets +0x111C mask 0x1000); mode 1: motion 0x585 with +0x410 mask 8 first, then 0x57C from frame 0x1C and spawns 0x67, 0x68; once from frame 36 spawns 0x69, 0x6A and clears +0x111C mask 0x800; in window 20-80 +0x1120 of 2 sets +0x1D6, from frame 42 that sets state (1,3,4), otherwise 09BAAC38(0) before frame 60; at motion end hunter_reset_to_base_state_and_motion with 4."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 2, 0xF, 0x10."
+
+[[function]]
+module = "game_task"
+address = "09BA9C70"
+name = "hunter_weapon6_state_motion_057e_chain_on_field_1120"
+purpose = "Plays motion 0x57E (from frame 4 in mode 1) and spawns 0x2C; in window 26-60 +0x1120 of 1 or 2 latches +0x1D6, which from frame 26 calls 09BAAE38 or sets state 0xB, otherwise 09BAAC38(0) before frame 38; at motion end hunter_reset_to_base_state_and_motion with 6."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 3, 0x11."
+
+[[function]]
+module = "game_task"
+address = "09BA9EC0"
+name = "hunter_weapon6_state_motion_03fa_03fb_set_410_masks_8_10"
+purpose = "Sets +0x410 mask 8; mode 1 clears +0x410 mask 0x10 and plays 0x3FB; modes 0, 2 set mask 0x10, set +0x468 to 2 and play 0x3FA (mode 0 first clears short +0x1138 and calls 09C6B560(4) if it was set). From frame 50 +0x1120 of 2 or 3 latches +0x1D6 and a direction in +0x414; outside mode 1 the local hunter from frame 60 turns yaw +0x1F4 and +0x320 by 0x2000 and sets state (1,2,4), or calls 09BAAE38(3,1); at motion end clears +0x468 and hunter_reset_to_base_state_and_motion with 2."
+confidence = "inferred"
+evidence = "Motion and frame constants in code; dispatched by states 4, 0x12, 0x13."
+
+[[function]]
+module = "game_task"
+address = "09BAA178"
+name = "hunter_weapon6_state_two_motions_pick_followup_by_field_1120_stamina"
+purpose = "Plays 0x583 (mode 0) or 0x57D (mode 1) then from frame 40 plays 0x582 or 0x581, spawning owned objects at frames; while +0x1D6 is 0xFF before frame 22 the local hunter latches it from +0x1120, direction, and +0x484 mask 0x4000 with stamina above 0x4A (angle +0x49C when +0x480 mask 0xF00000 is set); from frame 22 the latch sets state (1,2,4) with a 0x2000 turn, (0,0x31,4), (0,0x1C,4), (0,0x32,4) or calls 09BAAE38(3,1); at motion end hunter_reset_to_base_state_and_motion with 4."
+confidence = "inferred"
+evidence = "Same state 0x1C/0x31/0x32 selection as hunter_try_evade_directional_stamina_gated; dispatched by states 5, 0x14."
+
+[[function]]
+module = "game_task"
+address = "09BAAB28"
+name = "hunter_weapon6_pick_state_from_field_1120"
+purpose = "Clears +0x111C mask 0x800 and calls 09A8BC90, then +0x1120 of 3 calls 09BAAE38(2,0), 2 sets state (1,0,4), 1 calls 09BAAE38 with selector 1 or 0 by direction mask 0x800000; otherwise +0x484 mask 0x4000 with stamina above 0x4A sets (0,0x1C,4)."
+confidence = "inferred"
+evidence = "Case 6 of hunter_dispatch_on_1e8_if_9a8b058."
+
+[[function]]
+module = "game_task"
+address = "09BAAC38"
+name = "hunter_weapon6_try_evade_clear_111c_mask_800_then_09a67878"
+purpose = "If 09A8B058 returns nonzero, calls 09A8B100, clears +0x111C mask 0x800, calls 09A8BC90, and when the argument is 0 with +0x410 mask 8 and +0x484 mask 0x200 both set calls 09A67878(1)."
+confidence = "inferred"
+evidence = "Code; both inner branches call the same thing; called with 0 in this bundle."
+
+[[function]]
+module = "game_task"
+address = "09BAAD10"
+name = "hunter_weapon6_enter_state_0f_set_111c_mask_800"
+purpose = "Sets +0x111C mask 0x800, calls 09A8BC90, and sets state (1,0xF,4)."
+confidence = "inferred"
+evidence = "Case 6 of a +0x1E8 switch in hunter_common_input_handler."
+
+[[function]]
+module = "game_task"
+address = "09BAADB0"
+name = "hunter_weapon6_enter_state_04_or_12"
+purpose = "Clears +0x111C mask 0x800, calls 09A8BC90, and sets state (1,4,4) when the argument is 0, otherwise (1,0x12,4)."
+confidence = "inferred"
+evidence = "Called by hunter_snapshot_place_and_dispatch_on_1e8, which passes its own argument."
+
+[[function]]
+module = "game_task"
+address = "09BAAE38"
+name = "hunter_weapon6_enter_state_by_selector_and_410_mask_10"
+purpose = "Clears +0x111C mask 0x800, calls 09A8BC90, then sets a state from selector and +0x410 mask 0x10: selector 0 gives 5 with the mask, else 1 (third argument 0) or 0xD; selector 1 gives 0x14 with the mask, else 0xC or 0xE; other selectors give 6 with the mask, else 2 for selector 2 and nothing otherwise."
+confidence = "inferred"
+evidence = "Table of vtable +0x6C calls; called from kind 6 states."
+
+[[function]]
+module = "game_task"
+address = "09BB0F08"
+name = "hunter_clear_bytes_1102_to_110a"
+purpose = "Zeroes bytes +0x1102 through +0x110A."
+confidence = "inferred"
+evidence = "Code; called by hunter_place_and_reset_for_mode_2a4 and hunter_clear_status_fields."
+
+[[function]]
+module = "game_task"
+address = "09C10E00"
+name = "crt_static_init_global_09c11020"
+purpose = "Static initialiser: sets DAT_09C122B0 to 0x9C11020, copies a member function pointer from 09BB8920 to 09C12234 when it is set, zeroes arrays in the object at 0x9C11020 and two words, and registers destructor 09AB4C18."
+confidence = "inferred"
+evidence = "Run once by crt_run_init_functions_and_add_range; registers via cxx_register_global_destructor."
+
+[[function]]
+module = "game_task"
+address = "09C10F70"
+name = "crt_static_init_clear_words_09bf56b8"
+purpose = "Static initialiser: zeroes the words at 09BF56B8, 09BF5718, 09BF5778 and 09BF57D8."
+confidence = "confirmed"
+evidence = "Whole body; run once by crt_run_init_functions_and_add_range."
+
+[[function]]
+module = "game_task"
+address = "09C10FA0"
+name = "crt_static_init_owned_obj_mgr_09c12830"
+purpose = "Static initialiser: constructs the manager at 09C12830 with owned_obj_mgr_construct and registers destructor 09B62B10."
+confidence = "confirmed"
+evidence = "Whole body; run once by crt_run_init_functions_and_add_range."

@@ -1,0 +1,295 @@
+[[function]]
+module = "game_sub"
+address = "09C19180"
+name = "gamedata_condition_tier_reached"
+purpose = "Returns 1 if the tier stored at *param_1 is at least the requested tier, otherwise evaluates that tier's condition through gamedata_condition_test_by_id (tier 1 is condition 3 or 4; tier values 2 to 0xE map to ids 0xA, 0xC, 0xE, 0x10, 0x12, 0x24, 0x2A, 0x2B, 0x78, 0x7A, 0x7C, 0x7D, 0x7E); other tier values return 1."
+confidence = "inferred"
+evidence = "Switch read; same id table as 09C19440; what the tiers stand for is not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C19440"
+name = "gamedata_condition_tier_recompute_and_store"
+purpose = "Tests conditions 0x7E down to 0xA, then 3 or 4, writes the highest matching tier (0xE to 1, else 0) to *param_1, and copies it as a short to game global +0x4B8."
+confidence = "inferred"
+evidence = "If-chain read; the write to +0x4B8 is in the body."
+
+[[function]]
+module = "game_sub"
+address = "09C19680"
+name = "gamedata_condition_test_by_id"
+purpose = "Evaluates a numbered condition: mostly quest_id_flag_test or gamedata_bitflag_508_test of a fixed id, some combined with a minimum of game global +0x696EC (0x1D4C to 20000) or +0x6A37C (0x32), counter totals, or all-of-list checks; id 0 is always 1 and an unknown id is 0."
+confidence = "inferred"
+evidence = "Long if-chain read in full in build/read; what the conditions unlock is not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C1A920"
+name = "quest_id_list_089b2008_or_2034_all_flagged"
+purpose = "Picks a zero-terminated ushort id list by index from table 089B2008 (first argument 0) or 089B2034 (otherwise) and returns 1 if quest_id_flag_test passes for every id."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1AA00"
+name = "quest_id_lists_089b1fdc_all_flagged_except_290e"
+purpose = "Returns 1 if quest_id_flag_test passes for every id in the 6 zero-terminated lists from table 089B1FDC, skipping id 0x290E."
+confidence = "confirmed"
+evidence = "Whole body read; used for condition 0x15, which is tested after bitflag 0xD0."
+
+[[function]]
+module = "game_sub"
+address = "09C1AA98"
+name = "quest_id_lists_089b1ff4_all_flagged_except_2bda"
+purpose = "Returns 1 if quest_id_flag_test passes for every id in the 3 zero-terminated lists from table 089B1FF4, skipping id 0x2BDA."
+confidence = "confirmed"
+evidence = "Whole body read; used for condition 0x6C."
+
+[[function]]
+module = "game_sub"
+address = "09C1AB30"
+name = "quest_id_list_09ccf310_all_flagged"
+purpose = "Returns 1 if quest_id_flag_test passes for every id of the list at index in table 09CCF310, with the length taken from byte table 09CCF338."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1ABC0"
+name = "stat_groups_09ccf200_total_at_least_100"
+purpose = "Sums stat_group_total_capped over the 16 group ids in byte table 09CCF200 and returns 1 once the running total exceeds 99 (0x63), else 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1ACE0"
+name = "table_89a48f0_mode3_count_is_0x12"
+purpose = "Returns 1 if table_89a48f0_count_set_entries on DAT_08a62d70 with mode 3 gives exactly 0x12."
+confidence = "confirmed"
+evidence = "Whole body read; used for condition 0x5A."
+
+[[function]]
+module = "game_sub"
+address = "09C1AD10"
+name = "gamedata_condition_14_and_quest_flag_2905"
+purpose = "Returns 1 if condition 0x14 holds and quest_id_flag_test of 0x2905 is exactly 1."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1AE18"
+name = "math_fill_random_permutation_16_at_8c"
+purpose = "Fills 16 ints from param_1+0x8C with a random permutation of 0 to 0xF, moving a repeat to the next free value, then clears byte +0x1190 of DAT_089cbd0c."
+confidence = "inferred"
+evidence = "Loop read; the caller passes DAT_09cfb998 at init; use of the permutation is not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C1B700"
+name = "gamedata_count_records_696fc_nonzero_first5"
+purpose = "Counts how many of the 5 records of stride 0x70 starting at game global +0x696FC have a nonzero first byte."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1B968"
+name = "gamedata_field_696f4_is_nonzero"
+purpose = "Returns 1 if game global +0x696F4 is nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C1C208"
+name = "struct_get_field_6c"
+purpose = "Returns the int at +0x6C of the object passed; a caller read passes DAT_09cfb998."
+confidence = "confirmed"
+evidence = "Whole body read; meaning of the field not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C1F3A0"
+name = "gamedata_condition_tier_bucket"
+purpose = "Returns 1 if bitflag 0x25 is clear; otherwise, with tier state DAT_09CFB898, returns 5 if tier 6 is reached, 4 for tier 5, 3 for tier 3, 2 for tier 2, else 1."
+confidence = "inferred"
+evidence = "Body read; caller lobby_task 09AEF868 stores the result in a byte at +10 of its argument."
+
+[[function]]
+module = "game_sub"
+address = "09C26778"
+name = "record70_rebuild_summaries_682e8_from_69bec"
+purpose = "Clears the 0x340-byte block at game +0x682E8 and, for each of the 13 0x70-byte source records at +0x69BEC with a nonzero first byte, rewrites that byte's masks 0xC in the source (mask 0x8 for the first 3 records, mask 0x4 for the rest) and packs a 0x40-byte summary into the block."
+confidence = "inferred"
+evidence = "Body read; the callers read call it after a source record is removed or changed; summaries are the derived copy, +0x69BEC the source."
+
+[[function]]
+module = "game_sub"
+address = "09C268D0"
+name = "record_list_68740_insert_by_tier_dated"
+purpose = "Keeps the 5-entry list of 0x1C-byte entries at game +0x68740 ordered by tier: an entry matching the record's 18-byte key at +0x4E and byte +1 is removed unless it has a higher tier (then nothing changes), and the record goes in before the first entry whose tier is not above its own (record70_tier_from_field_2a), with the current date from sceRtcGetCurrentClockLocalTime."
+confidence = "inferred"
+evidence = "Body read; the caller in traces passes a 0x78-stride record of its own; what the list is shown as is not established."
+
+[[function]]
+module = "game_sub"
+address = "09C276C8"
+name = "gamedata_count_records_69bec_nonzero_first3"
+purpose = "Counts how many of the first 3 records of stride 0x70 at game global +0x69BEC have a nonzero first byte."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C28C80"
+name = "singleton_09cfbcf0_init"
+purpose = "Stores its argument in DAT_09CFBCF0 and clears byte +5 of it."
+confidence = "confirmed"
+evidence = "Whole body read; destructor 09C28C98 clears the same global; called from 09CFB704 with static 09CFBCE0."
+
+[[function]]
+module = "game_sub"
+address = "09C2B370"
+name = "dialog_box_clear_active"
+purpose = "Clears the first byte of the dialog box state, the byte that 09C2B378 tests before doing anything."
+confidence = "inferred"
+evidence = "Body read; caller lobby_task 09A6C0A8 passes DAT_09CFBD28, the same object 09A6F638 passes to 09C2B378."
+
+[[function]]
+module = "game_sub"
+address = "09C2B378"
+name = "dialog_box_tick_and_draw"
+purpose = "When byte +0 is set: advances the 0x28-frame cycle at +8, counts down +0xA and clears +0 at zero if byte +2 is set, draws the box and its multi-line text from +0x14 (mode byte +3 = 1 skips the text in the later part of the cycle), then mode 3 with byte +5 draws two choice strings with the one selected by byte +4 highlighted, and mode 2 with byte +5 draws a prompt string when DAT_08a632c0+0xF7A554 has mask 0x20."
+confidence = "inferred"
+evidence = "Text and band calls read; lobby_task 09A6F638 opens it through 09C2B830 and closes it on a button."
+
+[[function]]
+module = "game_sub"
+address = "09C2BCD8"
+name = "node_mgr_09d19860_construct"
+purpose = "Stores this object in DAT_09D19860, constructs its arrays (3 and 4 elements of class_089bdc3c, 0x52 and 0x100 of class_089bdc80), initialises the heap at +0x19004 over 0x19000 bytes at +4, and clears the list head and count at +0x19030/+0x19034 and bytes +0x19490 to +0x19493."
+confidence = "confirmed"
+evidence = "Whole body read; caller 09CFB764 ran at boot."
+
+[[function]]
+module = "game_sub"
+address = "09C2BE38"
+name = "class_089bdc80_construct"
+purpose = "Constructor for the 0x30-byte array elements: sets vtable 089BDC80 over base 089BDC48 and clears +0x24."
+confidence = "confirmed"
+evidence = "Whole body read; passed to cxx_array_construct by 09C2BCD8."
+
+[[function]]
+module = "game_sub"
+address = "09C2BEC8"
+name = "class_089bdc3c_construct"
+purpose = "Constructor for the 0x140-byte array elements: sets vtable 089BDC3C and zeroes fields between +0x110 and +0x13E."
+confidence = "confirmed"
+evidence = "Whole body read; passed to cxx_array_construct by 09C2BCD8."
+
+[[function]]
+module = "game_sub"
+address = "09C2C000"
+name = "node_mgr_09d19860_destroy_all_and_reset"
+purpose = "Destroys and frees every node on the list at +0x19030, clears the byte arrays at +0x19A60 (0x52) and +0x19AB2 (0x100), resets all those 0x30-byte slots with 09C56EA8, re-initialises the heap, and zeroes the serial +0x1902C, bytes +0x19490 to +0x19493, +0 and +1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C2C1F8"
+name = "node_mgr_09d19860_remove_mask1_without_mask4_and_reset_slots"
+purpose = "Destroys and frees the listed nodes whose +0x48 has mask 0x1 set and mask 0x4 clear, then resets the slots in the 0x100-entry group whose flag byte at +0x19AB2 is set."
+confidence = "inferred"
+evidence = "Body read; in traces called from the two area-change task states and lobby_task 09A71438."
+
+[[function]]
+module = "game_sub"
+address = "09C2C370"
+name = "record_type_2b_dispatch_nodes_and_sound"
+purpose = "Unless record byte +0x2B low 6 bits are 0 or record +0x18 differs from the area id at game +0x6AF0E, picks by those 6 bits one or more calls at a position argument: node-spawning 09C58C48, 09C7B688, 09C7BCA8, 09C85A48, 09C79278 and others, varied by byte +0x74, record flags +0x28 and the object fields +0x1E8/+0x1E9; type 0x1D also plays a sound via object_play_sound_if_29a_matches."
+confidence = "guess"
+evidence = "Switch read; caller 09C42750 passes a computed position after its own tests, which looks like a hit contact, but the callees are mostly unnamed."
+
+[[function]]
+module = "game_sub"
+address = "09C2D3E0"
+name = "node_mgr_09d19860_tick_and_reap"
+purpose = "Calls vtable slot +0xC on each node on the list at +0x19030, then destroys and frees those whose +0x48 mask 0x1 is clear."
+confidence = "confirmed"
+evidence = "Whole body read; runs across hunt and lobby traces."
+
+[[function]]
+module = "game_sub"
+address = "09C2D518"
+name = "node_mgr_09d19860_call_slot_14_flagged"
+purpose = "Calls vtable slot +0x14 on each listed node whose +0x48 has mask 0x10."
+confidence = "inferred"
+evidence = "Body read; caller game_task_frame_draw_calls suggests a draw pass, but the slot's bodies were not read."
+
+[[function]]
+module = "game_sub"
+address = "09C2D6C0"
+name = "node_mgr_09d19860_alloc_class_089bdcb8"
+purpose = "Allocates and zeroes a 0x60-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDCB8 (after base 089BDC58), stores the serial from +0x1902C in the low 24 bits of +0x20 with tag 0x01 in the top byte, and gives it table entries from the +0x194A0 set (slot from asset_slots_9_12_find_index_by_id when param_3 is 1) or the +0x19040 set (slot param_2); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C57CA0 links the result at +0x19030."
+
+[[function]]
+module = "game_sub"
+address = "09C2D8B0"
+name = "node_mgr_09d19860_alloc_class_089bdce0"
+purpose = "Allocates and zeroes a 0x70-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDCE0 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x02 in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C58C48/09C58E68 (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2D9E8"
+name = "node_mgr_09d19860_alloc_class_089bdd08"
+purpose = "Allocates and zeroes a 0xD0-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDD08 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x03 in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C5AED0 (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2DC98"
+name = "node_mgr_09d19860_alloc_class_089bdd58"
+purpose = "Allocates and zeroes a 0x370-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDD58 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x05 in the top byte, and gives it the table entries for slot 1 (+0x19060); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C5F7E0 (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2DDD0"
+name = "node_mgr_09d19860_alloc_class_089bdd80"
+purpose = "Allocates and zeroes a 0x1F0-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDD80 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x06 in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C611C8/09C648B8 (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2E0C8"
+name = "node_mgr_09d19860_alloc_class_089bddd0"
+purpose = "Allocates and zeroes a 0x260-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDDD0 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x08 in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C671A8 (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2E6B0"
+name = "node_mgr_09d19860_alloc_class_089bde98"
+purpose = "Allocates and zeroes a 0x2F0-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDE98 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x0D in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C6F018 and others (a caller read for 09C2D8B0 links the result at +0x19030)."
+
+[[function]]
+module = "game_sub"
+address = "09C2E7E8"
+name = "node_mgr_09d19860_alloc_class_089bdec0"
+purpose = "Allocates and zeroes a 0x240-byte object from the 09D19860 manager's heap at +0x19004, sets vtable 089BDEC0 (after base 089BDC58), stores the running serial from +0x1902C in the low 24 bits of +0x20 with tag 0x0E in the top byte, and gives it the table entries for slot 0 (+0x19040); returns the object or 0, and does not link it."
+confidence = "inferred"
+evidence = "Body read; caller 09C75518 (a caller read for 09C2D8B0 links the result at +0x19030)."

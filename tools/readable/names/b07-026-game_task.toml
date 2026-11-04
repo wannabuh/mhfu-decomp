@@ -65,7 +65,7 @@ evidence = "Short body read in full: object_get_bone_matrix and vtfm3_t into par
 [[function]]
 module = "game_task"
 address = "09BA0AE0"
-name = "hunter_kind0_dispatch_state_299"
+name = "hunter_weapon0_dispatch_state_299"
 purpose = "Runs the handler for state byte +0x299 when byte +0x1E8 is 0: states 0, 5-8 go to 09BA0CD8 modes 0-4, states 1, 9-0xC to 09BA1108 modes 0-4, states 2, 0xE-0x12 to 09BA15D8 modes 0, 2-6, state 3 to 09BA1E38, state 4 to 09BA1FB8, states 0x13-0x1D to 09BA2060 and 09BA2608 with modes; 0xD and 0x17 do nothing."
 confidence = "inferred"
 evidence = "Switch read in full; case 0 of hunter_action_state_dispatch_by_byte_1e8 (09A8AEB8), and the handlers use hunter_set_motion_id_both_parts."
@@ -73,7 +73,7 @@ evidence = "Switch read in full; case 0 of hunter_action_state_dispatch_by_byte_
 [[function]]
 module = "game_task"
 address = "09BA0CD8"
-name = "hunter_kind0_state_motion_057e_with_entry_modes"
+name = "hunter_weapon0_state_motion_057e_with_entry_modes"
 purpose = "Sub-state machine on +0x1D5: mode 0 starts motion 0x57E directly and modes 1-4 first play entry motion 0x589, 0x58D, 0x58F or 0x593 (modes 3, 4 add 0x2000 to yaw +0x1F4); on field +0x33D it does one camera shake and 09BA32E8, in frame windows it calls chain check 09BA2E68 with 1, and at motion end hunter_reset_to_base_state_and_motion."
 confidence = "inferred"
 evidence = "Motion ids, motion_frame_reached windows 72-98 and 78-104, camera_start_shake_from_object, sets mask 0x800 on +0x614 and +0x468 to 0x3C; ran in fight1 and fight2, not in shops."
@@ -81,7 +81,7 @@ evidence = "Motion ids, motion_frame_reached windows 72-98 and 78-104, camera_st
 [[function]]
 module = "game_task"
 address = "09BA1108"
-name = "hunter_kind0_state_motion_057f_with_entry_modes"
+name = "hunter_weapon0_state_motion_057f_with_entry_modes"
 purpose = "Sub-state machine on +0x1D5: mode 0 starts motion 0x57F directly and modes 1-4 first play entry motion 0x588, 0x58B, 0x58E or 0x591 (modes 3, 4 subtract 0x2000 from yaw +0x1F4); on field +0x33D it does one camera shake and 09BA32E8, at frame 106 without that it passes a point ahead of the object to 09C572D0 and shakes the camera, in window 116-192 it calls chain check 09BA2E68 with 2."
 confidence = "inferred"
 evidence = "Same shape as 09BA0CD8 with its own motion ids and frames; offset (30, 0, -150) through the object matrix at +0x10; ran in fight2 3180-3200."
@@ -89,7 +89,7 @@ evidence = "Same shape as 09BA0CD8 with its own motion ids and frames; offset (3
 [[function]]
 module = "game_task"
 address = "09BA15D8"
-name = "hunter_kind0_state_motion_0594_after_entry_motion"
+name = "hunter_weapon0_state_motion_0594_after_entry_motion"
 purpose = "Sub-state machine on +0x1D5: plays an entry motion chosen by mode (0x579, 0x58C, 0x58A, 0x57D, 0x590, 0x592, some followed by 0x595, 0x596 or 0x579), then motion 0x594; on field +0x33D it does one camera shake and 09BA32E8, at frame 42 without that it passes a point ahead to 09C572D0 and shakes the camera, in window 48-102 it calls chain check 09BA2E68 with 3; mode 4 sets mask 0x1000 on +0x111C."
 confidence = "inferred"
 evidence = "Motion ids and frame tests read in the switch; sets mask 8 on +0x410, mask 0x800 on +0x614, +0x468 to 0x3C; table 09C0BBA0 gives 0x594 start arguments; ran in fight1 and fight2."
@@ -97,7 +97,7 @@ evidence = "Motion ids and frame tests read in the switch; sets mask 8 on +0x410
 [[function]]
 module = "game_task"
 address = "09BA1E38"
-name = "hunter_kind0_state_motion_057c_chain_on_field_1120"
+name = "hunter_weapon0_state_motion_057c_chain_on_field_1120"
 purpose = "Plays motion 0x57C; in frames 2-60, when mask 1 of +0x614 is clear and +0x1120 is 1-3, it sets +0x1D6, and once that is set and frame 18 is reached it calls vtable +0x6C with (1, 0x10, 0xC); at motion end it calls hunter_reset_to_base_state_and_motion."
 confidence = "inferred"
 evidence = "Short body read in full; 09BA32E8 also requests state 3 through vtable +0x6C with (1, 3, 0), and state 3 dispatches here; ran in fight1 and fight2."

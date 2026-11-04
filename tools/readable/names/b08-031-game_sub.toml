@@ -1,0 +1,111 @@
+[[function]]
+module = "game_sub"
+address = "09C3B8D0"
+name = "collision_sphere_vs_triangle_add_contact"
+purpose = "Tests a moving sphere (arg +0x00 end point, +0x10 start point, +0x20 radius) against an expanded triangle and, when under 9 contacts are stored, the start is not behind the plane, the end is not over a radius in front and the plane point is inside the triangle or within a radius of an edge, appends a 0xA0-byte contact at world +0x290 (triangle copy, normal with tiny components zeroed, closest point +0x300, flags +0x320, edge flag +0x321) and returns 1; else 0."
+confidence = "inferred"
+evidence = "Normal dot tests against radius, 09C3BFF0 then three 09C35890 edge distances; caller 09C3A920 builds the arg with radius arg_f12 and start from its param_2 and walks grid triangles."
+
+[[function]]
+module = "game_sub"
+address = "09C3BE98"
+name = "math_segment_plane_crossing_point"
+purpose = "If points a1 and a2 lie on opposite sides of the plane through arg_t0 with normal a3 (a point on the plane counts as the front side), writes the crossing point to arg_t1 (w from a1) and returns 1; returns 0 when both are on one side or the segment is parallel by a zero dot."
+confidence = "confirmed"
+evidence = "Two signed dots give a 2-bit side code; crossing is a1 + (a1-a2) * -(d1/dot); all 3 callers pass a triangle's normal and first vertex."
+
+[[function]]
+module = "game_sub"
+address = "09C3BFF0"
+name = "math_point_in_triangle_with_normal"
+purpose = "Returns 1 if a point is on the inner side of all three edges of a triangle laid out as vec4s v0, v1, v2, normal, judged by the sign of each normalised edge cross product dotted with the normal (zero counts as inside); else 0."
+confidence = "confirmed"
+evidence = "Three vcrsp/vdot tests with an early 0 on a negative dot; callers pass the +0x10 part of the 09C3C200 layout or the same layout built on the stack."
+
+[[function]]
+module = "game_sub"
+address = "09C3C200"
+name = "collision_triangle_expand_record"
+purpose = "Expands a packed triangle record into a working block: copies header bytes +0..+3, writes vertices at +0x10, +0x20, +0x30 with w 1, the normal at +0x40 with w 0, and the plane constant at +0x50."
+confidence = "inferred"
+evidence = "Field by field copy from +4, +0x10, +0x1C, +0x28, +0x34; the same record's +0x28..+0x34 solve a plane for Y in 09C3DB00."
+
+[[function]]
+module = "game_sub"
+address = "09C3C2B8"
+name = "collision_resolve_sphere_contacts_push_position"
+purpose = "Turns the world's stored contacts into one push and adds it to the position param_3: one contact is used directly; with several, edge contacts duplicating a face normal, a shared closest point or passing a shared-vertex test are dropped, per-axis push extremes are combined, and the push is clamped to 1.8 times arg +0x24 when that is nonzero; appends the used contacts to the list at world +0x280 (count +0x229, max 9) and returns the contact count."
+confidence = "inferred"
+evidence = "Splits by +0x321, compares +0x2D0 normals and +0x2A0 vertices, calls 09C3D018 and 09C3D300, ends with vadd to *param_3; caller 09C3A920 sets arg +0x24 to the start-to-end distance."
+
+[[function]]
+module = "game_sub"
+address = "09C3D018"
+name = "collision_contact_push_vector"
+purpose = "Writes the vector moving the contact's position (+0x2F0) to a radius (arg +0x20) from its closest point (+0x300), along the point-to-position direction for an edge contact (+0x321 is 1, toward +0x310 if flags +0x320 are nonzero) or the normal for a face contact; arg +0x28 of 1 flattens direction and push to XZ when the direction has XZ length; returns 1, or 0 for a zero-length edge push; sets *param_5 to 1 when +0x320 is 1."
+confidence = "inferred"
+evidence = "Normalise, vscl by +0x20, add to +0x300, subtract +0x2F0; only caller seen in traces is 09C3C2B8, which adds the result to the position."
+
+[[function]]
+module = "game_sub"
+address = "09C3D300"
+name = "collision_accumulate_push_axis_extremes"
+purpose = "For each axis of a push vector keeps the largest positive and largest negative value seen, each limited to arg_f12 (slots 0-2 and 4-6), storing what exceeds the limit in slots 8-10 and 12-14."
+confidence = "inferred"
+evidence = "Three repeated per-axis branches; 09C3C2B8 calls it with arg +0x20 per contact and later sums the slots."
+
+[[function]]
+module = "game_sub"
+address = "09C3D4E8"
+name = "collision_push_object_off_steep_ground"
+purpose = "Finds the upward-facing triangles of the +0x214 grid under the object's place (up to 5), picks the highest within 50 above its Y or else the lowest, and when that height is at or above the object's Y and the triangle's angle from up reaches 0x1500 writes a push to param_2 and, if param_4 is nonzero, adds it to place +0x200; param_2 is zero otherwise."
+confidence = "inferred"
+evidence = "Height from the plane equation, 09C3D960 then 09C3DA20 with its 0x1500 threshold; hunter_state_run calls it in traces with self, param_4 1."
+
+[[function]]
+module = "game_sub"
+address = "09C3D960"
+name = "math_angle16_from_up_vector"
+purpose = "Returns the angle between a unit vector and +Y as 16-bit units (65536 per turn, rounded): dot with (0,1,0) capped above at 1, then math_acos."
+confidence = "confirmed"
+evidence = "vdot with y=1, math_acos, times 65536 over 6.2831855, masked 0xFFFF."
+
+[[function]]
+module = "game_sub"
+address = "09C3DA20"
+name = "collision_plane_push_vector_if_steep"
+purpose = "Returns 0 without writing when the angle *arg_t0 is under 0x1500; otherwise (treating exactly 0x4000 as 0 and zeroing *arg_t0) writes to arg_a1 the normal-direction vector that takes object place +0x200, its Y lowered by angle/10000*0.4, onto the triangle's plane, and returns 1."
+confidence = "inferred"
+evidence = "Plane equation from record +0x28..+0x34 divided by squared normal length; caller 09C3D4E8 passes 09C3D960's angle."
+
+[[function]]
+module = "game_sub"
+address = "09C3DB00"
+name = "collision_ground_height_at_point"
+purpose = "Returns the height of the upward-facing triangles of the +0x214 grid under a point's XZ (up to 5): the only one, or the highest within 50 above the point's Y, or else the lowest; returns the point's own Y when outside the grid's margin or none is found, and turns -0.0 into 0.0."
+confidence = "inferred"
+evidence = "Plane equation solved for Y with +0x2C over 0, 9C39B20 XZ inside test; camera callers read it as ground height and keep the eye above it."
+
+[[function]]
+module = "game_sub"
+address = "09C3DF10"
+name = "collision_segment_cast_grid_214"
+purpose = "Casts the segment from param_2 to param_3 against every triangle in the +0x214 grid cells it covers, no mask filter, shortening param_4 (starts as param_3) to each crossing inside a triangle so it ends at the hit nearest param_2; returns 1 on a hit, else 0, and 0 with param_4 unwritten when 09C41560 returns 0."
+confidence = "inferred"
+evidence = "09C41560 sets the cell range, 09C417B8 lists triangles, 09C3B7C0 and 09C3B7F8 skip visited ones, 09C3BE98 and 09C3BFF0 test them; camera caller 0888D1BC tests its result."
+
+[[function]]
+module = "game_sub"
+address = "09C3E3D0"
+name = "collision_segment_cast_grid_210_ignore_mask"
+purpose = "Casts the segment param_2 to param_3 against the +0x210 grid, skipping triangles whose flags +2 share a bit with param_5 (plus 0x4000 when DAT_089cc558+0x6AF14 has mask 0x2), leaving the hit nearest param_2 in param_4 and returning 1 on a hit; if either end point is outside the grid's margin it copies that point to param_4 and returns 1."
+confidence = "inferred"
+evidence = "09C3A558 bounds checks, 09C41558 and 09C41790 use world +0x210, then the same 09C3BE98 and 09C3BFF0 tests as 09C3DF10; camera and script op 0x3F callers."
+
+[[function]]
+module = "game_sub"
+address = "09C3E698"
+name = "collision_object_ground_query_with_type_table"
+purpose = "Clears object +0x410 mask 0x20 and finds the ground under a point: returns -1 with a table height by +0x29A when object_29a_matches_game_6af0e fails, 0 with a table height by DAT_089cc558+0x6AF0E when outside the +0x214 grid's margin, else 1 (also clearing +0x410 mask 0x40); hits skip triangle types with table mask 0x20, a type with mask 0x80 drops hits lower than it, the choice is the highest within 50 above Y or else the lowest, and it writes height, the triangle's 4 header bytes (the object's +0x290 if no hit), byte 1 as 2 if +0x29C is nonzero, and the hit count."
+confidence = "inferred"
+evidence = "Same plane height as 09C3DB00 plus masks on a byte from DAT_09a4f1a0 vtable +0x28 result +0xC indexed by triangle byte 0; hunter_state_run passes +0x290 and +0x2A0 and copies the height to +0x2CC on return 1."

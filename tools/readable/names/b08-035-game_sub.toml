@@ -1,0 +1,127 @@
+[[function]]
+module = "game_sub"
+address = "09C601B8"
+name = "class_089bdd58_init_seed_bone_matrix_history"
+purpose = "Init step: allocates the type's part nodes (count from table 09CE7198) from the pool, fills all 6 history slots of each part with its bone matrix plus local offset, runs the tick once and sets the next step; if allocation fails it clears +0x48 mask 0x10 and sets a different step."
+confidence = "inferred"
+evidence = "Vtable 089BDD58 +0x1C; calls 09C337F0, 09C60C50, 09C60828 and vtable +0x20; loop writes 6 matrices at stride 0x80."
+
+[[function]]
+module = "game_sub"
+address = "09C60410"
+name = "class_089bdd58_tick_shift_bone_matrix_history"
+purpose = "Per-step update: ends the object if +0x48 mask 2 is set, or if countdown +0x38 (when not -1) expires or the owner's motion id matches neither +0x3A nor +0x62; otherwise shifts each part's 6-slot matrix history, stores the new bone matrix, and shows the part's node at the new position only under the owner's motion, flag and +0x298 conditions."
+confidence = "inferred"
+evidence = "Vtable 089BDD58 +0x20; copies slot n-1 to slot n, sets node +4 mask 4 and clears it behind the owner checks (motions 0x3FB, 0x3FA, 0x3C, 0x3D; owner +4 mask 4; game +0x422)."
+
+[[function]]
+module = "game_sub"
+address = "09C60828"
+name = "class_089bdd58_get_part_bone_matrix"
+purpose = "Copies owner bone 0xE or 0x12 matrix to the output, chosen by type, part index and owner +0x614 mask 0x800, then per type applies a constant rotation and axis scale, or with +0x60 not -1 the per-axis scale from tables 09CE71C0/09CE71E0."
+confidence = "inferred"
+evidence = "Calls object_get_bone_matrix with 0xE and 0x12; result is stored as history slot 0 by 09C601B8 and 09C60410."
+
+[[function]]
+module = "game_sub"
+address = "09C60C50"
+name = "class_089bdd58_get_part_local_offset"
+purpose = "Reads a part's offset vector from a table: by type from 09CE7130 when +0x60 is -1, otherwise by +0x60 from 09CE71B0 (type 1, or type 3 part 0) or 09CE71D0."
+confidence = "inferred"
+evidence = "Callers transform its result by the part's bone matrix with vtfm3 and add it to the translation."
+
+[[function]]
+module = "game_sub"
+address = "09C60DA0"
+name = "class_089bdd80_effect_spawn_at_object_bone"
+purpose = "If the object is non-null and passes object_29a_matches_game_6af0e, allocates a class_089bdd80 of the given type, sets scale +0x3C, position from the bone, offset +0x1E0, bone +0x2A and links it at the head of the list at DAT_09d19860+0x19030; type 0 also spawns a type 1, type 7 also sets +0x48 mask 4."
+confidence = "inferred"
+evidence = "Allocates through 09C648B8 whose object has vtable 089BDD80; that class draws models and plays sounds; recursive call with type 1; called from hunter code in game_task in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C611C8"
+name = "class_089bdd80_effect_spawn_at_position"
+purpose = "Allocates a class_089bdd80 with no owner set here, stores its type, scale +0x3C and the given position, and links it at the head of the list at DAT_09d19860+0x19030; does nothing if allocation fails."
+confidence = "inferred"
+evidence = "Calls 09C2DDD0 which sets vtable 089BDD80; lobby_task 09AC0AB0 passes a bone position with type 0xB and scale 1.0 in traces."
+
+[[function]]
+module = "game_sub"
+address = "09C612A0"
+name = "class_089bdd80_draw_part_node"
+purpose = "Draws one part node: builds its matrix from part scale, rotation and the node's position, for most types combines it with the 3x3 at camera +0xC80, picks a model group by type and part field +0x8C, and draws it tinted between GE words 0xE7000001 and 0xE7000000; type 7 draws by +0x29 (nothing when +0x29 is not 1 to 3) with colours from keyframes."
+confidence = "inferred"
+evidence = "Vtable 089BDD80 +0x10, reached through node dispatcher 09C56EC0; calls math_matrix_from_scale_rotation_translation, model_draw_group_tinted and model_draw_group."
+
+[[function]]
+module = "game_sub"
+address = "09C61DC0"
+name = "class_089bdd80_queue_part_nodes_depth_sorted"
+purpose = "For each of the type's parts whose node exists and lacks node flag mask 4, inserts the node in render queue bucket 7 sorted by its position."
+confidence = "inferred"
+evidence = "Vtable 089BDD80 +0x14; loop calling render_queue_insert_depth_sorted; part count from table 09CE9010."
+
+[[function]]
+module = "game_sub"
+address = "09C61E58"
+name = "class_089bdd80_init_parts_by_type"
+purpose = "Init step: resets age +0x38 and +0x2B and sets the next step; if the owner exists and +0x48 mask 2 is set it takes the ending step instead; otherwise sets each part's fields by type (RNG rotation, scale, delay, track kind), allocates one node per part from the pool, and on the way plays the sound for types 0 and 6 and calls 09C62FB8 for type 10."
+confidence = "inferred"
+evidence = "Vtable 089BDD80 +0x1C; switch on +0x24, math_rng_next, 09C337F0 per part, call to 09C649C8."
+
+[[function]]
+module = "game_sub"
+address = "09C62888"
+name = "class_089bdd80_type2_part_advance_or_rearm"
+purpose = "Type 2 part helper: with phase 0 advances part field +0x2C by 4, shrinks part scale +0x28 by it against limit +0x29 (0 or 0xFF counts as 0xF), and picks a new RNG rotation and random position around the owner's bone +0x2A (or +0x10 if no owner, with a fixed extra offset when +0x29 is 0xFF); with phase 1 sets timer +0x36 to -2 if field +0x2C + 4 is still under the limit."
+confidence = "inferred"
+evidence = "In traces called from tick 09C63048, whose type 2 paths use it: phase 1 when the part timer passes its length and phase 0 at timer 1."
+
+[[function]]
+module = "game_sub"
+address = "09C62C80"
+name = "class_089bdd80_place_part_near_bone_or_copy_first"
+purpose = "Part index 0 gets a random position within about 16 units of +0x10, transformed by the owner's bone +0x2A matrix unless type is 0xB; part index 1 or 2 copies part 0's position."
+confidence = "inferred"
+evidence = "Called from tick 09C63048 for types 4, 8 and 0xB at part timer 1; math_rng_next masks 0x1F minus 0x10; object_get_bone_matrix."
+
+[[function]]
+module = "game_sub"
+address = "09C63048"
+name = "class_089bdd80_tick_parts_by_type"
+purpose = "Per-step update: hides all part nodes, ends on +0x48 mask 2, runs type-specific work (follow the owner's bone, spawn a type 2 at set ages for types 0 and 10, read a level from owner vtable +0x70 for type 6, derive +0x29 from owner +0x424 and hunter flags and move parts for type 7), ages +0x38 to the type's lifetime, then advances each part's timer and keyframes and shows its node."
+confidence = "inferred"
+evidence = "Vtable 089BDD80 +0x20; switch on +0x24; math_keyframe_lerp_vec3 and math_keyframe_lerp_packed_bytes; clears node +4 mask 4; sets next step on end."
+
+[[function]]
+module = "game_sub"
+address = "09C64820"
+name = "class_089bdd80_release_part_nodes"
+purpose = "Returns each part's node to the pool, then runs the base step 09C57068 which clears +0x48 mask 1 and frees any node block at +0x44."
+confidence = "inferred"
+evidence = "Vtable 089BDD80 +0x24; loop calling pool free 09C33970 with count 1 per part; read of 09C57068."
+
+[[function]]
+module = "game_sub"
+address = "09C648B8"
+name = "class_089bdd80_alloc_for_owner_if_allowed"
+purpose = "Allocates a class_089bdd80 and stores owner +0xC, type +0x24 and +0x29 if the owner is null, or has +0x1E9 == 2 and +0x1E8 == 4, or passes object_29a_matches_game_6af0e; otherwise, or if allocation fails, returns 0."
+confidence = "confirmed"
+evidence = "Body is exactly this; 09C2DDD0 sets vtable 089BDD80."
+
+[[function]]
+module = "game_sub"
+address = "09C64958"
+name = "class_089bdd80_skip_part_track_cursors"
+purpose = "Adds the type's track count to the keyframe cursor and, if the part's +0x3A is non-zero, adds 1 to the colour cursor, for a part that skips its keyframe reads this step."
+confidence = "inferred"
+evidence = "Tick 09C63048 calls it on part-skip paths with the two local cursors that index tables 09CE83D8 and 09CE8E68."
+
+[[function]]
+module = "game_sub"
+address = "09C649C8"
+name = "class_089bdd80_play_sound_by_type"
+purpose = "Plays a sound at the given position by type: type 6 sound 0xC, 0xD or 0xE by +0x2B through 09C557E0; types 5 and 9 sound 0x22; types 3, 0xC and 0xD sound 0x23; type 0 sound 0x39, or 0x9B when DAT_08a632c0+0xF7A57C mask 1 is set and the owner's object_get_mask_1e9_1e4 low nibble differs from game +0x28; other types nothing."
+confidence = "confirmed"
+evidence = "sound_play_3d calls in the body; 09C557E0 wraps sound_play_3d; self passed by 09C63048 and 09C61E58."
