@@ -1,9 +1,9 @@
 // Decompile one module of the game, on the function boundaries and jump tables tools/funcs.py found.
 // Args: <work> <module> <out>. Writes <out>/<module>/<address>.c and <out>/<module>/stats.tsv:
 //   address  status  lines  gotos  warnings  baddata  unrecovered_jumptables  vfpu_calls  seconds
-// and <out>/<module>/signatures.tsv: address, return register, argument registers read. With <work>/signatures.tsv (from
-// earlier passes, merged by tools/readable/all.sh) every function's signature is set from it, so a call shows the
-// arguments the function reads even when their registers were set long before; other modules' functions become named stubs.
+// and <out>/<module>/signatures.tsv: address, return register, argument registers as the decompiler sees them (signatures.py's
+// hint for returns). With <work>/signatures.tsv (signatures.py) every function's signature is set from it, so a call shows
+// the arguments the function really takes; other modules' functions become named stubs.
 // Run by tools/readable/run.sh. The program holds the module at its base; an overlay also gets the EBOOT's bytes, so
 // its references to the EBOOT's data read as they do in the game.
 //@category MHFU
@@ -58,7 +58,9 @@ public class DecompileModule extends GhidraScript {
         return reg.startsWith("f") ? FloatDataType.dataType : Undefined4DataType.dataType;
     }
 
+    /** A register, or s<offset>: a stack argument at that offset from sp on entry. */
     private VariableStorage regStorage(String reg) throws Exception {
+        if (reg.matches("s\\d+")) return new VariableStorage(currentProgram, Integer.parseInt(reg.substring(1)), 4);
         return new VariableStorage(currentProgram, currentProgram.getRegister(reg));
     }
 
@@ -218,7 +220,9 @@ public class DecompileModule extends GhidraScript {
                 String self = thisTypes.get(module + " " + hex);
                 for (String reg : p[1].split(",")) {
                     DataType t = regType(reg);
-                    String pname = "param_" + (n + 1);
+                    // param_N when N is the Nth argument register; else say which, as an unread one was skipped
+                    String pname = reg.matches("s\\d+") ? "stack_" + reg.substring(1)
+                        : n < ARG_ORDER.size() && ARG_ORDER.get(n).equals(reg) ? "param_" + (n + 1) : "arg_" + reg;
                     if (n == 0 && reg.equals("a0") && self != null) {
                         t = new PointerDataType(structs.get(self), 4);
                         pname = "self";
