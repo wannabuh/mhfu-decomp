@@ -66,7 +66,9 @@ Status: done - new format, old one removed. On Vulkan, within replays (frames wi
 a replay's end, so those frames prove little): the same as the old build with no state (`overnight-fight1.rec`, all 5931
 frames); seven states loaded by another build in a new process, 14,626 frames, none differing; `MHFU_STATE_TEST` round
 trips. Speed: 0.2-0.35% more instructions over whole replays, no measurable change in cycles; the program 19% larger.
-To do: a cross-build check in `tools/suite.py` (it must load in a new process: a load in the
+On native-fps with the hand-written functions merged in: the suite passes on Vulkan, states still load across builds,
+and no save would have waited (the first state point of each of about 29,000 replay frames, `rt_no_resume` 0). To do: a
+cross-build check in `tools/suite.py` (it must load in a new process: a load in the
 same process cannot show state only that process holds, which is how the sun was missed).
 
 1. Split what a state holds into the game's side and the runtime's side. Audit every `SAVED` variable
