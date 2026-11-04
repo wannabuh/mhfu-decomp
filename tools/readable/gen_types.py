@@ -10,7 +10,7 @@ import sys
 import tomllib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SPAN = 0x2000     # past a struct's span the decompiler prints self[1].field_X, which reads wrongly: kept generous
+SPAN = 0x10000     # past a struct's span the decompiler prints self[1].field_X, which reads wrongly: kept generous
 SIZE = {"u8": 1, "s8": 1, "u16": 2, "s16": 2, "u32": 4, "s32": 4, "f32": 4, "ptr": 4, "f32x3": 12, "f32x4": 16}
 CTYPE = {"u8": "uint8_t", "s8": "int8_t", "u16": "uint16_t", "s16": "int16_t", "u32": "uint32_t", "s32": "int32_t",
          "f32": "float", "ptr": "uint32_t"}
@@ -179,8 +179,15 @@ def write_view_types(work, types):
         for key, v in data["args"].items():
             m, a, reg = key.split()
             out.write(f"P\t{m}\t{a}\ta{int(reg) - 4}\t{names[v]}\n")
+        declared = {g["address"].upper(): g for g in types.get("global", [])}
         for a, v in data["globals"].items():
-            out.write(f"G\t{a}\t{names[v]}\n")
+            if a not in declared:
+                out.write(f"G\t{a}\t{names[v]}\tg_{names[v]}_{a}\n")
+        for a, g in declared.items():
+            if "struct" in g:
+                out.write(f"G\t{a}\t{g['struct']}\t{g['name']}\n")
+            else:
+                out.write(f"T\t{a}\t{g['type']}\t{g['name']}\n")
 
 
 if __name__ == "__main__":

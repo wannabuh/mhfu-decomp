@@ -67,3 +67,67 @@ vtables = ["089BB154"]
 [[struct]]
 name = "Stage"
 vtables = ["089BADFC"]
+
+# Structures with no vtable, reached through a global: `struct` makes one a class in classes.py. Without, a plain variable.
+[[global]]
+address = "089CC558"
+name = "g_world"
+struct = "World"
+
+[[global]]
+address = "089CBD04"
+name = "g_camera_system"
+struct = "CameraSystem"
+
+[[global]]
+address = "089CBD0C"
+name = "g_global_089CBD0C"
+struct = "Global_089CBD0C"
+
+[[global]]
+address = "08A632C8"
+name = "g_global_08A632C8"
+struct = "Global_08A632C8"
+
+[[global]]
+address = "08A62EAC"
+name = "g_global_08A62EAC"
+struct = "Global_08A62EAC"
+
+[[global]]
+address = "08A62D9C"
+name = "g_global_08A62D9C"
+struct = "Global_08A62D9C"
+
+[[global]]
+address = "08A632C0"
+name = "g_global_08A632C0"
+struct = "Global_08A632C0"
+
+[[struct]]
+name = "World"
+vtables = ["089CC558"]
+
+[[struct]]
+name = "CameraSystem"
+vtables = ["089CBD04"]
+
+[[struct]]
+name = "Global_089CBD0C"
+vtables = ["089CBD0C"]
+
+[[struct]]
+name = "Global_08A632C8"
+vtables = ["08A632C8"]
+
+[[struct]]
+name = "Global_08A62EAC"
+vtables = ["08A62EAC"]
+
+[[struct]]
+name = "Global_08A62D9C"
+vtables = ["08A62D9C"]
+
+[[struct]]
+name = "Global_08A632C0"
+vtables = ["08A632C0"]

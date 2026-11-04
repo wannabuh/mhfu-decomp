@@ -136,10 +136,12 @@ public class DecompileModule extends GhidraScript {
     private void applyGlobals() throws Exception {
         for (String[] g : globals) {
             Address a = at(Long.parseLong(g[1], 16));
-            if (!currentProgram.getMemory().contains(a) || !structs.containsKey(g[2])) continue;
-            currentProgram.getListing().clearCodeUnits(a, a.add(3), false);
-            currentProgram.getListing().createData(a, new PointerDataType(structs.get(g[2]), 4));
-            createLabel(a, "g_" + g[2] + "_" + g[1], true);
+            if (!currentProgram.getMemory().contains(a)) continue;
+            DataType t = g[0].equals("T") ? fieldType(g[2]) : structs.containsKey(g[2]) ? new PointerDataType(structs.get(g[2]), 4) : null;
+            if (t == null) continue;
+            currentProgram.getListing().clearCodeUnits(a, a.add(t.getLength() - 1), false);
+            currentProgram.getListing().createData(a, t);
+            createLabel(a, g[3], true);
         }
     }
 
@@ -179,7 +181,7 @@ public class DecompileModule extends GhidraScript {
                 structs.get(r[1]).replaceAtOffset(Integer.parseInt(r[2], 16), t, t.getLength(), r[4], null);
             } else if (r[0].equals("P")) {
                 argTypes.put(r[1] + " " + r[2] + " " + r[3], r[4]);
-            } else if (r[0].equals("G")) {
+            } else if (r[0].equals("G") || r[0].equals("T")) {
                 globals.add(r);
             }
         }
@@ -321,6 +323,15 @@ public class DecompileModule extends GhidraScript {
             String own = known.containsKey(module + " " + f[0]) ? known.get(module + " " + f[0])[0]
                 : "f_" + module + "_" + f[0].toUpperCase();
             fm.createFunction(own, at(start), body, SourceType.USER_DEFINED);
+        }
+        // A function Ghidra grew into a later one's code was removed when that one was made: made again, now it can't grow there
+        for (String[] f : funcs) {
+            long start = Long.parseLong(f[0], 16), end = Long.parseLong(f[1], 16);
+            if (end <= start || getFunctionAt(at(start)) != null) continue;
+            String own = known.containsKey(module + " " + f[0]) ? known.get(module + " " + f[0])[0]
+                : "f_" + module + "_" + f[0].toUpperCase();
+            currentProgram.getFunctionManager().createFunction(own, at(start), new AddressSet(at(start), at(end - 1)), SourceType.USER_DEFINED);
+            println("made again: " + f[0]);
         }
         Map<Long, List<String>> owners = loadOwners(work);
         linkTargets(module, owners);

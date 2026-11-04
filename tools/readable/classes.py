@@ -14,6 +14,7 @@ import json
 import os
 import struct
 import sys
+import tomllib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, ".."))
@@ -28,7 +29,8 @@ LOADS = {"lb": ("s8", 1), "lbu": ("u8", 1), "lh": ("s16", 2), "lhu": ("u16", 2),
          "lv.s": ("f32", 4), "lv.q": ("vec", 16), "ulv.q": ("vec", 16)}
 STORES = {"sb": ("x8", 1), "sh": ("x16", 2), "sw": ("u32", 4), "swc1": ("f32", 4), "sv.s": ("f32", 4), "sv.q": ("vec", 16),
           "usv.q": ("vec", 16)}
-MAX_FIELD = 0x8000
+MAX_FIELD = 0x100000
+SCAN_FIELD = 0x8000       # how far into an object RAM is searched for pointers
 
 
 def walk(m, f, starts):
@@ -101,6 +103,8 @@ class Flow:
         elif name in ("addiu", "ori") and facts.get(rs, (None,))[0] == "k":
             imm = i.getProcessedImmediate()
             target, out = rt, ("k", (facts[rs][1] + imm) & 0xFFFFFFFF if name == "addiu" else facts[rs][1] | (raw & 0xFFFF))
+        elif name == "addu" and rt != ZERO and rs != ZERO and self.big_offset(facts.get(rs), facts.get(rt)):
+            target, out = rd, self.big_offset(facts.get(rs), facts.get(rt))
         elif name in ("move", "addu", "or") and rt == ZERO and rs in facts:      # (rabbitizer spells move as such)
             target, out = rd, facts[rs]
         elif name in ("move", "addu", "or") and rs == ZERO and rt in facts:
@@ -127,6 +131,14 @@ class Flow:
     def global_type(self, addr):
         return None
 
+    @staticmethod
+    def big_offset(a, b):
+        """lui k; addu r, base, k: an offset too big for one instruction. (kind "b": a class and how far into it)"""
+        for x, y in ((a, b), (b, a)):
+            if x and y and x[0] == "o" and y[0] == "k" and 0 < y[1] < MAX_FIELD:
+                return ("b", x[1], y[1])
+        return None
+
 
 def load_args(traces, mods):
     names = [m.name for m in mods]
@@ -147,6 +159,12 @@ def main():
         vtables = {int(k, 16): v for k, v in json.load(f).items()}
     with open(os.path.join(work, "methods.json")) as f:
         methods = json.load(f)
+    # Structures with no vtable, reached through a global: types.toml's [[global]] with a struct. Each is a class of its own
+    with open(os.path.join(HERE, "types.toml"), "rb") as f:
+        declared = {int(g["address"], 16) for g in tomllib.load(f).get("global", []) if "struct" in g}
+    real_vtables = set(vtables)
+    for g in declared:
+        vtables[g] = {}
     mods = modules.load()
     by_name = {m.name: m for m in mods}
     funcs = {}
@@ -290,16 +308,17 @@ def main():
                 fact = facts.get(rs)
                 if fact and fact[0] == "p":
                     pointer_used.add((fact[1], fact[2]))
-                if not fact or fact[0] != "o":
+                if not fact or fact[0] not in ("o", "b"):
                     return
-                off = i.getProcessedImmediate()
+                off = i.getProcessedImmediate() + (fact[2] if fact[0] == "b" else 0)
                 if not 0 <= off < MAX_FIELD:
                     return
                 write = name in STORES
                 fields[fact[1]][off][(kind[0], kind[1], write)] += 1
                 ex = examples[fact[1]][off]
-                if len(ex) < 6:
-                    ex.append(f"{key[0]} {key[1]:x}")
+                label = f"{key[0]} {key[1]:x}"
+                if len(ex) < 8 and label not in ex:
+                    ex.append(label)
 
             fl.run(entry, visit)
         return fields, examples, pointer_used
@@ -321,12 +340,12 @@ def main():
         with open(snap, "rb") as f:
             ram = f.read()
         words = struct.unpack(f"<{len(ram) // 4}I", ram[:len(ram) & ~3])
-        objs = {RAM + i * 4: w for i, w in enumerate(words) if w in vtables}
+        objs = {RAM + i * 4: w for i, w in enumerate(words) if w in real_vtables}
         covered = bytearray(len(words))
         for at, cls in objs.items():
             instances[cls] += 1
             i0 = (at - RAM) // 4
-            n = extent[cls] // 4
+            n = min(extent[cls], SCAN_FIELD) // 4
             covered[i0:i0 + n] = b"\1" * len(covered[i0:i0 + n])
             for j in range(1, n):
                 if i0 + j >= len(words):
@@ -334,7 +353,7 @@ def main():
                 w = words[i0 + j]
                 if w in objs:
                     pointers[cls][j * 4][objs[w]] += 1
-                elif w in vtables:
+                elif w in real_vtables:
                     embedded[cls][j * 4][w] += 1
         for i in range(0, (0x09000000 - RAM) // 4):     # below the heap, outside any object
             w = words[i]
@@ -352,6 +371,8 @@ def main():
         c = lub(seen)
         if c and sum(seen.values()) >= 3:
             global_type[addr] = c
+    for g in declared:
+        global_type[g] = g
 
     # 4. Code that never ran: callers that all pass one class in a0. Each caller's a0 tracked from its own `this`/fields.
     class TypedFlow(Flow):
@@ -381,9 +402,9 @@ def main():
         for key, seen in passed.items():
             if key in this or key not in funcs or None in seen:
                 continue
-            if args.get(key, {}).get(A0):       # it ran, and the run said no
-                continue
             c = lub(set(seen))
+            if args.get(key, {}).get(A0) and c not in declared:     # it ran on no object: only a declared struct has no vtable
+                continue
             if c:
                 this[key] = c
                 how[key] = "callers"
@@ -394,12 +415,16 @@ def main():
 
     # 5. Fields
     fields, examples, pointer_used = scan_fields(TypedFlow)
+    for v in vtables:
+        for off, c in fields.get(v, {}).items():
+            extent[v] = max(extent[v], off + max(k[1] for k in c))
 
     out = {
         "classes": {f"{v:08X}": {
             "parent": f"{parent[v]:08X}" if v in parent else None,
             "slots": len(vtables[v]),
             "ctors": ctors.get(v, []),
+            "declared": v in declared,
             "instances": instances.get(v, 0),
             "extent": extent[v],
             "embedded": {f"{off:x}": f"{c.most_common(1)[0][0]:08X}" for off, c in sorted(embedded.get(v, {}).items())},
