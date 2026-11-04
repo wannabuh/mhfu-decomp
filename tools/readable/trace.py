@@ -39,7 +39,8 @@ def main():
             env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE="1", MHFU_FPS="0",
                        MHFU_SCALE="1", MHFU_TICK_HZ="30", MHFU_REPLAY=os.path.abspath(rec),
                        MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"), MHFU_STATEDIR=os.path.join(d, "states"),
-                       MHFU_RAM_HASH="300", MHFU_TRACE_ALL=os.path.abspath(os.path.join(args.out, name + ".trace")))
+                       MHFU_RAM_HASH="300", MHFU_TRACE_ALL=os.path.abspath(os.path.join(args.out, name + ".trace")),
+                       MHFU_TRACE_ARGS=os.path.abspath(os.path.join(args.out, name + ".args")))
             log = open(os.path.join(d, "log"), "w")
             running.append((name, d, subprocess.Popen(["nice", "-n", "5", BIN], cwd=d, env=env, stdout=log,
                                                       stderr=subprocess.STDOUT), time.time()))
