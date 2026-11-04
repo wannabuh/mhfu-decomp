@@ -1,0 +1,53 @@
+# The game's structures: offsets, names and types only, never game code. tools/readable/gen_types.py makes a C header with
+# every offset checked at compile time, and the table the view applies. Types: u8 s8 u16 s16 u32 s32 f32, ptr, ptr:Name,
+# f32x3, f32x4. `size` only where confirmed; unknown spans stay padding, never guessed fields.
+# Confidence as in names/: confirmed (watchpoint, trace, patch), inferred (from code), guess.
+
+[[struct]]
+name = "Object"
+span = 0x420
+vtables = []
+functions = [["EBOOT", "08864634"]]
+fields = [
+  { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
+  { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed", note = "bit 0 clears: deleted" },
+  { offset = 0x010, name = "rotation", type = "f32x4", confidence = "confirmed", note = "first row of a 3x3, rows of 4" },
+  { offset = 0x040, name = "position", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x1C4, name = "next", type = "ptr", confidence = "confirmed" },
+  { offset = 0x1D4, name = "life_state", type = "u32", confidence = "confirmed", note = "0 alive .. 3" },
+  { offset = 0x200, name = "place", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x210, name = "place_before", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred", note = "ticks in its state; monsters' in 60ths" },
+  { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed", note = "member function pointer, 3 words" },
+  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
+]
+
+[[struct]]
+name = "Hunter"
+span = 0x700
+vtables = ["089BB3CC"]
+functions = [["game_task", "09A66198"], ["game_task", "09A665F0"]]
+fields = [
+  { offset = 0x000, name = "vtable", type = "ptr", confidence = "confirmed" },
+  { offset = 0x004, name = "flags", type = "u32", confidence = "confirmed" },
+  { offset = 0x010, name = "rotation", type = "f32x4", confidence = "confirmed" },
+  { offset = 0x040, name = "position", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x1C4, name = "next", type = "ptr", confidence = "confirmed" },
+  { offset = 0x1E8, name = "weapon_class", type = "u8", confidence = "confirmed" },
+  { offset = 0x1F4, name = "facing", type = "u16", confidence = "confirmed" },
+  { offset = 0x200, name = "place", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x210, name = "place_before", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x240, name = "velocity", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x250, name = "acceleration", type = "f32x3", confidence = "confirmed" },
+  { offset = 0x299, name = "state", type = "u8", confidence = "confirmed" },
+  { offset = 0x3F4, name = "state_ticks", type = "f32", confidence = "inferred" },
+  { offset = 0x3FC, name = "state_fn", type = "u32", confidence = "confirmed" },
+  { offset = 0x414, name = "action_count", type = "s32", confidence = "confirmed" },
+  { offset = 0x41C, name = "health", type = "u16", confidence = "confirmed" },
+  { offset = 0x41E, name = "health_recoverable", type = "u16", confidence = "inferred" },
+  { offset = 0x55A, name = "stamina", type = "u16", confidence = "confirmed", note = "300 full" },
+  { offset = 0x62E, name = "stamina_max", type = "u16", confidence = "confirmed" },
+  { offset = 0x684, name = "action", type = "u32", confidence = "confirmed" },
+]

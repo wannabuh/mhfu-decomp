@@ -1,0 +1,338 @@
+# What docs/native.md, docs/testing.md and docs/autonomy-plan.md already establish, found by hand with watchpoints and
+# patches over the project's life. Addresses, names and notes only: never game code.
+
+[[function]]
+module = "EBOOT"
+address = "08897E1C"
+name = "user_main_loop_entry"
+purpose = "Thread entry's body: runs the main loop"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0888FD38"
+name = "main_loop"
+purpose = "The game's frame loop"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088590B0"
+name = "frame_wait_and_present"
+purpose = "Top of the frame: waits for the vblank handler, presents, swaps"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08859188"
+name = "vblank_handler"
+purpose = "Wakes the main loop every second vblank"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08868F50"
+name = "pad_update"
+purpose = "Reads the pad a frame"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08895538"
+name = "game_states_update"
+purpose = "Runs four slots of game state objects, each by its vtable +0xC"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0884BB58"
+name = "render_pass"
+purpose = "Draws every queued model: a pass of its own after the logic"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0884BB00"
+name = "render_queues_clear"
+purpose = "Empties the render queues"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0884CDE4"
+name = "gpu_set_world_matrix"
+purpose = "Puts a model's world matrix, camera baked in, in the GE list"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088596C8"
+name = "gpu_list_link_chunk"
+purpose = "Links a display list chunk into the frame's list by layer"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08859224"
+name = "gpu_lists_flip"
+purpose = "Flips the double-buffered display lists"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08891B14"
+name = "text_draw_frame"
+purpose = "Draws the frame's text"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0883F270"
+name = "hud_update"
+purpose = "The hunt's HUD, its tick's last call"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088DB068"
+name = "objects_update"
+purpose = "Updates the hunt's objects"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088DB250"
+name = "objects_update_lists"
+purpose = "Runs the object lists"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088666B4"
+name = "object_list_update"
+purpose = "Runs one object list by each object's vtable +0x14; next at +0x1C4"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08864634"
+name = "object_tick"
+purpose = "An object's tick: its state function, then vtable +0x18 and +0x1C"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0890C490"
+name = "member_fn_call"
+purpose = "Calls a C++ member function pointer {delta, index, function}"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "0890C4F8"
+name = "member_fn_is_set"
+purpose = "Whether a member function pointer is set"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088637C4"
+name = "motion_advance"
+purpose = "The motion player: advances each layer's frame by its speed"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08865648"
+name = "motion_update_layers"
+purpose = "Runs the motion player, adds root motion"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088D5C7C"
+name = "object_motion_update"
+purpose = "An object's motion update"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08864348"
+name = "motion_frame_reached"
+purpose = "Whether a motion frame falls within this tick's step"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08812BD0"
+name = "cameras_update"
+purpose = "Runs the scene's cameras"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08886B2C"
+name = "camera_view_update"
+purpose = "Calls a view's controller, the member function pointer at +0x180"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08886E50"
+name = "camera_hunt_controller"
+purpose = "The hunt's camera controller"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08888B98"
+name = "camera_village_controller"
+purpose = "The village's fixed camera controller"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "088CACD4"
+name = "screen_tint_clear"
+purpose = "The screen's tint word, set by the logic and cleared once drawn"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "EBOOT"
+address = "08865E94"
+name = "air_step"
+purpose = "A step in the air: patched to be in game time"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A60298"
+name = "hunt_state_run"
+purpose = "The hunt's game state run"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A62740"
+name = "hunt_tick"
+purpose = "The hunt's tick"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A627B8"
+name = "hunt_tick_objects"
+purpose = "Updates objects, then cameras, then more"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A66198"
+name = "hunter_state_function"
+purpose = "Hunter's vtable +0x38"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A665F0"
+name = "hunter_state_run"
+purpose = "The hunter's state function in a hunt"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A9D0B0"
+name = "hunter_ledge_grab"
+purpose = "A ledge grab: its 55-unit snap along the facing"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09A9D478"
+name = "hunter_ledge_drop_to_hang"
+purpose = "Drop to hang: its snap"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_task"
+address = "09AB1498"
+name = "monster_manager_update"
+purpose = "Keeps 20 monster slots at +0x1220"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "lobby_task"
+address = "09AA94C8"
+name = "hunter_state_run_village"
+purpose = "The hunter's state function in the village"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "lobby_task"
+address = "09A87D50"
+name = "elder_pick_quest"
+purpose = "Picks the elder's quest, copies it to 0x09B04040"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_sub"
+address = "09C41E78"
+name = "hit_manager_update"
+purpose = "Clears hits and runs the frame's hit detection"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_sub"
+address = "09CC0CE0"
+name = "snow_mist_dome_draw"
+purpose = "The mist dome"
+confidence = "confirmed"
+evidence = "the project's docs"
+
+[[function]]
+module = "game_sub"
+address = "09C57E08"
+name = "snow_mist_sheets_draw"
+purpose = "The mist sheets"
+confidence = "confirmed"
+evidence = "the project's docs"

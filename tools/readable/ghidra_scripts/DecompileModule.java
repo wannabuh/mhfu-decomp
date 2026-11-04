@@ -93,12 +93,69 @@ public class DecompileModule extends GhidraScript {
         return owners;
     }
 
+    private final Map<String, String[]> known = new HashMap<>();    // "module hex" -> name, confidence, purpose
+
+    private void loadNames(Path work) throws IOException {
+        Path path = work.resolve("view-names.tsv");
+        if (!Files.exists(path)) return;
+        for (String line : Files.readAllLines(path)) {
+            String[] f = line.split("\t", 5);
+            known.put(f[0] + " " + f[1], new String[] {f[2], f[3], f.length > 4 ? f[4] : ""});
+        }
+    }
+
     private String nameFor(String module, long addr, Map<Long, List<String>> owners) {
         List<String> o = owners.get(addr);
         String hex = Long.toHexString(addr).toUpperCase();
         if (o == null) return "f_unknown_" + hex;
-        if (o.contains(module)) return "f_" + module + "_" + hex;
-        return "f_" + (o.size() == 1 ? o.get(0) : "overlay") + "_" + hex;
+        String owner = o.contains(module) ? module : o.size() == 1 ? o.get(0) : null;
+        if (owner == null) return "f_overlay_" + hex;
+        String[] k = known.get(owner + " " + Long.toHexString(addr));
+        return k != null ? k[0] : "f_" + owner + "_" + hex;
+    }
+
+    /** Structures from <work>/view-types.tsv (gen_types.py), and the functions that take one as `this`. */
+    private final Map<String, Structure> structs = new HashMap<>();
+    private final Map<String, String> thisTypes = new HashMap<>();
+
+    private DataType fieldType(String t) {
+        switch (t) {
+            case "u8": return ByteDataType.dataType;
+            case "s8": return SignedByteDataType.dataType;
+            case "u16": return UnsignedShortDataType.dataType;
+            case "s16": return ShortDataType.dataType;
+            case "u32": return UnsignedIntegerDataType.dataType;
+            case "s32": return IntegerDataType.dataType;
+            case "f32": return FloatDataType.dataType;
+            case "f32x3": return new ArrayDataType(FloatDataType.dataType, 3, 4);
+            case "f32x4": return new ArrayDataType(FloatDataType.dataType, 4, 4);
+            default:
+                if (t.startsWith("ptr:") && structs.containsKey(t.substring(4)))
+                    return new PointerDataType(structs.get(t.substring(4)), 4);
+                return new PointerDataType(VoidDataType.dataType, 4);
+        }
+    }
+
+    private void loadTypes(Path work) throws Exception {
+        Path path = work.resolve("view-types.tsv");
+        if (!Files.exists(path)) return;
+        DataTypeManager dtm = currentProgram.getDataTypeManager();
+        List<String[]> rows = new ArrayList<>();
+        for (String line : Files.readAllLines(path)) rows.add(line.split("\t"));
+        for (String[] r : rows) {
+            if (r[0].equals("S")) {
+                Structure st = new StructureDataType(r[1], Integer.parseInt(r[2], 16), dtm);
+                structs.put(r[1], (Structure) dtm.addDataType(st, DataTypeConflictHandler.REPLACE_HANDLER));
+            }
+        }
+        for (String[] r : rows) {
+            if (r[0].equals("F")) {
+                DataType t = fieldType(r[3]);
+                structs.get(r[1]).replaceAtOffset(Integer.parseInt(r[2], 16), t, t.getLength(), r[4], null);
+            } else if (r[0].equals("P")) {
+                thisTypes.put(r[1] + " " + r[2], r[4]);
+            }
+        }
     }
 
     /** Calls and tail jumps out of a function to where no function is yet: a stub there, named, so they read as calls. */
@@ -158,8 +215,17 @@ public class DecompileModule extends GhidraScript {
             List<Variable> params = new ArrayList<>();
             if (!p[1].isEmpty()) {
                 int n = 0;
-                for (String reg : p[1].split(","))
-                    params.add(new ParameterImpl("param_" + (++n), regType(reg), regStorage(reg), currentProgram));
+                String self = thisTypes.get(module + " " + hex);
+                for (String reg : p[1].split(",")) {
+                    DataType t = regType(reg);
+                    String pname = "param_" + (n + 1);
+                    if (n == 0 && reg.equals("a0") && self != null) {
+                        t = new PointerDataType(structs.get(self), 4);
+                        pname = "self";
+                    }
+                    n++;
+                    params.add(new ParameterImpl(pname, t, regStorage(reg), currentProgram));
+                }
             }
             Variable ret = p[0].equals("-")
                 ? new ReturnParameterImpl(VoidDataType.dataType, VariableStorage.VOID_STORAGE, currentProgram)
@@ -218,8 +284,12 @@ public class DecompileModule extends GhidraScript {
                 println("overlap: " + f[0] + " with " + other.getName() + " " + other.getBody());
                 fm.removeFunction(other.getEntryPoint());
             }
-            fm.createFunction("f_" + module + "_" + f[0].toUpperCase(), at(start), body, SourceType.USER_DEFINED);
+            String own = known.containsKey(module + " " + f[0]) ? known.get(module + " " + f[0])[0]
+                : "f_" + module + "_" + f[0].toUpperCase();
+            fm.createFunction(own, at(start), body, SourceType.USER_DEFINED);
         }
+        loadNames(work);
+        loadTypes(work);
         Map<Long, List<String>> owners = loadOwners(work);
         linkTargets(module, owners);
         applySignatures(work, module, owners);
@@ -272,7 +342,10 @@ public class DecompileModule extends GhidraScript {
                 }
                 double secs = (System.nanoTime() - t0) / 1e9;
                 Files.writeString(out.resolve(addr + ".c"),
-                    "// " + module + " " + addr + " " + status + " (generated: f_" + module + "_" + addr + ")\n" + code);
+                    "// " + module + " " + addr + " " + status + " (generated: f_" + module + "_" + addr + ")\n"
+                    + (known.containsKey(module + " " + f[0])
+                        ? "// [" + known.get(module + " " + f[0])[1] + "] " + known.get(module + " " + f[0])[2] + "\n" : "")
+                    + code);
                 stats.write(String.join("\t", addr, status,
                     Integer.toString(count("\n", code)), Integer.toString(count(GOTO, code)),
                     Integer.toString(count("WARNING", code)), Integer.toString(count("halt_baddata", code)),

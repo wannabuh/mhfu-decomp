@@ -10,8 +10,10 @@ out=${1:-$here/../../build/read}
 pass=$WORK/pass
 py=$here/../.venv/bin/python
 run_all() { cut -f1 "$WORK/modules.tsv" | CPUS=1 xargs -P "$JOBS" -I{} sh -c "timeout -s KILL 1800 '$here/run.sh' {} '$1' || echo 'FAILED {}'"; }
-rm -f "$WORK/signatures.tsv"
+"$py" "$here/gen_types.py" "$WORK"
+[ -n "$FINAL_ONLY" ] || rm -f "$WORK/signatures.tsv"
 n=0
+[ -z "$FINAL_ONLY" ] || n=$PASSES       # FINAL_ONLY=1: the view again with today's names and types, signatures as they are
 while [ "$n" -lt "$PASSES" ]; do
     n=$((n + 1))
     rm -rf "$pass"
