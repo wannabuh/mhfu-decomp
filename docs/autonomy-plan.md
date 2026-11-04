@@ -62,9 +62,12 @@ Agreed with the readable-code session (branch `auto/readable-code`, also from `d
   which gameplay also uses (`overnight-fight1.rec`: it parts at frame 1937). So a recording made with shadows does not
   replay the same random numbers on soft or with shadows off. Decision open: `docs/testing.md`.
 
-Status: done - new format, old one removed; the same as the old build with no state (6500 frames on Vulkan at 30); four
-states loaded across builds, no frame differing in about 41,000 (Vulkan, 60). To do: the speed cost (not measured: the
-machine was busy), `MHFU_STATE_TEST` again since the audio fix, the suite, a cross-build check in `tools/suite.py`.
+Status: done - new format, old one removed. On Vulkan, within replays (frames with input; the game plays on alone after
+a replay's end, so those frames prove little): the same as the old build with no state (`overnight-fight1.rec`, all 5931
+frames); seven states loaded by another build in a new process, 14,626 frames, none differing; `MHFU_STATE_TEST` round
+trips. Speed: 0.2-0.35% more instructions over whole replays, no measurable change in cycles; the program 19% larger.
+To do: the suite on this build, a cross-build check in `tools/suite.py` (it must load in a new process: a load in the
+same process cannot show state only that process holds, which is how the sun was missed).
 
 1. Split what a state holds into the game's side and the runtime's side. Audit every `SAVED` variable
    (`grep -rn SAVED runtime/src`) and the registered spans (`savestate.c`): the game's RAM, the HLE kernel's state

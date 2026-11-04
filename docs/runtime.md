@@ -170,8 +170,9 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   - `MHFU_STATE_TEST=A,B` (save at A, load at B, compare each frame), `MHFU_STATE_SAVE=frame,slot`,
     `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` (RAM to a file) script it; `docs/testing.md` has the test
     across builds. A state loaded stops an input recording (`MHFU_RECORD`). A new variable of the runtime that the
-    game's run depends on must be `SAVED` (or made again after a load), hold no address in the program, and be found by
-    the test if missed: the first frame and memory that differ.
+    game's run depends on must be `SAVED` (or made again after a load) and hold no address in the program, including
+    what the renderer decides for the game (`rt_cull_margin`, the sun it goes by). `MHFU_STATE_TEST` finds what is missed
+    only if a load in the same process would lose it; a load in a new process finds the rest.
 - **Finding code**: `tools/watch.py ADDR --frame N [--read|--access] -- MHFU_REPLAY=...` runs the game under gdb and,
   from game frame N, prints each write (or read) of the PSP address: the value and the game functions on the stack with
   the instruction (`EBOOT_08886E50@08887814`: the camera reading its preset). `tools/ramdiff.py` finds variables from
