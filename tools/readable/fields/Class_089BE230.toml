@@ -1,0 +1,198 @@
+[[field]]
+struct = "Class_089BE230"
+offset = 0x24
+name = "state"
+type = "u8"
+confidence = "inferred"
+note = "0 idle on a waypoint, 1 taking off, 3 flying to the target, 2 coming down onto it, 4 turning on the spot"
+evidence = "game_sub 9CB6C48 switches on it; 9CB80E0 and 9CB7F30 set it"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x28
+name = "substate"
+type = "u8"
+confidence = "inferred"
+note = "step within state"
+evidence = "game_sub 9CB6C48 switches on it in each state; zeroed when the state changes"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x2A
+name = "sound_played"
+type = "u8"
+confidence = "inferred"
+note = "approach sound done"
+evidence = "game_sub 9CB6C48 state 2 plays sound 3,0x2D once then sets 1; 9CB6A80 zeroes it"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x38
+name = "state_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "timer used by the states, up or down"
+evidence = "game_sub 9CB6C48 state 4 and 3"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x60
+name = "waypoint"
+type = "s8"
+confidence = "confirmed"
+note = "current index in the stage's waypoint table"
+evidence = "game_sub 9CB8040 picks a connected free one and marks it; 9CB80E0 copies its position"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x62
+name = "model_group"
+type = "u16"
+confidence = "confirmed"
+note = "from sequence table DAT_09D1A1F0"
+evidence = "game_sub 9CB7EB8 sets it; 9CB6898 draws it"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x64
+name = "sequence_frame"
+type = "s8"
+confidence = "confirmed"
+note = "material shown with entry 0; alpha 0xFF for these and 0 for others"
+evidence = "game_sub 9CB7EB8 and 9CB7F30 load it from the sequence; 9CB6898 uses it to pick"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x65
+name = "frame_ticks"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "ticks left on this frame; -1 holds"
+evidence = "game_sub 9CB7F30 counts it down and loads the next pair"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x66
+name = "sequence_pos"
+type = "s8"
+confidence = "confirmed"
+note = "pair index in the sequence"
+evidence = "game_sub 9CB7EB8 zeroes it; 9CB7F30 advances it or jumps"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x67
+name = "heading_step"
+type = "s8"
+confidence = "inferred"
+note = "facing in 16ths, or 8ths when placed"
+evidence = "game_sub 9CB80E0 sets 0 to 7 and +0x6E from it shifted 13; 9CB6C48 state 4 changes it and shifts 12 into +0x70"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x68
+name = "sequence_id"
+type = "s8"
+confidence = "confirmed"
+note = "which sequence plays"
+evidence = "game_sub 9CB7EB8 stores it; 9CB7F30 tests 4 and 3"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x6A
+name = "state_timer"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "counted down in states, then the next waypoint move"
+evidence = "game_sub 9CB80E0 sets (1..5)*30; 9CB7F30 sets 0xE10+ or 0x3C; 9CB6C48 counts it"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x6C
+name = "turn_roll_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "frames between rolls of a 2 in 5 chance to start turning"
+evidence = "game_sub 9CB6C48 state 0 counts it down from 0x1E and then may set state 4; 9CB80E0 sets 0x1E"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x6E
+name = "facing"
+type = "u16"
+confidence = "confirmed"
+note = "16-bit angle drawn with"
+evidence = "game_sub 9CB6898 builds the matrix rotation from it; 9CB6C48 turns it toward +0x70"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x70
+name = "facing_target"
+type = "u16"
+confidence = "inferred"
+evidence = "game_sub 9CB6C48 state 4 sets it and snaps +0x6E to it within 0x400"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x74
+name = "sequence"
+type = "ptr"
+confidence = "confirmed"
+note = "pairs of (frame, ticks), ending -1"
+evidence = "game_sub 9CB7EB8 sets it from 09CF8220; 9CB7F30 reads it"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x78
+name = "scale"
+type = "f32"
+confidence = "confirmed"
+evidence = "game_sub 9CB6A80 sets 1.2; 9CB6898 uses it for all three axes"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x7C
+name = "climb_acceleration"
+type = "f32"
+confidence = "inferred"
+note = "added to the Y velocity while climbing"
+evidence = "game_sub 9CB6C48 sets scale*0.3 and adds it to +0x94"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x88
+name = "tint"
+type = "u32"
+confidence = "confirmed"
+note = "colour of the draw; -1 white, sometimes a table colour"
+evidence = "game_sub 9CB6A80 picks it; 9CB6898 passes its bytes to set_diffuse and set_ambient"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0x90
+name = "velocity"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_sub 9CB7C40 sets it; 9CB6C48 adds it to position per axis"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0xA0
+name = "target_place"
+type = "f32x3"
+confidence = "inferred"
+note = "position to fly to"
+evidence = "game_sub 9CB7C40 sets it 20 above the waypoint; 9CB6C48 state 2 moves position to it within 20"
+
+[[field]]
+struct = "Class_089BE230"
+offset = 0xB0
+name = "hover_center"
+type = "f32x3"
+confidence = "inferred"
+note = "position when a turn or take-off began; only Y is read"
+evidence = "game_sub 9CB6C48 state 4 copies position here and sets position Y to +0xB4 + sin * 20; state 1 copies it too"

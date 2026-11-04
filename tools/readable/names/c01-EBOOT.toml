@@ -1,0 +1,2479 @@
+[[function]]
+module = "EBOOT"
+address = "088D5C74"
+name = "hunter_set_motion_id_both_parts_thunk"
+purpose = "Single jump to hunter_set_motion_id_both_parts (088D5C34)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call to f_EBOOT_088D5C34."
+
+[[function]]
+module = "EBOOT"
+address = "088C789C"
+name = "stage_base_destruct"
+purpose = "Stage destructor: restores the base vtable pointers (089BADFC at +0 and 089BAC48 at +0x1F0), runs object_base_destruct, then the delete no-op when the delete argument is positive."
+confidence = "inferred"
+evidence = "Whole body; the -0x1F0 null check is a secondary base adjustment; delete-argument pattern as in other destructors."
+
+[[function]]
+module = "EBOOT"
+address = "088CACCC"
+name = "stage_reset_screen_flash_thunk"
+purpose = "Single jump to stage_reset_screen_flash (088CC0E4)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call to f_EBOOT_088CC0E4."
+
+[[function]]
+module = "EBOOT"
+address = "08905C30"
+name = "libgcc_muldf3"
+purpose = "Soft-float double multiply (libgcc fp-bit __muldf3)."
+confidence = "inferred"
+evidence = "Unpacks two doubles (89056E0), NaN/zero/infinity class handling, 64x64 mantissa multiply with rounding, packs (89053FC); called with double constants by libm code."
+
+[[function]]
+module = "EBOOT"
+address = "0886A3AC"
+name = "quest_active_monster_spawn_entry_allows"
+purpose = "For a monster in the running quest (no end result yet) with a spawn entry: with entry flags +0x2E bit 0 clear returns byte +0xA != 1, with it set returns 1 unless the monster's spawn sequence is on its last entry. Otherwise 0."
+confidence = "inferred"
+evidence = "Whole body; 886A524 test. What the result means to monsters is not shown, so the name stays mechanical."
+
+[[function]]
+module = "EBOOT"
+address = "0887D02C"
+name = "text_draw_centered_at_x_scaled"
+purpose = "Measures a string, multiplies by the character width argument, and prints it centred on x at y."
+confidence = "confirmed"
+evidence = "Short whole body: text_measure_width_units_with_escapes, x - width/2, text_printf_with_escapes_at."
+
+[[function]]
+module = "EBOOT"
+address = "08855278"
+name = "game_flags64_678a0_test"
+purpose = "Tests bit N of the 64-bit mask at +0x678A0 of the game state, returning whether it is set."
+confidence = "confirmed"
+evidence = "Short whole body: 1 << N by 8904470, against +0x678A0 and +0x678A4; callers pass g_game and small ids."
+
+[[function]]
+module = "EBOOT"
+address = "08905B4C"
+name = "libgcc_subdf3"
+purpose = "Soft-float double subtract (libgcc fp-bit __subdf3)."
+confidence = "inferred"
+evidence = "Unpacks both, flips the second's sign field, _fpadd_parts 890580C, packs."
+
+[[function]]
+module = "EBOOT"
+address = "088551F0"
+name = "game_flags64_678a0_set_and_log"
+purpose = "Sets bit N of the 64-bit mask at +0x678A0 and adds a dated record of kind 8 with N to the record log."
+confidence = "confirmed"
+evidence = "Short whole body: 8904470, the two ORs, record_log_add_dated(game, 8, N)."
+
+[[function]]
+module = "EBOOT"
+address = "08905BC4"
+name = "libgcc_adddf3"
+purpose = "Soft-float double add (libgcc fp-bit __adddf3)."
+confidence = "inferred"
+evidence = "Unpacks both, 890580C adds the parts, packs."
+
+[[function]]
+module = "EBOOT"
+address = "0890C5B0"
+name = "varint_decode_signed"
+purpose = "Decodes a 1 to 4 byte signed variable-length integer selected by the low bits of the first byte; returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole body; the first byte is read as char (arithmetic shifts). Callers are in the 890C-890D area."
+
+[[function]]
+module = "EBOOT"
+address = "088AFE78"
+name = "net_get_tx_frame_buffer"
+purpose = "Returns the address of the buffer 09A2042A."
+confidence = "inferred"
+evidence = "Returns a constant; callers (88AE598 and others) build an outgoing frame in it with 88AFE90 and send with 88B012C."
+
+[[function]]
+module = "EBOOT"
+address = "0890C0C4"
+name = "cxx_operator_delete"
+purpose = "Frees a pointer through the libc reentrant free path (880B6E0); called from destructors when their delete argument is set."
+confidence = "inferred"
+evidence = "Callers 88129B8, 8816AE4 test the delete argument then call this; 880B6E0 calls 880AA40 with libc_get_reent."
+
+[[function]]
+module = "EBOOT"
+address = "0889C518"
+name = "net_get_local_mac_buffer"
+purpose = "Returns the address of the 6-byte buffer 09A289BC."
+confidence = "inferred"
+evidence = "Returns a constant; 889D6EC compares six bytes of it against peer records' addresses and picks the matching one. Whether it is always the local address is not settled."
+
+[[function]]
+module = "EBOOT"
+address = "088B6A08"
+name = "net_event_invoke_callback"
+purpose = "If the callback is set, fills a zeroed 0x14-byte event with the code, 0xFF status when the code's high bit is set, and the callback's argument, then calls it."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B012C"
+name = "net_send_tx_frame"
+purpose = "Queues a frame for sending to the MAC at 089B2B4C with the value 10000 (port or timeout not settled): payload from +4, length +0 + 0x14, channel from +0x14. Returns 0 or the negative error."
+confidence = "inferred"
+evidence = "Whole body: copies 6 bytes from 089B2B4C, calls 88ADA44."
+
+[[function]]
+module = "EBOOT"
+address = "088B01BC"
+name = "net_set_frame_dest_mac"
+purpose = "Sets the 6-byte address at 09A203F8 used by frames being built: from the default at 089B2B54 when the first argument is 0, otherwise from the second argument."
+confidence = "inferred"
+evidence = "Whole body; 88AFE90 copies 09A203F8 into each new frame."
+
+[[function]]
+module = "EBOOT"
+address = "088AFFD0"
+name = "net_frame_store_length_be"
+purpose = "Writes the u16 at +2 big-endian into bytes +8 and +9."
+confidence = "confirmed"
+evidence = "Two-line whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088AFE90"
+name = "net_frame_init"
+purpose = "Clears 0x300 bytes of a frame's payload, copies the MAC 09A203F8 in and fills the header from per-type tables at 089B2A7C to 089B2B1C; a header kind 2 takes bytes 09A20748-9, otherwise a sequence counter 09A20414 is incremented and stored."
+confidence = "inferred"
+evidence = "Whole body; callers follow with field writes and 88B012C."
+
+[[function]]
+module = "EBOOT"
+address = "0880DA7C"
+name = "libc_rand"
+purpose = "C rand(): 64-bit linear congruential step on the reent's seed at +0xA8 and returns the high word masked to 31 bits."
+confidence = "confirmed"
+evidence = "Multiplier 0x5851F42D4C957F2D, add 1, as in newlib rand; libc_get_reent."
+
+[[function]]
+module = "EBOOT"
+address = "0880ED04"
+name = "libc_strcmp"
+purpose = "Compares two strings byte by byte; returns the difference at the first mismatch."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088AEF64"
+name = "net_copy_8_bytes_09a20400"
+purpose = "Copies 8 bytes from 09A20400 to the destination."
+confidence = "confirmed"
+evidence = "Whole body: loop of 4 two-byte copies."
+
+[[function]]
+module = "EBOOT"
+address = "08850724"
+name = "equip_box_add_entry"
+purpose = "Finds the first empty 0xC-byte record in the equipment box at +0x548 and fills in used, type byte (below 7), id and the second short; returns the slot or 0xFFFF."
+confidence = "inferred"
+evidence = "Whole body; 8901788 reads the same records; cont_task 9A5F380 passes each result to equip_set_equipped_box_index."
+
+[[function]]
+module = "EBOOT"
+address = "088D64E0"
+name = "object_start_position_lerp_to_650"
+purpose = "Starts moving position +0x200 to the target at +0x650 over N frames: stores the frame count at +0x670 and the per-frame step at +0x660; at distance 800 or more it snaps instead and the count is 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0890C514"
+name = "varint_decode_unsigned"
+purpose = "Decodes a 1 to 4 byte unsigned variable-length integer selected by the low bits of the first byte; returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole body; same layout as 0890C5B0 with an unsigned first byte."
+
+[[function]]
+module = "EBOOT"
+address = "08854BEC"
+name = "quest_id_list_89b1fdc_all_flagged"
+purpose = "Returns 1 if every id in the zero-terminated list selected from table 089B1FDC passes quest_id_flag_test."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0880A8E0"
+name = "libc_fprintf"
+purpose = "Varargs wrapper: passes file, format and the argument area to libc_vfprintf."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088AA14C"
+name = "net_map_error_to_local_code"
+purpose = "Maps PSP net error codes to small negative local codes, with 0 for success and -16 for anything unknown; non-negative values pass through."
+confidence = "confirmed"
+evidence = "Whole body: a chain of comparisons with constants."
+
+[[function]]
+module = "EBOOT"
+address = "088B6A80"
+name = "net_channel_invoke_callback_status_1"
+purpose = "If channel N (below 0x15) has a registered callback, calls it with a zeroed event holding status 1, its registered argument and N."
+confidence = "confirmed"
+evidence = "Short whole body; 88B0C3C fills the tables."
+
+[[function]]
+module = "EBOOT"
+address = "08854C5C"
+name = "quest_id_list_89b1fb0_all_flagged"
+purpose = "Returns 1 if every id in the zero-terminated list selected from table 089B1FB0 passes quest_id_flag_test."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B04B4"
+name = "mac_is_nonzero"
+purpose = "Returns 1 if any of the 6 bytes is nonzero."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088AFE84"
+name = "net_get_buffer_09a2076c"
+purpose = "Returns the address of the buffer 09A2076C."
+confidence = "inferred"
+evidence = "Returns a constant; net callers such as 88AE514 build frames in it."
+
+[[function]]
+module = "EBOOT"
+address = "088585E8"
+name = "quest_notice_queue_add_by_priority"
+purpose = "Adds a notice to a three-slot queue at g_quest+0x684, ranked by kind into 4 priority classes: replaces a slot whose class isn't higher than the new one."
+confidence = "inferred"
+evidence = "Part read; kind ranges below 3, 0x11, 0x13; slot writes at +8, +0xC, +0x18; callers pass kind and two values. What the notices show wasn't read."
+
+[[function]]
+module = "EBOOT"
+address = "0886AD58"
+name = "quest_on_monster_counted_update_records"
+purpose = "For a monster with a spawn entry: first time only (entry flag 8) adds to a per-type count capped at 9999, updates largest and smallest size for types in set a, updates objectives and decrements the spawn entry's remaining count."
+confidence = "inferred"
+evidence = "Whole body; the count's field name captured_count_by_type is not shown by this code to mean capture."
+
+[[function]]
+module = "EBOOT"
+address = "0887941C"
+name = "text_draw_centered_on_screen"
+purpose = "Prints a string centred on x 240 at the given y, taking width as measured units * 8."
+confidence = "confirmed"
+evidence = "Short whole body: 0xF0 - (width*8)/2."
+
+[[function]]
+module = "EBOOT"
+address = "088B0514"
+name = "mac_not_equal"
+purpose = "Returns whether two 6-byte addresses differ."
+confidence = "confirmed"
+evidence = "Short whole body: mem_memcmp of 6."
+
+[[function]]
+module = "EBOOT"
+address = "088C77D8"
+name = "map_id_table_get"
+purpose = "Returns the short at index N of the current map's id list (table 09CE480C, by g_game map_id)."
+confidence = "confirmed"
+evidence = "One-line body. What the ids are isn't shown."
+
+[[function]]
+module = "EBOOT"
+address = "088C4844"
+name = "stage_object_create_kind_12"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE530 and kind byte 0x12 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC3DC0."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "089053B4"
+name = "libgcc_extendsfdf2"
+purpose = "Soft-float float-to-double conversion."
+confidence = "inferred"
+evidence = "Unpacks a float (89052B0), widens the fraction by 28 bits (local_20 << 0x1E, >> 2 pair), and packs a double through 89067D0."
+
+[[function]]
+module = "EBOOT"
+address = "088BFEF8"
+name = "utility_msg_dialog_start_with_text"
+purpose = "Fills the sceUtility message dialog params at +0x688 (size 0x2C4, system language), copies the text, replaces ~12 with ~11, ~10 with the bytes E2 84 A2 and ~11 with C2 AE 20, starts the dialog and sets busy flags."
+confidence = "confirmed"
+evidence = "Calls sceUtilityMsgDialogInitStart; whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088A84B4"
+name = "net_peer_set_state_notify"
+purpose = "Stores a peer's state byte at +0x68+N and calls the handler at +0x148 when it becomes 5, or +0x150 when it becomes 6, unless N is the local index at +0x23."
+confidence = "inferred"
+evidence = "Whole body; 88AAE10 is called on state 6; that it is a peer is inferred from the Adhoc callers in the 88AA range."
+
+[[function]]
+module = "EBOOT"
+address = "0884FF4C"
+name = "gamedata_u16_44cc_plus_46e8_sum_clamped"
+purpose = "Returns the u16 at +0x44CC plus the u16 at +0x46E8 for a byte id, capped at 9999."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C4BB4"
+name = "stage_object_create_kind_15"
+purpose = "Allocates 0xc0 bytes on the stage heap, sets vtable 089BE590 and kind byte 0x15 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC5998."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08906618"
+name = "libgcc_floatsidf"
+purpose = "Soft-float signed int to double."
+confidence = "inferred"
+evidence = "Sign and magnitude, normalise to 0x10000000, exponent 0x3C, packs; constant returned for 0x80000000."
+
+[[function]]
+module = "EBOOT"
+address = "08906800"
+name = "libgcc_truncdfsf2"
+purpose = "Soft-float double to float."
+confidence = "inferred"
+evidence = "Unpacks a double, shifts fraction by 30 with sticky bit, calls the float packer 8905388."
+
+[[function]]
+module = "EBOOT"
+address = "088DAA54"
+name = "hunter_call_vfunc_6c_for_hud_request"
+purpose = "If hud_request +0x565 is set, calls vtable slot +0x6C with 6 and the table entry at 089B661C for that request."
+confidence = "confirmed"
+evidence = "Short whole body; what the slot does isn't shown here."
+
+[[function]]
+module = "EBOOT"
+address = "08901788"
+name = "equip_box_has_n_of_group"
+purpose = "Counts equipment-box records matching group N's type and id list (table 089B9220), or with no list those whose equip_get_data_byte is above 7, and returns 1 once the count reaches the second argument."
+confidence = "inferred"
+evidence = "Whole body; g_game+0x548 records as written by 8850724."
+
+[[function]]
+module = "EBOOT"
+address = "088B7078"
+name = "net_conn_invoke_callback_and_clear"
+purpose = "Clears bytes +0x20..+0x22 and calls the callback at +4 with a zeroed event holding the argument +8, a status byte and a short."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "089056E0"
+name = "libgcc_unpack_d"
+purpose = "Unpacks a double into class, sign, exponent and fraction parts (fp-bit __unpack_d)."
+confidence = "confirmed"
+evidence = "Whole body: class 0-4 for NaN, zero, number, infinity; implicit bit 0x10000000."
+
+[[function]]
+module = "EBOOT"
+address = "0889D6EC"
+name = "net_peer_record_select_local"
+purpose = "When the network mask bit is set, finds the peer record (0xC8 bytes, count +0xEE3) whose 6-byte address at +0x57C equals the buffer from 889C518 and stores it through 88B0C8C; always resets +0x12D0 to 0x3C."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088E2188"
+name = "jpeg_fill_bit_buffer"
+purpose = "Huffman decoder bit buffer refill: reads bytes through the source's fill routine, handles FF 00 stuffing and stops at markers (stored at +0x17C)."
+confidence = "inferred"
+evidence = "Matches libjpeg's jpeg_fill_bit_buffer: state param_1[0..1], unread_marker piVar4[0x5F], src piVar4[6] + 0xC callback, 0x18 bit threshold."
+
+[[function]]
+module = "EBOOT"
+address = "08906700"
+name = "libgcc_fixdfsi"
+purpose = "Soft-float double to signed int, truncating and saturating to INT_MAX/INT_MIN at infinity."
+confidence = "inferred"
+evidence = "Unpacks, class checks, exponent below 0 gives 0, shift by 0x3C - exp, sign."
+
+[[function]]
+module = "EBOOT"
+address = "088ADE7C"
+name = "net_state_reset_with_flag"
+purpose = "Runs 88ACD38 (sets bytes at 09A1DCA0), clears +8 and sets +0xC to 1."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08821D48"
+name = "menu_draw_equipment_stat_icons_row"
+purpose = "Draws one row of icons from table 0893AE20 at (x, y) for an equipment item, comparing two masks for colour and adding values from the item's data at 08978818."
+confidence = "guess"
+evidence = "Part read: text_set_position, masks against table entries, called from menu code 881EE84."
+
+[[function]]
+module = "EBOOT"
+address = "088B6B14"
+name = "net_status_change_notify"
+purpose = "If the net state byte is 0x10 or 1 calls the channel N callback (88B6A80); otherwise unless state 2, posts a zeroed event with connection status from 88AEFE4 and 88AEFFC through the open list 88B6D10."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08904470"
+name = "libgcc_ashldi3"
+purpose = "64-bit left shift (the view shows the low word only)."
+confidence = "inferred"
+evidence = "Callers read the high word from v1 (08855278, 088551F0); arg pair and count in a2 as __ashldi3."
+
+[[function]]
+module = "EBOOT"
+address = "088C7774"
+name = "map_id_table_find_index"
+purpose = "Searches the current map's id list (count 09CE4808, list 09CE480C) for a short and returns its index, or 0 if absent."
+confidence = "confirmed"
+evidence = "Whole short body; pairs with map_id_table_get."
+
+[[function]]
+module = "EBOOT"
+address = "088ADEAC"
+name = "net_state_clear_flag_if_active"
+purpose = "Returns 0 for states 0, 1, 2, 4; otherwise clears +0xC and returns 1."
+confidence = "confirmed"
+evidence = "Switch on +8, whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088D8900"
+name = "item_pouch_backup_to_43c8"
+purpose = "Copies 0x60 bytes of the item pouch to g_game+0x43C8."
+confidence = "confirmed"
+evidence = "Whole body: item_pouch_slot_ptr(g_game, 0), mem_memcpy."
+
+[[function]]
+module = "EBOOT"
+address = "088B0C3C"
+name = "net_channel_register_callback"
+purpose = "Stores a callback and argument for channel N in tables 09A44CF4 and 09A44D48."
+confidence = "confirmed"
+evidence = "Three-line whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08898948"
+name = "net_session_clear_and_unregister"
+purpose = "Unregisters the 88B047C callback via 88B0C68 and clears session fields +4, +0x1AFC, +0x12D5, +0x12C4, +0x12C0."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0888E1C8"
+name = "vec3_dot"
+purpose = "Dot product of two float triples."
+confidence = "confirmed"
+evidence = "One-line body."
+
+[[function]]
+module = "EBOOT"
+address = "088B7A50"
+name = "net_set_status_09a289ac"
+purpose = "Stores its argument in 09A289AC."
+confidence = "confirmed"
+evidence = "One-line body; net callers such as 88B1888 pass small status numbers."
+
+[[function]]
+module = "EBOOT"
+address = "0882F9A8"
+name = "menu_list_build_and_draw"
+purpose = "Builds a list layout on the stack (menu_list_build_layout) and draws it (menu_list_draw)."
+confidence = "confirmed"
+evidence = "Short whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08823DB0"
+name = "hud_show_info_panel_kind_6_id_4"
+purpose = "Clears the hud's fields +0x120A.. +0x1218 except for timer +0x1214 = 0xE10, sets info_panel_kind 6, info_panel_id 4 and menu flag 4."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088EF1F4"
+name = "int_div_round_up"
+purpose = "Returns (a + b - 1) / b."
+confidence = "confirmed"
+evidence = "One-line body."
+
+[[function]]
+module = "EBOOT"
+address = "08905FBC"
+name = "libgcc_divdf3"
+purpose = "Soft-float double divide."
+confidence = "inferred"
+evidence = "Unpacks both, sign xor, class handling, shift-subtract loop of 0x3D iterations."
+
+[[function]]
+module = "EBOOT"
+address = "088575C0"
+name = "local_hunter_direction_dot_to_vector"
+purpose = "Normalises the given vector and the vector from a point to the local hunter's +0x200 position, and returns their dot product."
+confidence = "confirmed"
+evidence = "Whole body: hunter_manager_get_slot of g_game local_hunter_slot; vsub_t, vdot_q, vrsq_s, vdot_t."
+
+[[function]]
+module = "EBOOT"
+address = "0884FC0C"
+name = "gamedata_add_696e8_clamped"
+purpose = "Adds to the int at +0x696E8, clamped to 0..9999999."
+confidence = "confirmed"
+evidence = "Whole short body. Next to gamedata_add_zenny_clamped, which uses +0x696F0."
+
+[[function]]
+module = "EBOOT"
+address = "08884C9C"
+name = "global_08a62eac_set_flag_if_negative"
+purpose = "Sets a byte (0x56 structs + 0x2464 into the global) to 1 if the float argument is below 0, otherwise 0."
+confidence = "confirmed"
+evidence = "Whole short body; callers pass local_hunter_direction_dot_to_vector's result."
+
+[[function]]
+module = "EBOOT"
+address = "088AFFE8"
+name = "net_frame_append_byte"
+purpose = "Appends a byte to the frame's data at +0x18 + (u16 at +2), and increments shorts +0 and +2."
+confidence = "confirmed"
+evidence = "Three-line whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B03CC"
+name = "read_u16_be"
+purpose = "Reads a big-endian u16 from a byte pointer into a destination and returns the advanced pointer."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B03BC"
+name = "read_u8"
+purpose = "Reads one byte into a destination and returns the advanced pointer."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08824B14"
+name = "hud_draw_panels_by_kind"
+purpose = "Draws the HUD windows of the +0x120A menu on draw lists 9 and 10: when +0x5E8 bit 4 is set and +0x120E bit 0 clear, switches on +0x120A to draw an info panel or a titled window."
+confidence = "guess"
+evidence = "Part read of the 330-line body; menu_draw_info_panel_fixed_layout, menu_draw_window_with_title, text_set_draw_list, gpu_push_2d_ui_render_state."
+
+[[function]]
+module = "EBOOT"
+address = "088D1398"
+name = "motion_curve_interpolate_at_frame"
+purpose = "Walks a table of frame+vec3 keys ended by -1.0 and writes the vec3 interpolated between the two keys around the current motion frame, or the last key's value if past the end."
+confidence = "confirmed"
+evidence = "Whole body: motion_frame_reached_08864408 on key frames."
+
+[[function]]
+module = "EBOOT"
+address = "088C5FE4"
+name = "stage_object_create_kind_29"
+purpose = "Allocates 0x90 bytes on the stage heap, sets vtable 089BB36C and kind byte 0x29 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9AFDF00."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C507C"
+name = "stage_object_create_kind_1a"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE630 and kind byte 0x1A at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC8500."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0889CE10"
+name = "net_party_record_find_by_mac"
+purpose = "Searches the 100-byte records at +0x12DC (count +0x12D8) for a 6-byte address and returns the record or 0."
+confidence = "inferred"
+evidence = "Whole body: bytewise address comparison."
+
+[[function]]
+module = "EBOOT"
+address = "088BFE54"
+name = "utility_msg_dialog_start_error_code"
+purpose = "Fills the sceUtility message dialog params at +0x688 in error mode with an error code at +0x6C0, starts it and sets the busy flags."
+confidence = "confirmed"
+evidence = "Whole body: mode field +0x6BC 0, sceUtilityMsgDialogInitStart."
+
+[[function]]
+module = "EBOOT"
+address = "088906DC"
+name = "net_flag_a57c_clear"
+purpose = "Clears bit 0 of the word tested by net functions (g_global_08A632C0, 0xF7 structs + 0xA57C) and sets field +0x2FBDC of the file manager global to 1."
+confidence = "inferred"
+evidence = "Whole short body; 889D6EC and 88AB6D0 test the same bit first."
+
+[[function]]
+module = "EBOOT"
+address = "0890A430"
+name = "gim_image_alloc_with_mips"
+purpose = "Allocates an image for up to 512x512, 1-8 levels and N frames: computes each level's size from the format's bits per pixel table 089331F4, aligned to 16, frees the old (param_1+0xC) and fills offsets."
+confidence = "inferred"
+evidence = "Part read; limit checks, halving widths and heights per level, table in the header like 890971C reads."
+
+[[function]]
+module = "EBOOT"
+address = "088474DC"
+name = "hud_draw_item_name_and_count_text"
+purpose = "Prints a pouch slot's item name with its count (or a special form for item 0x80 and for table byte -1), coloured by whether it matches the hunter's selected slot; returns 1 if drawn."
+confidence = "inferred"
+evidence = "Whole body: libc_sprintf with %s %d, pack_entry_section_1 item name, item table 0899D2B9 flags 6."
+
+[[function]]
+module = "EBOOT"
+address = "0883B498"
+name = "hud_party_peer_index_for_list_entry"
+purpose = "Finds the peer record whose address equals the +0x50 address of entry N of the 8-byte list at DAT_09A0FF04, returning its index or -1."
+confidence = "inferred"
+evidence = "Whole body; mem_memcmp of 6 bytes against records 0x57C by 200."
+
+[[function]]
+module = "EBOOT"
+address = "088DDD9C"
+name = "file_entry_dma_copy"
+purpose = "Copies a loaded entry's bytes to a destination with the DMA memcpy, first flushing the cache; size -1 means ask the file manager (vtable +0x18) from the entry's id."
+confidence = "inferred"
+evidence = "Whole body: sceDmacMemcpy; 12-byte entries (+2 id, +4 address). Callers overlay_start_load and the sound load steps."
+
+[[function]]
+module = "EBOOT"
+address = "0890971C"
+name = "gim_image_level_frame_offset"
+purpose = "Returns the offset word for a level below +0x2A and a frame (wrapped to +0x2E) from an image's table located at +0x18."
+confidence = "inferred"
+evidence = "Whole body; header layout matches GIM's level_count +0x2A and frame_count +0x2E."
+
+[[function]]
+module = "EBOOT"
+address = "0880D97C"
+name = "libc_bfree"
+purpose = "Returns a big-number to the free list in the reent's +0x4C array."
+confidence = "inferred"
+evidence = "Whole body, newlib _Bfree pattern; caller 880CA00."
+
+[[function]]
+module = "EBOOT"
+address = "08823E18"
+name = "hud_item_take_menu_tick"
+purpose = "The menu taking items listed in g_game supply_items to pouch or box: counts room, handles input, runs a timer at +0x1214, and when finished or timed out adds zenny from 88790F4 and backs up the pouch. Returns 0 when closed."
+confidence = "inferred"
+evidence = "Part read of 745 lines: item_box_room_capped, item_pouch_room_for_item_or_full, item_box_add, gamedata_add_zenny_clamped; states at +0x120A set by 08823DB0."
+
+[[function]]
+module = "EBOOT"
+address = "0880AA40"
+name = "libc_free_r"
+purpose = "newlib _free_r: merges a freed chunk with neighbours and bins it, trimming when above the threshold."
+confidence = "inferred"
+evidence = "Part read: chunk header at -8 and -4, top chunk PTR_DAT_0893378C, bin unlink."
+
+[[function]]
+module = "EBOOT"
+address = "089053FC"
+name = "libgcc_pack_d"
+purpose = "Packs class, sign, exponent and fraction parts back to a double with rounding, handling subnormals (fp-bit __pack_d)."
+confidence = "confirmed"
+evidence = "Whole body; the counterpart of 89056E0."
+
+[[function]]
+module = "EBOOT"
+address = "0885B5B8"
+name = "table_89a48f0_find_pair_entry"
+purpose = "Orders two ids, then scans the range of the first's 10-byte entries in table 089A48F0 for an entry for the second id and filter it by mode: -1 by flag, 0 by table_89a48f0_entry_allowed, 1 returns it."
+confidence = "inferred"
+evidence = "Whole body; range table 089A4FA8."
+
+[[function]]
+module = "EBOOT"
+address = "088AB6D0"
+name = "net_post_message_category_7"
+purpose = "When the network flag is set, packs a kind-specific payload (8 or 12 bytes) by kind and sends it through 88AB4DC with category 7."
+confidence = "inferred"
+evidence = "Whole body; kinds 1-2 copy two bytes and two words, 3-8 eight bytes. Caller supply_box_take_selected_item; what the messages mean isn't shown here."
+
+[[function]]
+module = "EBOOT"
+address = "0880CA00"
+name = "libc_multadd"
+purpose = "Multiplies a big-number by a small factor, adding a carry-in, growing it if needed."
+confidence = "inferred"
+evidence = "Whole body; newlib __multadd pattern: 16-bit limbs, 880D8C4 alloc, 880D97C free."
+
+[[function]]
+module = "EBOOT"
+address = "088C547C"
+name = "stage_object_create_kind_1e"
+purpose = "Allocates 0x40 bytes on the stage heap, sets vtable 089BE6B0 and kind byte 0x1E at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCA638."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0889CF34"
+name = "net_local_peer_record_set_bf"
+purpose = "Stores a byte at +0x12D5 and in +0xBF of the peer record whose address equals the buffer from 889C518."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0881C520"
+name = "menu_two_choice_cursor_update"
+purpose = "Toggles the two-state cursor at +0x537 on pressed directions (right/down selects 1, up/left selects 0), with sound 0x17."
+confidence = "confirmed"
+evidence = "Whole body: mask of held and new buttons with 0x60 and 0x90."
+
+[[function]]
+module = "EBOOT"
+address = "0890AD08"
+name = "read_u32_le_unaligned"
+purpose = "Reads a little-endian u32 (handling misalignment) into a destination and returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08812F18"
+name = "camera_shake_a_start_at_point"
+purpose = "Starts camera shake A: active, kind, ticks from table 08933BB8, origin from the given 4 floats, radius index 0."
+confidence = "confirmed"
+evidence = "Whole short body with typed fields."
+
+[[function]]
+module = "EBOOT"
+address = "088B0324"
+name = "read_prefixed_string_store_len_12"
+purpose = "Reads the big-endian length word into +0x12 and then a length-prefixed string of up to 0x12 bytes to the start of the destination; returns the pointer past."
+confidence = "confirmed"
+evidence = "Whole body using read_u16_be and 88B040C."
+
+[[function]]
+module = "EBOOT"
+address = "0882AD70"
+name = "hud_draw_sprite_unscaled_rgba"
+purpose = "Binds a texture sub-rectangle and emits a 2D sprite primitive with x, y, w, h, colour and UVs from 0 to w,h."
+confidence = "confirmed"
+evidence = "Whole body: GE commands and vertices via gpu_get_list_cursor."
+
+[[function]]
+module = "EBOOT"
+address = "08883DE4"
+name = "sound_play_voice_3d_with_zones"
+purpose = "Evaluates map sound zones (a voice override and pitch), works out volume and pan at a position by driver mode, applies a master scale, and plays the voice unless silent. Returns -1 when skipped."
+confidence = "inferred"
+evidence = "Whole body: sound_eval_map_zones, 88851C8 or sound_calc_3d_volume_pan, sound_play_voice."
+
+[[function]]
+module = "EBOOT"
+address = "08832684"
+name = "hud_draw_panel_sprites_105_to_107"
+purpose = "Draws a panel from stretched sprites: 0x105 at the top and bottom, 0x106 on the left and right, 0x107 in the middle, all in one tint."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C5E9C"
+name = "stage_object_create_kind_28"
+purpose = "Allocates 0x90 bytes on the stage heap, sets vtable 089BB34C and kind byte 0x28 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9AFCBA0."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C6944"
+name = "stage_object_create_kind_31"
+purpose = "Allocates 0xa0 bytes on the stage heap, sets vtable 089BE7B0 and kind byte 0x31 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCE958."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0883B3D4"
+name = "net_peer_record_nth_non_local"
+purpose = "Returns the Nth peer record whose address differs from the buffer from 889C518, or 0."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0880D8C4"
+name = "libc_balloc"
+purpose = "Allocates a big-number of size class N, from the free list at the reent's +0x4C or via calloc 8808BBC."
+confidence = "inferred"
+evidence = "Whole body, newlib _Balloc pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088B6F64"
+name = "net_request_slot_start"
+purpose = "Claims request slot N in the 0x28-byte table 09A440BC: if unused, clears it, marks in use, stores a function and two values and returns 0; otherwise -1."
+confidence = "confirmed"
+evidence = "Whole body; callers such as 88B06C0 fall back to 88B6A08 on failure."
+
+[[function]]
+module = "EBOOT"
+address = "0886BEA4"
+name = "quest_data_get_text_ptr"
+purpose = "Returns text N of the quest data through the language table at +0x58 and base +0x50, or in mode flag 1 through quest_info_get_text_ptr."
+confidence = "inferred"
+evidence = "Whole body; language index from g_global_08A632C0's 0xA574 field is inferred from its use here."
+
+[[function]]
+module = "EBOOT"
+address = "08831418"
+name = "menu_draw_equipment_icon_tinted"
+purpose = "Draws an equipment type/id's icon at 16x16 in an RGBA tint."
+confidence = "confirmed"
+evidence = "Whole body: menu_equipment_icon_sprite_id, hud_draw_sprite_stretched_rgba."
+
+[[function]]
+module = "EBOOT"
+address = "088570D8"
+name = "game_bits_696d4_any_for_id"
+purpose = "Returns 1 if any of the 5 sub-bits for an id passes game_bits_696d4_test."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0884D7C8"
+name = "screen_fade_start_white"
+purpose = "Starts a screen fade with the colour set to 255,255,255."
+confidence = "confirmed"
+evidence = "Whole short body: screen_fade_start then +0x2C..+0x2E = 0xFF; neighbours screen_fade_start_black."
+
+[[function]]
+module = "EBOOT"
+address = "088B0010"
+name = "net_frame_append_u16_be"
+purpose = "Appends a big-endian u16 to the frame's data at +0x18 + (u16 at +2), and adds 2 to shorts +0 and +2."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08812F64"
+name = "camera_shake_ac0_start_kind"
+purpose = "Sets +0xAC0 active, +0xAC1 the kind or'd with 0x80, and +0xAC2 ticks from table 08933BB8."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08826734"
+name = "item_pouch_slot_item_id"
+purpose = "Returns the item id in pouch slot N."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08884CD4"
+name = "global_08a62eac_clear_flag_2464"
+purpose = "Clears the byte 0x56 structs + 0x2464 into the global."
+confidence = "confirmed"
+evidence = "One line; pairs with global_08a62eac_set_flag_if_negative."
+
+[[function]]
+module = "EBOOT"
+address = "088292AC"
+name = "item_slots_compact_and_sort"
+purpose = "Moves used slots of the pouch or backup 43C8 (24 slots) to the front and sorts them, keeping the hunter's selected and weapon slots on the same items."
+confidence = "inferred"
+evidence = "Whole body: gap-closing loop, item_slots_shell_sort, re-finding slots by item id."
+
+[[function]]
+module = "EBOOT"
+address = "088C3948"
+name = "stage_object_create_9cbc040"
+purpose = "Allocates 0x70 bytes on the stage heap, constructs with 9CBC040, pushes on the object list, links the owner's +0x1D0/+0x70 and calls initialiser 9CBC110."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C5994"
+name = "stage_object_create_kind_23"
+purpose = "Allocates 0x70 bytes on the stage heap, sets vtable 089BE710 and kind byte 0x23 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCC288."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C5174"
+name = "stage_object_create_kind_1b"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE650 and kind byte 0x1B at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC9238."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08813024"
+name = "camera_shake_a_start_at_object"
+purpose = "If the object matches the game's +0x6AF0E value, starts shake A at the object's position with a radius index; else nothing."
+confidence = "inferred"
+evidence = "Whole body: object_29a_matches_game_6af0e then the fields."
+
+[[function]]
+module = "EBOOT"
+address = "08906450"
+name = "libgcc_df_compare_nan_minus1"
+purpose = "Soft-float double comparison returning -1 for a NaN operand, otherwise the fpcmp result; fp-bit's __gedf2 or __gtdf2."
+confidence = "inferred"
+evidence = "Whole body: unpack, class below 2, 890621C."
+
+[[function]]
+module = "EBOOT"
+address = "08896A50"
+name = "hint_step_set_flag_once"
+purpose = "If the current step byte +0x1111 equals the argument and bitflag N of 508 is not set, sets it and stores a value at +0x1113."
+confidence = "confirmed"
+evidence = "Whole body: gamedata_bitflag_508_test and set. Caller quest_hint_trigger_event."
+
+[[function]]
+module = "EBOOT"
+address = "0885E270"
+name = "equip_box_entry_flags_test"
+purpose = "Tests a mask against the short at +0x54C of box record N, or returns 0xFF when 885E244 rejects N."
+confidence = "inferred"
+evidence = "Whole short body; records as equip_box_add_entry fills."
+
+[[function]]
+module = "EBOOT"
+address = "088B040C"
+name = "read_be16_prefixed_bytes"
+purpose = "Reads a big-endian length, copies up to the maximum bytes and returns the pointer past the whole field."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0880D170"
+name = "libc_big_cmp"
+purpose = "Compares two big-numbers: by limb count, then limbs from the top (newlib __mcmp)."
+confidence = "inferred"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0885E834"
+name = "item_data_extra_entry"
+purpose = "Returns the 16-byte entry in 08977AF4 selected by item N's short at +0x16 in its 0x18-byte data, or null when that is 0."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088B0284"
+name = "net_frame_append_string_len_at_12"
+purpose = "Appends a big-endian length taken from +0x12 and that many bytes from the source to a frame."
+confidence = "confirmed"
+evidence = "Whole short body: net_frame_append_u16_be, 88B0084."
+
+[[function]]
+module = "EBOOT"
+address = "088B7A10"
+name = "net_mac_differs_from_09a28cd8"
+purpose = "Returns whether a 6-byte address differs from the one at 09A28CD8."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0889A008"
+name = "net_session_start_889a918_request"
+purpose = "Sets mask 0x400 in +0x12C0 and passes callback 889A918 with self to 88B3BE4."
+confidence = "confirmed"
+evidence = "Whole short body. Callers lobby_manager_mode_tick, quest_menu_tick."
+
+[[function]]
+module = "EBOOT"
+address = "088AFFBC"
+name = "net_frame_store_u16_be_at_c"
+purpose = "Writes a u16 big-endian at +0xC and +0xD."
+confidence = "confirmed"
+evidence = "Two lines."
+
+[[function]]
+module = "EBOOT"
+address = "088DCB00"
+name = "color_cycle_table_89b669c_at_tick"
+purpose = "Interpolates colour components between adjacent entries of the 8-entry table 089B669C by g_game tick_30ths, for a slowly cycling colour."
+confidence = "inferred"
+evidence = "Part read: tick & 0x7F >> 4 selects the entry, tick & 0xF the blend. Caller hunter_part_get_tint_color."
+
+[[function]]
+module = "EBOOT"
+address = "088471D8"
+name = "hud_draw_item_bar_background"
+purpose = "Draws the item bar's sprites 0x25, 0x27, 0x28 and when the slot isn't empty the item's coloured icon 0x19C and selection sprites."
+confidence = "inferred"
+evidence = "Part read; item colour from data at 0899D2BE into 0893AB7C; callers hud_draw_item_bar_closed and hud_draw_item_selector_open."
+
+[[function]]
+module = "EBOOT"
+address = "08838894"
+name = "menu_draw_equipment_preview_stats"
+purpose = "Saves the hunter's equipment, applies the candidate item to it (weapon or armour by type), and from there draws the resulting stats."
+confidence = "guess"
+evidence = "Part read: ui_save_hunter_equipment, ui_preview_weapon_on_hunter, 8821ADC; caller menu_draw_equipment_stats_compare."
+
+[[function]]
+module = "EBOOT"
+address = "088FD0A8"
+name = "hud_draw_message_window_by_kind"
+purpose = "Draws a centred window on list 0xE/5 with a multi-line lobby string chosen by kind 0-3 and further lines."
+confidence = "inferred"
+evidence = "Part read: hud_draw_window_style_40, text_draw_multiline_centered, lobby_text_get_string_table_0x00_09A7B890."
+
+[[function]]
+module = "EBOOT"
+address = "088C5B74"
+name = "stage_object_create_kind_25"
+purpose = "Allocates 0xe0 bytes on the stage heap, sets vtable 089BB2EC and kind byte 0x25 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9AFA868."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088530C4"
+name = "text_contains_word_from_two_lists"
+purpose = "Normalises a string (88538B4), then tests it through 885320C against each word of two lists (885168C and 8851698), and returns whether anything matched."
+confidence = "guess"
+evidence = "Whole body. The lists' contents weren't read; callers in edit_task and the name entry code suggest a word filter."
+
+[[function]]
+module = "EBOOT"
+address = "088C6234"
+name = "stage_object_create_kind_2b"
+purpose = "Allocates 0xa0 bytes on the stage heap, sets vtable 089BB3AC and kind byte 0x2B at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9B009F0."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0885B9E0"
+name = "item_box_remove_count"
+purpose = "Removes a count of an item from the box at +0x3428, slot by slot in order, clearing slots at 0, until the count is met."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C473C"
+name = "stage_object_create_kind_11"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE510 and kind byte 0x11 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC3900."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0890943C"
+name = "image_release_refcounted_buffers"
+purpose = "Runs 89098AC and drops references to the buffers at +0xC, +0x10 and +0x58, freeing them at zero."
+confidence = "inferred"
+evidence = "Part read: decrement of short +2 and 8908D8C on zero."
+
+[[function]]
+module = "EBOOT"
+address = "088C4454"
+name = "stage_object_create_kind_0e"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE4B0 and kind byte 0x0E at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC22F8."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0885B718"
+name = "item_combo_entry_is_known"
+purpose = "Returns whether a combination table entry's bit (its +6 index into the array at g_game+0x446C) is set, and unless flag 1 is given requires table_89a48f0_entry_allowed too."
+confidence = "inferred"
+evidence = "Whole short body. Caller item_box_menu_tab_combine_items names what the table is for."
+
+[[function]]
+module = "EBOOT"
+address = "08818028"
+name = "menu_draw_item_name_colored"
+purpose = "Prints an item's name at x, y, coloured 5, 10 or 0 from two arguments; 0xFFFF means nothing."
+confidence = "confirmed"
+evidence = "Whole short body: pack_entry_section_1, text_printf_at_colored."
+
+[[function]]
+module = "EBOOT"
+address = "08825E78"
+name = "hud_count_585_decrement_and_show_item_info"
+purpose = "Decrements +0x585, plays sound 0x14, and sets +0x5FC to the item id of pouch slot +0x586 plus 0x18."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088AF7E0"
+name = "net_mac_not_in_list_09a1ffd8"
+purpose = "Returns 0 if the address matches one of 4 entries at 09A1FFD8, else 1."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08856CA0"
+name = "equip_type_to_slot_index"
+purpose = "Maps an equipment type to an index: 0 to 0, 1 to 2, 2 to 3, 3 to 4, 4 to 5, others to 0."
+confidence = "inferred"
+evidence = "Whole short body. Caller item_equip_menu_preview_update_and_load_step."
+
+[[function]]
+module = "EBOOT"
+address = "088A9CFC"
+name = "net_poll_error_or_state_7"
+purpose = "Returns the first nonzero of 09A1D830, 09A1D834, 09A1D838; if all are 0, 7 when the current peer's state byte is 6, else 0."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0886E0D8"
+name = "quest_call_886e130_if_not_ended"
+purpose = "Calls 886E130 with the arguments if quest_get_end_result(1) is 0."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088B02C8"
+name = "net_frame_append_string_len_at_a0"
+purpose = "Appends a big-endian length taken from +0xA0 and that many bytes from the source to a frame."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08876574"
+name = "hud_start_music_fade_and_mode_4"
+purpose = "Fades sound track 0 to scaled volume 0x46 over 4 and sets +0xC1 1, +0xC2 0, +0xC3 4."
+confidence = "confirmed"
+evidence = "Whole short body. The arguments' meaning is inferred from sound_track_fade_to_scaled_volume."
+
+[[function]]
+module = "EBOOT"
+address = "088B0370"
+name = "read_prefixed_string_store_len_a0"
+purpose = "Reads the big-endian length into +0xA0 and then a length-prefixed string of up to 0xA0 bytes; returns the pointer past."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088D5EF0"
+name = "object_add_67e_clamped_100"
+purpose = "Adds a signed value to the signed byte +0x67E, clamped to -100..100."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088B0240"
+name = "net_frame_append_8_bytes_with_len"
+purpose = "Appends a big-endian length 8 and 8 bytes from the source to a frame."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088B3A3C"
+name = "net_copy_record_09a28cd8"
+purpose = "Copies 100 bytes from the record at 09A28CD8."
+confidence = "confirmed"
+evidence = "Whole short body: 0x19 words."
+
+[[function]]
+module = "EBOOT"
+address = "088AD1BC"
+name = "system_signal_sema_if_field_14"
+purpose = "If short +0x14 is nonzero, signals the semaphore DAT_09A1DCF8."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0890C344"
+name = "call_function_ptr_89b937c"
+purpose = "Calls the function at 089B937C."
+confidence = "confirmed"
+evidence = "One line; that pointer holds 890C38C."
+
+[[function]]
+module = "EBOOT"
+address = "088A8028"
+name = "net_conn_store_error_return_negated"
+purpose = "Stores an error code at +0x120 and a value at +0x12C, clears 09A1D6D0 and 09A1D6B8, and returns the negated code."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0886CDF8"
+name = "pickup_point_get_field_16"
+purpose = "Returns the u16 at +0x16 of the 0x20-byte record N in DAT_09A4F1A0."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088EF2C0"
+name = "hang_forever"
+purpose = "Infinite loop."
+confidence = "confirmed"
+evidence = "One-line body."
+
+[[function]]
+module = "EBOOT"
+address = "088EF2B4"
+name = "mem_zero"
+purpose = "Clears N bytes with mem_memset."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "0885DD9C"
+name = "equip_fits_hunter_body_and_weapon"
+purpose = "Returns 0 if the equipment's per-type data lacks the mask from hunter_body_kind (1 or 2) and weapon category 6 (8, otherwise 4)."
+confidence = "inferred"
+evidence = "Part read: a switch on type picks a 0x28-byte table's byte."
+
+[[function]]
+module = "EBOOT"
+address = "08813B3C"
+name = "camera_start_scripted_by_monster_type"
+purpose = "Clears any scripted camera state when 8813C8C says one is on, then picks a value by the monster type at +0x1E8 and starts with it."
+confidence = "inferred"
+evidence = "Part read: chain of type comparisons to values 0xE-0x12."
+
+[[function]]
+module = "EBOOT"
+address = "08861C7C"
+name = "model_draw_group_blended"
+purpose = "Sets blend mode, world matrix (scaled), alpha and ambient for a model group, and draws it, between two GE commands at DAT_089CC120."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088C526C"
+name = "stage_object_create_kind_1c"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE670 and kind byte 0x1C at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC9BA8."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "0889695C"
+name = "hint_step_table_apply"
+purpose = "Walks 8-byte records (flag id, step) to the current step in +0x1111; if the flag isn't set yet, sets it, stores +0x1113 and sets up to 3 further flags at 100 + the bytes in the record."
+confidence = "inferred"
+evidence = "Whole body. Caller quest_hint_trigger_event."
+
+[[function]]
+module = "EBOOT"
+address = "08826EF4"
+name = "equip_fits_hunter_kind_and_4e9"
+purpose = "Tests the equipment's +4 mask against hunter_body_kind (1 or 2) and the +0x4E9 weapon value 5 (4, otherwise 8)."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08857058"
+name = "game_bits_696d4_test"
+purpose = "For an id in 0x5209..0x521F, tests bit (id - 0x5209) * 5 + N of the bit array at +0x696D4 in the game state; other ids give 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08906590"
+name = "libgcc_df_compare_nan_1_8906590"
+purpose = "Soft-float double comparison returning 1 for a NaN operand, otherwise the fpcmp result (fp-bit eq, ne, lt or le)."
+confidence = "inferred"
+evidence = "Whole body. Same as 89063C8; which entry it is can't be told from the code."
+
+[[function]]
+module = "EBOOT"
+address = "089063C8"
+name = "libgcc_df_compare_nan_1_89063c8"
+purpose = "Soft-float double comparison returning 1 for a NaN operand, otherwise the fpcmp result (fp-bit eq, ne, lt or le)."
+confidence = "inferred"
+evidence = "Whole body. Same as 8906590; which entry it is can't be told from the code."
+
+[[function]]
+module = "EBOOT"
+address = "088134E8"
+name = "camera_focus_view_push"
+purpose = "Stores two vec4s, a value at +0x830, and starts the camera's focus view: mode 2 with +0x816 = 0xF when the flag argument is 1, otherwise mode 1; sets the state at the focus view depth."
+confidence = "inferred"
+evidence = "Whole short body. Caller lobby_state_main_tick_net_sync_and_dispatch_requests."
+
+[[function]]
+module = "EBOOT"
+address = "08882BB8"
+name = "sound_track_slot_fade_by_master"
+purpose = "Starts a fade on a sound track slot with volume 0x7F scaled by one of two master settings chosen by the slot."
+confidence = "inferred"
+evidence = "Whole short body: math_scale_by_sevenths, sound_track_slot_start_fade."
+
+[[function]]
+module = "EBOOT"
+address = "088B68FC"
+name = "net_count_nonzero_macs"
+purpose = "Counts nonzero 6-byte addresses in 4 records from 09A2865C + 0xE48."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08851EC8"
+name = "equip_weapon_data_first_short"
+purpose = "Returns the first short of weapon N's data, table 0895A0EC for type 5, else 08960CBC."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0884A66C"
+name = "hud_print_count_of_max"
+purpose = "Prints a value and maximum as %2d/%d, or only the value (another format) when flag bit 0 in +0x5E6 is set."
+confidence = "inferred"
+evidence = "Whole short body; format string at 0893B8AC named by the decompiler."
+
+[[function]]
+module = "EBOOT"
+address = "08907AF0"
+name = "gu_enable_state"
+purpose = "Sets a GE state on and records its bit in DAT_09A5E934."
+confidence = "inferred"
+evidence = "Whole short body: gu_context_set_state(ctx, state, 1)."
+
+[[function]]
+module = "EBOOT"
+address = "088588BC"
+name = "record_log_fill_date"
+purpose = "Stores two shorts at +4 and +6, and the local clock's year, month and day at +2, +1, +0."
+confidence = "confirmed"
+evidence = "Whole short body: sceRtcGetCurrentClockLocalTime."
+
+[[function]]
+module = "EBOOT"
+address = "08909078"
+name = "image_release"
+purpose = "Drops the reference count at +0 and at zero releases the buffers (image_release_refcounted_buffers) and frees through 8908D60."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0885E244"
+name = "equip_box_entry_type_is_6"
+purpose = "Returns whether box record N's type byte +0x549 is 6."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088B04EC"
+name = "net_mac_differs_from_09a20330"
+purpose = "Returns whether a 6-byte address differs from the one at 09A20330."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088854A0"
+name = "sound_call_8880294_if_nonzero"
+purpose = "Calls 8880294 with the two arguments when the first is nonzero."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08872DC4"
+name = "quest_record_73c_get_short"
+purpose = "Returns the u16 at +0x73C of 8-byte record N."
+confidence = "confirmed"
+evidence = "One line. Records near those of quest_copy_two_header_records_to_74c."
+
+[[function]]
+module = "EBOOT"
+address = "088B0318"
+name = "read_be16_prefixed_6_bytes"
+purpose = "Reads a big-endian-length-prefixed field of up to 6 bytes."
+confidence = "confirmed"
+evidence = "One line: 88B040C with 6."
+
+[[function]]
+module = "EBOOT"
+address = "08851598"
+name = "pack_entry_section_7"
+purpose = "Returns entry N of section 7 of the text pack."
+confidence = "confirmed"
+evidence = "One line: pack_entry_ptr(7, N)."
+
+[[function]]
+module = "EBOOT"
+address = "08813558"
+name = "camera_end_focus_target_thunk"
+purpose = "Single jump to camera_end_focus_target (08813388)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088F4A7C"
+name = "menu_draw_times_stats_panel"
+purpose = "Draws a panel of stats with times (%2d:%2d, %4d:%02d, %02d:%02d:%02d), using a colour by row and sprites."
+confidence = "guess"
+evidence = "Part read: 19 text_printf_at, hud_draw_sprite; time formats named by the decompiler."
+
+[[function]]
+module = "EBOOT"
+address = "0883488C"
+name = "menu_draw_paged_list_of_7"
+purpose = "Draws a list of +0x111C entries in pages of 7, with a page bar, and a next section of names coloured by the network flag."
+confidence = "inferred"
+evidence = "Part read: value / 7 and % 7; menu_list_draw, menu_draw_window_page_counter_and_bar. Caller menu_draw_paged_options_list."
+
+[[function]]
+module = "EBOOT"
+address = "088F6228"
+name = "menu_draw_three_wide_name_rows"
+purpose = "Draws a list window with 3 rows of 0xE-short records: status colour from +0 and a wide string from +2."
+confidence = "inferred"
+evidence = "Part read: menu_list_draw and text_queue_wide_string_at in a loop of 3."
+
+[[function]]
+module = "EBOOT"
+address = "088DA740"
+name = "hunter_scale_value_by_skills_for_mask"
+purpose = "Scales a positive value by skill and effect factors chosen by mask bits: 0x7 by skills 0x43 and list item 9 (1.125), 0x1F0 by skill 0x44 (1.2) and flag 0x2000 by effect levels."
+confidence = "inferred"
+evidence = "Part read. Callers hunter_attack_task_setup_from_weapon_values; what the mask's bits name isn't shown here."
+
+[[function]]
+module = "EBOOT"
+address = "0880D018"
+name = "libc_big_lshift"
+purpose = "Shifts a big-number left by N bits into a new allocation (newlib __lshift)."
+confidence = "inferred"
+evidence = "Part read: 880D8C4, word and bit shift."
+
+[[function]]
+module = "EBOOT"
+address = "088E2320"
+name = "jpeg_huff_decode_slow"
+purpose = "Slow Huffman decode: gets at least the minimum bits, extends a code until it fits the maxcode table, and looks up the symbol."
+confidence = "inferred"
+evidence = "Part read, libjpeg's jpeg_huff_decode: jpeg_fill_bit_buffer, table at param_4 + N * 4."
+
+[[function]]
+module = "EBOOT"
+address = "088AF848"
+name = "net_member_list_add_or_update"
+purpose = "In the 4 member records of 09A1FF20, overwrites the 100-byte record matching the address and flags it (returns 2), or uses a free one."
+confidence = "inferred"
+evidence = "First half read; 0x19 pairs copied, mac_not_equal used."
+
+[[function]]
+module = "EBOOT"
+address = "08879488"
+name = "hud_draw_filter_and_5_windows"
+purpose = "Draws the filtered fullscreen image and 5 windows at positions from 089A89E8 to 089A8A0E."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C635C"
+name = "stage_object_create_kind_2b_b"
+purpose = "Allocates 0xa0 bytes on the stage heap, sets vtable 089BB3AC and kind byte 0x2B at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9B00AB0."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088AD378"
+name = "block_list_alloc"
+purpose = "Allocates from an address-ordered linked list of blocks under a semaphore: rounds the size up, finds a big-enough gap, inserts a node (from 88AD2FC) and returns the address; 0 on failure."
+confidence = "inferred"
+evidence = "Most read; 88AD188 and system_signal_sema_if_field_14 bracket it."
+
+[[function]]
+module = "EBOOT"
+address = "0885E748"
+name = "equip_entry_count_used_slots"
+purpose = "Sums the size byte (1-3) of up to 3 attached items' extra entries at +6 of an equipment entry."
+confidence = "inferred"
+evidence = "Most read: 885EB34 gives the count of slots, item_data_extra_entry the sizes."
+
+[[function]]
+module = "EBOOT"
+address = "08868C04"
+name = "osk_dialog_start"
+purpose = "Marks busy, selects language, fills params (8868CE8), starts sceUtilityOskInitStart, and on success starts a black fade at alpha 0xC0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0887E9AC"
+name = "value_scale_by_mode_and_69942_bonus"
+purpose = "Divides by 10 in the first mode argument; halves when flag 10 and network flag and +0xBBD 2 are set in the second; then multiplies by 1.5 when game_bytes_69942_contain(0x20)."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "0885C75C"
+name = "item_ids_filter_owned_with_counts"
+purpose = "For each item id in a list, if pouch and box hold any, writes id, pouch count and box count to the output, returning how many were written."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088AAE10"
+name = "net_socket_close"
+purpose = "Closes a connection held in *param: sceNetAdhocPtpClose in mode 1, otherwise frees the socket table entry and sceNetInetCloseWithRST; sets it to -1."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08899E80"
+name = "net_session_start_member_request"
+purpose = "Sets mask 0x200 in +0x12C0, starts a request on member record N (88B3DE4 with 889A828), and copies its address and the short after it to +0x12C8; returns +0x12C8."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08906340"
+name = "libgcc_df_compare_nan_1_8906340"
+purpose = "Soft-float double comparison returning 1 for a NaN operand, otherwise the fpcmp result (fp-bit eq, ne, lt or le)."
+confidence = "inferred"
+evidence = "Whole body. Same as 89063C8."
+
+[[function]]
+module = "EBOOT"
+address = "088D9EB8"
+name = "hunter_add_resist_value_by_id"
+purpose = "Adds a float to one of the five resist fields, by id 0x10 to 0x14."
+confidence = "confirmed"
+evidence = "Whole body with typed fields."
+
+[[function]]
+module = "EBOOT"
+address = "088AD46C"
+name = "block_list_free"
+purpose = "Under the semaphore, unlinks the block with the given address, clearing its node."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08863DF4"
+name = "motion_player_start_or_blend"
+purpose = "Starts a motion on a part: plain when no blend is asked or the part has nothing playing; clears the part for motion 0 in a blend; otherwise motion_player_change_blended."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B6768"
+name = "net_mac_not_in_list_09a294a4"
+purpose = "Returns 0 if the address matches one of 4 entries at 09A294A4, else 1."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0889D7E8"
+name = "net_record_b4_if_mac_is_local"
+purpose = "If the record's +0xAD address equals the buffer from 889C518 and the short +0xB4 is nonzero, returns +0xB4's address; else 0."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088912F8"
+name = "text_queue_wide_string_at_xy_color"
+purpose = "Sets position and colour and queues a wide string."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08882B68"
+name = "sound_tracks_0_1_fade_out"
+purpose = "Starts a fade to 0 on sound track slots 0 and 1 over a time given."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0889E440"
+name = "clear_struct_0x25_fields"
+purpose = "Clears the fields of a 0x25-byte record to 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "08882F64"
+name = "sound_track_slot_is_active"
+purpose = "Returns 1 if a slot's state is 1 to 4."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0890B8BC"
+name = "read_u16_src_first"
+purpose = "Reads a u16 from the source into the destination and returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole short body (src, dst order)."
+
+[[function]]
+module = "EBOOT"
+address = "088D286C"
+name = "hunter_weapon_type_6_mask_20"
+purpose = "Returns whether +0x4E9 is 6 and short +0x4EC has mask 0x20."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088A2410"
+name = "atrac_player_call_callback"
+purpose = "Calls the function at DAT_09A0D390 if set."
+confidence = "confirmed"
+evidence = "Whole short body. Callers atrac_player_decode_step and others."
+
+[[function]]
+module = "EBOOT"
+address = "088571C8"
+name = "game_field_696e4_bit_test"
+purpose = "Tests bit N of field +0x696E4 of the game state."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "08850704"
+name = "equip_box_slot_is_empty"
+purpose = "Returns whether box record N's used byte +0x548 is 0."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088AEFE4"
+name = "net_state_424_differs"
+purpose = "Returns whether byte 09A20424 differs from the argument."
+confidence = "confirmed"
+evidence = "One line. The view reads more naturally as a compare, callers treat 0 as equal."
+
+[[function]]
+module = "EBOOT"
+address = "088AB500"
+name = "read_bytes_2_3_to_two_outputs"
+purpose = "Writes byte +2 of a record to the second output and byte +3 to the first."
+confidence = "confirmed"
+evidence = "Two lines."
+
+[[function]]
+module = "EBOOT"
+address = "08867048"
+name = "model_file_slot_release_group"
+purpose = "Releases model file slot (N & 0x1F) << 3."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "0890B8AC"
+name = "read_u8_src_first"
+purpose = "Reads one byte into the destination and returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole short body (src, dst order)."
+
+[[function]]
+module = "EBOOT"
+address = "088DBE70"
+name = "asset_slot_free_index_plus_1"
+purpose = "Frees asset slot N + 1 of the global at DAT_09A4F210."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088AA9B4"
+name = "net_socket_get_stats"
+purpose = "Returns a socket's pending send and receive numbers: sceNetAdhocGetPtpStat in mode 1 and the list at 09A1D9EC, otherwise the Inet path."
+confidence = "inferred"
+evidence = "Part read."
+
+[[function]]
+module = "EBOOT"
+address = "08845384"
+name = "hud_draw_pulse_ring_sprites"
+purpose = "Draws four mirrored quarter sprites 0x7E around a point, sized and faded from a phase by square roots."
+confidence = "confirmed"
+evidence = "Most read: hud_draw_sprite_stretched_rgba_flipped with flip 5, 1, 4... Caller hud_draw_minimap_pulse."
+
+[[function]]
+module = "EBOOT"
+address = "0882DAC0"
+name = "hud_emit_filled_rect_rgb5551"
+purpose = "Emits a filled rectangle's vertices and GE commands with colour reduced to 5:5:5:1, on the draw list at the hud's gpu_draw_list."
+confidence = "confirmed"
+evidence = "Part read: 0x8000 with r>>3, g>>3 << 5, b>>3 << 10."
+
+[[function]]
+module = "EBOOT"
+address = "0890A6A8"
+name = "gim_palette_alloc"
+purpose = "Allocates a palette at +0x10 for up to 256 colours and 8 frames, with sizes from table 089331FC."
+confidence = "inferred"
+evidence = "Part read; the same pattern as gim_image_alloc_with_mips."
+
+[[function]]
+module = "EBOOT"
+address = "088D839C"
+name = "hunter_pouch_clear_slot_fix_weapon_links"
+purpose = "For the local hunter, empties pouch slot N and, when it held a type-2 item, re-finds or clears the hunter's weapon pouch slot and load counts."
+confidence = "inferred"
+evidence = "Most read: pouch_find_slot_by_weapon_mask, weapon_pouch_slot, load_reserve, load_capacity."
+
+[[function]]
+module = "EBOOT"
+address = "08808378"
+name = "libc_scalbnf"
+purpose = "Scales a float by a power of two, with subnormal, overflow and underflow handling."
+confidence = "inferred"
+evidence = "Most read: exponent mask 0x7F800000, N added; callers math_isnanf, math_powf_ieee754 are fdlibm-style."
+
+[[function]]
+module = "EBOOT"
+address = "088C60FC"
+name = "stage_object_create_kind_2a"
+purpose = "Allocates 0xa0 bytes on the stage heap, sets vtable 089BB38C and kind byte 0x2A at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9AFEE20."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08908F4C"
+name = "image_create_default"
+purpose = "Allocates a 0x90-byte image object with reference count 1, zero buffers and default values."
+confidence = "inferred"
+evidence = "Part read: 8908CF0(0x90), *p = 1, +0x5C = -1, +0x68 = 0xFF. image_release pairs with it."
+
+[[function]]
+module = "EBOOT"
+address = "088C3DE8"
+name = "stage_object_create_kind_08"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE3F0 and kind byte 0x08 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CBE8F0."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088D1CA8"
+name = "object_state_299_motion_324_class"
+purpose = "Classifies an object in +0x298 == 1 by +0x299 into 0-3, then overrides by motion +0x324 (0x584, 0x593, 0x594, 0x598)."
+confidence = "inferred"
+evidence = "Most read; what the classes mean isn't shown."
+
+[[function]]
+module = "EBOOT"
+address = "0890621C"
+name = "libgcc_fpcmp_parts_d"
+purpose = "Compares two unpacked doubles: class, sign, exponent and fraction; returns negative, 0 or positive, or 1 for NaN."
+confidence = "confirmed"
+evidence = "Whole body (fp-bit __fpcmp_parts_d)."
+
+[[function]]
+module = "EBOOT"
+address = "08852740"
+name = "matrix_billboard_around_axis"
+purpose = "Builds the two axes facing the camera around a matrix's axis at +0x20, by cross products with the camera position."
+confidence = "inferred"
+evidence = "Whole short body: vsub, vcrsp, normalised; camera_to_world_col3. Caller class_089bd95c_draw_part."
+
+[[function]]
+module = "EBOOT"
+address = "088C4108"
+name = "stage_object_create_kind_0b"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE450 and kind byte 0x0B at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CBFDF8."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C4644"
+name = "stage_object_create_kind_10"
+purpose = "Allocates 0x3c bytes on the stage heap, sets vtable 089BE4F0 and kind byte 0x10 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC3580."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C3850"
+name = "stage_object_create_kind_03"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE350 and kind byte 0x03 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CBBA70."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08823CBC"
+name = "hud_draw_zenny_window"
+purpose = "Draws a window (moved 0x1C down by an argument) and the player's zenny."
+confidence = "confirmed"
+evidence = "Most read: hud_draw_window_style_40, libc_sprintf with g_game zenny."
+
+[[function]]
+module = "EBOOT"
+address = "088C0468"
+name = "savedata_hash_and_encrypt"
+purpose = "Computes SHA-1 of the save buffer with a fixed 20-byte salt over the digest position, restores it, snapshots settings, stores play time and encrypts with cipher_transform_sbox_xor_tail_seed."
+confidence = "confirmed"
+evidence = "Whole body: s_3Nc94Hq1zOLh8d62Sb69 string, sha1_hash_buffer."
+
+[[function]]
+module = "EBOOT"
+address = "0881C398"
+name = "menu_byte_cursor_left_right_wrap"
+purpose = "Moves a byte cursor on left and right with wrap over a count, with sound 0x11; returns 1 if it moved."
+confidence = "confirmed"
+evidence = "Whole body: masks 0x80 and 0x20."
+
+[[function]]
+module = "EBOOT"
+address = "088A85F4"
+name = "net_send_buffer_append_record"
+purpose = "Records with type 1 go to 88A7A68; others are copied to a buffer if they fit, else error 2 through 88A8018. Returns the bytes copied."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088286E4"
+name = "item_pouch_slot_holds_item_with_table_entry"
+purpose = "Returns 1 if pouch slot N holds the given item with a nonzero count and table_89a48f0_any_entry_for_id finds an entry."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088C1430"
+name = "savedata_load_files_c_d_and_start_utility"
+purpose = "Loads files 0xC and 0xD into +0x10 and +0x14 through the file manager, clears 0x16A100 bytes of the buffer, and starts the save utility in mode 0."
+confidence = "confirmed"
+evidence = "Whole body: vtable +0x34 calls, savedata_start_utility."
+
+[[function]]
+module = "EBOOT"
+address = "08909794"
+name = "gim_palette_level_frame_offset"
+purpose = "Returns the offset word for a level below +0x2A and a frame (wrapped to +0x2E) from a palette's table at +0x10's +0x18."
+confidence = "inferred"
+evidence = "Whole body; the same as gim_image_level_frame_offset using +0x10."
+
+[[function]]
+module = "EBOOT"
+address = "088B32B8"
+name = "net_count_members_with_f0d"
+purpose = "Counts nonzero addresses in 4 records from 09A2865C + 0xE48 whose +0xF0D byte is nonzero."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088D2B90"
+name = "object_bone_world_position"
+purpose = "Transforms a bone's +0x30 local position by the object's matrix at +0x10 and adds its +0x40 translation, writing a vec4 with w 0."
+confidence = "inferred"
+evidence = "Whole short body: 88D2BEC gets the bone, vtfm3_t. Callers class_089be208_start_elements_by_kind."
+
+[[function]]
+module = "EBOOT"
+address = "08826F80"
+name = "menu_item_list_page_count"
+purpose = "Counts filled records at +0x684 (0x12 bytes, up to 0x36) and returns pages for a page size, minimum 1."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088B00DC"
+name = "net_frame_append_bytes_with_len"
+purpose = "Appends a big-endian length and that many bytes to a frame."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088FD064"
+name = "name_rows_count_status_2_with_kind"
+purpose = "Counts records of the 3 at +0x2C (0xE shorts) with status 2 and kind matching the argument."
+confidence = "confirmed"
+evidence = "Whole short body. Records as menu_draw_three_wide_name_rows draws."
+
+[[function]]
+module = "EBOOT"
+address = "08872D74"
+name = "quest_record_738_kind"
+purpose = "Classifies word +0x738 of 8-byte record N: 2 with mask 1, 1 with mask 2, 3 with all of 0x18004, else 0."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "0889E670"
+name = "clear_struct_0x18_fields"
+purpose = "Clears the fields of a 0x18-byte record to 0."
+confidence = "confirmed"
+evidence = "Whole body."
+
+[[function]]
+module = "EBOOT"
+address = "088553DC"
+name = "game_refund_quest_fee_paid"
+purpose = "If quest_fee_paid is nonzero, adds it to zenny and clears it."
+confidence = "inferred"
+evidence = "Whole short body; the meaning rests on the field's name."
+
+[[function]]
+module = "EBOOT"
+address = "0890ACD8"
+name = "read_u16_src_first_890acd8"
+purpose = "Reads a u16 from the source into the destination and returns the pointer past it."
+confidence = "confirmed"
+evidence = "Whole short body; the same as read_u16_src_first."
+
+[[function]]
+module = "EBOOT"
+address = "0889990C"
+name = "net_session_start_request_88b089c"
+purpose = "Sets mask 2 in +0x12C0 and starts 88B089C with record N of 16 bytes at +0xDC and callback 889A138."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08908D8C"
+name = "image_heap_free_if_set"
+purpose = "Frees a pointer through 8908E7C mode 1 when it isn't null."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "08907E0C"
+name = "gu_set_param_7"
+purpose = "Passes a value to 8908760 with selector 7 on the context DAT_09A5E938."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "08857294"
+name = "table_899cd28_get"
+purpose = "Returns entry N (signed byte) of table 0899CD28."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "0886F78C"
+name = "quest_sum_5b0_5b4"
+purpose = "Returns the sum of +0x5B0 and +0x5B4."
+confidence = "confirmed"
+evidence = "One line. Caller quest_script_step."
+
+[[function]]
+module = "EBOOT"
+address = "088AD12C"
+name = "byte_swap_u32_thunk"
+purpose = "Single jump to byte_swap_u32 (088AD0F8)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088F383C"
+name = "card_view_prepare_by_mode"
+purpose = "When +0xA72C is set, a switch on mode +0xE prepares a page; mode 1 ranks the highest of 11 shorts at +0x628 against 100, 500, 1000."
+confidence = "guess"
+evidence = "Part read of 573 lines."
+
+[[function]]
+module = "EBOOT"
+address = "089031FC"
+name = "game_records_4a58_build_lists"
+purpose = "Counts used entries of the 0x60 records of size 0x1078 at g_game+0x4A58 and fills lists at +0xA730, +0xA8B0, +0xAA30 with pointers to their parts."
+confidence = "inferred"
+evidence = "Part read of 467 lines."
+
+[[function]]
+module = "EBOOT"
+address = "0882545C"
+name = "hud_draw_item_take_menu_window"
+purpose = "Draws the item-taking menu's window, positioned by the flag at +0x1218, with its contents."
+confidence = "inferred"
+evidence = "Part read: same +0x1218 as hud_item_take_menu_tick; hud_draw_window_style_40; 8879158."
+
+[[function]]
+module = "EBOOT"
+address = "088F64C4"
+name = "card_view_draw_background_and_header"
+purpose = "Draws a full-screen image chosen by 88FD28C and a header made of sprites 0x159, 0x15A, 0x15B, 0x36, 0x37."
+confidence = "guess"
+evidence = "Part read of 323 lines."
+
+[[function]]
+module = "EBOOT"
+address = "088E1CD8"
+name = "jpeg_make_d_derived_tbl"
+purpose = "Builds a derived Huffman decode table for table N (0-3), DC or AC, allocating 0x590 bytes."
+confidence = "inferred"
+evidence = "Part read: libjpeg's checks and error 0x32 (JERR_NO_HUFF_TABLE)."
+
+[[function]]
+module = "EBOOT"
+address = "088E40D8"
+name = "jpeg_get_sof"
+purpose = "Reads a JPEG start-of-frame marker: stores the progressive and arithmetic flags at +0xC8 and +0xC9 and reads fields from the source."
+confidence = "inferred"
+evidence = "Part read, libjpeg's get_sof signature and source buffer pattern."
+
+[[function]]
+module = "EBOOT"
+address = "088534E8"
+name = "text_wide_char_symbol_class"
+purpose = "Classifies a wide character by long lists of punctuation and symbol code points, returning 0 or 1 or other class numbers."
+confidence = "inferred"
+evidence = "Part read of 174 lines."
+
+[[function]]
+module = "EBOOT"
+address = "088851C8"
+name = "sound_calc_distance_volume_and_pan_vfpu"
+purpose = "Updates the listener, gets the distance volume and works out pan from the direction to a position."
+confidence = "inferred"
+evidence = "Part read: sound_update_listener, sound_calc_distance_volume, vdot_t."
+
+[[function]]
+module = "EBOOT"
+address = "0882FE34"
+name = "hud_draw_icon_51x36_uv"
+purpose = "Binds texture 0x8002/0xB with filtering and emits a 51x36 sprite at x, y from UV u, v, size 0x24 in texture."
+confidence = "confirmed"
+evidence = "Part read: 0x33 added to x and y, 0x24 to u, v."
+
+[[function]]
+module = "EBOOT"
+address = "0890C100"
+name = "cxx_type_string_match"
+purpose = "Compares two encoded C++ type strings for exception matching: handles P, C, V qualifiers, void pointer, and offsets."
+confidence = "inferred"
+evidence = "Part read: 'P' 'C' 'V' 'v' '*' cases. In the same area as varint_decode_unsigned."
+
+[[function]]
+module = "EBOOT"
+address = "0885BB00"
+name = "item_box_remove_count_from_end_or_slot"
+purpose = "Removes a count of an item from the box at +0x3428, walking from the last slot, or from one slot when given."
+confidence = "inferred"
+evidence = "Part read."
+
+[[function]]
+module = "EBOOT"
+address = "0881C68C"
+name = "menu_grid_cursor_update"
+purpose = "Moves a cursor on buttons in rows at +7 and +8 with wrap over limits at +6, +9, +0xA."
+confidence = "inferred"
+evidence = "Part read of 121 lines."
+
+[[function]]
+module = "EBOOT"
+address = "088EB078"
+name = "jpeg_alloc_small"
+purpose = "libjpeg small pool allocator: limit 0x3B9AC9F0, rounding to 8, pool id below 2 else error 0xE, and walking the pool list."
+confidence = "inferred"
+evidence = "Part read."
+
+[[function]]
+module = "EBOOT"
+address = "08807E50"
+name = "libc_scalbn"
+purpose = "Scales a double by a power of two, with subnormal, overflow and underflow handling."
+confidence = "inferred"
+evidence = "Most read: exponent mask 0x7FF, soft-float calls for scaling."
+
+[[function]]
+module = "EBOOT"
+address = "0883D184"
+name = "hud_timed_popup_add_line"
+purpose = "Finds a free line of 5 in the timed popup (message -1), or shifts the lines up to make one, and fills it."
+confidence = "inferred"
+evidence = "Part read with typed field timed_popup_line_0_message."
+
+[[function]]
+module = "EBOOT"
+address = "088C566C"
+name = "stage_object_create_kind_20"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE6D0 and kind byte 0x20 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCAE18."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C3A64"
+name = "stage_object_create_kind_05"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE390 and kind byte 0x05 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CBC7E8."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08816638"
+name = "str_sjis_to_utf8"
+purpose = "Converts a Shift-JIS string to UTF-8 within a size limit, char by char through JIS X 0213 and Unicode."
+confidence = "inferred"
+evidence = "Part read: str_read_sjis_char_as_jisx0213, str_jis_code_to_unicode, encoder 8816508."
+
+[[function]]
+module = "EBOOT"
+address = "088C653C"
+name = "stage_object_create_kind_2d"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE750 and kind byte 0x2D at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCD480."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "08907BA4"
+name = "gu_draw_array"
+purpose = "Emits a GE draw: vertex type (command 0x12), base and addresses of indices and vertices, then the primitive."
+confidence = "inferred"
+evidence = "Part read; the same list pointer as gu_context_set_state."
+
+[[function]]
+module = "EBOOT"
+address = "088B624C"
+name = "net_send_frame_kind_1b"
+purpose = "Builds a frame of kind 0x1B holding the 8 bytes at 09A289BC and a byte, and sends it; on success goes on with a copy of its header."
+confidence = "inferred"
+evidence = "First half read: net_frame_init, net_frame_append_8_bytes_with_len, net_send_tx_frame."
+
+[[function]]
+module = "EBOOT"
+address = "088B21D0"
+name = "net_send_frame_kind_23"
+purpose = "Builds a frame of kind 0x23 with one byte and sends it; on success goes on with a copy of its header."
+confidence = "inferred"
+evidence = "First half read: net_frame_init, net_frame_append_byte, net_send_tx_frame."
+
+[[function]]
+module = "EBOOT"
+address = "088DADD8"
+name = "hunter_attack_value_with_load_bonus"
+purpose = "Returns attack_value, times 1.05 when the byte list contains 0x24 and weapon_uses_load is 1."
+confidence = "confirmed"
+evidence = "Whole short body with typed fields."
+
+[[function]]
+module = "EBOOT"
+address = "088A8D74"
+name = "net_recv_buffer_parse_messages"
+purpose = "Walks messages in a receive buffer through 88A8C78, handing each to 88A8988, and moves what's left to the start."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088E7DA0"
+name = "jpeg_process_restart"
+purpose = "Discards the bit buffer's bytes, reads a restart marker through the marker reader, resets DC predictions."
+confidence = "inferred"
+evidence = "Part read, as libjpeg's process_restart: bits_left / 8 added to discarded_bytes, vtable +8."
+
+[[function]]
+module = "EBOOT"
+address = "08828884"
+name = "hud_flush_two_pending_item_uses"
+purpose = "When hud_flags bit 8 is set, changes pouch counts for up to two item ids at +0x5AC, backs up the pouch in mode flag 1, and clears the bit."
+confidence = "inferred"
+evidence = "Most read: pouch_change_item_count, item_pouch_backup_to_43c8."
+
+[[function]]
+module = "EBOOT"
+address = "088DE22C"
+name = "asset_slots_start_load_three_by_table"
+purpose = "Prepares (88DE2D8) and starts loads of three files from table 09BC8500 entry N into slots +0x1E, +0x22, +0x1A."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088571F8"
+name = "game_clear_npc_job_record_if_name_matches"
+purpose = "With npc_job_state 2, clears npc_job_record to 0xFF when that record's 16 bytes equal a non-empty string given."
+confidence = "inferred"
+evidence = "Whole short body with typed fields."
+
+[[function]]
+module = "EBOOT"
+address = "088EF224"
+name = "jpeg_copy_sample_rows"
+purpose = "Copies N rows of bytes between two row-pointer arrays with offsets."
+confidence = "inferred"
+evidence = "Whole short body; libjpeg's jcopy_sample_rows."
+
+[[function]]
+module = "EBOOT"
+address = "088B0084"
+name = "net_frame_append_bytes"
+purpose = "Copies N bytes to the frame's data at +0x18 + (u16 at +2), and adds N to shorts +0 and +2."
+confidence = "confirmed"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088C6AD4"
+name = "stage_get_field_444_thunk"
+purpose = "Single jump to stage_get_field_444 (088C6AC8)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE40"
+name = "sound_rpc_send_cmd_10000009_with_flag_thunk"
+purpose = "Single jump to sound_rpc_send_cmd_10000009_with_flag (088A65D4)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088AD0F8"
+name = "byte_swap_u32"
+purpose = "Reverses the bytes of a word."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "0880B6E0"
+name = "libc_free"
+purpose = "free(): passes the reentrancy struct and the pointer to the _free_r routine 880AA40."
+confidence = "inferred"
+evidence = "Short body; used by cxx_operator_delete."
+
+[[function]]
+module = "EBOOT"
+address = "088AD0D4"
+name = "byte_swap_u16"
+purpose = "Swaps the bytes of a short."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088AEFCC"
+name = "net_state_41e_differs"
+purpose = "Returns whether byte 09A2041E differs from the low byte of the argument."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "088AD0F0"
+name = "byte_swap_u16_thunk"
+purpose = "Single jump to byte_swap_u16 (088AD0D4)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088A73A8"
+name = "net_local_peer_state_3_to_4_thunk"
+purpose = "Single jump to net_local_peer_state_3_to_4 (088A9F4C)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088A7370"
+name = "net_peers_reset_all_and_close_thunk"
+purpose = "Single jump to net_peers_reset_all_and_close (088AA0BC)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "08908158"
+name = "gu_context_set_state"
+purpose = "Emits a GE enable command for a state number (one case of a switch to commands 0x22, 0x23, ... with the value); state 2 also sets the scissor region."
+confidence = "inferred"
+evidence = "Part read: commands written through the list pointer at +8 like sceGu's internal state setter."
+
+[[function]]
+module = "EBOOT"
+address = "088C671C"
+name = "stage_object_create_kind_2f"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE770 and kind byte 0x2F at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCD838."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C5364"
+name = "stage_object_create_kind_1d"
+purpose = "Allocates 0x60 bytes on the stage heap, sets vtable 089BE690 and kind byte 0x1D at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCA190."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C588C"
+name = "stage_object_create_kind_22"
+purpose = "Allocates 0x70 bytes on the stage heap, sets vtable 089BB2AC and kind byte 0x22 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser lobby_task_9AF8448."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C684C"
+name = "stage_object_create_kind_30"
+purpose = "Allocates 0x70 bytes on the stage heap, sets vtable 089BE790 and kind byte 0x30 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CCDD68."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088C4ABC"
+name = "stage_object_create_kind_14"
+purpose = "Allocates 0x50 bytes on the stage heap, sets vtable 089BE570 and kind byte 0x14 at +0x18, pushes on the object list, links the owner's +0x1D0 and +0x70, and calls initialiser game_sub_9CC4EF8."
+confidence = "confirmed"
+evidence = "Whole body by the pattern of stage_object_create_kind_00."
+
+[[function]]
+module = "EBOOT"
+address = "088A4BE8"
+name = "sound_spu_map_get_slot_offset_thunk"
+purpose = "Single jump to sound_spu_map_get_slot_offset (088A49D0)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA8C"
+name = "sound_rpc_send_cmd_10000007_wrapper_thunk"
+purpose = "Single jump to sound_rpc_send_cmd_10000007_wrapper (0889EE98)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088A73B0"
+name = "net_local_peer_state_4_to_3_thunk"
+purpose = "Single jump to net_local_peer_state_4_to_3 (088A9FF8)."
+confidence = "confirmed"
+evidence = "Generated C is only the tail call."
+
+[[function]]
+module = "EBOOT"
+address = "088A9F4C"
+name = "net_local_peer_state_3_to_4"
+purpose = "When the local peer's state byte is 3, runs 88A86BC with a value (the argument, or if 0 from the float at 09A1D844) and sets the state to 4."
+confidence = "inferred"
+evidence = "Whole short body with net_peer_set_state_notify."
+
+[[function]]
+module = "EBOOT"
+address = "088AA0BC"
+name = "net_peers_reset_all_and_close"
+purpose = "Sets 09A1D731 to 8, clears 09A1D72C, sets every peer's state to 0 and closes its connection, then runs 88AB028."
+confidence = "inferred"
+evidence = "Whole short body: net_peer_set_state_notify and net_socket_close in a loop."
+
+[[function]]
+module = "EBOOT"
+address = "0886A524"
+name = "quest_spawn_sequence_on_last_entry_for_monster"
+purpose = "Searches the two 0x2C-byte spawn sequences at +0x77C for one whose current entry (+0x787) equals the monster's +0x1E8 type, and returns whether the index reached count (+0x786) - 1."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088A9FF8"
+name = "net_local_peer_state_4_to_3"
+purpose = "When the local peer's state byte is 4, runs 88A86F0 and sets the state to 3."
+confidence = "inferred"
+evidence = "Whole short body."
+
+[[function]]
+module = "EBOOT"
+address = "088AEFFC"
+name = "net_state_426_get"
+purpose = "Returns byte 09A20426."
+confidence = "confirmed"
+evidence = "One line."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE98"
+name = "sound_rpc_send_cmd_10000007_wrapper"
+purpose = "Calls sound_rpc_send_cmd_10000007 with its argument."
+confidence = "confirmed"
+evidence = "One line."

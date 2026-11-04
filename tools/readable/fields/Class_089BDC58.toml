@@ -1,0 +1,79 @@
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+evidence = "game_sub 9C56F20 stores 089BDC58"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0xC
+name = "owner"
+type = "ptr"
+confidence = "inferred"
+note = "object it belongs to; may be null"
+evidence = "game_sub 9C63048 and 9C7F7D8 pass it to object_get_bone_matrix; 9C92C98 reads its facing; word in 38 of its 73 subclasses"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x10
+name = "position"
+type = "f32x3"
+confidence = "inferred"
+note = "float in most of the subclasses"
+evidence = "game_sub 9C63048 stores the owner's bone here; 9CB80E0 stores a waypoint and 9CB6898 draws at it; 9C92C98"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x2C
+name = "model"
+type = "ptr"
+confidence = "inferred"
+note = "model groups it draws from"
+evidence = "game_sub 9CB6898 and 9C612A0 pass it to gpu_set_world_matrix_scaled (+0x10) and model_draw_group; word in 42 subclasses"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x30
+name = "model_draw_arg"
+type = "u32"
+confidence = "inferred"
+note = "second argument of model_draw_group"
+evidence = "game_sub 9CB6898, 9C612A0, 9C92538"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x41
+name = "node_count"
+type = "u8"
+confidence = "inferred"
+note = "how many render nodes at +0x44"
+evidence = "game_sub 9C57068 passes it to entity_manager_free_element_run"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x44
+name = "nodes"
+type = "ptr"
+confidence = "inferred"
+note = "its run of render nodes"
+evidence = "game_sub 9C57068 frees it; 9CB6A80 stores entity_manager_alloc_element_run's result and gives up if null"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x48
+name = "flags"
+type = "u32"
+confidence = "inferred"
+note = "1 cleared on release, 2 asks the object to end, 4 argument to the allocator, 0x10 set while running"
+evidence = "game_sub 9C57068 clears 1; 9C63048 and 9C814C0 end on 2 and set 0x10; 9CB6A80 tests 4"
+
+[[field]]
+struct = "Class_089BDC58"
+offset = 0x4C
+name = "state_fn"
+type = "u32"
+confidence = "inferred"
+note = "member function pointer, 3 words"
+evidence = "game_sub 9C7F7D8, 9C63048 and 9CB6A80 install it via member_fn_is_set"

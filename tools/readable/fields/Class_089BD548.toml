@@ -1,0 +1,313 @@
+[[field]]
+struct = "Class_089BD548"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+evidence = "game_task 9B735F0 stores 089BD548"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x4
+name = "list_next"
+type = "ptr"
+confidence = "confirmed"
+note = "next in the owned-object list"
+evidence = "game_task 9B77CE8 stores the old head here and sets the old head's +8 to this"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x8
+name = "list_prev"
+type = "ptr"
+confidence = "confirmed"
+note = "previous in the owned-object list"
+evidence = "game_task 9B77CE8"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xC
+name = "type_id"
+type = "u8"
+confidence = "inferred"
+note = "8 for this class; also passed as a sound argument"
+evidence = "game_task 9B77CE8 sets 8; 9B79478 passes it to sound_play_3d"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xD
+name = "kind"
+type = "u8"
+confidence = "inferred"
+note = "which behaviour: tick, draw and setup all switch on it"
+evidence = "game_task 9B73908, 9B77E18 and 9B79478 switch on it; 9B77CE8 stores the argument"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xF
+name = "owner_kind"
+type = "u8"
+confidence = "confirmed"
+evidence = "game_task 9B77CE8 copies owner's kind"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x10
+name = "owner"
+type = "ptr"
+confidence = "confirmed"
+note = "the object that made it"
+evidence = "game_task 9B77CE8 stores the argument; 9B79478 reads its +4, +0x1D4 and +0x324"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x14
+name = "attack_phase"
+type = "u8"
+confidence = "confirmed"
+note = "0 none, 1 waiting attack_delay_ticks, 2 attack_active_ticks running"
+evidence = "game_task 9B67798 steps it; 9B675D0 sets 1 on loading a record"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x15
+name = "owner_index"
+type = "u8"
+confidence = "inferred"
+note = "owner's slot; looked up in the monster manager's table of 0x14"
+evidence = "game_task 9B77CE8 copies instance_index; 9B77E18 and 9B79478 index DAT_09c122b0 + 0x1220 with it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x18
+name = "area_id"
+type = "u16"
+confidence = "confirmed"
+note = "stage it belongs to: outside it, it does not draw"
+evidence = "game_task 9B77E18 copies owner area_id; 9B73908 returns unless it equals stage_id"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x1C
+name = "attack_delay_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "ticks before the attack is active, halved from the record"
+evidence = "game_task 9B675D0 copies and halves record byte 0; 9B67798 counts it down in phase 1"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x1D
+name = "attack_active_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "ticks left active, halved from the record; these objects often hold it at 99 until they end"
+evidence = "game_task 9B675D0 and 9B67798 copy and count it; 9B79478 sets 99 every tick for most kinds and 0 on ending"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x26
+name = "record_table_index"
+type = "u8"
+confidence = "inferred"
+note = "byte 10 of the timing record; picks +0x34"
+evidence = "game_task 9B675D0 copies the byte; 9B77E18 indexes table 09BFFF08 with it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x34
+name = "record_table_entry"
+type = "u32"
+confidence = "inferred"
+note = "entry of the class's table picked by +0x26"
+evidence = "game_task 9B77E18"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x40
+name = "position"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_task 9B73428 stores owner bone position; 9B79478 moves and tests it against the ground"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x50
+name = "previous_position"
+type = "f32x3"
+confidence = "inferred"
+note = "position before this tick's move"
+evidence = "game_task 9B79478 copies +0x40 here; 9B80A28 interpolates between them to find the ground crossing"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x66
+name = "facing"
+type = "u16"
+confidence = "inferred"
+note = "owner's facing at creation, then the launch yaw"
+evidence = "game_task 9B77CE8 copies it; 9B79478 stores +0x94's low half"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x78
+name = "state_fn"
+type = "u32"
+confidence = "inferred"
+note = "member function pointer, 3 words"
+evidence = "game_task 9B7E648 and 9B77E18 install it via member_fn_is_set; base 9B672E8"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x84
+name = "render_node"
+type = "ptr"
+confidence = "confirmed"
+note = "pool element queued for drawing, freed at the end"
+evidence = "game_task 9B77C08 inserts it in render queue 7; 9B7E648 frees it with owned_obj_pool_free_elem"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x89
+name = "position_given"
+type = "u8"
+confidence = "inferred"
+note = "1: +0x40 is already final, skip the bone offset"
+evidence = "game_task 9B77E18 skips the table offset when 1; 9B735F0 sets 1 and copies a position; 9B73428 sets 0"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x8B
+name = "variant"
+type = "u8"
+confidence = "inferred"
+note = "second selector under kind: table index, added to the record number for most kinds"
+evidence = "game_task 9B77D58 adds it to the record index; 9B73908 and 9B77E18 index tables with it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x90
+name = "launch_pitch"
+type = "s32"
+confidence = "inferred"
+note = "16-bit angle, as an integer"
+evidence = "game_task 9B73428 stores param_6 (generated C uses SW of an integer); 9B77E18 converts and rotates the velocity about X by it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x94
+name = "launch_yaw"
+type = "s32"
+confidence = "inferred"
+note = "16-bit angle: argument plus owner's facing"
+evidence = "game_task 9B73428 stores it; 9B77E18 rotates the velocity about Y by it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xA0
+name = "velocity"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_task 9B77E18 sets it from table speed rotated by +0x90 and +0x94; 9B79478 kind 0x24 adds +0xB0 to it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xB0
+name = "acceleration"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_task 9B79478 kind 0x24 adds it to +0xA0; 9B77E18 stores a table value in +0xB4"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xC2
+name = "age_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks since start, compared with the kind's lifetime; holds the bone id before setup"
+evidence = "game_task 9B73428 stores the bone; 9B77E18 moves it to +0x118 and zeroes; 9B79478 counts up to table 09C00F08"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0xC4
+name = "owner_asset_id"
+type = "u16"
+confidence = "inferred"
+note = "owner's subtype: finds the model's asset slot"
+evidence = "game_task 9B73428 copies owner subtype; 9B73908 passes its low byte to asset_slots_9_12_find_index_by_id"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x111
+name = "launch_pitch_high_byte"
+type = "u8"
+confidence = "inferred"
+note = "+0x90 >> 8"
+evidence = "game_task 9B77E18"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x112
+name = "phase"
+type = "u8"
+confidence = "inferred"
+note = "per-kind step of the tick, with +0x11A timing it"
+evidence = "game_task 9B79478 kind 1 switches on it and zeroes +0x11A when advancing"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x114
+name = "render_node_b"
+type = "ptr"
+confidence = "confirmed"
+note = "second pool element, as +0x84"
+evidence = "game_task 9B77C08, 9B7E648, 9B73398"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x118
+name = "owner_bone"
+type = "s16"
+confidence = "inferred"
+note = "bone of the owner it is made from or follows"
+evidence = "game_task 9B77E18 takes it from +0xC2 and passes it to object_get_bone_matrix; 9B79478 follows it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x11A
+name = "phase_ticks"
+type = "u16"
+confidence = "inferred"
+decimal = true
+note = "ticks in +0x112's current value"
+evidence = "game_task 9B79478 kind 1 increments it, compares it and zeroes it on advancing"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x11C
+name = "ground_y"
+type = "f32"
+confidence = "inferred"
+note = "height it tests for a landing"
+evidence = "game_task 9B79478 kind 0xF stores floor height from collision_floor_height_near_reference_y here; 9B80A28 finds where previous_position to position crosses it"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x120
+name = "owner_motion_id"
+type = "s16"
+confidence = "inferred"
+note = "owner's motion at the start: ends when the owner's changes"
+evidence = "game_task 9B77E18 copies owner +0x324; 9B79478 ends the object when they differ"
+
+[[field]]
+struct = "Class_089BD548"
+offset = 0x123
+name = "launch_yaw_offset_high_byte"
+type = "u8"
+confidence = "inferred"
+note = "(+0x94 minus owner's facing) >> 8"
+evidence = "game_task 9B77E18"

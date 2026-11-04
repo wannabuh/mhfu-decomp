@@ -1,0 +1,35 @@
+[[field]]
+struct = "Class_089BDD80"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "which effect: tables and switches by it"
+evidence = "game_sub 9C63048, 9C61E58, 9C612A0 and 9C649C8 switch on it"
+
+[[field]]
+struct = "Class_089BDD80"
+offset = 0x2A
+name = "owner_bone"
+type = "u8"
+confidence = "confirmed"
+evidence = "game_sub 9C62888, 9C62C80 and 9C63048 pass it to object_get_bone_matrix"
+
+[[field]]
+struct = "Class_089BDD80"
+offset = 0x38
+name = "age_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks since start, spawning others at set ages"
+evidence = "game_sub 9C61E58 zeroes it; 9C63048 tests it at 0, 1 and 10; 9C62E18 increments it"
+
+[[field]]
+struct = "Class_089BDD80"
+offset = 0x3C
+name = "scale"
+type = "f32"
+confidence = "inferred"
+note = "size of the effect's parts"
+evidence = "game_sub 9C62888 multiplies part scale and random offsets by it; 9C61E58 randomises it"

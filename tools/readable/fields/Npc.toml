@@ -1,0 +1,563 @@
+[[field]]
+struct = "Npc"
+offset = 0x50
+name = "model_data"
+type = "ptr"
+confidence = "inferred"
+note = "model file data the meshes are drawn from"
+evidence = "lobby_task 9AB84B0 and 9ABA340 read groups through it"
+
+[[field]]
+struct = "Npc"
+offset = 0x58
+name = "material_table"
+type = "u32"
+confidence = "inferred"
+note = "address of the materials, 0x10 bytes each"
+evidence = "lobby_task 9AB84B0 and 9ABA340 use this + material index * 0x10"
+
+[[field]]
+struct = "Npc"
+offset = 0x90
+name = "motion_part0_frame"
+type = "f32"
+confidence = "inferred"
+note = "current frame of motion layer 0, as on hunters"
+evidence = "lobby_task 9AD50A8 reads it; layer layout as HunterBase"
+
+[[field]]
+struct = "Npc"
+offset = 0x94
+name = "motion_part0_speed"
+type = "f32"
+confidence = "confirmed"
+note = "frames layer 0 advances per game frame; 2.0, or motion_speed * 2"
+evidence = "lobby_task 9ABC560 and 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0xBC
+name = "motion_part0_flags"
+type = "u16"
+confidence = "inferred"
+note = "bit 0 clear means the motion has ended, as on hunters"
+evidence = "lobby_task 9AC05F0 advances steps on it"
+
+[[field]]
+struct = "Npc"
+offset = 0xD4
+name = "motion_part1_speed"
+type = "f32"
+confidence = "confirmed"
+note = "frames layer 1 advances per game frame"
+evidence = "lobby_task 9ABC560 and 9ABD4B8 write it with +0x94"
+
+[[field]]
+struct = "Npc"
+offset = 0x114
+name = "motion_part2_speed"
+type = "f32"
+confidence = "inferred"
+note = "as +0x94 for layer 2"
+evidence = "lobby_task 9ABC560 writes four together, stride 0x40"
+
+[[field]]
+struct = "Npc"
+offset = 0x154
+name = "motion_part3_speed"
+type = "f32"
+confidence = "inferred"
+note = "as +0x94 for layer 3"
+evidence = "lobby_task 9ABC560"
+
+[[field]]
+struct = "Npc"
+offset = 0x1A8
+name = "overlay_enabled_0"
+type = "u8"
+confidence = "guess"
+note = "as on hunters; only cleared here"
+evidence = "lobby_task 9ABD4B8 clears the same set as the hunter state setter"
+
+[[field]]
+struct = "Npc"
+offset = 0x1A9
+name = "overlay_enabled_1"
+type = "u8"
+confidence = "guess"
+note = "as overlay_enabled_0"
+evidence = "lobby_task 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0x1AA
+name = "overlay_enabled_2"
+type = "u8"
+confidence = "guess"
+note = "as overlay_enabled_0"
+evidence = "lobby_task 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0x1AB
+name = "overlay_enabled_3"
+type = "u8"
+confidence = "guess"
+note = "as overlay_enabled_0"
+evidence = "lobby_task 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0x1C0
+name = "object_list_index"
+type = "u32"
+confidence = "inferred"
+note = "7 on NPCs; as HunterBase"
+evidence = "lobby_task 9ABB658 sets it"
+
+[[field]]
+struct = "Npc"
+offset = 0x1D5
+name = "state_step"
+type = "u8"
+confidence = "confirmed"
+note = "step within the current state; zeroed on a state change"
+evidence = "lobby_task 9ABD4B8 zeroes; 9AC05F0 and 9AC1D18 switch on it"
+
+[[field]]
+struct = "Npc"
+offset = 0x1D6
+name = "state_scratch_a"
+type = "u8"
+confidence = "inferred"
+note = "zeroed on a state change, used as states wish; 9AC1D18 steps the sequence by it"
+evidence = "lobby_task 9ABD4B8; 9AC1D18"
+
+[[field]]
+struct = "Npc"
+offset = 0x1D7
+name = "state_scratch_b"
+type = "u8"
+confidence = "inferred"
+note = "zeroed on a state change"
+evidence = "lobby_task 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0x20C
+name = "place_w"
+type = "u32"
+confidence = "inferred"
+note = "fourth word of place, copied only"
+evidence = "lobby_task 9ABCAE0 zeroes, 9ABC560 copies it, not a float use"
+
+[[field]]
+struct = "Npc"
+offset = 0x21C
+name = "place_before_w"
+type = "u32"
+confidence = "inferred"
+note = "fourth word of place_before"
+evidence = "lobby_task 9ABC560"
+
+[[field]]
+struct = "Npc"
+offset = 0x301
+name = "mesh_group_2_visible"
+type = "u8"
+confidence = "inferred"
+note = "the byte for group 2 of the array from +0x2FF that draw tests"
+evidence = "lobby_task 9AB84B0 tests +0x2FF + group; 9ABA340 sets it"
+
+[[field]]
+struct = "Npc"
+offset = 0x303
+name = "mesh_group_4_visible"
+type = "u8"
+confidence = "inferred"
+note = "as mesh_group_2_visible"
+evidence = "lobby_task 9ABA340"
+
+[[field]]
+struct = "Npc"
+offset = 0x304
+name = "mesh_group_5_visible"
+type = "u8"
+confidence = "inferred"
+note = "as mesh_group_2_visible"
+evidence = "lobby_task 9ABA340"
+
+[[field]]
+struct = "Npc"
+offset = 0x30D
+name = "mesh_group_14_visible"
+type = "u8"
+confidence = "inferred"
+note = "as mesh_group_2_visible"
+evidence = "lobby_task 9ABA340"
+
+[[field]]
+struct = "Npc"
+offset = 0x320
+name = "turn_angle"
+type = "u16"
+confidence = "inferred"
+note = "angle a turn covers; turn_step is a tenth of it"
+evidence = "lobby_task 9AC05F0 and 9AC1D18 compute it"
+
+[[field]]
+struct = "Npc"
+offset = 0x322
+name = "state_random"
+type = "u16"
+confidence = "inferred"
+note = "fresh random value on a state change, when subtype_nonzero is 0"
+evidence = "lobby_task 9ABD4B8"
+
+[[field]]
+struct = "Npc"
+offset = 0x32E
+name = "part1_motion_start_frame"
+type = "u16"
+confidence = "inferred"
+note = "as HunterBase"
+evidence = "lobby_task 9ABD290 passes it with motion_id_layer1"
+
+[[field]]
+struct = "Npc"
+offset = 0x336
+name = "part1_motion_blend_frames"
+type = "s16"
+confidence = "inferred"
+note = "as HunterBase"
+evidence = "lobby_task 9ABD290"
+
+[[field]]
+struct = "Npc"
+offset = 0x40C
+name = "sound_place_level"
+type = "u32"
+confidence = "inferred"
+note = "last argument position of sound_play_3d, as HunterBase"
+evidence = "lobby_task 9AD50A8 writes; 9ABDE20 and others pass it"
+
+[[field]]
+struct = "Npc"
+offset = 0x460
+name = "previous_state_group"
+type = "u8"
+confidence = "confirmed"
+note = "state_group before the change, when subtype_nonzero is 0"
+evidence = "lobby_task 9ABD4B8, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x461
+name = "previous_state"
+type = "u8"
+confidence = "confirmed"
+note = "state before the change, when subtype_nonzero is 0"
+evidence = "lobby_task 9ABD4B8, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x480
+name = "npc_id"
+type = "u8"
+confidence = "inferred"
+note = "identifies the NPC; spawn overrides and some cues test values"
+evidence = "lobby_task 9ABCAE0 loads it; 9ABCC48 and 9AD50A8 compare; EBOOT tables index by it"
+
+[[field]]
+struct = "Npc"
+offset = 0x481
+name = "behavior_kind"
+type = "u8"
+confidence = "inferred"
+note = "index of the spawn record before load, then its byte 1: picks the state dispatch"
+evidence = "lobby_task 9ABCAE0 reads with it then overwrites it; 9ABEB68 switches; 9ADBC50 sets"
+
+[[field]]
+struct = "Npc"
+offset = 0x482
+name = "talk_busy"
+type = "u8"
+confidence = "inferred"
+note = "cleared per tick, set by talk states; blocks the talk probe"
+evidence = "lobby_task 9ABEB68 clears; 9AC05F0 sets; 9ABDCC8 tests"
+
+[[field]]
+struct = "Npc"
+offset = 0x484
+name = "talk_linked"
+type = "u8"
+confidence = "inferred"
+note = "nonzero after the talk probe matched; creates the 089BB194 object"
+evidence = "lobby_task 9ABDCC8 tests and creates; 9A9EE58 sets"
+
+[[field]]
+struct = "Npc"
+offset = 0x485
+name = "stage_0d_sound_mask"
+type = "u8"
+confidence = "inferred"
+note = "on stage 0xD, bits 1 and 2 go to the sound object when bit 0 is set"
+evidence = "lobby_task 9ABE418, 9ABE4A8, 9ABE500, whole reads"
+
+[[field]]
+struct = "Npc"
+offset = 0x488
+name = "motion_speed"
+type = "f32"
+confidence = "confirmed"
+note = "spawn record +0xC; layer speeds are this * 2"
+evidence = "lobby_task 9ABCAE0 and 9ABC560"
+
+[[field]]
+struct = "Npc"
+offset = 0x48C
+name = "motion_layer0_started"
+type = "u8"
+confidence = "confirmed"
+note = "0 asks for the requested layer 0 motion to start"
+evidence = "lobby_task 9ABD290, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x48D
+name = "motion_layer1_started"
+type = "u8"
+confidence = "confirmed"
+note = "as for layer 1"
+evidence = "lobby_task 9ABD290, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x490
+name = "spawn_place"
+type = "f32x4"
+confidence = "inferred"
+note = "place at load; put back after a talk"
+evidence = "lobby_task 9ABCAE0 stores; 9AC05F0 restores"
+
+[[field]]
+struct = "Npc"
+offset = 0x4B0
+name = "walk_target"
+type = "f32x4"
+confidence = "inferred"
+note = "place walked or turned to; fixed per area or a saved place"
+evidence = "lobby_task 9ABB7B8 sets; 9AC3738 and 9AC4A38 aim at it"
+
+[[field]]
+struct = "Npc"
+offset = 0x4C0
+name = "timed_move_step"
+type = "f32x3"
+confidence = "confirmed"
+note = "added to place each tick while timed_move_ticks runs"
+evidence = "lobby_task 9ABD418, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x4D0
+name = "timed_move_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "ticks of timed_move_step left"
+evidence = "lobby_task 9ABD418, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x4D2
+name = "spawn_facing"
+type = "s16"
+confidence = "inferred"
+note = "facing at load; talk turns back to it"
+evidence = "lobby_task 9ABCAE0; 9AC1D18 step 0xD2"
+
+[[field]]
+struct = "Npc"
+offset = 0x4D6
+name = "sequence_index"
+type = "s16"
+confidence = "confirmed"
+note = "current entry of state_sequence"
+evidence = "lobby_task 9ABECF0, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x4D8
+name = "look_angle"
+type = "f32"
+confidence = "inferred"
+note = "degrees, eased 0.2 per tick; rotates a bone root"
+evidence = "lobby_task 9ABC688"
+
+[[field]]
+struct = "Npc"
+offset = 0x4DC
+name = "sequence_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "ticks in the current entry; at entry +0x10 the sequence steps"
+evidence = "lobby_task 9ABEB68 and 9ABECF0, whole reads"
+
+[[field]]
+struct = "Npc"
+offset = 0x4E0
+name = "state_sequence"
+type = "ptr"
+confidence = "confirmed"
+note = "spawn data: position at the start, then 0x14-byte entries from +0xC: state, ticks; -1 ends"
+evidence = "lobby_task 9ABCAE0, 9ABECF0, 9ABEB68"
+
+[[field]]
+struct = "Npc"
+offset = 0x4E4
+name = "model_part_list"
+type = "ptr"
+confidence = "inferred"
+note = "spawn data listing model parts to apply"
+evidence = "lobby_task 9ABCAE0 loads; 9ABA340 walks it; 9ABB7B8 sets it for subtype 4"
+
+[[field]]
+struct = "Npc"
+offset = 0x4E8
+name = "subtype_nonzero"
+type = "u8"
+confidence = "confirmed"
+note = "0 when subtype is 0, else 1; picks what a state change resets"
+evidence = "lobby_task 9ABB7B8 sets; 9ABD4B8 branches"
+
+[[field]]
+struct = "Npc"
+offset = 0x4E9
+name = "spawn_flags"
+type = "u8"
+confidence = "inferred"
+note = "spawn record byte 3: 1 fixed height, 2 no motion, 8 skip a call, 0x10/0x20 fade by distance"
+evidence = "lobby_task 9ABB7B8, 9ABC560, 9ABD290, 9ABB700"
+
+[[field]]
+struct = "Npc"
+offset = 0x4EA
+name = "no_turn_to_talk"
+type = "s8"
+confidence = "inferred"
+note = "1 skips turning toward the hunter when talked to"
+evidence = "lobby_task 9ABEFE0 sets; 9AC05F0 and 9AC1D18 test"
+
+[[field]]
+struct = "Npc"
+offset = 0x4EC
+name = "mesh_cycle_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "0..100 from a random start, advancing while not frozen; values pick mesh choice 1 or 2"
+evidence = "lobby_task 9ABD370 and 9ABADF8, whole reads"
+
+[[field]]
+struct = "Npc"
+offset = 0x4EE
+name = "mesh_choice_override"
+type = "s8"
+confidence = "confirmed"
+note = "0 uses mesh_cycle_ticks; 1..3 forces choice 0..2"
+evidence = "lobby_task 9ABADF8, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x4EF
+name = "pre_talk_state"
+type = "u8"
+confidence = "inferred"
+note = "state saved before a talk, deciding what the talk does after"
+evidence = "lobby_task 9AC1CB0 stores; 9AC1D18 switches"
+
+[[field]]
+struct = "Npc"
+offset = 0x4F8
+name = "record_index"
+type = "u8"
+confidence = "inferred"
+note = "copy of instance_index for subtype 3"
+evidence = "lobby_task 9ABB7B8; 9ABEB20 tests 0; 9ABB008"
+
+[[field]]
+struct = "Npc"
+offset = 0x4F9
+name = "record_mesh_level"
+type = "u8"
+confidence = "inferred"
+note = "from the record list; bands at 3, 5, 7, 9 pick mesh groups"
+evidence = "lobby_task 9ABB7B8; 9ABB008"
+
+[[field]]
+struct = "Npc"
+offset = 0x4FA
+name = "record_tint_index"
+type = "u8"
+confidence = "inferred"
+note = "from the record list; indexes a colour table 4 bytes each"
+evidence = "lobby_task 9ABB7B8; 9ABA340"
+
+[[field]]
+struct = "Npc"
+offset = 0x4FB
+name = "record_kind"
+type = "u8"
+confidence = "inferred"
+note = "0 hides the record meshes, nonzero allows; 2 is tested for meshes 5 and 6"
+evidence = "lobby_task 9ABB7B8; 9ABB008"
+
+[[field]]
+struct = "Npc"
+offset = 0x4FC
+name = "motion_frames"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "ticks since motion_id changed"
+evidence = "lobby_task 9AD46B8, whole read"
+
+[[field]]
+struct = "Npc"
+offset = 0x4FE
+name = "motion_id_counted"
+type = "u16"
+confidence = "confirmed"
+note = "motion_id motion_frames counts for; 0xFFFF after reset"
+evidence = "lobby_task 9AD46B8 and 9ABB658"
+
+[[field]]
+struct = "Npc"
+offset = 0x500
+name = "motion_cue_count"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "counts inside some motions to pace their effects"
+evidence = "lobby_task 9AD50A8"
+
+[[field]]
+struct = "Npc"
+offset = 0x502
+name = "turn_step"
+type = "s16"
+confidence = "confirmed"
+note = "added to facing each tick of a turn"
+evidence = "lobby_task 9AC05F0"
+
+[[field]]
+struct = "Npc"
+offset = 0x504
+name = "turn_ticks_left"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "ticks of the turn left; 0 if no_turn_to_talk"
+evidence = "lobby_task 9AC05F0, 9AC1D18"

@@ -1,0 +1,239 @@
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+evidence = "game_task 9B927C8 stores 089BD95C"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x4
+name = "list_next"
+type = "ptr"
+confidence = "confirmed"
+note = "next in the owned-object list"
+evidence = "game_task 9B92C20, same list code as 9B77CE8"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x8
+name = "list_prev"
+type = "ptr"
+confidence = "confirmed"
+note = "previous in the owned-object list"
+evidence = "game_task 9B92C20"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xC
+name = "type_id"
+type = "u8"
+confidence = "inferred"
+note = "0x21 for this class"
+evidence = "game_task 9B92C20 sets it"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xD
+name = "kind"
+type = "u8"
+confidence = "inferred"
+note = "which behaviour; 0xF and 0x10 draw differently"
+evidence = "game_task 9B92D20, 9B93CC8 and 9B949F0 switch on it; 9B92A20 and 9B92A88 single out 0xF and 0x10"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xF
+name = "owner_kind"
+type = "u8"
+confidence = "confirmed"
+evidence = "game_task 9B92C20 copies owner's kind"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x10
+name = "owner"
+type = "ptr"
+confidence = "confirmed"
+evidence = "game_task 9B92C20 stores the argument; 9B949F0 reads its fields"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x14
+name = "attack_phase"
+type = "u8"
+confidence = "confirmed"
+note = "0 none, 1 waiting attack_delay_ticks, 2 attack_active_ticks running"
+evidence = "game_task 9B67798 steps it; 9B675D0 sets 1 on loading a record"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x15
+name = "owner_index"
+type = "u8"
+confidence = "confirmed"
+evidence = "game_task 9B92C20 copies instance_index"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x18
+name = "area_id"
+type = "u16"
+confidence = "confirmed"
+note = "stage it belongs to: outside it, it does not draw"
+evidence = "game_task 9B92880 copies owner area_id; 9B92A20 draws only when it equals stage_id"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x1C
+name = "attack_delay_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "ticks before the attack is active, halved from the record"
+evidence = "game_task 9B675D0 copies and halves record byte 0; 9B67798 counts it down in phase 1"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x1D
+name = "attack_active_ticks"
+type = "u8"
+confidence = "confirmed"
+decimal = true
+note = "ticks left active, halved from the record; these objects often hold it at 99 until they end"
+evidence = "game_task 9B675D0 and 9B67798 copy and count it; 9B79478 sets 99 every tick for most kinds and 0 on ending"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x26
+name = "record_table_index"
+type = "u8"
+confidence = "inferred"
+note = "byte 10 of the timing record; picks +0x34"
+evidence = "game_task 9B93CC8 indexes table 09C08EB8 with it"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x34
+name = "record_table_entry"
+type = "u32"
+confidence = "inferred"
+note = "entry of the class's table picked by +0x26"
+evidence = "game_task 9B93CC8"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x40
+name = "position"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_task 9B949F0 tests and moves it; 9B93CC8 sets it from a table"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x50
+name = "previous_position"
+type = "f32x3"
+confidence = "inferred"
+note = "position before this tick's move"
+evidence = "game_task 9B949F0 copies +0x40 here before moving"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x66
+name = "facing"
+type = "u16"
+confidence = "inferred"
+note = "owner's facing at creation, then the launch yaw"
+evidence = "game_task 9B92C20 copies it; 9B949F0 stores +0x94's low half"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x78
+name = "state_fn"
+type = "u32"
+confidence = "inferred"
+note = "member function pointer, 3 words"
+evidence = "game_task 9B93CC8, 9B949F0 and 9B97E48 install it"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x84
+name = "pool_node"
+type = "ptr"
+confidence = "confirmed"
+note = "pool element freed at the end"
+evidence = "game_task 9B927C8 and 9B97E48 free it with owned_obj_pool_free_elem"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x8B
+name = "variant"
+type = "u8"
+confidence = "inferred"
+note = "second selector under kind"
+evidence = "game_task 9B92CC0 adds it to the record index; 9B92880 adds 0x18 for kind 0xC in a camera scene"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x90
+name = "launch_pitch"
+type = "s32"
+confidence = "inferred"
+note = "16-bit angle, as an integer"
+evidence = "game_task 9B92880 stores param_5; 9B93CC8 converts and rotates the velocity by it"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0x94
+name = "launch_yaw"
+type = "s32"
+confidence = "inferred"
+note = "16-bit angle: argument plus owner's facing"
+evidence = "game_task 9B92880; 9B93CC8"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xA0
+name = "velocity"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_task 9B93CC8 sets it from a table rotated by +0x90 and +0x94; 9B949F0 uses atan2 of it for the part angle and decays it by 0.985"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xB0
+name = "acceleration"
+type = "f32x3"
+confidence = "inferred"
+note = "only Y seen set: gravity for arcs"
+evidence = "game_task 9B93CC8 sets +0xB4 from a table and computes a start height from velocity*60 + 0.5*it*60*60"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xC2
+name = "age_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks since start; drives texture offsets"
+evidence = "game_task 9B93CC8 zeroes it; 9B949F0 increments it and compares with the kind's lifetime; 9B98978 uses it for scroll"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xC4
+name = "owner_asset_id"
+type = "u16"
+confidence = "inferred"
+note = "owner's subtype: finds the model's asset slot"
+evidence = "game_task 9B92880 copies owner subtype; 9B98978 passes its low byte to asset_slots_9_12_find_index_by_id"
+
+[[field]]
+struct = "Class_089BD95C"
+offset = 0xD0
+name = "random_seed"
+type = "u16"
+confidence = "inferred"
+note = "owner's script random counter, picks a table row"
+evidence = "game_task 9B92880 copies it; 9B93CC8 takes it modulo a table count"

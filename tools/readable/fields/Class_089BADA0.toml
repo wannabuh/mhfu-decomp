@@ -1,0 +1,81 @@
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+note = "this task class's vtable"
+evidence = "EBOOT 88B9B9C installs it; EBOOT 8895538 calls slot +0xC each frame and +8 when destroying"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x4
+name = "state_fn"
+type = "u32"
+confidence = "confirmed"
+note = "what the task runs each tick; member function pointer, 3 words"
+evidence = "EBOOT 88971A0 tests +4 with member_fn_is_set and calls it through member_fn_call; EBOOT 88B9BF8 and demo_task 9A5FB48, 9A5FDC0 install new values"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x11
+name = "run_state"
+type = "u8"
+confidence = "confirmed"
+note = "1 asks to be destroyed"
+evidence = "demo_task 9A605B0 sets 1 with next_task_id; EBOOT 88971F0 and 8895538"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x18
+name = "next_task_id"
+type = "s32"
+confidence = "confirmed"
+note = "task created in this slot after this one"
+evidence = "demo_task 9A605B0 sets 3; EBOOT 8895538 passes it to game_state_create_in_slot"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x1C
+name = "step"
+type = "s32"
+confidence = "confirmed"
+note = "step within the current state function, zeroed when one is installed"
+evidence = "demo_task 9A5FB48 switches on it and zeroes it before installing the next state"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x20
+name = "intro_progress"
+type = "s32"
+confidence = "inferred"
+note = "how far the opening screens have been seen; a skip press only goes to the title past 1 or 2"
+evidence = "demo_task 9A5FB48 sets at least 2, 9A5FDC0 sets 3 and needs >2, 9A5F520 sets 3 when DAT_09c1b820 + 8 is set"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x24
+name = "screen_ticks"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "frames left, or counted, on the current opening screen"
+evidence = "demo_task 9A5FB48 sets 0x3C and counts down; 9A5FDC0 and 9A5F960 use 0x5A; 9A60290 counts up to 0x1E0 and blinks text on it"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x28
+name = "skip_pressed"
+type = "u8"
+confidence = "confirmed"
+note = "a button with mask 0x4008 was pressed on this screen"
+evidence = "demo_task 9A5FB48 zeroes it and sets 1 from DAT_08a62d8c & 0x4008, and leaves the screen early on it"
+
+[[field]]
+struct = "Class_089BADA0"
+offset = 0x2C
+name = "language_cursor"
+type = "s32"
+confidence = "confirmed"
+note = "highlighted row of the language menu, 0 to 4"
+evidence = "demo_task 9A605C8 sets it from the language setting and wraps it at 0..4 on up and down; 9A60A28 draws the highlight at (it + 1) * 0x28"

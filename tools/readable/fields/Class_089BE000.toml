@@ -1,0 +1,88 @@
+[[field]]
+struct = "Class_089BE000"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "inferred"
+note = "1 smaller and another model group"
+evidence = "game_sub 9C92C98 picks model group 0x18 or 0x71 and scale 0.3 or 1.0 by it"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x29
+name = "step"
+type = "u8"
+confidence = "inferred"
+note = "0 falling, 1 settled, 2 watching owner's motions, 4 leaving"
+evidence = "game_sub 9C931C0 switches on it; 9C93FD0 sets 4"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x38
+name = "ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks since start"
+evidence = "game_sub 9C931C0 increments it each call"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x40
+name = "tint"
+type = "u8"
+confidence = "inferred"
+note = "low bits index table 09CF2548; mask 0x80 picks fixed colour 09CF2558"
+evidence = "game_sub 9C92538 picks the draw colour by it; 9C931C0 sets and clears 0x80"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x60
+name = "exit_kind"
+type = "s16"
+confidence = "inferred"
+note = "which owner motion ended it: 0, 1 or 2"
+evidence = "game_sub 9C931C0 sets 0 for 0x328, 1 for 0x329, 2 for 0x32A; 9C93FD0 picks its motion by it"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x62
+name = "owner_counter_copy"
+type = "s16"
+confidence = "inferred"
+note = "last value of a signed byte counter at owner +0x5F0; a rise means a splash"
+evidence = "game_sub 9C931C0 acts when +0x5F0 exceeds it, then copies it"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x70
+name = "velocity"
+type = "f32x3"
+confidence = "inferred"
+evidence = "game_sub 9C92C98 randomises it; 9C931C0 applies it and zeroes it on settling"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x80
+name = "rest_place"
+type = "f32x3"
+confidence = "inferred"
+note = "where it settled, and pulls back to"
+evidence = "game_sub 9C931C0 copies position on reaching the surface and sets velocity to (it - position) * 0.09"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x90
+name = "surface_y"
+type = "f32"
+confidence = "inferred"
+note = "height it settles at, set per stage"
+evidence = "game_sub 9C92C98 sets it from stage_id (0xFB -30, 0xF9 2, 0xF1 -56, 0xCB -131...); 9C931C0 stops falling at it minus 5 and calls 9C94750 with it"
+
+[[field]]
+struct = "Class_089BE000"
+offset = 0x98
+name = "scale"
+type = "f32"
+confidence = "inferred"
+evidence = "game_sub 9C92C98 sets 0.3 or 1.0 by kind; 9C931C0 blends it to 1; 9C92538 reads it for the draw"

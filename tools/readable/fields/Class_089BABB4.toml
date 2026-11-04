@@ -1,0 +1,118 @@
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+note = "this task class's vtable"
+evidence = "EBOOT 884D804 installs it; EBOOT 8895538 calls slot +0xC each frame and +8 when destroying"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x4
+name = "state_fn"
+type = "u32"
+confidence = "confirmed"
+note = "what the task runs each tick; member function pointer, 3 words"
+evidence = "EBOOT 88971A0 tests +4 with member_fn_is_set and calls it through member_fn_call; EBOOT 884D25C install new values"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x1C
+name = "fade_mode"
+type = "s32"
+confidence = "confirmed"
+note = "0 idle, 1 fading to target going down, 2 going up, 3 holding the colour on screen"
+evidence = "EBOOT 884D2F8 switches on it, returns at 0, goes to 0 when alpha reached 0 or to 3 otherwise; EBOOT 884D754 sets 2 or 1"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x20
+name = "draw_list"
+type = "s32"
+confidence = "confirmed"
+note = "which display list the rectangle goes in, checked 0 to 0x13; 0x11 by default"
+evidence = "EBOOT 884D25C sets 0x11; EBOOT 884D2F8 range-checks it and passes it to gpu_list_link_chunk"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x24
+name = "fade_duration"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames the fade takes"
+evidence = "EBOOT 884D754 stores its argument; EBOOT 884D2F8 divides elapsed by it and stops at it"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x26
+name = "fade_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "frames elapsed in this fade"
+evidence = "EBOOT 884D754 zeroes it; EBOOT 884D2F8 increments it and compares with +0x24"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x29
+name = "fade_target_alpha"
+type = "u8"
+confidence = "confirmed"
+note = "alpha to end at: 0xFF or 0, callers may lower it (0xC0 under dialogs)"
+evidence = "EBOOT 884D754 sets 0xFF or 0; EBOOT 884D2F8 interpolates toward it; EBOOT 8868C04 overwrites 0xC0 after starting a fade"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x2A
+name = "fade_start_alpha"
+type = "u8"
+confidence = "confirmed"
+note = "alpha when the fade began"
+evidence = "EBOOT 884D754 copies +0x2F here; EBOOT 884D2F8 interpolates from it"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x2C
+name = "color_red"
+type = "u8"
+confidence = "confirmed"
+note = "rectangle colour, byte 0 of the vertex colour"
+evidence = "EBOOT 884D2F8 builds the vertex colour from +0x2C..+0x2F in order; EBOOT 884D790 zeroes the three for black"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x2D
+name = "color_green"
+type = "u8"
+confidence = "confirmed"
+note = "byte 1 of the vertex colour"
+evidence = "EBOOT 884D2F8; EBOOT 884D790"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x2E
+name = "color_blue"
+type = "u8"
+confidence = "confirmed"
+note = "byte 2 of the vertex colour"
+evidence = "EBOOT 884D2F8; EBOOT 884D790"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x2F
+name = "alpha"
+type = "u8"
+confidence = "confirmed"
+note = "current alpha, byte 3 of the vertex colour"
+evidence = "EBOOT 884D2F8 writes the interpolated value, tests it for 0 and draws with it; EBOOT 8874C58 forces 0xFF"
+
+[[field]]
+struct = "Class_089BABB4"
+offset = 0x30
+name = "saved_fade_mode"
+type = "s32"
+confidence = "inferred"
+note = "fade_mode set aside while a loading screen shows"
+evidence = "demo_task 9A61408 and arcade_task 9A5F7C0 copy +0x1C here and zero +0x1C, then restore it if still 0"

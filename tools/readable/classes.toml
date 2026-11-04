@@ -1,0 +1,835 @@
+# Names of classes found by classes.py. See docs/readable.md, "Classes and fields". vtable: the class; base: the parent's name, if named.
+# Monster species come from the type allocator game_task 09AB16D8 (its switch on type byte +0x1E8 picks the vtable) and the game's own list of
+# monster names (build/ram-003570.bin at file offset 0x1CE39E: NO DATA, Rathian, Fatalis, Kelbi...). The list is not shown to be read by that byte: what supports the
+# match is that the 35 groups in the allocator fall into families in it, and that the overlays emNN are named by the same numbers.
+
+[[class]]
+vtable = "089BCD64"
+name = "Pelagus"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x33 0x34 0x35 0x3D 0x3E 0x54 0x55 0x59: Blangonga, Congalala, Rajang, Blango, Conga and their later entries; \"Pelagus\" is the game's category string for them"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9B449C8 and 9B41C50 branch on 0x35/0x59 and 0x3E/0x55/0x34"
+
+[[class]]
+vtable = "089BBBAC"
+name = "YianKutKuGypceros"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x06 0x14 0x26 0x27: Yian Kut-Ku and Gypceros with their variants, code in overlay em20, whose subtypes tested are 0x14, 0x26, 0x27, 6"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em20 9D2CE08 tests 0x14/0x27"
+
+[[class]]
+vtable = "089BC77C"
+name = "PreyRaptor"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x0D 0x10 0x1E 0x23: Genprey, Velociprey, Ioprey, Giaprey: the pack raptors, paired with the Dromes by 09ACD3B0"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9B07160 scales by those four types; 9ACD3B0 pairs 0x23/0x1E/0x0D/0x10 with 0x4D/0x1F/0x1C/0x1B"
+
+[[class]]
+vtable = "089BC974"
+name = "VespoidHornetaur"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x13 0x18 0x50: Vespoid, Hornetaur, Vespoid Queen"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9B0F3B8 and 9B15070 special-case 0x50"
+
+[[class]]
+vtable = "089BCC68"
+name = "Carapaceon"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x30 0x42 0x43 0x49 0x56 0x57: Daimyo Hermitaur, Hermitaur, Shogun Ceanataur, Ceanataur and later entries; \"Carapaceon\" is the game's category string"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9B1D800 scales bones for types 0x43/0x57"
+
+[[class]]
+vtable = "089BC680"
+name = "AptonothApcerosPopo"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x0C 0x19 0x46: the herbivores Aptonoth, Apceros, Popo, the Popos of kit-popohit recordings and docs/native.md"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9AFE798 (types 0xC and 0x46); docs/native.md"
+
+[[class]]
+vtable = "089BC38C"
+name = "CephadromeCephalos"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x08 0x22: Cephadrome and Cephalos"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 09AF1828 caller unknown_dispatch_9b64d30_or_9b65230_by_1e8_is_8 branches on type 8"
+
+[[class]]
+vtable = "089BB450"
+name = "Comrade"
+base = "Hunter"
+confidence = "inferred"
+note = "AI companion: made at 0x1610 bytes in the hunter manager's slot 1 (EBOOT 88DC774), follows the local hunter (+0x1214), stats from g_game +0x69BEC, walks a trail of the owner's places. Felyne is unproven."
+evidence = "EBOOT 88DC774 allocates 0x1610 bytes, ctor game_task 9A72D50, slot 1; caller game_task 9A62978; game_task 9A72D88"
+
+[[class]]
+vtable = "089B29E4"
+name = "AdhocNetHandlers"
+confidence = "guess"
+note = "Table of 38 handlers, all in the EBOOT ad hoc code, with no constructor; most ignore this; not shown to be a real class"
+evidence = "EBOOT 88B7728, 88AF1D4, 88AF6EC, 88B4A14 fetch the 8-byte address at 09A20400 and act on it; sceNetAdhocctlGetPeerList and sceWlanGetEtherAddr in the same range"
+
+[[class]]
+vtable = "089BABC8"
+name = "FileLoaderBase"
+confidence = "inferred"
+note = "Base of the DATA.BIN loader, with the +0x29300 fields used by file_loader_init_edram_range_and_rofs_sema"
+evidence = "classes.json: parent of RofsFileLoader; EBOOT 88B8548; ctor EBOOT 884F878"
+
+[[class]]
+vtable = "089BACCC"
+name = "RofsFileLoader"
+base = "FileLoaderBase"
+confidence = "confirmed"
+note = "The DATA.BIN loader: opens DATA.BIN, reads, decrypts and hashes chunks"
+evidence = "EBOOT 884D878 rofs_init_open_data_bin (confirmed), 884E72C, 884E998"
+
+[[class]]
+vtable = "089BCA70"
+name = "DromeRaptor"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x1B 0x1C 0x1F 0x4D: Velocidrome, Gendrome, Iodrome, Giadrome: the pack leaders"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9ACD3B0 pairs them with PreyRaptor types; docs/testing.md quest 1 Giadrome"
+
+[[class]]
+vtable = "089BD154"
+name = "Bulldrome"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x44: Bulldrome, one type only"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9ACD3B0 pairs Bullfango 0x05 with 0x44"
+
+[[class]]
+vtable = "089BAD8C"
+name = "HuntTask"
+confidence = "inferred"
+note = "The hunt: the game state in a quest: loads the quest and area, ticks objects and cameras, switches areas"
+evidence = "game_task 9A60298 hunt_state_run, 9A62740 hunt_tick, 9A627B8 hunt_tick_objects, 9A5F868 game_task_state_initial_load"
+
+[[class]]
+vtable = "089BC194"
+name = "KelbiAnteka"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x03 0x45: Kelbi, Anteka"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9ADA990 tests types 3 and 0x45"
+
+[[class]]
+vtable = "089BAD18"
+name = "LobbyTask"
+confidence = "inferred"
+note = "The village and guild hub task: loads the stage and creates the hunters"
+evidence = "lobby_task 9A6C0A8 lobby_task_init; EBOOT 88A713C task_load_overlays_46_4c_step"
+
+[[class]]
+vtable = "089BD95C"
+name = "KindSwitchedMultiPartAttack"
+confidence = "inferred"
+note = "0xAF0-byte object of the attack-volume manager with 0x60-byte parts counted per kind; creates volumes and effects by kind, plays sounds; used from Shen Gaoren overlay"
+evidence = "game_task 9B659B8 spawn (heap of the manager, ctor), 9B92D20, 9B92A88; em55 callers"
+
+[[class]]
+vtable = "089BD548"
+name = "KindSwitchedPositionedAttack"
+confidence = "inferred"
+note = "0x250-byte object of the attack-volume manager: moves by kind from per-kind tables, spawns effects and volumes at a position by subtype"
+evidence = "game_task 9B63E30, 9B77E18, 9B77D58, class_089bd548_spawn_at_pos_by_subtype"
+
+[[class]]
+vtable = "089BC290"
+name = "MosswineBullfango"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x04 0x05: Mosswine, Bullfango"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, game_task 9AE07A0 sets health by type 4 or 5; 9ACD3B0 pairs 0x05 with 0x44"
+
+[[class]]
+vtable = "089BD058"
+name = "Remobra"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x3F: Remobra, one type only"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BC878"
+name = "CreatureType12YawSpin"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for type 0x12, whose entry in the name list is \"dummy\": 50 health, two state groups, a timed yaw spin; what it is in the game is unread"
+evidence = "game_task 09AB16D8; 9B0E940 sets health 50; class_089bc878_state_timed_yaw_spin"
+
+[[class]]
+vtable = "089BCE60"
+name = "GreatThunderbug"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x38: Great Thunderbug, one type only"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BCF5C"
+name = "ShakalakaKingShakalaka"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x39 0x4F: Shakalaka, King Shakalaka"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BD36C"
+name = "AttackVolume"
+confidence = "inferred"
+note = "Base of timed hit objects listed in the manager at 09C12830: each loads a 0x18-byte record with timers +0x1C/+0x1D and a table at +0x34, and registers hits. A hit fills the victim's and its own fields"
+evidence = "game_task 9B67178 (base ctor), 9B67438 owned_obj_load_timing_record, 9B62D90 owned_obj_mgr_tick_and_remove_finished; game_sub 9C43000 hunter_register_hit_add_defense_scaled_damage (self is this class)"
+
+[[class]]
+vtable = "089BD5D0"
+name = "HunterPlacedTimedVolume"
+base = "AttackVolume"
+confidence = "guess"
+note = "Volume started by hunter states that lasts up to 9000 ticks, then calls the hunter's vtable +0x54. A placed item would fit; not settled"
+evidence = "game_task 9B83518, 9B83A20; spawners 9B644B0, 9B669B8, from game_task 9AAA068, 9AAB180, 9A7A0C0"
+
+[[class]]
+vtable = "089BD6F8"
+name = "FelyneShakalakaAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Felyne and Shakalaka motions"
+evidence = "game_task spawner 9B647B0, all six callers in the code ranges of 089BC488 and 089BCF5C"
+
+[[class]]
+vtable = "089BDC58"
+name = "Fx"
+confidence = "inferred"
+note = "Base of the effect objects kept on the list at DAT_09D19860+0x19030: owner +0xC, kind +0x24, timer +0x38, render nodes +0x41/+0x44, state function +0x4C"
+evidence = "game_sub 9C56F00 (ctor), 9C57068 fx_base_release_render_nodes; class_089be168_spawn_for_owner_mode_0x05"
+
+[[class]]
+vtable = "089BDD80"
+name = "FxBonePartsByType"
+base = "Fx"
+confidence = "inferred"
+note = "Effect of part nodes following the owner's bone, per type; sounds by type"
+evidence = "game_sub 9C61E58, 9C61DC0, 9C649C8"
+
+[[class]]
+vtable = "089BD250"
+name = "ProximityCreatureType4A"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for type 0x4A, \"dummy\" in the name list: same setup as ProximityCreatureType0A, 200 health, reacts to a hunter within 500"
+evidence = "game_task 09AB16D8; 9B60FF0 (whole), 9B610D0, 9B61A50"
+
+[[class]]
+vtable = "089BC584"
+name = "ProximityCreatureType0A"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for type 0x0A, \"dummy\" in the name list: forced to 99 ticks of no-push and no-check, random idle motions, turns toward a saved angle and reacts when the hunter within 500 has state_wait_ticks set"
+evidence = "game_task 09AB16D8; 9AF9C10, 9AF9D60, 9AFAD70 (whole), 9AF9EB0"
+
+[[class]]
+vtable = "089BC488"
+name = "FelyneMelynx"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x09 0x17: Felyne, Melynx"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BADA0"
+name = "DemoTask"
+confidence = "inferred"
+note = "The attract sequence: language files, logo images, the movie, the title and its blink text, then task 3"
+evidence = "demo_task 9A60090 demo_task_play_movie (confirmed), 9A5F380 demo_task_load_language_ui_file; EBOOT 88B9BF8"
+
+[[class]]
+vtable = "089BDEC0"
+name = "FxParticleEffectByKind"
+confidence = "inferred"
+note = "Particles by kind, also made at a position without an owner; no parent found"
+evidence = "game_sub 9C76A90, 9C767E0, 9C76938; effect_spawn_at_position_without_owner"
+
+[[class]]
+vtable = "089BDBD0"
+name = "ShakalakaScaledAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Shakalaka volume whose scale +0x128 doubles when the owner has +0x638 mask 0x20"
+evidence = "game_task 9B9EC50 (whole), spawner 9B66A90; caller in the code range of 089BCF5C"
+
+[[class]]
+vtable = "089BD8D4"
+name = "PelagusAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Pelagus motions, record and table picked from owner motion frames"
+evidence = "game_task 9B654C8; 9B8FD50; callers in class_089bcd64_* only"
+
+[[class]]
+vtable = "089BD73C"
+name = "DromeAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Drome motions"
+evidence = "game_task spawner 9B64878; callers class_089bca70_* only; 9B88AC8"
+
+[[class]]
+vtable = "089BD504"
+name = "SharedLargeMonsterAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume used from game_task and the em14, em54, em55, em58, em59, em75, em83 overlays; ends when +0x14 clears"
+evidence = "game_task 9B63D58, 9B73058, 9B73260 (whole); callers across those modules"
+
+[[class]]
+vtable = "089BD438"
+name = "SharedAttackVolumeKirinFelyneKelbi"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume used by Kirin (em33), Felyne, Kelbi and Mosswine code; ends on owner motion change"
+evidence = "game_task 9B63240, 9B69C08, 9B69DD8; callers from the code ranges of those classes and em33"
+
+[[class]]
+vtable = "089BDAF4"
+name = "HunterSlotBoundAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Volume whose owner is a hunter manager slot, set up from a hunter flag word +0x11E0"
+evidence = "game_task 9B9D248 (hunter_manager_get_slot, 9A87D78); spawner 9B66820 called from hunter code 9A80610, 9A807C0"
+
+[[class]]
+vtable = "089BDAB0"
+name = "RemobraAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Remobra code"
+evidence = "game_task spawner 9B66220; both callers in the code range of 089BD058"
+
+[[class]]
+vtable = "089BD9E4"
+name = "BulldromeAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume mostly of Bulldrome code, once from Great Thunderbug"
+evidence = "game_task spawner 9B65E18; two of three callers in the code range of 089BD154"
+
+[[class]]
+vtable = "089BD890"
+name = "CarapaceonAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Carapaceon motions"
+evidence = "game_task spawner 9B65400; callers class_089bcc68_* only"
+
+[[class]]
+vtable = "089BD808"
+name = "CephalosAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of type 0x22 (Cephalos): the other branch of the type 8 test"
+evidence = "game_task 9B65230; game_task unknown_dispatch_9b64d30_or_9b65230_by_1e8_is_8 (whole)"
+
+[[class]]
+vtable = "089BD780"
+name = "CephadromeAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of type 8 (Cephadrome)"
+evidence = "game_task 9B64D30; game_task unknown_dispatch_9b64d30_or_9b65230_by_1e8_is_8 (whole)"
+
+[[class]]
+vtable = "089BD6B4"
+name = "PreyAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of PreyRaptor motions; ends when the owner's motion changes"
+evidence = "game_task 9B646E8; 9B86CC0; callers class_089bc77c_* only"
+
+[[class]]
+vtable = "089BD624"
+name = "VespoidAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of VespoidHornetaur motions, once from AptonothApcerosPopo; ends on owner motion change"
+evidence = "game_task 9B64580; 9B852C0; callers class_089bc974_* and class_089bc680_method80_motion_frame_triggers"
+
+[[class]]
+vtable = "089BD3F4"
+name = "RathianRathalosAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of overlay em01 (Rathian, Rathalos); one more use from an effect"
+evidence = "game_task spawner 9B63008, all three callers in em01; 9B69648"
+
+[[class]]
+vtable = "089BEB6C"
+name = "KutKuGypcerosAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume living in overlay em20; only meaningful while it is loaded"
+evidence = "em20 ctor 9D30458, 9D2FF88; game_task 9B64A08; em20_motion_frame_cues_spawns_and_camera_shake"
+
+[[class]]
+vtable = "089BE230"
+name = "FxWaypointModel"
+base = "Fx"
+confidence = "inferred"
+note = "One model that walks waypoints around a target, by a sequence"
+evidence = "game_sub class_089be230_tick_waypoint_state_machine, class_089be230_offset_from_target_at_random_octant, class_089be230_set_sequence"
+
+[[class]]
+vtable = "089BE028"
+name = "FxWeightedRandomModel"
+base = "Fx"
+confidence = "inferred"
+note = "One model with a kind rolled from a weight table, clamped to a radius"
+evidence = "game_sub 9C97038 (confirmed), 9C94978, class_089be028_state_update_dispatch_clamp_to_radius"
+
+[[class]]
+vtable = "089BD9A0"
+name = "ShakalakaAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of Shakalaka motions"
+evidence = "game_task spawner 9B65B90; its callers all in the code range of 089BCF5C"
+
+[[class]]
+vtable = "089BCB6C"
+name = "CreatureType1D"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for type 0x1D, \"dummy\" in the name list: health and scale from a variant table, or 4000 health with no way to die (cannot_die_ticks refilled) when the entry is empty"
+evidence = "game_task 09AB16D8; 9B1CC38, 9B1CD70"
+
+[[class]]
+vtable = "089BE208"
+name = "FxElementArrayByKind"
+base = "Fx"
+confidence = "inferred"
+note = "Array of 0x60-byte elements updated by kind, with a kind's frame limit"
+evidence = "game_sub 9CB30C0, 9CB4558"
+
+[[class]]
+vtable = "089BDF60"
+name = "FxKeyframeElementsMemberFns"
+base = "Fx"
+confidence = "inferred"
+note = "Keyframed elements whose draw and queue go through member functions at +0xB0 and +0xBC"
+evidence = "game_sub 9C85CD8 (confirmed), 9C85D28, 9C85E28"
+
+[[class]]
+vtable = "089BDF38"
+name = "FxUpdateElementsMemberFns"
+base = "Fx"
+confidence = "inferred"
+note = "Elements whose draw and queue go through member functions at +0x1A4 and +0x1B0"
+evidence = "game_sub 9C7F6E0 (confirmed), 9C7F730, 9C7F770"
+
+[[class]]
+vtable = "089BDE98"
+name = "FxRandomizedElementBurst"
+base = "Fx"
+confidence = "inferred"
+note = "Burst of 0x50-stride elements with random start values, ticked by keyframes; used by pickup points and monster motions"
+evidence = "game_sub 9C70AF0, 9C70A50, class_089bde98_method20_tick_elements_keyframes; pickup_points_tick"
+
+[[class]]
+vtable = "089BDF10"
+name = "FxElementsWithKindSound"
+base = "Fx"
+confidence = "inferred"
+note = "Elements started with a kind's sound"
+evidence = "game_sub 9C7CF40, 9C7F070"
+
+[[class]]
+vtable = "089BDD08"
+name = "FxEntriesOnBonesAlternating"
+base = "Fx"
+confidence = "inferred"
+note = "Entries placed on the owner's bones in turn, made at hunter init"
+evidence = "game_sub 9C5B088, class_089bdd08_tick_place_entries_on_bones_alternating; game_task hunter_init_089bb3cc"
+
+[[class]]
+vtable = "089BD3B0"
+name = "HunterWeaponAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume of the hunter's weapon motions: record by id from a weapon table, ends with the hunter's motion"
+evidence = "game_task 9B68258, 9B682F0 (+0xC 0, owner the hunter), 9B68418, 9B68E30; hunter_weapon*_state_* callers through owned_obj_spawn_kind_00_hunter"
+
+[[class]]
+vtable = "089BE310"
+name = "StageRampedGroup"
+confidence = "inferred"
+note = "Stage object kind 1: group drawn by a ramped level +0x3C, placed toward a stage point"
+evidence = "game_sub class_089be310_tick_ramp_field_3c_and_place_towards_stage_point, EBOOT 88C3640 stage_object_create_kind_01"
+
+[[class]]
+vtable = "089BE168"
+name = "FxModeAnimatedNodesFromBone"
+base = "Fx"
+confidence = "inferred"
+note = "Nodes from owner bone 0xE animated by mode; mode 5 from Carapaceon"
+evidence = "game_sub class_089be168_init_by_mode_alloc_nodes_from_owner_bone_0x0e, class_089be168_tick_by_mode_animate_nodes, 9CA8360 (confirmed)"
+
+[[class]]
+vtable = "089BDEE8"
+name = "FxTableCountedElementsByKind"
+base = "Fx"
+confidence = "inferred"
+note = "Elements counted from a table by kind, used from apes, em07, em40, em54"
+evidence = "game_sub 9C7A058; caller class_089bcd64_motion_frame_events"
+
+[[class]]
+vtable = "089BDE70"
+name = "FxKindSwitchedEffect"
+confidence = "inferred"
+note = "Effect with a state start switched on kind; called from hunter evade, faint and sheathe states and monsters; no parent found"
+evidence = "game_sub 9C6C130; hunter_state_evade, hunter_faint_state_tick, hunter_state_draw_sheathe_weapon_variants"
+
+[[class]]
+vtable = "089BDDD0"
+name = "FxRandomizedElementBurstB"
+base = "Fx"
+confidence = "inferred"
+note = "Same shape as FxRandomizedElementBurst with its own tables"
+evidence = "game_sub 9C67BB8, 9C67B20, 9C68378"
+
+[[class]]
+vtable = "089BDD58"
+name = "FxBoneTrailStrip"
+base = "Fx"
+confidence = "inferred"
+note = "Strip through a 6-entry history of a bone's matrices, drawn interpolated: a trail"
+evidence = "game_sub 9C5F960, 9C601B8, class_089bdd58_tick_shift_bone_matrix_history"
+
+[[class]]
+vtable = "089BB25C"
+name = "LobbyModelsOnLoop"
+confidence = "inferred"
+note = "Stage object kind 0x1F: models moving on a loop between two points, in the hub"
+evidence = "lobby_task 9AF7F20, class_089bb25c_draw_models_on_loop_between_two_points, 9AF82E0 (confirmed), EBOOT 88C5574"
+
+[[class]]
+vtable = "089BE6F0"
+name = "StageDriftFadeSprite"
+confidence = "inferred"
+note = "Stage object drifting then fading from a random start, removed or restarted"
+evidence = "game_sub 9CCBB28, 9CCBDC8, class_089be6f0_step_drift_then_fade_then_remove_or_set_handl"
+
+[[class]]
+vtable = "089BE5F0"
+name = "StageFrameStepSprite"
+confidence = "inferred"
+note = "Stage object kind 0x18: frame 0-15 and alpha stepped by its record's flags"
+evidence = "game_sub 9CC7B38, 9CC7BD8, EBOOT 88C4E8C"
+
+[[class]]
+vtable = "089BE5D0"
+name = "StageRecordPointShuttle"
+confidence = "inferred"
+note = "Stage object kind 0x17: moves between two points of its record with a Y wobble"
+evidence = "game_sub 9CC6B98 (confirmed), class_089be5d0_move_to_record_point_with_y_wobble, EBOOT 88C4D94"
+
+[[class]]
+vtable = "089BE550"
+name = "StageTextureCounterGroup"
+confidence = "inferred"
+note = "Stage object with two texture counters advanced each tick; many on a stage"
+evidence = "game_sub 9CC4E08, 9CC4D88"
+
+[[class]]
+vtable = "089BE490"
+name = "StageSnowMistDome"
+confidence = "inferred"
+note = "Stage object kind 0xD: the mist dome that follows the camera, by layers"
+evidence = "game_sub 9CC0CE0 snow_mist_dome_draw (confirmed), class_089be490_tick_layer_values_and_follow_camera, EBOOT 88C435C"
+
+[[class]]
+vtable = "089BE470"
+name = "StageAmbientSound"
+confidence = "inferred"
+note = "Stage object that plays a sound with countdowns and a position, no draw"
+evidence = "game_sub 9CC05C0, 9CC0748"
+
+[[class]]
+vtable = "089BE410"
+name = "StageOrbitingModel"
+confidence = "inferred"
+note = "Stage object kind 9: a model orbiting a random centre"
+evidence = "game_sub 9CBF550, class_089be410_tick_orbit_position, EBOOT 88C3F18"
+
+[[class]]
+vtable = "089BE3D0"
+name = "StageCountedAlphaGroup"
+confidence = "inferred"
+note = "Stage object: group by flags with counters and alpha"
+evidence = "game_sub 9CBE658, 9CBE770"
+
+[[class]]
+vtable = "089BE3B0"
+name = "StageCameraFacingGlare"
+confidence = "inferred"
+note = "Stage object kind 6: camera-aligned model with its own projection and alpha by view angle to a stage point"
+evidence = "game_sub 9CBD2A8, class_089be3b0_tick_alpha_by_view_angle_to_stage_point, EBOOT 88C3B5C"
+
+[[class]]
+vtable = "089BE2D0"
+name = "StageUvScrollGroup"
+confidence = "inferred"
+note = "Stage object kind 0: one model group with UV scroll"
+evidence = "game_sub 9CBA670, EBOOT 88C354C stage_object_create_kind_00"
+
+[[class]]
+vtable = "089BE0C8"
+name = "FxOwnerBone2ByKind"
+base = "Fx"
+confidence = "inferred"
+note = "Effect at the owner's bone 2 by kind, with sound 0x8D for kind 0; used when the hunter is hit"
+evidence = "game_sub 9C9ABB0; hunter_reaction_state_dispatch_by_state_299, hunter_clear_field_1146"
+
+[[class]]
+vtable = "089BDFB0"
+name = "FxTenElementRecords"
+base = "Fx"
+confidence = "inferred"
+note = "Ten 0x40-byte element records, to a type's frame limit"
+evidence = "game_sub 9C8CA18, 9C8CA90, 9C8E498"
+
+[[class]]
+vtable = "089BB524"
+name = "FxScaledToOwnerType"
+base = "Fx"
+confidence = "inferred"
+note = "Effect scaled by owner scale over its type table scale, linked to ape owners' node list"
+evidence = "game_task 9AAED60 (DAT_09BB8AF0 by subtype), class_089bcd64_link_owned_nodes_to_d19860_by_type"
+
+[[class]]
+vtable = "089BB0D8"
+name = "LobbyHunterVariant"
+base = "HunterBase"
+confidence = "inferred"
+note = "HunterBase subclass in lobby_task, made from the equip menu and the hub manager; runs a state function"
+evidence = "lobby_task ctor 9A60A98, 9AB53B0; callers equip_menu_screen_update and lobby_manager_mode_tick"
+
+[[class]]
+vtable = "089BAF48"
+name = "HunterVariantFromRecord"
+base = "HunterBase"
+confidence = "inferred"
+note = "HunterBase subclass with health 100 and equipment copied from a player record; used by the save menu, arcade and hunter manager"
+evidence = "EBOOT 88DCFCC hunter_variant_10f0_init_from_record, 88DD26C, 88DD3A8"
+
+[[class]]
+vtable = "089BE118"
+name = "FxSineDriftModel"
+base = "Fx"
+confidence = "inferred"
+note = "One render node drifting in a sine around a table point"
+evidence = "game_sub 9CA7138, class_089be118_tick_sine_drift_around_table_point_; game_task_state_initial_load"
+
+[[class]]
+vtable = "089BE0A0"
+name = "FxMarkerAboveOwner"
+base = "Fx"
+confidence = "inferred"
+note = "Spinning model group 0x86 bobbing above the object at owner +0x2F4, made per lobby hunter"
+evidence = "game_sub 9C9A1E0, class_089be0a0_tick_bob_node_above_owner_field_2f4_object; lobby_phase_create_hunters_and_start_scene"
+
+[[class]]
+vtable = "089BDF88"
+name = "FxNodeAtOwnerBone"
+base = "Fx"
+confidence = "inferred"
+note = "One node at the owner's bone, set up by kind"
+evidence = "game_sub 9C89E88, class_089bdf88_method20_tick_node_at_owner_bone"
+
+[[class]]
+vtable = "089BDCE0"
+name = "FxRandomizedNodeByKind"
+base = "Fx"
+confidence = "inferred"
+note = "One node randomised by kind and aged in place"
+evidence = "game_sub 9C5A740, 9C59538, class_089bdce0_tick_age_and_place_node"
+
+[[class]]
+vtable = "089BDCB8"
+name = "FxMistSheetsAtBones"
+base = "Fx"
+confidence = "inferred"
+note = "Render nodes placed at the owner's bones and drawn as the mist sheets"
+evidence = "game_sub 9C57E08 snow_mist_sheets_draw (confirmed), 9C58688, class_089bdcb8_tick_place_nodes_at_owner_bones"
+
+[[class]]
+vtable = "089BDA6C"
+name = "HunterBoneAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Volume placed from a hunter's bone 0xE"
+evidence = "game_task 9B9C278 (hunter_manager_get_slot, object_get_bone_matrix 0xE)"
+
+[[class]]
+vtable = "089BD58C"
+name = "PositionedAttackVolume"
+base = "AttackVolume"
+confidence = "inferred"
+note = "Attack volume placed at a position rather than a bone, used by KindSwitchedPositionedAttack and KindSwitchedMultiPartAttack and by some monsters"
+evidence = "game_task 9B817C0, 9B64240, 9B64170; class_089bd548_spawn_at_pos_by_subtype, class_089bd95c_state_update_by_kind"
+
+[[class]]
+vtable = "089BB194"
+name = "LobbyFxTexturedStrip"
+base = "Fx"
+confidence = "inferred"
+note = "Textured strip near the owner, drawn by direct GE commands in the hub"
+evidence = "lobby_task 9AF27B0, 9AF2C58, class_089bb194_tick_place_strip_near_owner"
+
+[[class]]
+vtable = "089BABB4"
+name = "ScreenFadeTask"
+confidence = "confirmed"
+note = "Full-screen colour fade: set a target, alpha steps toward it each frame"
+evidence = "EBOOT 884D754 screen_fade_start (whole read: frame count, mode 1 starts opaque), 884D2F8, 884D25C"
+
+[[class]]
+vtable = "089BAC14"
+name = "BootTask"
+confidence = "inferred"
+note = "The first game task: sets up the globals, then next"
+evidence = "EBOOT 885AA7C boot_task_step_start, 885AAEC boot_task_step_init_globals, 885AC8C"
+
+[[class]]
+vtable = "089BBF9C"
+name = "RathianRathalos"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x01 0x0B 0x25 0x29 0x2A 0x31: Rathian, Rathalos and their variants, code in overlay em01; no typed functions yet"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em01 tests 0x25 and 0x2A"
+
+[[class]]
+vtable = "089BE7D0"
+name = "FatalisTrio"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x02 0x24 0x47: the three Fatalis entries, vtable and code in overlay em02"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em02 tests 0x24 and 0x47; ctor em02 9D26758"
+
+[[class]]
+vtable = "089BE910"
+name = "LaoShanLung"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x07 0x32: Lao-Shan Lung and its variant, vtable in overlay em07"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, ctor em07 9D21958"
+
+[[class]]
+vtable = "089BBEA0"
+name = "DiablosMonoblos"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x0E 0x1A 0x2B 0x2C: Diablos, Monoblos and variants, code in overlay em14"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em14 tests those four"
+
+[[class]]
+vtable = "089BBDA4"
+name = "Khezu"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x0F 0x2D: Khezu and its variant, code in overlay em15"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em15 tests 0xF"
+
+[[class]]
+vtable = "089BBCA8"
+name = "GraviosBasarios"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x11 0x16 0x2F: Gravios, Basarios, a Gravios variant, code in overlay em17"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em17 tests those three"
+
+[[class]]
+vtable = "089BBAB0"
+name = "Plesioth"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x15 0x2E: Plesioth and its variant, code in overlay em21"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BB9B4"
+name = "Kirin"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x21: Kirin, code in overlay em33"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BB8B8"
+name = "YianGaruga"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x28 0x4E: Yian Garuga and its second entry, code in overlay em40"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em40 tests 0x28"
+
+[[class]]
+vtable = "089BEDC0"
+name = "KushalaLunastraTeostra"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x36 0x3C 0x40 0x41: Kushala Daora, Rusted entry, Lunastra, Teostra, vtable in overlay em54"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em54 tests those four; ctor em54 9D2EC30"
+
+[[class]]
+vtable = "089BEF28"
+name = "ShenGaoren"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x37: Shen Gaoren, vtable in overlay em55"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, ctor em55 9D20E40"
+
+[[class]]
+vtable = "089BF024"
+name = "YamaTsukami"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x3A: Yama Tsukami, vtable in overlay em58; the list has it again at 0x48"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, ctor em58 9D21BF0; em58 tests 0x48"
+
+[[class]]
+vtable = "089BF1F8"
+name = "Chameleos"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x3B: Chameleos, vtable in overlay em59"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, ctor em59 9D26B68"
+
+[[class]]
+vtable = "089BB7BC"
+name = "TigrexAkantorNargacugaUkanlos"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x4B 0x4C 0x51 0x58: Tigrex, Akantor, Nargacuga, Ukanlos, code in overlay em75, one overlay for all four"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM, em75 tests those four"
+
+[[class]]
+vtable = "089BB6C0"
+name = "Hypnocatrice"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x52: Hypnocatrice, code in overlay em82"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"
+
+[[class]]
+vtable = "089BB5C4"
+name = "Lavasioth"
+base = "Monster"
+confidence = "inferred"
+note = "Monster subclass for types 0x53: Lavasioth, code in overlay em83"
+evidence = "game_task 09AB16D8 (allocator switch on type); names from the type-indexed name list in RAM"

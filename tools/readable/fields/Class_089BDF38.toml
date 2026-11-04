@@ -1,0 +1,63 @@
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x24
+name = "kind"
+type = "u8"
+confidence = "confirmed"
+note = "which effect"
+evidence = "game_sub 9C7F7D8, 9C814C0 and 9C82AF0 switch on it; 9C84B88 reads element counts by it"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x2B
+name = "owner_asset_id"
+type = "u8"
+confidence = "inferred"
+note = "owner's subtype for some kinds: finds the model's asset slot"
+evidence = "game_sub 9C7F7D8 copies owner subtype; 9C82AF0 passes it to asset_slots_9_12_find_index_by_id"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x38
+name = "timer_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks since start, against the kind's limit"
+evidence = "game_sub 9C7F7D8 zeroes it; 9C814C0 increments it and compares"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x3C
+name = "scale"
+type = "f32"
+confidence = "inferred"
+note = "size of its elements"
+evidence = "game_sub 9C814C0 and 9C7F7D8 multiply element positions and scale by it"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x1A2
+name = "variant"
+type = "u8"
+confidence = "guess"
+note = "second selector for some kinds"
+evidence = "game_sub 9C814C0 tests it with kind 5; 9C82AF0 picks a group by it"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x1A4
+name = "node_draw_fn"
+type = "u32"
+confidence = "inferred"
+note = "draws one node; member function pointer, 3 words"
+evidence = "game_sub 9C7F7D8 installs 9C82AF0 here"
+
+[[field]]
+struct = "Class_089BDF38"
+offset = 0x1B0
+name = "node_queue_fn"
+type = "u32"
+confidence = "inferred"
+note = "queues the nodes; member function pointer, 3 words"
+evidence = "game_sub 9C7F7D8 installs 9C84B88 here, which inserts the element nodes in render queue 7"

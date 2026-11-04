@@ -1,0 +1,739 @@
+[[field]]
+struct = "Class_089BB450"
+offset = 0x50
+name = "model_data"
+type = "ptr"
+confidence = "inferred"
+note = "model file data the meshes are drawn from"
+evidence = "game_task 9A72E48 passes its address to gpu_emit_model_mesh; 9A75148 reads groups through it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x58
+name = "material_table"
+type = "u32"
+confidence = "inferred"
+note = "address of the materials, 0x10 bytes each, edited before drawing"
+evidence = "game_task 9A75148 writes bytes at this + material index * 0x10"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11C8
+name = "attack_base"
+type = "f32"
+confidence = "confirmed"
+note = "attack before bonuses: record +0x18 plus byte +0x4C"
+evidence = "game_task 9A74248 sets it; 9A86AC8 starts attack_value from it, truncated"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11CC
+name = "defense_base"
+type = "f32"
+confidence = "confirmed"
+note = "defense before bonuses: record +0x1C plus byte +0x4D"
+evidence = "game_task 9A74248 sets it; 9A86D10 starts defense_value from it, truncated"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11D0
+name = "speed_scale"
+type = "f32"
+confidence = "inferred"
+note = "1.0, times 1.25 with skill bit 0x200; scales turn rate and walking speed"
+evidence = "game_task 9A74248 sets it; 9A77EF8 multiplies it into the rate given to 9A85300 and into the 40.0 velocity"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11D4
+name = "state_21_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent chance rolled into state_21_rolled; record +0x29, plus 20 with skill bit 0x40"
+evidence = "game_task 9A74248 sets it; 9A85948 rolls against it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11D8
+name = "points_tier"
+type = "s32"
+confidence = "inferred"
+note = "0..5 from the record's points (+0x2A) at 1000/2500/4500/6000/7000; picks the chance table; 5 adds 20 attack and defense"
+evidence = "game_task 9A74248 computes it; 9A88028 switches on it; 9A86AC8 and 9A86D10 test 5; EBOOT status panel draws 0-5 stars from the same +0x2A"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11E0
+name = "skill_mask_low"
+type = "u32"
+confidence = "inferred"
+note = "low word of the record's 64-bit skill mask (+0x34); each bit gates a behaviour or bonus"
+evidence = "game_task 9A74248 copies it; 9A75B80, 9A86AC8, 9A86D10, 9A87168, 9A87218 test bits; names/b01-005 reads a 64-bit mask in the roster panel"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11E4
+name = "skill_mask_high"
+type = "u32"
+confidence = "inferred"
+note = "high word of the skill mask (+0x38)"
+evidence = "game_task 9A74248 copies it; 9A86328, 9A87A30, 9A86AC8, 9A77EF8 test bits 1, 2, 4, 8"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11E9
+name = "state_19_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent: a roll under it takes states 0x19/0x1A, otherwise 0x1B/0x1C; -1 means neither, 0xF or 0x10"
+evidence = "game_task 9A75B80 tests -1 and rng; 9A74248 reads it from a table by record +0x4B"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11EA
+name = "state_0_health_loss_percent"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "state 0 starts once health is at or under (100 - this)% of health_max"
+evidence = "game_task 9A75B80 and 9A79558 compare health against it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11ED
+name = "attack_value_tier"
+type = "u8"
+confidence = "confirmed"
+note = "0, 1 or 2 by attack_value under 151, under 301, or above; set with sharpness_level"
+evidence = "game_task 9A88028, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11EE
+name = "model_variant"
+type = "s8"
+confidence = "confirmed"
+note = "copy of g_game npc_variant: picks mesh groups and voice"
+evidence = "game_task 9A74248 copies; 9A72E48 picks meshes by 0/1/2; 9A8ADE0 picks the sound by it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11F0
+name = "state_2_chance_near_monster"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 2 when 9A84BF0 found a part of the monster in reach"
+evidence = "game_task 9A75B80; values from 9A88028"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11F1
+name = "state_2_chance_near_entry"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 2 when 9A84ED8 found a quest table entry"
+evidence = "game_task 9A75B80; values from 9A88028"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11F8
+name = "state_1d_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 0x1D when state_1d_request is set"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11F9
+name = "list_a_roll_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent stored per monster in the 8-byte list at +0x1224 (byte +5)"
+evidence = "game_task 9A84338 rolls it for monsters with +0x3CF == 2"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11FA
+name = "list_b_roll_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent stored per monster in the 8-byte list at +0x12C4 (byte +4)"
+evidence = "game_task 9A84688"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11FB
+name = "state_14_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 0x14 when state_14_count reaches 15"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11FD
+name = "state_9_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 9, with skill 0x4000000 while the owner has drain_status_seconds"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11FE
+name = "state_3_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 3 (skill bit 1) with none of the listed items in the pouch"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x11FF
+name = "state_3_chance_with_item"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "as state_3_chance when the pouch holds a listed item"
+evidence = "game_task 9A75B80 loops item_pouch_slot_ptr over 0x18 slots"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1200
+name = "state_4_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 4 (skill bit 2) with the owner at 30-80% health"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1201
+name = "state_4_chance_owner_low"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "as state_4_chance, the owner at 30% health or under"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1202
+name = "state_5_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 5 (skill 0x100000) with the owner at 30-60% health"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1203
+name = "state_5_chance_owner_low"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "as state_5_chance, the owner at 30% health or under"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1204
+name = "state_6_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 6 (skill bit 4)"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1205
+name = "state_7_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 7 (skill bit 8), the owner's defense_halved_ticks at 0"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1206
+name = "state_7_chance_owner_halved"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "as state_7_chance, defense_halved_ticks running"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1207
+name = "state_1c_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for 0x1C instead of 0x1B, with skill bit 0x10"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1208
+name = "state_8_chance"
+type = "s8"
+confidence = "inferred"
+decimal = true
+note = "percent for state 8 (skill bit 0x100), less g_quest event_b_action_count"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x120A
+name = "map_detect_chance"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "percent for map_detect_skill_ticks 300 at each roll, with skill bit 0x8000000"
+evidence = "game_task 9A87168, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x120C
+name = "ai_state_step"
+type = "u8"
+confidence = "confirmed"
+note = "step within the current state of this class; zeroed on a state change"
+evidence = "game_task 9A77EF8 switches on it; 9A77850 zeroes it; the state functions advance it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x120E
+name = "state_19_step"
+type = "u8"
+confidence = "inferred"
+note = "step of states 0x19/0x1A"
+evidence = "game_task 9A7EB60 switches on it; 9A77850 zeroes it entering them"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x120F
+name = "state_1b_step"
+type = "u8"
+confidence = "inferred"
+note = "step of states 0x1B/0x1C"
+evidence = "game_task 9A7F8F8 switches on it; 9A77850 zeroes it entering them"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1210
+name = "state_1d_step"
+type = "u8"
+confidence = "inferred"
+note = "step of state 0x1D"
+evidence = "game_task 9A77850 zeroes it entering 0x1D; 9A75B80 tests 1 and 2"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1214
+name = "owner"
+type = "ptr"
+confidence = "confirmed"
+note = "the local hunter this object follows"
+evidence = "game_task 9A74248 stores hunter_manager_get_slot(local_hunter_slot); nearly every method reads the place, area and state through it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1218
+name = "target_key"
+type = "s16"
+confidence = "inferred"
+note = "compared with monsters' +0x4AC to find the current target"
+evidence = "game_task 9A77EF8, 9A7BF28, 9A7C3E8 walk the 20 monsters for a match, then face it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x121C
+name = "target_part"
+type = "ptr"
+confidence = "inferred"
+note = "record from 9A84BF0 for the monster in reach; +0xC is a radius scaled by the monster's scale"
+evidence = "game_task 9A75B80 stores and reads it; 9A7EB60 and 9A7F8F8 pass it to 9A84DE0 for a position"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1220
+name = "near_quest_entry"
+type = "ptr"
+confidence = "inferred"
+note = "nearest quest table entry from 9A84ED8, or 0"
+evidence = "game_task 9A75B80 stores it; 9A78E38 reads +0x12 and passes it to EBOOT 88738D4"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13B4
+name = "sweep_pushed_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "ticks in a row the map sweep moved it, capped at 90; 90 starts state 0x12"
+evidence = "game_task 9A85818, whole read: zero when the sweep moved nothing; 9A75B80 tests 90"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13B6
+name = "state_14_count"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "counts to 15, then state_14_chance is rolled"
+evidence = "game_task 9A75B80 counts, resets and rolls"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13B8
+name = "state_14_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "150 after the roll; no counting while it runs"
+evidence = "game_task 9A75B80 sets and tests; 9A85FB0 counts down"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13BA
+name = "state_9_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "300 after state_9_chance is rolled"
+evidence = "game_task 9A75B80; 9A85FB0 counts down; 9A74B98 raises to at least 30"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13BC
+name = "state_3_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "600 after a state 3 roll"
+evidence = "game_task 9A75B80; 9A85FB0; 9A74B98"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13BE
+name = "state_4_5_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "300 after a state 4 or 5 roll"
+evidence = "game_task 9A75B80; 9A85FB0; 9A74B98"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C0
+name = "state_6_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "600 after a state 6 roll"
+evidence = "game_task 9A75B80; 9A85FB0; 9A74B98"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C2
+name = "state_7_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "600 after a state 7 roll"
+evidence = "game_task 9A75B80; 9A85FB0; 9A74B98"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C4
+name = "state_8_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "5400 after a state 8 roll"
+evidence = "game_task 9A75B80; 9A85FB0; 9A74B98"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C6
+name = "state_1_cooldown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "300 from state 1; state 1 or 2 by near_quest_entry waits for 0"
+evidence = "game_task 9A78E38 sets; 9A75B80 tests; 9A85FB0 counts down"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C8
+name = "state_21_rolled"
+type = "u8"
+confidence = "inferred"
+note = "nonzero: the next hit takes state 0x21; 9A87A30 cancels it for many hit types"
+evidence = "game_task 9A85948 rolls; 9A87A30 clears; 9A75B80 consumes; 9A82AE0 branches past damage scaling"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13C9
+name = "draw_enabled"
+type = "u8"
+confidence = "confirmed"
+note = "nonzero draws it"
+evidence = "game_task 9A72E48 and 9A73230 test it; the hide states clear it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13CA
+name = "map_sweep_enabled"
+type = "u8"
+confidence = "confirmed"
+note = "1 runs the map sweep each tick"
+evidence = "game_task 9A85818, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13CB
+name = "floor_clamp_enabled"
+type = "u8"
+confidence = "confirmed"
+note = "1 keeps place[1] at or above the floor"
+evidence = "game_task 9A858D0, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13CD
+name = "owner_state_last"
+type = "u8"
+confidence = "confirmed"
+note = "the owner's state last tick; a change starts the item effects"
+evidence = "game_task 9A86190 stores; 9A86400 compares"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13D0
+name = "owner_place_last"
+type = "f32x4"
+confidence = "confirmed"
+note = "the owner's place last tick, words copied"
+evidence = "game_task 9A86190, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13E0
+name = "owner_area_last"
+type = "u16"
+confidence = "confirmed"
+note = "the owner's area_id last tick; a change appends to the trail"
+evidence = "game_task 9A86190, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x13F0
+name = "trail_place_0"
+type = "f32x4"
+confidence = "inferred"
+note = "first of 20 places left to walk, in order; used while trail_count is nonzero"
+evidence = "game_task 9A86190 appends; 9A77EF8 walks to it and shifts the rest down"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1590
+name = "trail_area_0"
+type = "u16"
+confidence = "inferred"
+note = "area of trail_place_0; the rest follow at 2 bytes each"
+evidence = "game_task 9A77EF8 compares with area_id; 9A86190 appends"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15C4
+name = "trail_count"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "places in the trail"
+evidence = "game_task 9A86190 adds 2 on an owner area change; 9A77EF8 removes as they are reached"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15C8
+name = "state_1d_request"
+type = "u8"
+confidence = "guess"
+note = "1 asks for the state_1d_chance roll; no setter found"
+evidence = "game_task 9A75B80 tests and clears; 9A74248 zeroes"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CA
+name = "state_1e_pending"
+type = "u8"
+confidence = "inferred"
+note = "hit power above 30 sets it; the next update takes state 0x1E"
+evidence = "game_task 9A87A30 sets; 9A75B80 consumes"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CB
+name = "health_emptied"
+type = "u8"
+confidence = "confirmed"
+note = "health reached 0; cleared at frame 15 of return motion 0x44C"
+evidence = "game_task 9A85B58 sets, 9A87218 clears, whole reads"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CC
+name = "state_2d_pending"
+type = "u8"
+confidence = "inferred"
+note = "drain took the last health while health_emptied; next update takes state 0x2D"
+evidence = "game_task 9A82AE0 sets; 9A75B80 consumes"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CD
+name = "return_attack_stacks"
+type = "s8"
+confidence = "confirmed"
+decimal = true
+note = "up to 8, each adds 10 attack, one per return, with skill 0x80000000"
+evidence = "game_task 9A87218 counts; 9A86AC8 multiplies by 10"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CE
+name = "hide_kind"
+type = "u8"
+confidence = "inferred"
+note = "1 hidden with health left, 2 hidden with none, 0 otherwise; no reader found"
+evidence = "game_task 9A77EF8 sets 1 and 2 and clears; 9A77850 clears"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15CF
+name = "update_stopped"
+type = "u8"
+confidence = "confirmed"
+note = "nonzero skips the whole per-tick update"
+evidence = "game_task 9A74EE8, whole read; 9A77EF8 step 0xD sets it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15D0
+name = "return_effect_due"
+type = "u8"
+confidence = "confirmed"
+note = "set hiding with none left; 9A87218 consumes it at frame 15 of motion 0x44C"
+evidence = "game_task 9A77EF8 sets, 9A87218 tests"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15D1
+name = "state_14_count_done"
+type = "u8"
+confidence = "inferred"
+note = "set at count 15 and by the roll; blocks counting again"
+evidence = "game_task 9A75B80"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15D3
+name = "was_state_2"
+type = "u8"
+confidence = "inferred"
+note = "a trail began in state 2; from idle state 0x11 it then takes 0x16, not 0x15"
+evidence = "game_task 9A75B80 sets and tests; 9A74248 zeroes"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15D4
+name = "startup_ticks"
+type = "s16"
+confidence = "guess"
+decimal = true
+note = "starts at 30 in setup and counts down; the view lost the branch on it"
+evidence = "game_task 9A74248 sets 0x1E; 9A85FB0 counts down; 9A75B80 tests above 0"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15D6
+name = "drop_check_armed"
+type = "u8"
+confidence = "inferred"
+note = "set entering state 0x13/0x17, the drop-ahead states; the next pair tests how far it moved"
+evidence = "game_task 9A77850, whole read of its head"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15E0
+name = "drop_check_place"
+type = "f32x4"
+confidence = "inferred"
+note = "place when armed, or at idle state 0x11"
+evidence = "game_task 9A77850 stores it"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15F0
+name = "drop_check_moved"
+type = "f32"
+confidence = "inferred"
+decimal = true
+note = "distance from drop_check_place on reaching 0x11; 100 or less plus 50 or less now swaps the drop for state 0x12"
+evidence = "game_task 9A77850"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15F4
+name = "motion_restarted"
+type = "u8"
+confidence = "inferred"
+note = "1 when the state replays the same motion; cue 0x445 skips a sound then"
+evidence = "game_task 9A79558 step 7 sets; 9A77850 clears; 9A88438 tests"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x15FC
+name = "state_countdown"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "ticks left in a step; 9A77850 zeroes it"
+evidence = "game_task 9A77EF8 sets to 60, 20, 14 and counts down"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1600
+name = "cycle_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "counts up while no fixed motion or state is set; picks cycle_frame"
+evidence = "game_task 9A75030, whole read"
+
+[[field]]
+struct = "Class_089BB450"
+offset = 0x1602
+name = "cycle_frame"
+type = "u8"
+confidence = "confirmed"
+note = "0, 1, 2 from cycle_ticks/2 mod 20; 2 or 3 fixed by motion, 3 in state group 3; indexes colours in the draw"
+evidence = "game_task 9A75030, whole read; 9A75148 uses it times 4 on a table"

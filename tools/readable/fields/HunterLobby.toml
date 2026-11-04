@@ -1,0 +1,189 @@
+[[field]]
+struct = "HunterLobby"
+offset = 0xBC
+name = "motion_part0_flags"
+type = "u16"
+confidence = "inferred"
+note = "bit 0 clear means the motion has ended, as on Hunter"
+evidence = "lobby_task 9AAB318, 9AACDD0"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0xBE
+name = "motion_part0_blending"
+type = "s8"
+confidence = "inferred"
+note = "as on Hunter: 9AABDA8 waits for 0"
+evidence = "lobby_task 9AABDA8"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x1D5
+name = "state_step"
+type = "u8"
+confidence = "confirmed"
+note = "step within the current state; zeroed on a state change"
+evidence = "lobby_task 9AAF0D0, 9AAEE10; 9AACDD0 and 9AAB6C0 branch on it"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x1D6
+name = "state_scratch_a"
+type = "u8"
+confidence = "guess"
+note = "zeroed on a state change, as on Hunter"
+evidence = "lobby_task 9AAEE10 and 9AAF0D0"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x1D7
+name = "state_scratch_b"
+type = "u8"
+confidence = "inferred"
+note = "zeroed on a state change, as on Hunter"
+evidence = "lobby_task 9AAEE10 and 9AAF0D0; 9AAAE60 reads"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x20C
+name = "place_w"
+type = "u32"
+confidence = "inferred"
+note = "fourth word of place, copied only"
+evidence = "lobby_task 9AA94C8"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x21C
+name = "place_before_w"
+type = "u32"
+confidence = "inferred"
+note = "fourth word of place_before"
+evidence = "lobby_task 9AA94C8"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x2F4
+name = "linked_object"
+type = "ptr"
+confidence = "inferred"
+note = "the NPC this hunter is doing timed state 9AACDD0 with; cleared after"
+evidence = "lobby_task 9AACDD0 reads place and calls npc_set_state on it; game_sub 9C9A4C8 reads it"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x322
+name = "state_random"
+type = "u16"
+confidence = "inferred"
+note = "fresh value on a state change"
+evidence = "lobby_task 9AAEE10, 9AAEFA8"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x4F6
+name = "equip_part0_id"
+type = "u16"
+confidence = "confirmed"
+note = "equipped piece of category 0, copied at setup"
+evidence = "EBOOT 88D66F4 from g_game equipped_part0_id; a hunter_ function typed by what it ran on, so may belong on HunterBase"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x502
+name = "equip_part1_id"
+type = "u16"
+confidence = "confirmed"
+note = "as equip_part0_id, category 1"
+evidence = "EBOOT 88D66F4"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x50E
+name = "equip_part2_id"
+type = "u16"
+confidence = "confirmed"
+note = "as equip_part0_id, category 2"
+evidence = "EBOOT 88D66F4"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x51A
+name = "equip_part3_id"
+type = "u16"
+confidence = "confirmed"
+note = "as equip_part0_id, category 3"
+evidence = "EBOOT 88D66F4"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x526
+name = "equip_part4_id"
+type = "u16"
+confidence = "confirmed"
+note = "as equip_part0_id, category 4"
+evidence = "EBOOT 88D66F4"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x554
+name = "area_zone"
+type = "ptr"
+confidence = "confirmed"
+note = "0x18-byte zone record containing the local hunter, or 0"
+evidence = "lobby_task 9AAF290, whole read; 9AAD350 uses +0x16 as a stage id"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x565
+name = "hud_request"
+type = "u8"
+confidence = "guess"
+note = "cleared per tick; named as on Hunter"
+evidence = "lobby_task 9AA94C8"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x5C8
+name = "wait_finished"
+type = "u8"
+confidence = "inferred"
+note = "nonzero ends wait states 9AAB4B8 and 9AAB6C0; 1 goes on to state 8"
+evidence = "lobby_task 9AAB4B8, 9AAB6C0"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x5F2
+name = "sharpness_level"
+type = "u8"
+confidence = "confirmed"
+note = "level from sharpness_max at reset"
+evidence = "lobby_task 9AA9470 calls hunter_sharpness_level_from_value"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x698
+name = "timing_ticks"
+type = "s16"
+confidence = "confirmed"
+decimal = true
+note = "ticks since the timed state began; ends at 300 or button 0x4000"
+evidence = "lobby_task 9AACDD0"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x69A
+name = "timing_result"
+type = "u8"
+confidence = "confirmed"
+note = "by timing_ticks: 0 under 170, 1 under 260, 2 under 280 except 4 at 268-272, 3 from 280; picks the NPC state and sound"
+evidence = "lobby_task 9AACDD0"
+
+[[field]]
+struct = "HunterLobby"
+offset = 0x10F8
+name = "net_synced_flags"
+type = "u32"
+confidence = "inferred"
+note = "bit 0: idle goes to state 0xC; sent and received in the position message"
+evidence = "lobby_task 9AB08E8 sends, 9AB0A28 sets it from +0x19, 9AAAD60 tests, 9AAD350 clears"

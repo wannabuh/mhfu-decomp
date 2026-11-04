@@ -69,8 +69,11 @@ To trust one, all of these, as a first-try pass means little by itself:
    `LLVM_PROFILE_FILE=dir/%p-%c.profraw`, then `llvm-cov show ... --show-branches=count`): every branch both ways, or a reason it can't be.
 3. Bugs put in on purpose, one at a time. Each must be caught or shown to change nothing. Random inputs without stubs let real bugs past.
    `tools/readable/handbugs.py readable/x.c WORK/bugs/x.txt` does it from a list of `old -> new` lines kept out of the repo, in the test worktree.
-4. `tools/suite.py`, and `tools/readable/trace.py` over the recordings with `TRACE_BIN=build/mhfu`: RAM hashes against the earlier runs.
-   Compare only the hashes both runs have: when a replay stops can add one at the end.
+4. `tools/suite.py --no-ram` (the hunter's actions, rates, save states) and `tools/readable/handdiff.py` over the recordings. The second replays
+   each with `MHFU_HAND=1` and `0` and accounts for every word of RAM that differs. Plain RAM hashes stop matching once hand-written code is deep
+   enough, without any change in what happens: the game builds some structures on the stack with a word unset (sound voice records, a position's
+   fourth word), and hand-written code leaves other bytes there. Audio output was byte-identical. Anything not on the tool's short list fails: add to the
+   list only with evidence. `MHFU_HAND=0` should still match the baselines' RAM: `tools/suite.py` with it in the environment.
 5. Someone playing it: replays can't tell how it feels.
 
 ## What the view gets wrong

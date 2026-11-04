@@ -1,0 +1,551 @@
+[[function]]
+module = "game_sub"
+address = "09C56F20"
+name = "class_089bdc58_destructor"
+purpose = "Base destructor of the effect classes: unless null, reinstalls vtable 089BDC58 and calls object_delete_noop when the short argument is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class_089bdec0 and class_089be230 destructors call it."
+
+[[function]]
+module = "game_sub"
+address = "09C55B00"
+name = "motion_cue_own_bank_sound_at_frame"
+purpose = "When sound_cue_mute_timer is 0 and the motion reaches frame param_2, plays sound param_3 from the hunter's own bank at its place with its sound_distance_param."
+confidence = "confirmed"
+evidence = "Whole body read: motion_frame_reached then hunter_play_own_bank_sound_if_29a_matches."
+
+[[function]]
+module = "game_sub"
+address = "09CAFEF0"
+name = "class_089be190_alloc_element_for_self"
+purpose = "Allocates one element from the manager's pool with the top byte of id +0x20 as tag, stores it at +0x44, sets count +0x41 to 1 and the element's owner to self; returns whether it succeeded."
+confidence = "inferred"
+evidence = "Whole body read: entity_manager_alloc_element_run(mgr, 1, +0x20 >> 24, 0), spawn_manager_slot_set_owner. Class from its callers, which create 089BE190 objects with 09C2FF20."
+
+[[function]]
+module = "game_sub"
+address = "09C2FF20"
+name = "class_089be190_create_type_21"
+purpose = "Allocates and zeroes a 0x110-byte object on the manager heap, gives it vtable 089BE190 and sets +0x20 to the next serial with 0x21 in the top byte; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read: mem_heap_alloc_aligned 0x110, class_089bdc58_init, vtable store, serial | 0x21000000."
+
+[[function]]
+module = "game_sub"
+address = "09CAFED8"
+name = "class_089be190_set_short_90_92_94_and_pointers_2c_30"
+purpose = "Stores param_2 to short +0x90, param_3 and param_4 to words +0x2C and +0x30, and param_5 and param_6 to shorts +0x92 and +0x94."
+confidence = "confirmed"
+evidence = "Whole body read. Class from its callers."
+
+[[function]]
+module = "game_sub"
+address = "09C79278"
+name = "class_089bdee8_spawn_at_position_for_owner_in_area"
+purpose = "If the owner exists and object_29a_matches_game_6af0e, creates a 089BDEE8 object with kind +0x24, position +0x10, short +0x3A, owner +0xC and float +0x3C from the arguments, and links it at the head of the manager's list."
+confidence = "inferred"
+evidence = "Body read: 09C2E920 creates it, fx_base_init, field stores, list head at manager +0x19030 and count +0x19034."
+
+[[function]]
+module = "game_sub"
+address = "09C35830"
+name = "math_point_offset_along_vector_to_radius"
+purpose = "Writes origin + vector * (radius / length) to the output and scales the vector in place; when length is under 0.001 writes the origin."
+confidence = "confirmed"
+evidence = "Whole body read: vscl_t(param_2, f13 / f12), vadd_t with param_1. Called only by the capsule test 09C34878 for contact points."
+
+[[function]]
+module = "game_sub"
+address = "09CA6928"
+name = "effect_flag2_clear_and_owner_1d7_not_3"
+purpose = "Returns 1 when flag mask 2 of +0x48 is clear and owner (+0xC) byte +0x1D7 is not 3."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C5F220"
+name = "effect_owner_bone_local_point_to_world"
+purpose = "Transforms a local point by the bone matrix param_4 of the owner at +0xC and writes the world position to param_2."
+confidence = "confirmed"
+evidence = "Whole body read: object_get_bone_matrix, vtfm3_t, plus the matrix's translation at words 0xC..0xE."
+
+[[function]]
+module = "game_sub"
+address = "09C57170"
+name = "object_subtype_in_fixed_set_of_11"
+purpose = "Returns 1 if the byte is one of 0x52, 0x4E, 0x28, 0x2D, 0x0F, 0x16, 0x27, 0x14, 0x08, 0x26, 0x06."
+confidence = "confirmed"
+evidence = "Whole body read; 09C73958 passes an object's subtype (+0x1E8). What the set means is not shown."
+
+[[function]]
+module = "game_sub"
+address = "09C1A9B8"
+name = "quest_flags_list_all_set_by_table_and_index"
+purpose = "With param 0 calls f_EBOOT_8854C5C, otherwise 8854BEC, for list index arg_a2: each walks a zero-ended list of ids (tables 089B1FB0 and 089B1FDC) and returns 1 if quest_id_flag_test holds for all."
+confidence = "confirmed"
+evidence = "Read this body and both callees whole."
+
+[[function]]
+module = "game_sub"
+address = "09CADF18"
+name = "class_089be190_spawn_mode_20f"
+purpose = "Creates a 089BE190 object, runs its +0x18 method and 09CAFED8, sets mode short +0x60 to 0x20F, copies three vectors to +0xA0, +0xB0, +0xC0 and one to +0xE0, words to +0xF0, +0xF8, +0xFC, zeroes +0x70, links it and allocates its element, installing a member function if that fails."
+confidence = "inferred"
+evidence = "Body read: 09C2FF20, field stores, list head at manager +0x19030, 09CAFEF0, member function from DAT_09CF69D8."
+
+[[function]]
+module = "game_sub"
+address = "09C36728"
+name = "math_closest_point_on_segment_with_unit_dir"
+purpose = "Projects param_4 on the segment from param_1 along unit direction param_3 of length arg_f12 and writes the clamped closest point: param_1 before the start, param_2 past the end."
+confidence = "confirmed"
+evidence = "Whole body read: dot of (point - start) with direction, compared to 0 and the length."
+
+[[function]]
+module = "game_sub"
+address = "09C1E3C0"
+name = "gamedata_record_696fc_is_nonzero"
+purpose = "Returns whether byte +0x696FC of record arg_a1 (stride 0x70) in the game global is nonzero."
+confidence = "confirmed"
+evidence = "Whole body read; same records as gamedata_count_records_696fc_nonzero_first5."
+
+[[function]]
+module = "game_sub"
+address = "09C55C00"
+name = "motion_cue_bank3_sound_at_frame"
+purpose = "When sound_cue_mute_timer is 0 and the motion reaches frame param_2, plays sound param_3 of bank 3 with sound_play_3d at the hunter's place."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C56840"
+name = "motion_cue_bank1_sound_8883de4_at_frame"
+purpose = "When the object's motion reaches frame param_2, plays sound param_3 of bank 1 through f_EBOOT_8883DE4 at its place with words +0x408 and +0x40C. No mute check."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C569C0"
+name = "motion_cue_part_sound_9c56a38_at_frame"
+purpose = "When the object is in the current area and the motion reaches frame param_2, calls 09C56A38 with param_3, which picks a bank 1 sound from tables indexed by the hunter's part ids."
+confidence = "confirmed"
+evidence = "Whole body read, and the start of 09C56A38."
+
+[[function]]
+module = "game_sub"
+address = "09C241A0"
+name = "records_69bec_draw_list_panel"
+purpose = "Draws a menu list panel for the 0x70-byte records at game +0x69BEC: group param_5 0 shows 3 rows from record 0, 1 and 2 show 5 rows from record 3 and 8; a row's text comes from the record's byte +1 through a string table, greyed when empty, with an end-cap style and a highlight on row param_4."
+confidence = "inferred"
+evidence = "Body read: libc_sprintf title, menu_list_draw, hud_fill_rect_pulsing_alpha for the highlight, loop with text_printf_at. Called with mode param_1 by 09C23998."
+
+[[function]]
+module = "game_sub"
+address = "09C5F2A8"
+name = "effect_elements_pick_4_distinct_bone_points_of_10"
+purpose = "For 4 elements of stride 0x60 picks a distinct index below 10 with math_rng_next (rank among the unused), stores it at +0xB1, a random short at +0xA8, a table scale times 0.9 to 1.1 at +0xAC, and the world position of that table entry's bone point at +0x70."
+confidence = "inferred"
+evidence = "Body read: rank bumped past used indexes, table DAT_09CE64A0 of 0x30-byte entries, 09C5F220."
+
+[[function]]
+module = "game_sub"
+address = "09CAE4D0"
+name = "class_089be190_spawn_mode_00c"
+purpose = "Creates a 089BE190 object, runs its +0x18 method and 09CAFED8, sets mode short +0x60 to 0xC, copies vectors to +0x10, +0x70 and +0xC0 and words to +0xF8 and +0xFC, links it and allocates its element, installing a member function if that fails."
+confidence = "inferred"
+evidence = "Body read; same shape as 09CADF18 with different fields."
+
+[[function]]
+module = "game_sub"
+address = "09C61018"
+name = "class_089bdd80_spawn_at_owner_bone_2_scaled_by_kind"
+purpose = "If the owner is in the current area, creates a 089BDD80 object, positions it at the owner's bone 2, sets +0x3C by kind (+0x24 9 and 0 use owner scale times a weapon class table, or a constant for kind 0 owners; others 1.0); kind 0 also spawns a further effect at that bone; links it."
+confidence = "inferred"
+evidence = "Body read: class_089bdd80_alloc_for_owner_if_allowed, object_get_bone_position with 2, class_089bdd80_effect_spawn_at_object_bone, list head at manager +0x19030."
+
+[[function]]
+module = "game_sub"
+address = "09C753D0"
+name = "class_089bdec0_spawn_at_position"
+purpose = "Creates a 089BDEC0 object with kind param_2, no owner, scale and position; kinds below 5 get a random +0x3A; kinds 0 and 0x10 also spawn a kind 8 at the same place; kind 0xB scales +0x3C by 0.7; links it."
+confidence = "confirmed"
+evidence = "Whole body read: node_mgr_09d19860_alloc_class_089bdec0, fx_base_init, recursive call with 8."
+
+[[function]]
+module = "game_sub"
+address = "09C2F910"
+name = "class_089be0f0_create_type_1c"
+purpose = "Allocates and zeroes a 0x470-byte object on the manager heap, gives it vtable 089BE0F0 and sets +0x20 to the next serial with 0x1C in the top byte; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C55CA8"
+name = "motion_cue_bank1_sound_at_frame_local_hunter_only"
+purpose = "When sound_cue_mute_timer is 0, the hunter's instance_index is local_hunter_slot and the motion reaches frame param_2, plays sound param_3 of bank 1 with sound_play_3d."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C6F768"
+name = "class_089bde98_spawn_at_owner_bone_3_on_floor"
+purpose = "If the object is in the current area, takes its bone 3 position with Y from floor_y and spawns a 089BDE98 effect of kind param_2 there; kind 0x13 also spawns a 089BDF38 effect and a kind 0xE 089BDE98 effect."
+confidence = "inferred"
+evidence = "Whole body read; f_EBOOT_88D2B90 read as a bone position from its matrix transform of bone +0x30."
+
+[[function]]
+module = "game_sub"
+address = "09CA6968"
+name = "effect_element_add_random_to_30_34_38"
+purpose = "Adds arg_f12 times a separate math_random_float_signed_1_024 to each of floats +0x30, +0x34 and +0x38."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C2B830"
+name = "dialog_box_init_layout_from_text"
+purpose = "Sets up a dialog box record from flags (0x80 and 0x40 as booleans, low 6 bits a style), text and character size: measures the text's lines, widens for styles 2 and 3, and centres the box on 240, 136."
+confidence = "inferred"
+evidence = "Body read: str_chr on newline, text_measure_width_units_with_escapes, +0xC = 0xF0 - width/2, +0xE = 0x88 - height/2; dialog_box_tick_and_draw calls it."
+
+[[function]]
+module = "game_sub"
+address = "09C94750"
+name = "class_089bddd0_spawn_above_position_by_kind"
+purpose = "Spawns 089BDDD0 effects 15 above XZ of a position: kind 2 spawns types 4 and 1, kind 1 types 3 and 0 (the second 5 higher), others type 7; passes whether stage_id is 0xEF."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C2E920"
+name = "class_089bdee8_create_type_0f"
+purpose = "Allocates and zeroes a 0x220-byte object on the manager heap, gives it vtable 089BDEE8, sets +0x20 to the next serial with 0x0F in the top byte and stores the manager's fixed pointers; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C2FC78"
+name = "class_089be168_create_type_1f"
+purpose = "Allocates and zeroes a 0x2F0-byte object on the manager heap, gives it vtable 089BE168, sets +0x20 to the next serial with 0x1F in the top byte and stores the manager's fixed pointers; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C27628"
+name = "records_69bec_fill_state_0_empty_1_full_2_some"
+purpose = "Counts empty ones among records 3 to 12 at game +0x69BEC: none empty returns 1; all empty and records 0 to 2 also empty returns 0; otherwise 2."
+confidence = "confirmed"
+evidence = "Whole body read; the view's +0x150 start is record 3 of stride 0x70."
+
+[[function]]
+module = "game_sub"
+address = "09C344B0"
+name = "table_09cd37f0_find_entry_by_id"
+purpose = "Searches the 6-byte entries of the zero-ended table at DAT_09CD37F0 for short id arg_a1 and returns the entry, or 0."
+confidence = "confirmed"
+evidence = "Whole body read; callers read the entry's byte +2."
+
+[[function]]
+module = "game_sub"
+address = "09C8A768"
+name = "class_089bdfb0_spawn_at_object_bone_offset_along_facing"
+purpose = "If the object is in the current area: kinds 3 and 2 start from bone 5 and 8 at floor_y, moved 50 along facing for side 2 or -50 for side 3; tries class_089bdfb0_spawn_fx_for_code_and_play_sound, and if that returns 0 creates a 089BDFB0 object with kind, scale, side, owner and position and links it."
+confidence = "inferred"
+evidence = "Body read: facing rotation by 50 and -50, class_089bdfb0_lookup_code..., class_089bdfb0_create_type_14, list head at manager +0x19030."
+
+[[function]]
+module = "game_sub"
+address = "09C93FD0"
+name = "class_089be000_launch_towards_point_ahead_of_owner"
+purpose = "Sets target +0x80 to the owner's place plus (20, 150, 100) rotated by facing; for mode +0x60 1 sets gravity +0x94 to -1 and a velocity +0x70 that reaches it in 27 ticks, for mode 0 gravity -2 in 35 ticks, otherwise no velocity; sets +0x29 to 4 and clears +0x62."
+confidence = "inferred"
+evidence = "Body read: horizontal velocity = direction * distance / ticks, vertical from 09C93FA8 ((y1 - y0) / t - g * 0.5 * t). Which rotated axis takes 20 and 100 was read from the view."
+
+[[function]]
+module = "game_sub"
+address = "09CAD5A8"
+name = "class_089be190_spawn_mode_30f"
+purpose = "Creates a 089BE190 object, runs its +0x18 method and 09CAFED8, sets mode short +0x60 to 0x30F, copies a vector to both +0xA0 and +0x10 and others to +0xB0, +0xC0, +0xD0, +0xE0, words to +0xF8, +0xFC, zeroes +0x70, links it and allocates its element."
+confidence = "inferred"
+evidence = "Body read; same shape as 09CADF18."
+
+[[function]]
+module = "game_sub"
+address = "09C75720"
+name = "class_089bdec0_spawn_kind6_ahead_of_owner_or_at_position"
+purpose = "Creates a 089BDEC0 object with kind, owner and scale: kind 6 needs an owner in the current area and is placed 128 along its facing at floor_y; other kinds take position param_3 if given; links it."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C55D68"
+name = "motion_cue_bank6_random_variant_with_contact_param"
+purpose = "When in the current area and at frame param_2, plays bank 6 sound param_3 * 2 plus a random bit; the local hunter takes a parameter from the first nonzero of 10 entries of its record in the collision global when map_contact_bits & 0xE0000007, and stores it in bank6_sound_param; others use the stored one."
+confidence = "inferred"
+evidence = "Body read: DAT_09D1A160 + instance_index * 0x84, entries of 0xC bytes at +8; sound_play_3d arguments."
+
+[[function]]
+module = "game_sub"
+address = "09CB6140"
+name = "class_089be208_start_element_by_kind"
+purpose = "Starts an element: position from a matrix's translation (param_3 +0x30), active bytes +6 and +7, +0x40 from the object's float +0x3C, then by element kind +4 random angle +0x4A, rates +0x44, +0x50, +0x54 and scale factors on +0x40."
+confidence = "inferred"
+evidence = "Whole body read; class_089be208_start_elements_by_kind and tick call it."
+
+[[function]]
+module = "game_sub"
+address = "09C2E578"
+name = "class_089bde70_create_type_0c"
+purpose = "Allocates and zeroes a 0x220-byte object on the manager heap, gives it vtable 089BDE70, sets +0x20 to the next serial with 0x0C in the top byte and stores the manager's fixed pointers; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C69808"
+name = "class_089bddf8_snap_y_to_ground_plus_subtype_height"
+purpose = "When short +0x64 is the stage id, sets Y +0x14 to the ground height 100 above it, plus an owner-subtype amount: 'X' and 'L' 82, 'Q' 20, 'K' 50, others 30."
+confidence = "inferred"
+evidence = "Whole body read: collision_ground_height_at_point. Class from the caller 09C694F8, whose self is Class_089BDDF8."
+
+[[function]]
+module = "game_sub"
+address = "09CB23F8"
+name = "class_089be208_spawn_at_position"
+purpose = "Creates a 089BE208 object with position, kind +0x24, +0x2A, owner +0xC and float +0x3C from the arguments and links it."
+confidence = "confirmed"
+evidence = "Whole body read: class_089be208_create_type_29, fx_base_init, list head at manager +0x19030."
+
+[[function]]
+module = "game_sub"
+address = "09C568E0"
+name = "motion_cue_bank6_random_variant_with_field_291"
+purpose = "When the object is in the current area and at frame param_2, plays bank 6 sound param_3 * 2 plus a random bit through f_EBOOT_8883DE4, with byte +0x291 as parameter."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C85860"
+name = "class_089bdf38_place_at_owner_bone_by_subtype"
+purpose = "Sets position +0x10 to a fixed offset through an owner bone: bone 1 with 180 and 330 for owner subtype 0x35 or 0x59, otherwise bone 0x25 with -60 and 140."
+confidence = "inferred"
+evidence = "Whole body read: object_get_bone_matrix, vtfm3_t, translation added. Which axes take the constants is unclear in the view."
+
+[[function]]
+module = "game_sub"
+address = "09C946A8"
+name = "class_089be000_sound_70_or_2e_by_arg"
+purpose = "Plays bank 1 sound 0x70 when param_3 is 1, 0x2E when it is 0, at position param_2."
+confidence = "confirmed"
+evidence = "Whole body read: sound_play_3d arguments."
+
+[[function]]
+module = "game_sub"
+address = "09C55B80"
+name = "motion_cue_own_bank_sound_at_frame_fixed_distance"
+purpose = "When sound_cue_mute_timer is 0 and at frame param_2, plays sound param_3 from the hunter's own bank with fixed arguments 0x13 and 10."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C38758"
+name = "hit_node_cursor_skip_by_mask_2b8"
+purpose = "Advances a cursor over 0x28-byte records: one record if the object's byte +0x2B8 shares no bit with short +2, otherwise short +4 plus one records."
+confidence = "inferred"
+evidence = "Whole body read; hit_node_test_target_and_apply and the camera and object push functions call it."
+
+[[function]]
+module = "game_sub"
+address = "09C2ACC8"
+name = "gamedata_lcg_next_6a380"
+purpose = "Steps a random generator kept in game +0x6A380: state = state * 176 mod 65363; returns it."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C93F78"
+name = "class_089be000_step_position_by_velocity"
+purpose = "Adds velocity +0x70 to position +0x10, then adds gravity +0x94 to velocity Y."
+confidence = "inferred"
+evidence = "Whole body read; class from the caller 09C931C0, which also calls 09C93FD0."
+
+[[function]]
+module = "game_sub"
+address = "09C34878"
+name = "math_capsules_intersect_contact_point"
+purpose = "Tests two capsules (segment start +0, end +0x10, radius +0x20, delta +0x30, bounding centre +0x40, bounding radius +0x50); on overlap writes a point on the second's surface towards the first and returns 1, handling parallel axes separately."
+confidence = "inferred"
+evidence = "Whole body read: math_points_within_radius on the bounds, closest points by the segment parameters, end clamps with 09C36728, 09C35830 for the output."
+
+[[function]]
+module = "game_sub"
+address = "09C359C8"
+name = "math_sphere_capsule_intersect_contact_point"
+purpose = "Tests a sphere (param_1, radius arg_f12) against a capsule laid out as in 09C34878; on overlap writes a point on the capsule's surface and returns 1."
+confidence = "inferred"
+evidence = "Start and end read: math_spheres_overlap with +0x40 and +0x50, closest point, output = closest + normalised * radius +0x20. The middle branches were not all read."
+
+[[function]]
+module = "game_sub"
+address = "09CA4FC0"
+name = "effect_segment_update_anchor_direction_and_tip"
+purpose = "Updates a segment element by state short +0: state 0 takes the origin from a matrix's translation and a direction from the matrix's +0x20 and +0x28 and object +0x464, tip 150 along it; others keep two entries of direction +0x60 and anchor +0x40 and set the tip to anchor + direction * length, 300 times 09CA5E20 in state 1, otherwise ramping to 100 over 15 ticks."
+confidence = "inferred"
+evidence = "Body read: math_atan2f_09CA2698, rotations of (0,0,1), history copies, final tip store at +0x20."
+
+[[function]]
+module = "game_sub"
+address = "09C691A8"
+name = "class_089bddf8_pickup_point_position"
+purpose = "Writes the position for a pickup point: +0x10 moved along yaw +0x3A by -200 when +0x68 is 1 and owner subtype is not ';', by -140 for owner subtype 'L', otherwise +0x10 unchanged."
+confidence = "inferred"
+evidence = "Whole body read; 09C690E8 passes the result to pickup_point_add."
+
+[[function]]
+module = "game_sub"
+address = "09C7B458"
+name = "effect_sound_by_kind_5e_5f_61_62_75"
+purpose = "Plays a bank 1 sound at +0x10 by kind +0x24: 0 0x5E; 2 0x5F, 3 and 7 0x61, 8 0x62 unless +0x2B is 1; 4 0x75 when +0x3A is 0; others none."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CB1318"
+name = "class_089be1b8_init_element_random_speed_angles"
+purpose = "Initialises a 089BE1B8 element: +0x10 random 200 to 300, over 30, times +0x64; delay byte +0 = param_3 * -5; +8 random 70 to 120 degrees; +0xA random direction; zeroes +0xC, +0xD; +0xE random signed up to 10/30 degrees."
+confidence = "inferred"
+evidence = "Whole body read: math_random_float calls, degrees to 65536 units."
+
+[[function]]
+module = "game_sub"
+address = "09C2DB20"
+name = "class_089bdd30_create_type_04_for_asset"
+purpose = "Allocates and zeroes a 0x2B0-byte object on the manager heap, gives it vtable 089BDD30, sets +0x20 to the next serial with 0x04 in the top byte and stores pointers of the asset slot found for param_2; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read: asset_slots_9_12_find_index_by_id, class_089bdc58_set_pointers_2c_34_30."
+
+[[function]]
+module = "game_sub"
+address = "09C30760"
+name = "class_089be1b8_create_type_27_for_asset"
+purpose = "Allocates and zeroes a 0x140-byte object on the manager heap, gives it vtable 089BE1B8, sets +0x20 to the next serial with 0x27 in the top byte and stores pointers of the asset slot found for param_2; returns the object or 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CA7EE0"
+name = "class_089be140_sound_start_or_update_by_3d_volume"
+purpose = "With zero sound_get_3d_volume at the position, if playing flag +0x2B is set clears it and calls 08885494; otherwise starts the sound and sets the flag, or if already set applies the 3D mix."
+confidence = "inferred"
+evidence = "Whole body read: sound_play_3d, sound_apply_3d_mix. What 08885494 does was not read."
+
+[[function]]
+module = "game_sub"
+address = "09C5BAC8"
+name = "class_089bdd30_spawn_at_position_for_asset"
+purpose = "Creates a 089BDD30 object for asset param_3 with kind param_2, no owner, +0x2B the asset, float +0x3C and position, and links it."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C6EF58"
+name = "effect_kind5_sound_26_or_27"
+purpose = "For kind +0x24 5, plays bank 1 sound 0x27 when the argument is 1, 0x26 when it is 0, at +0x10."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CA6118"
+name = "effect_place_at_owner_bone_e_facing_opposite"
+purpose = "Sets position +0x10 from owner bone 0xE with local offset (0, -50, -200), and +0x3A to owner's +0x1F4 plus 0x8000."
+confidence = "confirmed"
+evidence = "Whole body read: object_get_bone_matrix, vtfm3_t, constants."
+
+[[function]]
+module = "game_sub"
+address = "09C25F70"
+name = "math_popcount_u64_low_36_bits"
+purpose = "Counts the set bits among the low 36 bits of the 64-bit value in a2:a3."
+confidence = "confirmed"
+evidence = "Whole generated body read: 1 << n walking r12:r5, stop at n = 0x24, count in r2:r9."
+
+[[function]]
+module = "game_sub"
+address = "09C1C360"
+name = "gamedata_record_set_bit_6970a_if_used"
+purpose = "If index arg_a1 is below gamedata_count_records_696fc_nonzero_first5, sets bit arg_a2 in byte +0x6970A of that record (stride 0x70)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CA5E20"
+name = "effect_kind0_ramp_02_to_1_over_15_ticks"
+purpose = "Kind +0x24 0: maps timer +0x38 to 0.2 at 0 rising to 1.0 at 15; other kinds 1.0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CA6790"
+name = "effect_element_next_stage_from_table_09cf4f20"
+purpose = "If the element's byte 0 is 0, sets bytes +2 to 1 and +3 to 0; otherwise takes the next value of table DAT_09CF4F20 at the object's index +0x2B, sets byte 0 (or -1 at table end) and short +2 = +0x2A minus table DAT_09CF4F30, and advances +0x2B."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CA5708"
+name = "effect_all_elements_ended_by_kind_count"
+purpose = "Returns 1 if every element (stride 0x60 from +0x60, count from table DAT_09CF5CA8 by kind +0x24) has first byte -1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C85918"
+name = "class_089bdf38_flag2_clear_and_owner_motion_matches"
+purpose = "Returns 1 when flag mask 2 of +0x48 is clear and owner short +0x324 (motion id) equals +0x1A0 or is 0x45A."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C387A0"
+name = "hit_node_cursor_advance_with_owner_mask"
+purpose = "Advances a cursor by one 0x28-byte record, except when byte +0xE is not -1 and byte +0xF is nonzero: then 09C38758 with the object at +0x10 decides."
+confidence = "inferred"
+evidence = "Whole body read; hit_node_test_target_and_apply and hit_node_mark_overlapping_other_nodes call it."
+
+[[function]]
+module = "game_sub"
+address = "09C1C0A0"
+name = "gamedata_count_records_696fc_equal_3_first5"
+purpose = "Counts how many of the 5 records of stride 0x70 have byte +0x696FC equal to 3."
+confidence = "confirmed"
+evidence = "Whole body read: walks from +0x696F4, byte at +8."
+
+[[function]]
+module = "game_sub"
+address = "09C923D8"
+name = "effect_element_step_position_with_fixed_gravity"
+purpose = "Adds velocity +0x20 to position +0x10, then adds -1.4545455 to velocity Y +0x24."
+confidence = "confirmed"
+evidence = "Whole body read."

@@ -297,6 +297,16 @@ def run_scenario(s, args, stamp):
             for r in now:
                 if r not in was:
                     continue
+                if args.no_ram:
+                    sn, sw = now[r]["states"], [tuple(x) for x in was[r]["states"]]
+                    k = next((i for i, (a, b) in enumerate(zip(sn, sw)) if tuple(a) != tuple(b)), None)
+                    if k is not None or len(sn) != len(sw):
+                        ok = False
+                        at = k if k is not None else min(len(sn), len(sw))
+                        detail.append(f"at {r}: the hunter's states first differ at #{at}, of {len(sn)} now and {len(sw)} before")
+                    else:
+                        detail.append(f"at {r}: the hunter's states the same ({len(sn)})")
+                    continue
                 hn = dict(map(tuple, now[r]["hashes"]))
                 hw = dict(map(tuple, was[r]["hashes"]))
                 common = sorted(set(hn) & set(hw))
@@ -424,6 +434,8 @@ def main():
     ap.add_argument("--bless", action="store_true", help="keep this run's results as the baselines")
     ap.add_argument("--keep", action="store_true", help="keep the traces")
     ap.add_argument("--list", action="store_true")
+    ap.add_argument("--no-ram", action="store_true", help="the baseline's actions only, not its RAM hashes: for code rewritten by hand, "
+                    "which leaves other dead bytes (tools/readable/handdiff.py accounts for them)")
     ap.add_argument("--renderer", default="vulkan", help="vulkan or soft: each has baselines of its own, as the game's RAM differs")
     ap.add_argument("--bin", default=os.path.join(ROOT, "build", "mhfu"))
     ap.add_argument("--iso", default=os.path.expanduser("~/Games/psp/mhfu.iso"))

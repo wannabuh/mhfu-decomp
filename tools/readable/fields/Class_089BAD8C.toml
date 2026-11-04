@@ -1,0 +1,183 @@
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+note = "this task class's vtable"
+evidence = "EBOOT 88B9884, 88B97BC installs it; EBOOT 8895538 calls slot +0xC each frame and +8 when destroying"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x4
+name = "state_fn"
+type = "u32"
+confidence = "confirmed"
+note = "what the task runs each tick; member function pointer, 3 words"
+evidence = "EBOOT 88971A0 tests +4 with member_fn_is_set and calls it through member_fn_call; EBOOT 88B996C and game_task 9A5F380, 9A60AD8 install new values"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x1C
+name = "target_stage_id"
+type = "u16"
+confidence = "inferred"
+note = "stage to move to; head of the arrival record passed to the hunter"
+evidence = "game_task 9A60AD8 compares it with stage_id and writes it to stage_id; 9A60298 fills it from the volume at +0x4C"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x20
+name = "arrival_place"
+type = "f32x3"
+confidence = "inferred"
+note = "where the hunter appears after the move"
+evidence = "game_task 9A655F0 passes DAT_09a44d9c + 0x20 to hunter_set_place_and_fields_from_src (EBOOT 88DA940); 9A60298 fills it from the volume's +0x24"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x2C
+name = "arrival_facing"
+type = "u16"
+confidence = "inferred"
+note = "the hunter's facing after the move"
+evidence = "EBOOT 88DA940 reads the short after the vec3 into facing; game_task 9A61280 passes it as the yaw of object_add_player_offset_rotated_by_yaw"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x30
+name = "ticks_run"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "counts every call of the task's tick"
+evidence = "EBOOT 88B9910 increments it, game_task 9A5F380 zeroes it"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x34
+name = "step"
+type = "s32"
+confidence = "inferred"
+note = "step within the current state function; zeroed when one is installed"
+evidence = "game_task 9A60AD8 and 9A61280 switch on it, advance it, and zero it when installing hunt_state_run"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x3C
+name = "loaded_pack_file_id"
+type = "u16"
+confidence = "confirmed"
+note = "which file the tag 4 heap block holds, so it is not reloaded; 0xFFFF none"
+evidence = "game_task 9A63050 compares the wanted id with it and stores it after starting the read; 9A5F380 sets 0xFFFF"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x3E
+name = "pack_load_step"
+type = "u8"
+confidence = "confirmed"
+note = "0 start the read, 1 wait for it"
+evidence = "game_task 9A63050"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x40
+name = "sound_load_step"
+type = "s32"
+confidence = "confirmed"
+note = "step of the current sound loader, shared by them; zeroed when each ends"
+evidence = "game_task 9A637A8, 9A638B0 and 9A63980 switch on or index with it and return 1 after zeroing it"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x44
+name = "area_load_step"
+type = "s32"
+confidence = "inferred"
+note = "step of the area load functions"
+evidence = "game_task 9A62978 and 9A62D10 switch on it; 9A60AD8 zeroes it before calling game_task_load_step_area_stage_and_assets"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x48
+name = "wait_ticks"
+type = "s32"
+confidence = "inferred"
+decimal = true
+note = "counts while waiting for every player in the first load; gives up past 0x708"
+evidence = "game_task 9A5F868 zeroes it, increments it in a wait over DAT_09a0b684's records and advances past 0x708"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x4C
+name = "exit_volume"
+type = "ptr"
+confidence = "inferred"
+note = "the stage volume the local hunter stands in, which leads elsewhere"
+evidence = "game_task 9A632A8 stores stage_find_volume_containing_point here; 9A60298 reads target stage and arrival from it"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x50
+name = "arrival_source"
+type = "ptr"
+confidence = "inferred"
+note = "record the reload takes the arrival from; also just points at +0x20 in a normal change"
+evidence = "game_task 9A61280 points it into table 09CE11A0 and copies from it; 9A60AD8 points it at +0x20"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x54
+name = "area_change_flags"
+type = "u32"
+confidence = "inferred"
+note = "1 change through a volume, 2 reload the area, 4 take the stage from a lookup when reloading, 8 same stage: keep what is loaded"
+evidence = "game_task 9A66198 sets 1, 9A9CC58 sets 2, 9A91B10 sets 6; 9A60298 tests 2 then 1; 9A60AD8 sets 8 when the target is the current stage and 9A62FF0, 9A62D10 then skip unload and load"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x5C
+name = "initial_load_done"
+type = "u8"
+confidence = "inferred"
+note = "set at the end of the first load; the hunter's tick tests it"
+evidence = "game_task 9A5F868 sets 1 in its last step; EBOOT 88B97BC clears it; 9A66198 skips its volume check while 0"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x60
+name = "sound_fade_ticks"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "how long the sound fades out before a stage change"
+evidence = "game_task 9A60AD8 sets 8, passes it to sound_track_fade_out and sound_fade_out_channels, and waits it out"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x64
+name = "sound_fade_elapsed"
+type = "s32"
+confidence = "confirmed"
+decimal = true
+note = "frames waited of that fade"
+evidence = "game_task 9A60AD8 and 9A61280 zero it and increment it up to +0x60"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x68
+name = "black_alpha"
+type = "s32"
+confidence = "confirmed"
+note = "alpha of the full-screen black quad"
+evidence = "game_task 9A63480 raises it by 0x20 a call up to 0xFF while +0x6C is 1, draws with it, and zeroes it otherwise"
+
+[[field]]
+struct = "Class_089BAD8C"
+offset = 0x6C
+name = "black_quad_on"
+type = "u8"
+confidence = "confirmed"
+note = "1 draws the black quad"
+evidence = "game_task 9A63480 tests it; 9A60298 clears it"

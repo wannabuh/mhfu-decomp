@@ -38,7 +38,7 @@ def main():
             os.makedirs(os.path.join(d, "cfg/mhfu-recomp"))
             with open(os.path.join(d, "cfg/mhfu-recomp/settings.ini"), "w") as f:
                 f.write(f"iso = {ISO}\n")
-            env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE="1", MHFU_FPS="0",
+            env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(d, "cfg"), MHFU_HEADLESS="1", MHFU_MUTE=os.environ.get("MHFU_MUTE", "1"), MHFU_FPS="0",
                        MHFU_SCALE="1", MHFU_TICK_HZ="30", MHFU_REPLAY=os.path.abspath(rec),
                        MHFU_SAVEDIR=os.path.join(d, "SAVEDATA"), MHFU_STATEDIR=os.path.join(d, "states"),
                        MHFU_RAM_HASH="300", MHFU_TRACE_ALL=os.path.abspath(os.path.join(args.out, name + ".trace")),
@@ -76,7 +76,7 @@ def main():
                 if args.snapshots:
                     os.makedirs(args.snapshots, exist_ok=True)
                     for snap in sorted(os.listdir(os.path.join(d, "build"))):
-                        if snap.startswith("ram-"):
+                        if snap.startswith(("ram-", "audio-")):
                             shutil.move(os.path.join(d, "build", snap), os.path.join(args.snapshots, f"{name}-{snap[4:]}"))
                 shutil.rmtree(d, ignore_errors=True)
         time.sleep(1)

@@ -1,0 +1,468 @@
+[[field]]
+struct = "Stage"
+offset = 0x0
+name = "vtable"
+type = "ptr"
+confidence = "confirmed"
+evidence = "EBOOT 88C7814 stores 089BADFC"
+
+[[field]]
+struct = "Stage"
+offset = 0x4
+name = "flags"
+type = "u32"
+confidence = "inferred"
+note = "mask 2 set once its first state ran"
+evidence = "EBOOT 88CA2E0 clears 2; 88CAF54 sets it"
+
+[[field]]
+struct = "Stage"
+offset = 0x50
+name = "parts_model_a"
+type = "u32"
+confidence = "inferred"
+note = "first model object, embedded: a pass of part draws uses it"
+evidence = "EBOOT 88C7914 passes its address to the part methods"
+
+[[field]]
+struct = "Stage"
+offset = 0x1C0
+name = "anim_ticks"
+type = "u16"
+confidence = "confirmed"
+decimal = true
+note = "frames since start, used modulo a part's period"
+evidence = "EBOOT 88CB004 increments it; 88C8114, 88C8760 and 88C9B00 take it mod a period for rotation and texture scroll"
+
+[[field]]
+struct = "Stage"
+offset = 0x1C2
+name = "spin_angle"
+type = "u16"
+confidence = "confirmed"
+note = "16-bit angle, +0x2E a frame"
+evidence = "EBOOT 88CB004 adds 0x2E; 88C9B00 rotates about Y by it"
+
+[[field]]
+struct = "Stage"
+offset = 0x1D0
+name = "parts_model_b"
+type = "u32"
+confidence = "inferred"
+note = "second model object: a pass of parts and the stage's own objects use it"
+evidence = "EBOOT 88C7CDC passes its address to the part methods; 88C5764 points new objects' +0x2C at it, which draw by it (game_sub 9CBD2A8)"
+
+[[field]]
+struct = "Stage"
+offset = 0x1F0
+name = "motion_player"
+type = "u32"
+confidence = "confirmed"
+note = "embedded motion player, 0x140 bytes to +0x330; this word is its vtable"
+evidence = "EBOOT 88C7814 and 88C789C store 089BAC48 here; 88CA2E0 clears 0x140 bytes"
+
+[[field]]
+struct = "Stage"
+offset = 0x330
+name = "render_params_mode"
+type = "u8"
+confidence = "confirmed"
+note = "0 none, 1 fog and grid, 2 and the sky gradient"
+evidence = "EBOOT 88CAEC8"
+
+[[field]]
+struct = "Stage"
+offset = 0x3A0
+name = "flash_phase"
+type = "s16"
+confidence = "inferred"
+note = "0 off, then 1, 2 and 3 in turn: 1 white, 2 and 3 fading"
+evidence = "EBOOT 88CB004 steps it; 88CBD20 draws by it; game_sub 9C772A8 starts it from 0 or 3; game_sub 9CBDA48 hides its object in 1 and 2"
+
+[[field]]
+struct = "Stage"
+offset = 0x3A2
+name = "flash_ticks"
+type = "s16"
+confidence = "inferred"
+decimal = true
+note = "frames left in the phase"
+evidence = "EBOOT 88CB004 counts it down: 2 and 0x5A"
+
+[[field]]
+struct = "Stage"
+offset = 0x3A4
+name = "sky_point"
+type = "f32x3"
+confidence = "inferred"
+note = "reads as the sun: world point these aim at: the sky gradient's angle, glare fade, and a model kept 150 towards it from the camera"
+evidence = "EBOOT 88CC24C loads it; 88CB474 compares its X,Z with the camera; game_sub 9CBB278 places a model 150 from the camera towards it and fades it if a capsule to it hits a sphere; 9CBDB88 sets alpha by the view angle to it"
+
+[[field]]
+struct = "Stage"
+offset = 0x3B0
+name = "gradient_top_y"
+type = "s16"
+confidence = "inferred"
+note = "screen Y of the quad's top vertices"
+evidence = "EBOOT 88CB474 copies it to +0x3EA and +0x3F6"
+
+[[field]]
+struct = "Stage"
+offset = 0x3B2
+name = "gradient_bottom_y"
+type = "s16"
+confidence = "inferred"
+note = "screen Y of the bottom, in a 448 high space"
+evidence = "EBOOT 88CB474 scales it by 272/448 into +0x402 and +0x40E"
+
+[[field]]
+struct = "Stage"
+offset = 0x3B4
+name = "gradient_top_color0"
+type = "u32"
+confidence = "inferred"
+note = "top colour by direction: lerped by sector"
+evidence = "EBOOT 88CC24C loads eight with bytes 0,2 swapped; 88CB474 lerps +0x3B4..+0x3C0 to the top vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x3B8
+name = "gradient_top_color1"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3BC
+name = "gradient_top_color2"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3C0
+name = "gradient_top_color3"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3C4
+name = "gradient_bottom_color0"
+type = "u32"
+confidence = "inferred"
+note = "bottom colour by direction"
+evidence = "EBOOT 88CB474 lerps +0x3C4..+0x3D0 to the bottom vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x3C8
+name = "gradient_bottom_color1"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3CC
+name = "gradient_bottom_color2"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3D0
+name = "gradient_bottom_color3"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474"
+
+[[field]]
+struct = "Stage"
+offset = 0x3D4
+name = "overlay_draw_request"
+type = "u8"
+confidence = "confirmed"
+note = "non-zero: draw the gradient and flash once"
+evidence = "EBOOT 88CACD4 draws through vtable +0x9C and stage_draw_screen_flash when set, then zeroes it; EBOOT 88C3364 sets 1"
+
+[[field]]
+struct = "Stage"
+offset = 0x3D8
+name = "state_fn"
+type = "u32"
+confidence = "confirmed"
+note = "member function pointer, 3 words"
+evidence = "EBOOT 88CA2E0 installs the first-update state, 88CAF54 the per-frame one"
+
+[[field]]
+struct = "Stage"
+offset = 0x3E4
+name = "gradient_v0_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 writes it; passed to the GE as a vertex with position shorts after it"
+
+[[field]]
+struct = "Stage"
+offset = 0x3E8
+name = "gradient_v0_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x3EA
+name = "gradient_v0_y"
+type = "s16"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 sets it from +0x3B0 or +0x3B2"
+
+[[field]]
+struct = "Stage"
+offset = 0x3EC
+name = "gradient_v0_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 zeroes it"
+
+[[field]]
+struct = "Stage"
+offset = 0x3F0
+name = "gradient_v1_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 writes it; passed to the GE as a vertex with position shorts after it"
+
+[[field]]
+struct = "Stage"
+offset = 0x3F4
+name = "gradient_v1_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x3F6
+name = "gradient_v1_y"
+type = "s16"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 sets it from +0x3B0 or +0x3B2"
+
+[[field]]
+struct = "Stage"
+offset = 0x3F8
+name = "gradient_v1_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 zeroes it"
+
+[[field]]
+struct = "Stage"
+offset = 0x3FC
+name = "gradient_v2_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 writes it; passed to the GE as a vertex with position shorts after it"
+
+[[field]]
+struct = "Stage"
+offset = 0x400
+name = "gradient_v2_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x402
+name = "gradient_v2_y"
+type = "s16"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 sets it from +0x3B0 or +0x3B2"
+
+[[field]]
+struct = "Stage"
+offset = 0x404
+name = "gradient_v2_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 zeroes it"
+
+[[field]]
+struct = "Stage"
+offset = 0x408
+name = "gradient_v3_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 writes it; passed to the GE as a vertex with position shorts after it"
+
+[[field]]
+struct = "Stage"
+offset = 0x40C
+name = "gradient_v3_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x40E
+name = "gradient_v3_y"
+type = "s16"
+confidence = "inferred"
+evidence = "EBOOT 88CB474 sets it from +0x3B0 or +0x3B2"
+
+[[field]]
+struct = "Stage"
+offset = 0x410
+name = "gradient_v3_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CAF54 zeroes it"
+
+[[field]]
+struct = "Stage"
+offset = 0x414
+name = "flash_rect_a0_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CBD20 writes it and links the vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x418
+name = "flash_rect_a0_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x41A
+name = "flash_rect_a0_y"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x41C
+name = "flash_rect_a0_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x420
+name = "flash_rect_a1_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CBD20 writes it and links the vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x424
+name = "flash_rect_a1_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x426
+name = "flash_rect_a1_y"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x428
+name = "flash_rect_a1_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x42C
+name = "flash_rect_b0_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CBD20 writes it and links the vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x430
+name = "flash_rect_b0_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x432
+name = "flash_rect_b0_y"
+type = "s16"
+confidence = "confirmed"
+note = "reset skips the third vertex's by a slip in the game: it sets the first's twice"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x434
+name = "flash_rect_b0_z"
+type = "s16"
+confidence = "confirmed"
+note = "same"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x438
+name = "flash_rect_b1_color"
+type = "u32"
+confidence = "inferred"
+evidence = "EBOOT 88CBD20 writes it and links the vertices"
+
+[[field]]
+struct = "Stage"
+offset = 0x43C
+name = "flash_rect_b1_x"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4 sets 0 or 0x1E0"
+
+[[field]]
+struct = "Stage"
+offset = 0x43E
+name = "flash_rect_b1_y"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x440
+name = "flash_rect_b1_z"
+type = "s16"
+confidence = "confirmed"
+evidence = "EBOOT 88CC0E4"
+
+[[field]]
+struct = "Stage"
+offset = 0x444
+name = "sound_track_variant"
+type = "u32"
+confidence = "inferred"
+note = "0, 1 or 2: added to a track number"
+evidence = "EBOOT 88CB364 sets it: 2 if objects of group 0x36 exist, else 1 or 0 by time left / 7200; game_task 9A60E80 adds it to 0x12 for sound_track_get_id, 9A63B98 stores it in the sound state"
