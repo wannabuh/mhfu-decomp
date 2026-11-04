@@ -219,6 +219,7 @@ public class DecompileModule extends GhidraScript {
                 int n = 0;
                 String self = thisTypes.get(module + " " + hex);
                 for (String reg : p[1].split(",")) {
+                    if (reg.equals("...")) continue;
                     DataType t = regType(reg);
                     // param_N when N is the Nth argument register; else say which, as an unread one was skipped
                     String pname = reg.matches("s\\d+") ? "stack_" + reg.substring(1)
@@ -235,6 +236,7 @@ public class DecompileModule extends GhidraScript {
                 ? new ReturnParameterImpl(VoidDataType.dataType, VariableStorage.VOID_STORAGE, currentProgram)
                 : new ReturnParameterImpl(regType(p[0]), regStorage(p[0]), currentProgram);
             fn.updateFunction(cc, ret, params, Function.FunctionUpdateType.CUSTOM_STORAGE, true, SourceType.ANALYSIS);
+            fn.setVarArgs(p[1].endsWith("..."));
             applied++;
         }
         println("signatures applied " + applied + ", owners disagreed on " + disagreed);

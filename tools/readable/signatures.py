@@ -7,12 +7,13 @@ call by accident; repeated over the whole game to a fixed point. Also:
 - return register: v0 or f0 where a caller reads it straight after the call and the function writes it (or tail-calls one that
   does). A function no direct call reaches takes the decompiler's return, from HINTS, when that is v0 or f0;
 - methods (WORK/methods.json) take a0 as `this`, and an indirect call passes a0;
-- variadic functions (saving their argument registers to the stack on entry) are left out, for the decompiler to guess per call;
-- imports take as many registers as their callers set just before calling.
+- variadic functions (saving their last argument registers to the stack on entry) take the ones before those, and "...";
+- imports take the registers the runtime's handlers read.
 Writes WORK/signatures.tsv: module, address, return register or -, arguments (registers, s<offset> for the stack)."""
 import collections
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -61,6 +62,13 @@ def uses_defs(i):
             dfn |= 1 << (F + (i.getRaw() >> 16 & 31))
         if i.modifiesFd():
             dfn |= 1 << (F + (i.getRaw() >> 6 & 31))
+    name = i.getOpcodeName()
+    if name.startswith("sv.") or name in ("svl.q", "svr.q"):    # (rabbitizer: flagged as writing the base it reads)
+        base = 1 << (i.getRaw() >> 21 & 31)
+        use |= base
+        dfn &= ~base
+    elif name in ("ins", "movn", "movz"):                       # they merge into what they write
+        use |= dfn
     use &= ~1
     dfn &= ~1
     return use, dfn
@@ -68,7 +76,34 @@ def uses_defs(i):
 
 class Fn:
     __slots__ = ("mod", "start", "end", "nodes", "exits", "calls", "tails", "args", "ret", "stack", "variadic", "writes_v0",
-                 "writes_f0", "called", "tail_callees")
+                 "writes_f0", "called", "tail_callees", "fixed")
+
+
+def import_args(main):
+    """{stub: mask of argument registers} from the runtime's hle_<name> functions, which take them as ARGn or c->r[n]."""
+    root = os.path.join(HERE, "..", "..", "runtime", "src")
+    src = ""
+    for name in sorted(os.listdir(root)):
+        if name.endswith(".c"):
+            with open(os.path.join(root, name), errors="replace") as f:
+                src += f.read()
+    with open(os.path.join(root, "nids.inc")) as f:
+        nids = {(lib, int(nid, 16)): name for lib, nid, name in re.findall(r"X\((\w+), 0x([0-9A-Fa-f]{8}), (\w+)\)", f.read())}
+    out = {}
+    for stub, key in main.imports.items():
+        name = nids.get(key)
+        mask = 0
+        at = src.find(f"void hle_{name}(Ctx *c) {{") if name else -1
+        if at >= 0:
+            end = src.find("\n}\n", at)
+            body = src[at:end]
+            for n in re.findall(r"\bARG(\d)\b", body):
+                mask |= 1 << GPR_ARGS[int(n)]
+            for n in re.findall(r"c->r\[(\d+)\]", body):
+                if int(n) in GPR_ARGS:
+                    mask |= 1 << int(n)
+        out[stub] = mask
+    return out
 
 
 def build(m, f, starts, table):
@@ -156,7 +191,14 @@ def build(m, f, starts, table):
         a += 4
     fn.nodes = nodes
     fn.stack = stack
-    fn.variadic = len(seen_store_args & set(GPR_ARGS)) >= 5 and {7, 8, 9}.issubset(seen_store_args)
+    # Variadic: saves the argument registers from some point up to t3, for a format's va_list; those before it are fixed
+    fn.fixed = 0
+    fn.variadic = {9, 10, 11}.issubset(seen_store_args)
+    if fn.variadic:
+        low = 9
+        while low - 1 in seen_store_args and low - 1 >= 4:
+            low -= 1
+        fn.fixed = sum(1 << r for r in GPR_ARGS if r < low)
     fn.args, fn.ret = 0, None
     fn.called = False
     fn.tail_callees = fn.tails
@@ -225,23 +267,9 @@ def main():
             fn = build(m, x, starts, None)
             fns[(m.name, x["start"])] = fn
             owners[x["start"]].append(m.name)
-    # imports: as many registers as callers set just before calling
+    # imports: the registers the runtime's handler reads (hle_<name>)
     main_mod = by_name["EBOOT"]
-    imp_args = collections.Counter()
-    for fn in fns.values():
-        m = by_name[fn.mod]
-        for k, (_s, _u, _d, target) in fn.nodes.items():
-            if isinstance(k, tuple) and k[0] == "call" and target in main_mod.imports:
-                written = 0
-                for a in range(max(fn.start, k[1] - 24), k[1] + 8, 4):
-                    written |= uses_defs(m.ins(a))[1]
-                n = 0
-                while n < 8 and written & (1 << GPR_ARGS[n]):
-                    n += 1
-                imp_args[target] = max(imp_args[target], n)
-    imp_mask = {t: sum(1 << r for r in GPR_ARGS[:n]) for t, n in imp_args.items()}
-    for s in main_mod.imports:
-        imp_mask.setdefault(s, 1 << A0)
+    imp_mask = import_args(main_mod)
 
     def targets_of(fn, target):
         o = owners.get(target)
@@ -261,7 +289,7 @@ def main():
             return 1 << A0
         mask = None
         for t in found:
-            a = (1 << A0) if t.variadic else t.args
+            a = t.fixed if t.variadic else t.args
             mask = a if mask is None else mask & a
         return mask
 
@@ -289,7 +317,7 @@ def main():
             if k in is_method:
                 args |= 1 << A0
             if fn.variadic:
-                args &= 1 << A0
+                args = fn.fixed
             if args != fn.args:
                 fn.args = args
                 changed += 1
@@ -315,9 +343,11 @@ def main():
                         if k in wants_f0:
                             wants_f0.add((c.mod, c.start))
         for k, fn in fns.items():
-            if k in wants_f0 and (fn.writes_f0 or fn.tails):
+            # A caller reads it straight after the call, and nothing compiled reads a dead register: it returns it, whether
+            # it writes it itself or passes on a callee's
+            if k in wants_f0:
                 ret = "f0"
-            elif k in wants_v0 and (fn.writes_v0 or fn.tails):
+            elif k in wants_v0:
                 ret = "v0"
             elif not fn.called and k in hints:
                 ret = hints[k]
@@ -333,11 +363,12 @@ def main():
     with open(os.path.join(work, "signatures.tsv"), "w") as f:
         stats = collections.Counter()
         for (m, a), fn in sorted(fns.items()):
+            regs = [reg_name(r) for r in order if fn.args & (1 << r)]
             if fn.variadic:
                 stats["variadic"] += 1
-                continue
-            regs = [reg_name(r) for r in order if fn.args & (1 << r)]
-            regs += [f"s{o}" for o in sorted(fn.stack)]
+                regs.append("...")
+            else:
+                regs += [f"s{o}" for o in sorted(fn.stack)]
             stats["stack"] += bool(fn.stack)
             stats[fn.ret or "void"] += 1
             f.write(f"{m}\t{a:x}\t{fn.ret or '-'}\t{','.join(regs)}\n")
