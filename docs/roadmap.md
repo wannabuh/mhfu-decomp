@@ -64,6 +64,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
 | What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
 | Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
+| Poses above 60 ticks | Not a problem at the chosen 60. `motion_sample_bone_tree` (EBOOT 885FA0C) cuts the motion's frame to a whole number, so poses change at most 60 times a second: at 120 and 144 ticks they step unevenly, seen on attacks, items and sheathing, with interpolation on or off. The user sees none of it at 60 ticks, 144 fps | Only if ticks above 60 are wanted | Sample the two whole frames either side and blend; rotations need care, and hit shapes come from these bones |
 | The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
 | The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
 | Consistent smoothness: a steady 144 fps as felt | The main goal. The user reports the locked build "running much smoother" (2026-11-05, fullscreen) | In progress | Fewer ticks holding frames up: see below |
