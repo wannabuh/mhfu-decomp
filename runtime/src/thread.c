@@ -126,6 +126,7 @@ uint64_t wall_time_us(void) { return wall_us(); }
 
 /* The wall clock's time for a time of the game's clock, as it now runs */
 uint64_t game_to_wall_us(uint64_t game_us) { return wall_base + game_us; }
+uint64_t wall_to_game_us(uint64_t wall) { return wall > wall_base ? wall - wall_base : 0; }
 
 /* How far the game's clock is behind the wall clock (us; negative: ahead) - the game running slower than it should */
 int64_t clock_behind_us(void) {

@@ -22,14 +22,14 @@ def load(path):
             p = line.split()
             if not p:
                 continue
-            if p[0] == "F" and len(p) >= 13:
-                frames.append([float(x) for x in p[1:13]])
+            if p[0] == "F" and len(p) >= 14:
+                frames.append([float(x) for x in p[1:14]])
             elif p[0] == "T" and len(p) >= 4:
                 ticks.append((float(p[1]), float(p[2]), float(p[3])))
             elif p[0] == "#" and len(p) >= 3 and p[1] == "refresh_ns":
                 refresh_ns = float(p[2])
-    # id issue due drawn flip queue pixel content game_frame t ticks busy
-    return np.array(frames).reshape(-1, 12), np.array(ticks).reshape(-1, 3), refresh_ns
+    # id issue due drawn flip queue pixel content game_frame t ticks busy target
+    return np.array(frames).reshape(-1, 13), np.array(ticks).reshape(-1, 3), refresh_ns
 
 
 def spread(x):
@@ -94,7 +94,7 @@ def report(path, args):
     if len(F) < 10:
         print(f"{path}: too few frames in the range")
         return
-    id_, issue, due, drawn, flip, queue, pixel, content, game_frame, tt, ticks, busy = F.T
+    id_, issue, due, drawn, flip, queue, pixel, content, game_frame, tt, ticks, busy, target = F.T
     nominal = nominal_ns / 1000 if nominal_ns else None
     secs = (issue[-1] - issue[0]) / 1e6
     print(f"== {path}: {len(F)} frames over {secs:.1f} s")
@@ -132,6 +132,12 @@ def report(path, args):
     q = queue > 0
     if q.any():
         print(f"  issue to queue end, ms     {spread(queue[q] / 1000)}")
+
+    if (target != 0).any():
+        m = (target != 0) & have
+        print(f"  for its refresh: on it {(np.abs(pixel[m] - target[m]) < 2000).sum()}, later {(pixel[m] - target[m] >= 2000).sum()}, "
+              f"earlier {(pixel[m] - target[m] <= -2000).sum()}; on a timer {(target == 0).sum()}")
+        print(f"  lead (issue to its refresh), ms {spread(target[m] / 1000)}")
 
     print("INFERRED, the refresh and the grid:")
     r, start, n = fit_refresh(t_px, nominal)
@@ -187,6 +193,14 @@ def report(path, args):
     gone_at = (issue[gone] - issue[0]) / 1e6
     if len(gone_at):
         peaks(gone_at, np.ones(len(gone_at)), "replaced frames")
+
+    if gone.any():
+        print(f"  replaced frames: a tick just before {(ticks[gone] > 0).mean() * 100:.0f}% of them (of all frames "
+              f"{tick_before.mean() * 100:.0f}%), late of their due ms: {spread(late[gone])}")
+        after = np.flatnonzero(gone) + 1
+        after = after[after < len(F)]
+        if len(after):
+            print(f"    the frame after each: a tick just before {(ticks[after] > 0).mean() * 100:.0f}%")
 
     # the frame's way to the screen: the phase on the grid when it was queued, and whether it lost a refresh
     phase = np.mod((issue + flip)[have] - start, r) / r

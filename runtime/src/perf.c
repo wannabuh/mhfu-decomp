@@ -19,7 +19,8 @@
  *   IDLE              the game's thread asleep until the game's clock is due (thread.c)
  *   DISPLAY...        the driver's reports of when frames really went out, over a second (pacing.c; not on every driver):
  *                     SHOWN frames that reached the screen, REPEATS refreshes that showed a frame again, REPLACED
- *                     frames that never reached it, STEP the least and most game time (ms) from one refresh to the next
+ *                     frames that never reached it, LATE those after the refresh they were for, STEP the least and most
+ *                     game time (ms) from one refresh to the next, LOCK how long before its refresh a frame begins
  * DRAWS and TRIS are as the game issues them a tick (every primitive, render targets included, sprites as two
  * triangles), not the GPU's draw calls, which are fewer (batches, groups).
  * RAM is the kernel's view (kernel.c): the EBOOT's image and the blocks allocated from the user partition, out of the
@@ -261,9 +262,12 @@ int perf_rects(float x0, float y0, float scale, HintRect *out, int max) {
     PacingStats ps;
     pacing_stats(&ps);
     if (ps.have) {
-        TEXT(C_WHITE, "DISPLAY %.2f HZ  SHOWN %lu", ps.refresh_hz, ps.shown);
-        TEXT(ps.repeats || ps.replaced ? C_YELLOW : C_WHITE, "REPEATS %lu  REPLACED %lu  STEP %.1f-%.1f", ps.repeats,
-             ps.replaced, ps.step_min_ms, ps.step_max_ms);
+        if (ps.lead_ms > 0)
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  SHOWN %lu  LOCK %.1f MS", ps.refresh_hz, ps.shown, ps.lead_ms);
+        else
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  SHOWN %lu  TIMER", ps.refresh_hz, ps.shown);
+        TEXT(ps.repeats || ps.replaced || ps.late ? C_YELLOW : C_WHITE, "REPEAT %lu REPLACED %lu LATE %lu STEP %.1f-%.1f",
+             ps.repeats, ps.replaced, ps.late, ps.step_min_ms, ps.step_max_ms);
     } else {
         TEXT(C_GREY, "DISPLAY: NOT REPORTED");
         y += LINE;

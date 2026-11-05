@@ -5,7 +5,7 @@
  * measure here: everything else about a frame is when we asked for it.
  *
  * MHFU_PRESENT_LOG=<file> writes a line for each frame shown (tools/pacing.py reads it):
- *   F <id> <issue> <due> <drawn> <flip> <queue> <pixel> <content> <game frame> <t x 10000> <ticks> <busy>
+ *   F <id> <issue> <due> <drawn> <flip> <queue> <pixel> <content> <game frame> <t x 10000> <ticks> <busy> <target>
  *     id       the present's number (0: no present came of it)
  *     issue    when the frame's drawing began, us on CLOCK_MONOTONIC from the log's start
  *     due      when it was due, less issue
@@ -17,13 +17,22 @@
  *     t        how far between the last two game frames
  *     ticks    game frames done since the frame shown before
  *     busy     how long the game's thread had been busy before this frame's drawing began (us): a tick in the way
+ *     target   the refresh it was for, less issue (0: on a timer, not for any)
  *   T <when> <game frame> <game clock> : a game frame done
- * Off, none of this costs more than a branch. */
+ * Off, none of this costs more than a branch.
+ *
+ * The lock (MHFU_PRESENT_MODE: lock, the default; old: as before). The refreshes are a grid, known from those same
+ * reports, to within some tens of us. Each frame is made for one of them: it begins a fixed lead before it, and shows
+ * the game as it will be at that refresh, less that lead (so the same step from each frame to the next, whether it
+ * began on time or a tick held it up). The lead is what its drawing has been taking, a little to spare, and the wait
+ * for the compositor, kept up to date; a frame that misses its refresh anyway is replaced by the next, on time (mailbox).
+ * Without reports (another driver, no display), or on a variable refresh, or until they come: a timer at MHFU_FPS. */
 #define _GNU_SOURCE 1
 #include "pacing.h"
 #include "perf.h"
 #include "vk.h"
 
+#include <math.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,6 +43,7 @@ uint64_t time_us(void);
 uint64_t wall_since_idle_us(void);
 
 int pacing_watch;
+static int mode_old, lock_wanted, panel_on;
 
 static FILE *log_file;
 static uint64_t log_start;
@@ -43,7 +53,7 @@ static uint64_t log_start;
 #define RING 512
 typedef struct {
     uint64_t id;
-    uint64_t issue, due, drawn, flip, queue, pixel;
+    uint64_t issue, due, target, drawn, flip, queue, pixel;
     int64_t content;
     unsigned long game_frame;
     float t;
@@ -56,7 +66,7 @@ static Rec ring[RING];
 static uint64_t rec_next;       /* (the frames noted; rec_next % RING the next one's slot) */
 static uint64_t written;        /* those before this are written and counted */
 static Rec *current;            /* the frame being made, until its present */
-static uint64_t present_id;
+static uint64_t present_id, last_reported;
 static int ticks_since;
 
 static PFN_vkGetPastPresentationTimingEXT get_past;
@@ -69,12 +79,15 @@ static int domain_local;        /* in the present stages' own time, to be conver
 static int64_t stage_offset_ns[2];   /* CLOCK_MONOTONIC less that time: queue operations' end, first pixel out */
 static PFN_vkGetCalibratedTimestampsKHR calibrate_fn;
 static uint64_t refresh_ns;     /* the driver's */
+static int refresh_variable;    /* the driver's word for it: no grid to lock to */
+static double grid_at, grid_refresh;    /* a refresh's time (us), the time between them: 0 not known */
+static uint64_t last_report_at;         /* our clock, when a report last had a time in it */
 
 /* -- the second's figures, for the panel ---------------------------------------------------------------------------- */
 
 static struct {
     uint64_t from;
-    unsigned long shown, replaced, repeats, steps;
+    unsigned long shown, replaced, repeats, late, steps;
     double step_sum, step_min, step_max;
 } now_s;
 static PacingStats last_s;
@@ -88,11 +101,16 @@ static double refresh_us(void) {
     return (double)refresh_seen_us;
 }
 
+static void learn(const Rec *r);
+
 static void count(const Rec *r) {
+    learn(r);
     if (r->gone) {
         now_s.replaced++;
     } else if (r->pixel) {
         now_s.shown++;
+        if (r->target && (double)r->pixel > (double)r->target + refresh_us() / 2)
+            now_s.late++;
         if (last_pixel && r->pixel > last_pixel) {
             uint64_t gap = r->pixel - last_pixel;
             if (!refresh_ns && (!refresh_seen_us || gap < refresh_seen_us))
@@ -124,6 +142,7 @@ static void count(const Rec *r) {
         last_s.shown = now_s.shown;
         last_s.replaced = now_s.replaced;
         last_s.repeats = now_s.repeats;
+        last_s.late = now_s.late;
         last_s.step_ms = now_s.steps ? now_s.step_sum / (double)now_s.steps : 0;
         last_s.step_min_ms = now_s.step_min;
         last_s.step_max_ms = now_s.step_max;
@@ -132,8 +151,11 @@ static void count(const Rec *r) {
     }
 }
 
+static double lead_us;              /* (the schedule, below) */
+
 void pacing_stats(PacingStats *out) {
     *out = last_s;
+    out->lead_ms = lead_us / 1000;
 }
 
 /* -- the log -------------------------------------------------------------------------------------------------------- */
@@ -146,10 +168,10 @@ static void write_rec(const Rec *r) {
     if (!log_file)
         return;
     long pixel = r->gone ? -1 : since(r->pixel, r->issue);
-    fprintf(log_file, "F %llu %llu %ld %ld %ld %ld %ld %lld %lu %d %d %llu\n", (unsigned long long)r->id,
+    fprintf(log_file, "F %llu %llu %ld %ld %ld %ld %ld %lld %lu %d %d %llu %ld\n", (unsigned long long)r->id,
             (unsigned long long)(r->issue - log_start), since(r->due, r->issue), since(r->drawn, r->issue),
             since(r->flip, r->issue), since(r->queue, r->issue), pixel, (long long)r->content, r->game_frame,
-            (int)(r->t * 10000), r->ticks, (unsigned long long)r->busy);
+            (int)(r->t * 10000), r->ticks, (unsigned long long)r->busy, since(r->target, r->issue));
 }
 
 /* What has its report (in order), written and counted */
@@ -173,9 +195,27 @@ static void flush_log(void) {
         fflush(log_file);
 }
 
+static double next_target;          /* the refresh the next frame is for */
+static double lead_want;            /* what the lead is going to */
+static double extra_us;             /* the lead's margin, more for frames that missed anyway */
+static uint32_t took[1024];         /* from when frames were due to the end of their queue operations, the last ones (us) */
+static unsigned took_n;
+static unsigned long since_lead, landed, landed_late, landed_early;
+static int compositor_refreshes = 1;    /* how many refreshes it holds a frame from the one it took it at */
+
 /* -- settings ----------------------------------------------------------------------------------------------------------- */
 
+
+int pacing_old(void) {
+    return mode_old;
+}
+
 void pacing_init(void) {
+    const char *mode = getenv("MHFU_PRESENT_MODE");
+    mode_old = mode && !strcmp(mode, "old");
+    lock_wanted = !mode_old && (!mode || !strcmp(mode, "lock"));
+    if (mode && !mode_old && !lock_wanted)
+        fprintf(stderr, "MHFU_PRESENT_MODE: lock or old, not %s\n", mode);
     const char *path = getenv("MHFU_PRESENT_LOG");
     if (path && *path) {
         log_file = fopen(path, "w");
@@ -185,19 +225,20 @@ void pacing_init(void) {
             static char buffer[1 << 18];
             setvbuf(log_file, buffer, _IOFBF, sizeof buffer);
             log_start = wall_time_us();
-            pacing_watch = 1;
             atexit(flush_log);
         }
     }
+    pacing_watch_panel(panel_on);
 }
 
 void pacing_watch_panel(int on) {
-    pacing_watch = on || log_file;
+    panel_on = on;
+    pacing_watch = panel_on || log_file || (lock_wanted && reports);
 }
 
 VkPresentModeKHR pacing_present_mode(const VkPresentModeKHR *modes, uint32_t n) {
     VkPresentModeKHR want = VK_PRESENT_MODE_MAILBOX_KHR;
-    const char *e = getenv("MHFU_PRESENT_MODE");
+    const char *e = getenv("MHFU_PRESENT_SWAP");     /* (the swapchain's mode, to compare) */
     if (e && !strcmp(e, "fifo"))
         want = VK_PRESENT_MODE_FIFO_KHR;
     else if (e && !strcmp(e, "latest"))
@@ -234,7 +275,13 @@ static int calibrate(void) {
 void pacing_swapchain_created(void) {
     reports = 0;
     refresh_ns = 0;
+    refresh_variable = 0;
+    grid_refresh = 0;
     last_pixel = 0;
+    took_n = 0;
+    since_lead = landed = landed_late = landed_early = 0;
+    lead_want = extra_us = 0;
+    compositor_refreshes = 1;
     if (!vk.present_timing)
         return;
     if (!get_past) {
@@ -272,15 +319,18 @@ void pacing_swapchain_created(void) {
             fprintf(stderr, "present timing: its clock is ours plus %lld, %lld ns\n", (long long)-stage_offset_ns[0],
                     (long long)-stage_offset_ns[1]);
     }
+    pacing_watch_panel(panel_on);
 }
 
 /* The driver's refresh, when it has it (it may not, before the first frames are out) */
 static void read_refresh(void) {
-    if (refresh_ns || !reports)
+    if (!reports)
         return;
     VkSwapchainTimingPropertiesEXT p = {VK_STRUCTURE_TYPE_SWAPCHAIN_TIMING_PROPERTIES_EXT};
-    if (get_timing(vk.device, vk.swapchain, &p, NULL) == VK_SUCCESS && p.refreshDuration) {
+    if (get_timing(vk.device, vk.swapchain, &p, NULL) == VK_SUCCESS && p.refreshDuration && p.refreshDuration != refresh_ns) {
         refresh_ns = p.refreshDuration;
+        refresh_variable = p.refreshInterval == UINT64_MAX;
+        grid_refresh = 0;
         fprintf(stderr, "present timing: refresh %.3f us (%.5f Hz), interval %llu\n", (double)refresh_ns / 1000,
                 1e9 / (double)refresh_ns, (unsigned long long)p.refreshInterval);
         if (log_file)
@@ -288,6 +338,9 @@ static void read_refresh(void) {
                     (unsigned long long)p.refreshInterval);
     }
 }
+
+/* The refresh grid: a line through the reports' times, kept up by a little of each one's error */
+static void grid_report(uint64_t pixel);
 
 /* The reports come in: to the frames they are of */
 static void read_reports(void) {
@@ -308,6 +361,7 @@ static void read_reports(void) {
         if (r != VK_SUCCESS && r != VK_INCOMPLETE)
             return;
         for (uint32_t i = 0; i < props.presentationTimingCount; i++) {
+            last_reported = t[i].presentId;
             /* (the frames go in order: one of those still kept in the ring) */
             for (uint64_t k = rec_next; k > written && rec_next - k < RING; k--) {
                 Rec *f = &ring[(k - 1) % RING];
@@ -321,8 +375,10 @@ static void read_reports(void) {
                         f->queue = at ? (uint64_t)((int64_t)at + (domain_local ? stage_offset_ns[0] : 0)) / 1000 : 0;
                     else if (stages[i][s].stage & VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_OUT_BIT_EXT) {
                         f->pixel = at ? (uint64_t)((int64_t)at + (domain_local ? stage_offset_ns[1] : 0)) / 1000 : 0;
-                        if (at)
+                        if (at) {
                             f->gone = 0;
+                            grid_report(f->pixel);
+                        }
                     }
                 }
                 break;
@@ -333,9 +389,125 @@ static void read_reports(void) {
     }
 }
 
+/* -- the schedule ------------------------------------------------------------------------------------------------------- */
+
+#define DEADLINE_MARGIN_US 700.0    /* to spare before the compositor takes what it has, about at the refresh (measured) */
+
+static void grid_report(uint64_t pixel) {
+    last_report_at = wall_time_us();
+    double r = refresh_us();
+    if (r <= 0)
+        return;
+    double p = (double)pixel;
+    if (grid_refresh <= 0) {
+        grid_refresh = r;
+        grid_at = p;
+        return;
+    }
+    double n = floor((p - grid_at) / grid_refresh + 0.5), error = p - (grid_at + n * grid_refresh);
+    static int odd;
+    if (fabs(error) > grid_refresh / 4) {
+        if (++odd >= 16) {          /* (not a stray: the grid has moved) */
+            grid_at = p;
+            odd = 0;
+        }
+        return;
+    }
+    odd = 0;
+    grid_at += n * grid_refresh + 0.03 * error;
+    grid_refresh += 0.0002 * error;
+}
+
+/* The grid's refresh nearest a time */
+static double grid_snap(double at) {
+    return grid_at + floor((at - grid_at) / grid_refresh + 0.5) * grid_refresh;
+}
+
+static int refreshes_a_frame(int fps) {
+    int n = (int)floor(1e6 / fps / grid_refresh + 0.5);
+    return n < 1 ? 1 : n;
+}
+
+static int cmp_u32(const void *a, const void *b) {
+    uint32_t x = *(const uint32_t *)a, y = *(const uint32_t *)b;
+    return x < y ? -1 : x > y;
+}
+
+/* A frame's report: how long its way to the compositor took, which refresh it reached */
+static void learn(const Rec *r) {
+    if (!lock_wanted || !r->target || grid_refresh <= 0)
+        return;
+    double R = grid_refresh;
+    if (r->queue > r->due && r->queue - r->due < 100000) {
+        took[took_n++ % 1024] = (uint32_t)(r->queue - r->due);
+        since_lead++;
+    }
+    if (r->pixel) {
+        double off = (double)r->pixel - (double)r->target;
+        landed++;
+        if (off > R / 2) {
+            landed_late++;
+            extra_us = extra_us + 100 > 2000 ? 2000 : extra_us + 100;
+        } else if (off < -R / 2)
+            landed_early++;
+    }
+    if (since_lead < 144 || took_n < 288)
+        return;
+    since_lead = 0;
+    extra_us = extra_us > 50 ? extra_us - 50 : 0;
+    /* most of a second's frames at another refresh than the one they were for: the compositor's wait isn't what was
+     * taken (its own scheduling, the frame going straight to the screen) */
+    if (landed >= 72 && landed_late * 10 > landed * 9 && compositor_refreshes < 3)
+        compositor_refreshes++;
+    else if (landed >= 72 && landed_early * 10 > landed * 9 && compositor_refreshes > 0)
+        compositor_refreshes--;
+    landed = landed_late = landed_early = 0;
+    static uint32_t sorted[1024];
+    unsigned n = took_n < 1024 ? took_n : 1024;
+    memcpy(sorted, took, n * sizeof *sorted);
+    qsort(sorted, n, sizeof *sorted, cmp_u32);
+    double slowest = sorted[n - 1 - n / 1000], fastest = sorted[n / 100];
+    lead_want = slowest + DEADLINE_MARGIN_US + extra_us + compositor_refreshes * R;
+    /* all of them for one of the compositor's turns: a frame much quicker than the rest, begun too early, would reach the
+     * turn before and show a refresh early. Those slower lose their refresh instead, the rarer */
+    if (lead_want > fastest + (compositor_refreshes + 1) * R - 500)
+        lead_want = fastest + (compositor_refreshes + 1) * R - 500;
+}
+
+int pacing_next(int fps, uint64_t wall_now, uint64_t *due, uint64_t *target, uint64_t *shows) {
+    if (!lock_wanted || !vk.present_timing || refresh_variable || grid_refresh <= 0 || wall_now - last_report_at > 250000) {
+        next_target = 0;
+        lead_us = 0;
+        return 0;
+    }
+    double R = grid_refresh, step = R * refreshes_a_frame(fps), now = (double)wall_now;
+    if (lead_us <= 0)
+        lead_us = lead_want > 0 ? lead_want : 2 * R;
+    /* (to the lead wanted, by too little a step to see) */
+    if (lead_want > 0)
+        lead_us += lead_want > lead_us + 5 ? 5 : lead_want < lead_us - 5 ? -5 : lead_want - lead_us;
+    if (next_target <= 0)
+        next_target = grid_snap(now + lead_us + R);
+    else
+        next_target = grid_snap(next_target);
+    /* held up by a whole frame or more: that one's gone, the next on time */
+    while (next_target - lead_us + step <= now)
+        next_target = grid_snap(next_target + step);
+    *due = (uint64_t)(next_target - lead_us);
+    *target = (uint64_t)next_target;
+    *shows = (uint64_t)(next_target - lead_us);
+    return 1;
+}
+
+void pacing_issued(int fps, uint64_t wall_now) {
+    (void)wall_now;
+    if (next_target > 0)
+        next_target = grid_snap(next_target + grid_refresh * refreshes_a_frame(fps));
+}
+
 /* -- a frame ------------------------------------------------------------------------------------------------------------ */
 
-void pacing_frame(uint64_t due, uint64_t issue, int64_t content, unsigned long game_frame, float t) {
+void pacing_frame(uint64_t due, uint64_t target, uint64_t issue, int64_t content, unsigned long game_frame, float t) {
     if (!pacing_watch)
         return;
     settle(0);
@@ -345,6 +517,7 @@ void pacing_frame(uint64_t due, uint64_t issue, int64_t content, unsigned long g
     memset(current, 0, sizeof *current);
     current->issue = issue;
     current->due = due;
+    current->target = target;
     current->content = content;
     current->game_frame = game_frame;
     current->t = t;
@@ -378,7 +551,7 @@ const void *pacing_present_chain(void) {
     static VkPresentTimingsInfoEXT infos;
     id = ++present_id;
     present = (VkPresentId2KHR){VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR, NULL, 1, &id};
-    if (!pacing_watch)
+    if (!pacing_watch || id - last_reported >= 60)     /* (the reports' queue, of 64, is not to fill) */
         return &present;
     info = (VkPresentTimingInfoEXT){VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT};
     info.timeDomainId = domain_id;
