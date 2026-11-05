@@ -64,9 +64,12 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 |---|---|---|---|
 | In-game graphics options | Many settings are env vars or `settings.ini` only | Not started | Inventory them; extend the F1 overlay (`runtime/src/overlay.c`) |
 | Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
-| Known artifacts | User-visible | Sun flare merged, not confirmed by play | Build a list from the user; snow haze edges are still open *(check)* |
+| Artifact: 2D sprite-like textures, as the sun was, that aren't static | Reported 2026-11-05 | Not started | User's save states show where; compare with the flare fix |
+| Artifact: Khezu's colour artifacts towards its tail | Reported 2026-11-05 | Not started | Save state; try with `MHFU_GPU_TL=0` and on PPSSPP, to see if it's ours |
+| Artifact: Congalala's mesh seams as it moves, such as the tail | Reported 2026-11-05 | Not started | Same tests, plus `MHFU_NATIVE_SMOOTH=0`: smoothing moves matrices apart *(check)* |
+| Artifact: snow haze edges | Older report | Not started *(check)* | Ask if still seen |
 | Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
-| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started | See below |
+| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started; starts after the artifacts (user's decision) | See below |
 | God rays | Requested | Not started | Design in the renderer, using the existing sun direction; no game code needed *(check)* |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
@@ -143,4 +146,3 @@ hand-written and verified (1.2% of lines), 137 once the current batch passes (1.
 ## Open questions for the user
 
 - New areas: wanted enough to survey now, or later?
-- Which artifacts bother you most right now?
