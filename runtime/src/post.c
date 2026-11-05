@@ -2,7 +2,7 @@
  *
  * - Haze, first: the air between the camera and what it sees, thicker the lower it lies (integrated along the way from
  *   the eye), the world's fog colour lit towards the sun; none within 2000 units (rooms, caves). MHFU_HAZE: its
- *   strength, 0 none.
+ *   strength; by default 0, none: at 1 it hides the distant mountains and clouds the game draws (the village's).
  * - Anti-aliasing, temporal: the world drawn a fraction of a pixel off each frame shown (eight places in turn), each
  *   pixel blended into what it showed the frame before, found as the motion blur finds the motion (MHFU_TAA=0: none;
  *   MHFU_TAA_BLEND: the share of the new frame, default 0.1). What it showed before is kept to the colours about the
@@ -59,7 +59,7 @@ static int on = -1;
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
 static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
-static float dof = 0.0f, sharpen = 0.4f, motion = 0.5f, taa = 0.1f, haze = 1.0f;
+static float dof = 0.0f, sharpen = 0.4f, motion = 0.5f, taa = 0.1f, haze = 0.0f;
 static int fps;
 static uint32_t fw, fh;
 static int first, nlevels;      /* the bloom's: the level as wide as the PSP's picture (it is made up to), how many */
