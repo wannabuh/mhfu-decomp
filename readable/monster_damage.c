@@ -9,8 +9,6 @@
 #include "hit.h"
 #include "names.h"
 
-typedef union { uint32_t u; float f; } Float32Bits;
-
 /* Named here by address as function names may change: */
 #define add_meter_by_health_band f_game_task_09AD38F8
 #define add_buildup_44c f_game_task_09ACC170

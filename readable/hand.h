@@ -78,6 +78,13 @@ static inline uint32_t call2_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1)
     rt_call(c, addr);
     return c->r[2];
 }
+static inline uint32_t call3_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1, uint32_t a2) {
+    c->r[4] = a0;
+    c->r[5] = a1;
+    c->r[6] = a2;
+    rt_call(c, addr);
+    return c->r[2];
+}
 static inline uint32_t call4_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3) {
     c->r[4] = a0;
     c->r[5] = a1;

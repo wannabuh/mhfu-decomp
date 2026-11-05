@@ -132,6 +132,7 @@ HAND = {
     ("EBOOT", 0x088D9F3C): "hand_hunter_resist_values_add_game_bytes_6993d",
     ("game_task", 0x09AC9318): "hand_entity_pending_damage_scale_from_quest_table",
     ("game_task", 0x09A6FB30): "hand_hunter_clear_received_hit_fields",
+    ("game_sub", 0x09C43558): "hand_entity_apply_hit_hitzone_damage_and_attacker_sharpness",
     ("game_sub", 0x09C45008): "hand_object_apply_hit_mask_28_amounts",
     ("game_sub", 0x09C43000): "hand_hunter_register_hit_add_defense_scaled_damage",
     ("game_sub", 0x09C426E0): "hand_hit_node_test_target_if_in_current_map_and_state_2",

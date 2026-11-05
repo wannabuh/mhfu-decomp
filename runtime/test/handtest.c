@@ -71,6 +71,7 @@ static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_recalc_resists(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_add_resist(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_bytes(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -83,7 +84,7 @@ static void inputs_test_if_in_map(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_test_target(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_manager(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes add_health_pokes, can_guard_pokes, recalc_defense_pokes, received_hit_pokes;
-extern const struct Pokes recalc_resists_pokes;
+extern const struct Pokes recalc_resists_pokes, hit_zones_pokes;
 extern const struct Pokes register_hit_pokes, sum_damage_pokes, apply_damage_pokes, test_if_in_map_pokes, test_target_pokes, hit_manager_pokes;
 
 static const Case cases[] = {
@@ -129,6 +130,7 @@ static const Case cases[] = {
     {"entity_pending_damage_scale 09AC9318", f_game_task_09AC9318, 0, 0, 0x09AC9318, NULL, inputs_scale_table, NULL},
     {"hunter_clear_received_hit_fields 09A6FB30", f_game_task_09A6FB30, 0, 0, 0x09A6FB30, NULL, inputs_clear_hit_fields, NULL},
     {"hunter_resist_skills 088D9880", f_EBOOT_088D9880, 0, 0, 0x088D9880, NULL, inputs_resist_skills, NULL},
+    {"monster_hit_zones 09C43558", f_game_sub_09C43558, 0, 0, 0x09C43558, NULL, inputs_hit_zones, &hit_zones_pokes},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -178,6 +180,7 @@ static int stack_pattern;           /* a stack of words all different, so that r
 static int compare_vfpu;            /* a function that leaves something in the vector registers */
 static int compare_f0;              /* a function returning a float */
 static uint32_t test_f12;           /* f12 to give it, as bits */
+static uint32_t test_t0, test_t1;   /* t0 and t1 to give it, for those of six arguments */
 static Call calls[2][MAX_CALLS];
 static int ncalls[2], current;
 
@@ -1055,6 +1058,7 @@ static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
 #define HIT_SHAPES 0x09FF9400u
 #define HIT_PARTS 0x09FF9600u
 #define HIT_OUT 0x09FF9800u
+#define HIT_VTABLE 0x09FF9880u       /* a record's and a made-up target's: its slots a stub */
 #define HIT_TARGET_A 0x09FFA000u     /* targets: objects of the size the code reads */
 #define HIT_TARGET_B 0x09FFC000u
 #define HIT_ATTACKER 0x09FFE000u
@@ -1180,7 +1184,10 @@ static void hit_common(Ctx *c, uint32_t target) {
     hashed_more[1].size = 0x400;
     poke_base[2] = HIT_RECORD;
     poke_base[3] = HIT_ATTACKER;
+    for (uint32_t slot = 0; slot < 0x100; slot += 4)
+        SW(HIT_VTABLE + slot, 0x09C451F0u);
     random_record(c, HIT_RECORD);
+    SW(HIT_RECORD, HIT_VTABLE);
     for (int n = 0; n < MAX_CALLS; n++)
         stub_short[n][0] = (int16_t)rnd();
 }
@@ -1414,6 +1421,137 @@ static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]) {
         SB(hunter + 0x676 + i, skills[rnd() % sizeof skills]);
 }
 
+/* A hit on a part. In stub mode everything is made up: zone tables, sharpness tables and their sounds, so that a wrong index shows */
+#define HIT_ZONE_POINTERS 0x09FF9A00u
+#define HIT_ZONES 0x09FF9A20u
+static const Bias hit_zones_bias[] = {
+    {RECORD_TEST, 8, {0, 0, 1, 1, 1, 1, 0x10000, -1}},
+    {0x09C45140u, 8, {0, 0, 0, 0, 1, 2, 3, 0x100}},
+    {0x09C44FD8u, 8, {0, 0, 0, 0, 0, 0, 1, 0x100}},
+    {0x088D6A1Cu, 8, {0, 0, 0, 0, 0, 1, 0x100, 0x101}},
+    {0x088DAE98u, 4, {0, 0, 1, 0x100}},
+    {0x088D6A54u, 8, {0, 0, 0, 0, 1, 1, 0x100, 0x101}},
+    {0x088900C4u, 4, {0, 1, 2, 0x10000}},
+    {0x09A88408u, 4, {0, 1, 2, 0x10001}},
+    {0x09C451F0u, 8, {0, 5, 5, 5, 6, 6, 6, 0x105}},     /* the record's method */
+    {0, 0, {0}},
+};
+POKES(hit_zones_pokes, hit_zones_bias, {0x1E9, 1, 0}, {0x1E8, 1, 0}, {0x3B8, 2, 0}, {0x3C6, 2, 0}, {0x394, 2, 0}, {0x398, 1, 0}, {0x3CF, 1, 0}, {0x3D0, 1, 0}, {0x4C0, 1, 0}, {0x3CE, 1, 0}, {0x3B0, 1, 0}, {0x482, 2, 0},
+      {0x27, 1, 2}, {0x1E, 1, 2}, {0x1F, 1, 2}, {0x21, 1, 2}, {0x24, 1, 2}, {0x25, 1, 2}, {0x28, 2, 2}, {0x2A, 1, 2}, {0x2C, 1, 2}, {0x2D, 1, 2}, {0x30, 1, 2}, {0x77, 1, 2}, {0xF, 1, 2}, {0x2E, 1, 2},
+      {0x1E8, 1, 3}, {0x1E9, 1, 3}, {0x1E6, 2, 3}, {0x397, 1, 3}, {0x33D, 1, 3}, {0x380, 4, 3}, {0x424, 2, 3}, {0x5F2, 1, 3}, {0x5F3, 1, 3}, {0x5F7, 1, 3}, {0x10F0, 1, 3}, {0x10F1, 1, 3}, {0x1114, 4, 3});
+
+static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    HitRecord *r = (HitRecord *)MEM(HIT_RECORD);
+    if (!record_method) {       /* the real ones: a real monster and its first part, the tables as they are */
+        uint32_t monster = first_monster(c);
+        Monster *m = (Monster *)MEM(monster);
+        hit_common(c, monster);
+        real_hit(c, hunter, args);
+        uint32_t parts = LW(MONSTER_TYPE_RECORD(m->subtype) + 0x50);
+        for (uint32_t skip = rnd() % 3; skip && (int16_t)LH(parts + 0x28) != -1; skip--)
+            parts += 0x28;
+        args[0] = PICK(hunter, hunter, hunter, monster, 0);
+        r->owner_kind = args[0] ? (uint8_t)PICK(0, 0, 1, 0xFF) : 0xFF;
+        args[1] = monster;
+        args[2] = HIT_SHAPES;
+        test_t0 = parts;
+        test_t1 = HIT_CONTACT_AT;
+        Hunter *h = (Hunter *)MEM(hunter);
+        h->weapon_class = (uint8_t)PICK(0, 0, 1, 2, 5);
+        h->sharpness_level = (uint8_t)PICK(0, 1, 2, 3, 4);
+        r->owner_table = (uint8_t)PICK(0, 0, 0, 1);
+        r->sound_choice = (uint8_t)PICK(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xFF);
+        return;
+    }
+    hit_common(c, HIT_TARGET_A);
+    hashed_more[1].size = 0x1200;
+    random_target(c, HIT_TARGET_A, PICK(1, 1, 1, 1, 2, 0));
+    random_target(c, HIT_ATTACKER, PICK(0, 0, 0, 0, 0, 1));
+    SW(HIT_RECORD, HIT_VTABLE);
+    SW(HIT_TARGET_A, HIT_VTABLE);
+    Monster *t = (Monster *)MEM(HIT_TARGET_A);
+    Hunter *a = (Hunter *)MEM(HIT_ATTACKER);
+    t->subtype = (uint8_t)PICK(0x1D, 0x1D, 0x1D, 0x55, 0x34, 0x41, 0x40, 77, 2);
+    t->hit_zone_table = (int8_t)PICK(0, 1, 2);
+    t->status_hold_mode = (uint8_t)PICK(0, 0, 1, 2, 2, 3, 4, 5);
+    t->cannot_die_ticks = (int8_t)PICK(0, 0, 1, -1);
+    t->hit_mark_flag = (uint8_t)PICK(0, 1, 0xFF);
+    t->hit_log_index = (uint8_t)PICK(0, 1, 14, 15, 16, 0xFF);
+    for (uint32_t i = 0; i < 8; i++) {
+        SB(HIT_TARGET_A + 0x3B0 + i, rnd());
+        SH(HIT_TARGET_A + 0x3B8 + 2 * i, rnd());
+    }
+    SW(MONSTER_TYPE_RECORD(t->subtype) + 0x10C, HIT_ZONE_POINTERS);
+    for (uint32_t i = 0; i < 3; i++)
+        SW(HIT_ZONE_POINTERS + 4 * i, HIT_ZONES + 0x40 * i);
+    for (uint32_t o = 0; o < 0xC0; o++)
+        SB(HIT_ZONES + o, PICK(0, 1, 25, 30, 50, 100, 127, 128, 200, 255));
+    SH(HIT_PARTS + 4, PICK(0, 1, 2));
+    SH(HIT_PARTS + 6, PICK(0, 1, 2, 7, 8, 0x10F, -1));
+    SB(HIT_PARTS + 0xB, PICK(0, 8, 0xF7, 0xFF));
+    SH(HIT_SHAPES + 4, PICK(0, 1, 2, 0x101));
+    a->weapon_class = (uint8_t)PICK(0, 0, 1, 1, 5, 2, 9, 0xA, 0xA, 0xC, 0xC);
+    a->sharpness_level = (uint8_t)PICK(0, 1, 2, 3, 4, 5, 6);
+    a->attack_percent_a = (uint8_t)PICK(0, 1, 50, 100, 127, 128, 255);
+    a->attack_percent_b = (uint8_t)PICK(0, 1, 50, 100, 127, 128, 255);
+    a->attack_connected_reaction = (uint8_t)PICK(0, 1, 2, 3);
+    a->status_bits = (uint16_t)PICK(0, 0x2000, ~0x2000, -1);
+    a->weapon_uses_load = (uint8_t)PICK(0, 1, 1, 2);
+    a->timed_effect_0_level = (uint8_t)PICK(0, 1, 2, 3);
+    a->instance_index = (uint16_t)rnd();
+    SET_FLOAT_BITS(a->attack_multiplier, float_bits(1.0f + (float)(rnd() % 256) / 64.0f));
+    SET_FLOAT_BITS(a->attack_growth, PICK(float_bits(1.0f), float_bits(1.01f), float_bits(1.0100001f), float_bits(1.2f), float_bits(0.9f), float_bits(1.05f)));
+    r->owner_kind = (uint8_t)PICK(0, 0, 0, 0, 1, 0xFF);
+    r->owner_table = (uint8_t)PICK(0, 0, 0, 1);
+    r->uses = (uint8_t)PICK(0, 0, 1, 0x10, 0xF0);
+    r->kind = (uint8_t)PICK(0xA, 0xA, 0xB, 0x11, 0x11, 2, 0, 3, 0x8A);
+    r->sound_choice = (uint8_t)PICK(0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xA, 0xB, 0xC, 0xD, 0xFF);
+    r->damage_percent = (uint8_t)PICK(0, 0, 1, 50, 127, 128, 255);
+    r->damage_bits = (uint8_t)PICK(0, 1, 1, 2, 3, 8, 9, 0xFF);
+    r->drain_amount = (uint8_t)PICK(0, 0, 1, 5, 127, 128, 255);
+    SB(HIT_RECORD + 0x31, PICK(0, 0, 0, 1, 2, 0xFF));
+    SB(HIT_RECORD + 0x32, PICK(0, 0, 1, 2));
+    r->buildup_mask = (uint16_t)(rnd() % 2 ? rnd() : PICK(0x10, 0x20, 0x40, 0x80, 0x100, 0));
+    r->damage = (uint8_t)PICK(0, 1, 2, 3, 10, 50, 100, 127, 128, 255);
+    r->direct_buildup = (uint8_t)PICK(0, 1, 10, 30, 127, 128, 255);
+    /* the tables: floats where floats are read, numbers where they aren't */
+    for (uint32_t o = 0x09CF97B8u; o < 0x09CF9870u; o += 4)
+        SW(o, float_bits((float)(rnd() % 256) / 128.0f));
+    for (uint32_t o = 0x09CF9870u; o < 0x09CF9A00u; o += 4)
+        SW(o, rnd() % 4 ? rnd() : 0);
+    SW(LW(0x08A62D9Cu) + 0x28, PICK(0, 0x40000000, ~0x40000000, -1));
+    if (rnd() % 4 == 0) {       /* numbers for which the order of attack, damage and scale shows in the result */
+        for (int tries = 0; tries < 500; tries++) {
+            float attack = 1.0f + (float)(rnd() % 0x100000) / 0x40000p0f, scale = 0.5f + (float)(rnd() % 0x100000) / 0x100000p0f, damage = (float)(1 + rnd() % 255);
+            if (rt_trunc_w(attack * (damage * scale)) == rt_trunc_w((attack * damage) * scale))
+                continue;
+            SET_FLOAT_BITS(a->attack_multiplier, float_bits(attack));
+            r->damage = (uint8_t)damage;
+            SW(0x09CF97B8u + a->sharpness_level * 16u, float_bits(1.0f));
+            SW(0x09CF9838u + a->sharpness_level * 4u, float_bits(scale));
+            SB(HIT_RECORD + 0x31, 0xFF);
+            a->attack_percent_a = a->attack_percent_b = 100;
+            for (uint32_t o = 0; o < 0xC0; o++)
+                SB(HIT_ZONES + o, 100);
+            r->damage_percent = 0;
+            r->kind = 2;
+            r->owner_table = 0;
+            r->owner_kind = 0;
+            t->status_hold_mode = 0;
+            t->last_hit_record = 0;
+            break;
+        }
+    }
+    test_a0 = HIT_RECORD;
+    args[0] = rnd() % 16 ? HIT_ATTACKER : 0;
+    if (args[0] == 0)       /* a record has an owner, or says it has none; otherwise the original reads through 0 */
+        r->owner_kind = 0xFF;
+    args[1] = HIT_TARGET_A;
+    args[2] = HIT_SHAPES;
+    test_t0 = HIT_PARTS;
+    test_t1 = HIT_CONTACT_AT;
+}
+
 static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     Hunter *self = (Hunter *)MEM(hunter);
     GameState *g = (GameState *)MEM(LW(GAME_POINTER));
@@ -1432,7 +1570,8 @@ static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     SET_FLOAT_BITS(self->resist_pct_hit_bit_40, FLOATS);
     SET_FLOAT_BITS(self->resist_pct_hit_bit_20, FLOATS);
     SET_FLOAT_BITS(self->resist_pct_hit_bit_80, FLOATS);
-    if (rnd() % 2) {         /* numbers that aren't peculiar, where rounding shows */
+    if (rnd() % 2) {         /* numbers that aren't peculiar, where rounding shows; the record's too */
+        ((HitRecord *)MEM(HIT_RECORD))->damage_percent = (uint8_t)(rnd() % 3 ? 0 : 1 + rnd() % 200);
         SET_FLOAT_BITS(((Hunter *)MEM(HIT_ATTACKER))->attack_multiplier, float_bits(1.0f + (float)(rnd() % 256) / 64.0f));
         SET_FLOAT_BITS(self->defense_for_damage, float_bits(1.0f + (float)(rnd() % 512) / 2.0f));
         SET_FLOAT_BITS(self->resist_pct_hit_bit_04, float_bits((float)(rnd() % 64) - 20.0f));
@@ -1458,6 +1597,26 @@ static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     args[1] = hunter;
     args[2] = HIT_CONTACT_AT;
     ((HitRecord *)MEM(HIT_RECORD))->kind = (uint8_t)PICK(0xB, 0xB, 0xE, 0xF, 0x10, 0x15, 0x16, 0x19, 0x1A, 0x1E, 2, 3, 0x20, 0x80);
+    if (record_method && rnd() % 4 == 0) {      /* numbers for which the order of the percent's multiply and divide shows in the result */
+        HitRecord *r = (HitRecord *)MEM(HIT_RECORD);
+        for (int tries = 0; tries < 500; tries++) {
+            float attack = 1.0f + (float)(rnd() % 0x100000) / 0x40000p0f, record_damage = (float)(1 + rnd() % 255), percent = (float)(1 + rnd() % 255);
+            float defense = 1.0f + (float)(rnd() % 512) / 2.0f, x = record_damage * attack * (percent / 100.0f), y = record_damage * attack * percent / 100.0f;
+            x = x - x * defense / (defense + 80.0f);
+            y = y - y * defense / (defense + 80.0f);
+            if (rt_trunc_w(x) == rt_trunc_w(y))
+                continue;
+            SET_FLOAT_BITS(((Hunter *)MEM(HIT_ATTACKER))->attack_multiplier, float_bits(attack));
+            SET_FLOAT_BITS(self->defense_for_damage, float_bits(defense));
+            r->damage = (uint8_t)record_damage;
+            r->damage_percent = (uint8_t)percent;
+            r->damage_bits = 0;
+            r->kind = 2;
+            r->owner_table = 1;
+            r->owner_kind = 0;
+            break;
+        }
+    }
 }
 
 /* -- damage to a monster ------------------------------------------------------------------------------------------------------------------ */
@@ -1627,6 +1786,8 @@ int main(int argc, char **argv) {
             stub_hook = NULL;
             stack_pattern = compare_vfpu = compare_f0 = 0;
             test_f12 = 0;
+            test_t0 = 0xBAD00008u;
+            test_t1 = 0xBAD00009u;
             randomise(c, hunter, &a1, &tick30);
             /* how rarely a call does anything: a chain of 14 tests all answering 0 isn't reached otherwise */
             uint32_t quiet = 0;
@@ -1692,6 +1853,8 @@ int main(int argc, char **argv) {
                 memset(c->v, 0, sizeof c->v);
                 memset(c->vfpu_ctrl, 0, sizeof c->vfpu_ctrl);
                 c->f[12].u = test_f12;
+                c->r[8] = test_t0;
+                c->r[9] = test_t1;
                 c->r[29] = TEST_SP;
                 c->r[4] = test_a0;
                 c->r[5] = a1;

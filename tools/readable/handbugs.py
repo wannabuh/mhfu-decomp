@@ -76,6 +76,8 @@ class Test:
         if done.returncode < 0:
             return f"died of signal {-done.returncode}"
         lines = done.stdout.splitlines()
+        if "fatal:" in done.stdout + done.stderr:     # a call to nowhere, by rt_fatal: not a case missing
+            return "fatal"
         if not any(case in line and line.endswith(": same") or line.endswith(": FAILED") for line in lines):
             sys.exit(f"no case called {case}, or handtest couldn't run:\n{done.stdout}{done.stderr}")
         if done.returncode == 0:

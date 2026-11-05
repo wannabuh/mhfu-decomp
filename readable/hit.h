@@ -5,8 +5,10 @@
 #include <stddef.h>
 #include "hand.h"
 
+typedef union { uint32_t u; float f; } Float32Bits;
+
 typedef struct HitRecord {
-    uint8_t pad_00[0x04];
+    uint8_t pad_00[0x04];       /* its vtable */
     uint32_t next;              /* +0x04 the next one, 0 at the end */
     uint8_t pad_08[0x06];
     uint8_t owner_kind;         /* +0x0E 0xFF: no owner */
