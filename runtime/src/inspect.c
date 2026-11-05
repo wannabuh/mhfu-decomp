@@ -50,11 +50,18 @@ static uint64_t last_request;
 
 int inspect_open(void) { return open; }
 static int step_due;                /* ticks to let through while held (the . key) */
-static long test_step_every, test_steps_left, test_step_count;
+static long test_step_every, test_steps_left, test_step_count, test_back_passes, test_back_at;
+static int test_back_by;
+int gpu_view_move(int by);
+int gpu_view_back(void);
 
 int inspect_paused(void) {
     if (test_pause_left > 0 && --test_pause_left == 0)
         paused = 0;
+    if (paused && test_back_at && ++test_back_passes == test_back_at) {
+        gpu_view_move(test_back_by);
+        capture_request();
+    }
     if (paused && test_steps_left > 0 && ++test_step_count >= test_step_every) {
         test_step_count = 0;
         test_steps_left--;
@@ -75,9 +82,22 @@ void inspect_toggle_pause(void) {
     window_note(paused ? "game held: f8 lets go, . a tick on, f6 captures" : "game running");
 }
 
+/* Back a frame shown, while held (the , key), and forward: "." comes forward first, then lets a tick through */
 void inspect_step(void) {
-    if (paused)
+    if (!paused)
+        return;
+    if (gpu_view_back()) {
+        gpu_view_move(-1);
+        gpu_pick_request();
+    } else
         step_due = 1;
+}
+
+void inspect_back(void) {
+    if (paused) {
+        gpu_view_move(1);
+        gpu_pick_request();
+    }
 }
 
 void inspect_toggle(void) {
@@ -203,6 +223,9 @@ void inspect_tick(unsigned long frame) {
             if (*e == ';')
                 e++;
         }
+        e = getenv("MHFU_TEST_BACK");       /* passes,by: held, that far back after so many passes, and a capture */
+        if (e)
+            sscanf(e, "%ld,%d", &test_back_at, &test_back_by);
         e = getenv("MHFU_TEST_STEP");       /* every,count: a tick let through every that many passes, while held */
         if (e)
             sscanf(e, "%ld,%ld", &test_step_every, &test_steps_left);
@@ -299,7 +322,10 @@ int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
         /* (held without the inspector: only a mark that it is) */
         int d = (int)(scale / 2) < 1 ? 1 : (int)(scale / 2);
         char line[64];
-        snprintf(line, sizeof line, "HELD %lu  F8 RUN  . STEP  F6 CAPTURE", present_frame_number());
+        if (gpu_view_back())
+            snprintf(line, sizeof line, "HELD %lu, %d BACK  F8 RUN  , . MOVE  F6 CAPTURE", present_frame_number(), gpu_view_back());
+        else
+            snprintf(line, sizeof line, "HELD %lu  F8 RUN  , BACK  . STEP  F6 CAPTURE", present_frame_number());
         int w = pen_text_width(line) + 6;
         Pen m = {out, 0, max, d, (int)(x0 + 240 * scale) - w * d / 2, (int)y0 + 3 * d};
         pen_box(&m, 0, 0, w, 13, C_INK);

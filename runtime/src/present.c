@@ -953,7 +953,7 @@ void present_frame(void) {
         exit(0);
     /* the controls screen (F1), or the inspector's hold (F8): the game paused, the frame shown again under it - until a
      * capture asked for now has what it needs (its state: the game must get to a point where every thread waits) */
-    while (overlay_open() || (inspect_paused() && !capture_state_pending())) {
+    while (overlay_open() || (inspect_paused() && (!capture_state_pending() || capture_wants_shot()))) {
         if (!window_poll())
             exit(0);
         if (!overlay_open()) {          /* (held: the mouse moved meanwhile isn't the camera's when the game goes on) */
@@ -967,6 +967,10 @@ void present_frame(void) {
             flip(shown);
         struct timespec ts = {0, 16000000};
         nanosleep(&ts, NULL);
+    }
+    {
+        void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
+        gpu_view_end();
     }
     /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
      * taken again as the game reads them: present_input_read) */

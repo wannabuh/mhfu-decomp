@@ -289,6 +289,11 @@ static void write_info(FILE *f, Capture *k, unsigned long frame) {
     perf_summary(&fps, &frame_ms, &worst, &tick);
     fprintf(f, "capture %d\ntime %s\nbuild %s\n", k->number, when, MHFU_GIT_COMMIT);
     fprintf(f, "frame %lu\ngame_30ths %.3f\na_frame_is_30ths %.3f\n", frame, rt_game_30ths(), (double)rt_frame_30ths());
+    {
+        int gpu_view_back(void);
+        if (gpu_view_back())
+            fprintf(f, "picture: %d frames back from that (the state is of the game held, not of this picture)\n", gpu_view_back());
+    }
     fprintf(f, "fps %.1f  frame_ms %.2f  worst_ms_10s %.1f  ticks_a_second %.1f\n", fps, frame_ms, worst, tick);
     int stage, map, quest;
     game_where(&stage, &map, &quest);

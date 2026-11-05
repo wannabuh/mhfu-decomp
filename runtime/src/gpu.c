@@ -1611,6 +1611,79 @@ void gpu_frame_tick(void) {
 
 static void tl_send(Frame *f);
 
+/* -- going back while held -----------------------------------------------------------------------------------------------
+ * MHFU_FRAME_HISTORY=n (frame_history in settings.ini; 0 by default): the n frames recorded before those two kept, by
+ * handing them round rather than copying them. Held (F8), the "," key shows them, "." comes forward: what is drawn, not
+ * the game's memory, which stays at the tick held. Each frame's memory stays taken: tens of MB in a busy scene. */
+static Frame **history;
+static int history_cap = -1, history_next, history_count;
+static int view_back;                        /* how many frames back is shown */
+static Frame *live_latest, *live_previous;
+
+static void history_keep(Frame **next_rec) {
+    if (history_cap < 0) {
+        const char *e = getenv("MHFU_FRAME_HISTORY");
+        history_cap = e ? atoi(e) : 0;
+        if (history_cap < 0)
+            history_cap = 0;
+        if (history_cap) {
+            history = calloc((size_t)history_cap, sizeof *history);
+            for (int i = 0; i < history_cap; i++)
+                history[i] = calloc(1, sizeof **history);
+        }
+    }
+    if (!history_cap)
+        return;
+    Frame *oldest = history[history_next];
+    history[history_next] = *next_rec;
+    history_next = (history_next + 1) % history_cap;
+    if (history_count < history_cap)
+        history_count++;
+    *next_rec = oldest;
+}
+
+static Frame *frame_back(int n) {
+    if (n <= 1)
+        return n ? live_previous : live_latest;
+    return history[(history_next - 1 - (n - 2) + 2 * history_cap) % history_cap];
+}
+
+/* Further back (positive) or forward; how far back it now is */
+int gpu_view_move(int by) {
+    if (!history_cap)
+        return 0;
+    if (!view_back)
+        live_latest = latest, live_previous = previous;
+    int to = view_back + by;
+    if (to > history_count)             /* (its previous, one further, must be there) */
+        to = history_count;
+    while (to > 0 && (!frame_back(to)->n || !frame_back(to + 1)->n))
+        to--;
+    if (to < 0)
+        to = 0;
+    if (to == view_back)
+        return view_back;
+    view_back = to;
+    latest = frame_back(view_back);
+    previous = frame_back(view_back + 1);
+    tl_send(latest);                    /* (into its slot again) */
+    frame_generation++;                 /* (what is worked out from a frame, again) */
+    return view_back;
+}
+
+/* The game going on: the frames as they were */
+void gpu_view_end(void) {
+    if (!view_back)
+        return;
+    view_back = 0;
+    latest = live_latest;
+    previous = live_previous;
+    tl_send(latest);
+    frame_generation++;
+}
+
+int gpu_view_back(void) { return view_back; }
+
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
     tl_send(rec);
@@ -1618,6 +1691,7 @@ void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     previous = latest;
     latest = rec;
     rec = old;
+    history_keep(&rec);
     rec->n = 0;
     rec->nruns = 0;
     rec->used = 0;
