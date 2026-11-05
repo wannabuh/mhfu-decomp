@@ -453,3 +453,149 @@ void hand_monster_script_op_79_switch_on_vfunc_dc(Ctx *c) {
     int32_t value = call_method1(c, self_addr, 0xDC, LBU(at + 2)) & 0xFF;
     c->r[2] = sorted_cases(c, self_addr, at + 5, OP_SWITCH_METHOD_DC, count, value);
 }
+
+/* game_task 09AC02D0, opcode 0x35: if the boost is on (monster_flags 0x20) */
+void hand_monster_script_op_35_if_field_638_mask_20(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_BOOST))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_BOOST, (self->monster_flags & MONSTER_FLAG_BOOST) != 0);
+}
+
+/* game_task 09ABBB10, opcode 0x28: if any hunter is live and in the monster's area */
+void hand_monster_script_op_28_if_any_hunter_active_same_field_29a(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_ANY_HUNTER_HERE))
+        return;
+    int found = 0;
+    for (uint32_t slot = 0; slot < 4 && !found; slot++) {
+        uint32_t hunter = hunter_of_slot(c, slot);
+        found = hunter != 0 && self->area_id == OBJ(Monster, hunter)->area_id && (LW(hunter + 4) & 1);
+    }
+    if_test_answer(c, self_addr, at + 1, OP_IF_ANY_HUNTER_HERE, found);
+}
+
+/* game_task 09ABFCF0, opcode 0x70: a switch on the monster's type, cases in order */
+void hand_monster_script_op_70_switch_on_field_1e8_sorted(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_TYPE, 1))
+        return;
+    c->r[2] = sorted_cases(c, self_addr, at + 4, OP_SWITCH_TYPE, LBU(at + 1), self->subtype);
+}
+
+/* game_task 09ABD008, opcode 8: if movement_mode is 0, kept on the floor */
+void hand_monster_script_op_08_if_field_280_zero(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_ON_FLOOR))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_ON_FLOOR, self->movement_mode == 0);
+}
+
+/* game_task 09ABB788, opcode 0x2E: "2E n": which of the type's records of sight and so on (entity_set_type_block_644) it goes by */
+void hand_monster_script_op_2e_set_field_644_record(Ctx *c) {
+    uint32_t at = c->r[5];
+    call2(c, set_type_block_644, c->r[4], LBU(at));
+    c->r[2] = at + 1;
+}
+
+/* game_task 09ABF9D0, opcode 0x2A: if alert_area_table_ticks has run out */
+void hand_monster_script_op_2a_if_field_550_not_positive(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_ALERT_TICKS_OUT))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_ALERT_TICKS_OUT, self->alert_area_table_ticks <= 0);
+}
+
+/* game_task 09ABF8D0, opcode 0x29: if area_table_ticks has run out */
+void hand_monster_script_op_29_if_field_54e_not_positive(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_AREA_TICKS_OUT))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_AREA_TICKS_OUT, self->area_table_ticks <= 0);
+}
+
+/* game_task 09AC07C8, opcode 0x3E: a switch on the area it came from, as opcode 0x15 is on where it is. No area before (0xFFFF) matches nothing. */
+void hand_monster_script_op_3e_switch_on_field_53e_remapped(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_PREVIOUS_AREA, 2))
+        return;
+    int32_t count = LBU(at + 1);
+    at += 4;
+    for (int32_t i = 0; i < count; i++) {
+        uint16_t id = (uint16_t)(LBU(at) << 8 | LBU(at + 1));
+        at += 2;
+        uint16_t previous = self->previous_area;
+        if ((area_as_remapped(c, previous) == area_as_remapped(c, id) && previous != 0xFFFF) || !to_next_case(c, self_addr, &at, OP_SWITCH_PREVIOUS_AREA))
+            break;
+    }
+    c->r[2] = at;
+}
+
+/* game_task 09ABBC90, opcode 0x5E: "5E 0 value": if the byte at +0x292 is the value */
+void hand_monster_script_op_5e_if_field_292_equals(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_292))
+        return;
+    uint8_t value = LBU(at + 1);
+    if_test_answer(c, self_addr, at + 2, OP_IF_292, LBU(self_addr + FIELD_292) == value);
+}
+
+/* game_task 09ABD630, opcode 0xF: "0F order goal list start step": begins walking a table of points of the area. Notes where to come back to, marks the point block running,
+ * and goes on from the start entry of table 08; the walk is sub-codes FE and FF of opcode 0xFF. No such table for this area: it goes on after this instruction instead. Except with
+ * order 1, no more points are visited than the table has. An order it doesn't know goes on from the block's saved place. */
+void hand_monster_script_op_0f_begin_block_over_point_table(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    uint32_t tables = LW(MONSTER_TYPE(self->subtype, MONSTER_TYPE_AREA_TABLES));
+    self->point_block_visited = 0;
+    self->point_block_index = -1;
+    self->point_block_order = LBU(at);
+    uint8_t goal = LBU(at + 1);
+    self->point_block_order_list = LBU(at + 2);
+    self->point_block_start_entry = LBU(at + 3);
+    self->point_block_step_entry = LBU(at + 4);
+    call2(c, save_position, self_addr, at + 5);
+    self->script_active_requests |= 1;
+    if (self->point_block_order > POINT_ORDER_FIRST) {
+        c->r[2] = self->script_position_point_block;
+        return;
+    }
+    uint32_t area = call3(c, area_table_find_entry, self_addr, LW(tables + 4), (uint32_t)(int32_t)(int16_t)self->area_id);
+    if (area == 0) {
+        self->script_active_requests &= 0xFE;
+        c->r[2] = at + 5;
+        return;
+    }
+    if (self->point_block_order != POINT_ORDER_FROM_LIST && LH(area + 2) < goal)
+        goal = (uint8_t)LH(area + 2);
+    self->point_block_goal = (int8_t)goal;
+    self->point_block_point_count = (int8_t)LH(area + 2);
+    self->script_position_point_block = call2(c, table_08_entry, self_addr, self->point_block_start_entry);
+    c->r[2] = self->script_position_point_block;
+}
+
+/* game_task 09ABB428, opcode 0x43: if 09AD8438 says 1 (it tests a bit of a global) */
+void hand_monster_script_op_43_if_global_08a62d9c_mask_20000000(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_GLOBAL_BIT))
+        return;
+    int yes = (call1(c, global_bit_test, self_addr) & 0xFF) == 1;
+    if_test_answer(c, self_addr, at + 1, OP_IF_GLOBAL_BIT, yes);
+}
+
+/* game_task 09ABBA08, opcode 0x71: "71 0 row": if quest_scale_row is at least this */
+void hand_monster_script_op_71_if_field_4bc_at_least(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_SCALE_ROW))
+        return;
+    uint8_t row = LBU(at + 1);
+    if_test_answer(c, self_addr, at + 2, OP_IF_SCALE_ROW, self->quest_scale_row >= row);
+}
