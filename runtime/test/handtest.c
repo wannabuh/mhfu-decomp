@@ -75,6 +75,16 @@ static void inputs_script_end_block(Ctx *c, uint32_t hunter, uint32_t args[3]);
 /* The cases' inputs for the script's opcodes' handlers: made by opcode number */
 static void inputs_script_op(Ctx *c, uint32_t hunter, uint32_t args[3], uint32_t op);
 #define OP_INPUTS(n) static void inputs_op_##n(Ctx *c, uint32_t hunter, uint32_t args[3]) { inputs_script_op(c, hunter, args, 0x##n); }
+OP_INPUTS(83)
+OP_INPUTS(16)
+OP_INPUTS(15)
+OP_INPUTS(81)
+OP_INPUTS(02)
+OP_INPUTS(12)
+OP_INPUTS(82)
+OP_INPUTS(19)
+OP_INPUTS(10)
+OP_INPUTS(34)
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -163,6 +173,16 @@ static const Case cases[] = {
     {"weapon4_evade 09BA8E30", f_game_task_09BA8E30, 0, 0, 0x09BA8E30, NULL, inputs_weapon0, &weapon0_pokes},
     {"weapon4_enter 09BA8E80", f_game_task_09BA8E80, 0, 0, 0x09BA8E80, NULL, inputs_weapon0, NULL},
     {"weapon4_0c_gather 09BA8F40", f_game_task_09BA8F40, 0, 0, 0x09BA8F40, NULL, inputs_weapon0, &weapon0_pokes},
+    {"op83 09ABA8F8", f_game_task_09ABA8F8, 1, 0, 0x09ABA8F8, NULL, inputs_op_83, &script_pokes},
+    {"op16 09ABD778", f_game_task_09ABD778, 1, 0, 0x09ABD778, NULL, inputs_op_16, &script_pokes},
+    {"op15 09ABC600", f_game_task_09ABC600, 1, 0, 0x09ABC600, NULL, inputs_op_15, &script_pokes},
+    {"op81 09ABAAF8", f_game_task_09ABAAF8, 1, 0, 0x09ABAAF8, NULL, inputs_op_81, &script_pokes},
+    {"op02 09ABA340", f_game_task_09ABA340, 1, 0, 0x09ABA340, NULL, inputs_op_02, &script_pokes},
+    {"op12 09ABA440", f_game_task_09ABA440, 1, 0, 0x09ABA440, NULL, inputs_op_12, &script_pokes},
+    {"op82 09ABAB38", f_game_task_09ABAB38, 1, 0, 0x09ABAB38, NULL, inputs_op_82, &script_pokes},
+    {"op19 09ABCC10", f_game_task_09ABCC10, 1, 0, 0x09ABCC10, NULL, inputs_op_19, &script_pokes},
+    {"op10 09ABC9B8", f_game_task_09ABC9B8, 1, 0, 0x09ABC9B8, NULL, inputs_op_10, &script_pokes},
+    {"op34 09ABB670", f_game_task_09ABB670, 1, 0, 0x09ABB670, NULL, inputs_op_34, &script_pokes},
     {"script_next 09AB7858", f_game_task_09AB7858, 1, 0, 0x09AB7858, NULL, inputs_script, &script_pokes},
     {"script_end_block 09AB6788", f_game_task_09AB6788, 1, 0, 0x09AB6788, NULL, inputs_script_end_block, &script_pokes},
     {"script_run 09AB4C68", f_game_task_09AB4C68, 0, 0, 0x09AB4C68, NULL, inputs_script, &script_pokes},
