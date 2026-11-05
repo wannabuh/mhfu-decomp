@@ -70,6 +70,7 @@ static void inputs_recalc_defense(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_script(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -85,7 +86,7 @@ static void inputs_test_if_in_map(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_test_target(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_manager(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes add_health_pokes, can_guard_pokes, recalc_defense_pokes, received_hit_pokes;
-extern const struct Pokes recalc_resists_pokes, hit_zones_pokes, weapon0_pokes;
+extern const struct Pokes recalc_resists_pokes, hit_zones_pokes, weapon0_pokes, script_pokes;
 extern const struct Pokes register_hit_pokes, sum_damage_pokes, apply_damage_pokes, test_if_in_map_pokes, test_target_pokes, hit_manager_pokes;
 
 static const Case cases[] = {
@@ -158,6 +159,21 @@ static const Case cases[] = {
     {"weapon4_evade 09BA8E30", f_game_task_09BA8E30, 0, 0, 0x09BA8E30, NULL, inputs_weapon0, &weapon0_pokes},
     {"weapon4_enter 09BA8E80", f_game_task_09BA8E80, 0, 0, 0x09BA8E80, NULL, inputs_weapon0, NULL},
     {"weapon4_0c_gather 09BA8F40", f_game_task_09BA8F40, 0, 0, 0x09BA8F40, NULL, inputs_weapon0, &weapon0_pokes},
+    {"script_run 09AB4C68", f_game_task_09AB4C68, 0, 0, 0x09AB4C68, NULL, inputs_script, &script_pokes},
+    {"script_pending 09AB7230", f_game_task_09AB7230, 1, 0, 0x09AB7230, NULL, inputs_script, &script_pokes},
+    {"script_get_position 09AB7490", f_game_task_09AB7490, 1, 0, 0x09AB7490, NULL, inputs_script, &script_pokes},
+    {"script_set_position 09AB74D0", f_game_task_09AB74D0, 0, 0, 0x09AB74D0, NULL, inputs_script, &script_pokes},
+    {"script_op07 09AB7510", f_game_task_09AB7510, 1, 0, 0x09AB7510, NULL, inputs_script, &script_pokes},
+    {"script_main_entry 09ABAB90", f_game_task_09ABAB90, 1, 0, 0x09ABAB90, NULL, inputs_script, &script_pokes},
+    {"script_restart_flagged 09AC8B78", f_game_task_09AC8B78, 0, 0, 0x09AC8B78, NULL, inputs_script, &script_pokes},
+    {"script_restart_from 09ABAFF0", f_game_task_09ABAFF0, 0, 0, 0x09ABAFF0, NULL, inputs_script, &script_pokes},
+    {"script_sync 09AC9BC8", f_game_task_09AC9BC8, 0, 0, 0x09AC9BC8, NULL, inputs_script, &script_pokes},
+    {"script_skip_to 09AB7728", f_game_task_09AB7728, 1, 0, 0x09AB7728, NULL, inputs_script, &script_pokes},
+    {"script_past_end 09AB8A38", f_game_task_09AB8A38, 1, 0, 0x09AB8A38, NULL, inputs_script, &script_pokes},
+    {"script_op0b 09AB7620", f_game_task_09AB7620, 1, 0, 0x09AB7620, NULL, inputs_script, &script_pokes},
+    {"script_op39 09AB7520", f_game_task_09AB7520, 1, 0, 0x09AB7520, NULL, inputs_script, &script_pokes},
+    {"script_op01 09ABA218", f_game_task_09ABA218, 1, 0, 0x09ABA218, NULL, inputs_script, &script_pokes},
+    {"script_op80 09AB8AE0", f_game_task_09AB8AE0, 1, 0, 0x09AB8AE0, NULL, inputs_script, &script_pokes},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -333,6 +349,8 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
             SH(stub_hunter + 0x55A, stub_stamina[n]);
         if (stub_slot[n] != 0xFF)
             SB(LW(0x089CC558u) + 0x28, stub_slot[n]);
+    } else if (stub_hook) {     /* a long loop goes on being answered */
+        stub_hook(c, fn, n % MAX_CALLS);
     }
     return 1;
 }
@@ -1649,6 +1667,166 @@ static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     (void)c;
 }
 
+/* -- the monster script: bytes made up, each opcode a test or handler, and stubs that go on through them ---------------------------------- */
+#define SCRIPT 0x09FFF400u
+#define SCRIPT_SIZE 0x400u
+
+static uint32_t script_at(uint32_t at) { return SCRIPT + ((at - SCRIPT) % SCRIPT_SIZE); }
+static int script_stuck;        /* what goes round and round until something ends it: MAX_STEPS */
+static int script_else_then_end;        /* a skip lands on an else whose next instruction is the end: only here does a step go by two */
+
+/* What a handler or a skip returns: somewhere in the bytes; a skip, as a real one does, the next place with its opcode */
+static void script_stub_hook(Ctx *c, uint32_t fn, int n) {
+    switch (fn) {
+    case 0x09AB6778u: case 0x09AB6770u: case 0x09AC9740u: case 0x09AC9BC8u: case 0x09AC8B78u: case 0x09ABAFF0u: case 0x09AB74D0u: case 0x09AC4518u: case 0x09AC8AF0u:
+        break;
+    case 0x09AB7858u:
+        if (script_else_then_end && c->r[5] >= SCRIPT + 0x3A0 && c->r[5] < SCRIPT + 0x3C0) {
+            c->r[2] = c->r[5] + 2;
+            break;
+        }
+        c->r[2] = script_stuck ? c->r[5] : script_at(c->r[5] + 1);      /* byte by byte: going by more, it may step over what ends a skip, for ever */
+        break;
+    case 0x09ABAB90u:           /* a main entry: out of being stuck */
+        if (script_stuck) {
+            c->r[2] = SCRIPT + 0x3C0;
+            break;
+        }
+        c->r[2] = (stub_short[n][1] & 0xF) == 0 ? 0 : SCRIPT + ((uint16_t)stub_short[n][0] & 0x1F);
+        break;
+    case 0x09AB7728u: {
+        if (script_else_then_end && c->r[5] < SCRIPT + 0x3A0) {       /* from further on it goes on, or a loop over entries would come back here for ever */
+            static const uint8_t ops[] = {0xB, 0x39, 1, 0x80, 0xFF};
+            for (uint32_t i = 0; i < 5; i++)
+                if (ops[i] == (uint8_t)c->r[6]) {
+                    c->r[2] = SCRIPT + 0x3A0 + 6 * i;
+                    return;
+                }
+        }
+        uint32_t at = script_at(c->r[5] + 1);
+        for (uint32_t i = 0; i < SCRIPT_SIZE && LBU(at) != (uint8_t)c->r[6]; i++)
+            at = script_at(at + 1);
+        c->r[2] = at;
+        break;
+    }
+    default:
+        if (script_stuck)
+            c->r[2] = fn == 0x09AB7230u ? 0 : fn == 0x09AB7490u ? SCRIPT + 0x100 : c->r[5] - 1;
+        else
+            c->r[2] = (stub_short[n][1] & 0xF) == 0 ? 0 : SCRIPT + ((uint16_t)stub_short[n][0] & ((stub_short[n][1] & 0x10) ? 0x3FF : 0x1F));
+        break;
+    }
+}
+
+static const Bias script_bias[] = {
+    {0x09AC9740u, 4, {0, 0, 1, 0x10000}},
+    {0, 0, {0}},
+};
+POKES(script_pokes, script_bias, {0x298, 1, 0}, {0x4BB, 1, 0}, {0x4C1, 1, 0}, {0x4C4, 2, 0}, {0x4B9, 1, 0}, {0x6D8, 1, 0}, {0x322, 2, 0}, {0x500, 2, 0}, {0x638, 4, 0}, {0x6DB, 1, 0}, {0x6DE, 1, 0}, {0x4B5, 1, 0});
+
+static void inputs_script(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)hunter;
+    uint32_t monster = first_monster(c);
+    Monster *self = (Monster *)MEM(monster);
+    stub_hunter = test_a0 = monster;
+    if (!record_method) {       /* the real script of the real monster */
+        self->state_group = 0;
+        self->script_active_requests = 0;
+        self->script_requests = 0;
+        args[0] = self->script_position;
+        args[1] = PICK(0xB, 0x39, 1, 0x80);
+        args[2] = PICK(0, 2, 0xFF);
+        if (args[0] == 0)
+            test_a0 = monster;
+        return;
+    }
+    self->state_group = (uint8_t)PICK(0, 0, 0, 1, 2, 4, 5, 6);
+    self->script_requests = (uint8_t)(rnd() % 2 ? 0 : rnd());
+    self->script_active_requests = (uint8_t)(rnd() % 2 ? 0 : rnd());
+    self->end_vfunc_ec_ticks = (int16_t)PICK(0, 0, 1, -1, 0x100);
+    self->alert_mode = (uint8_t)PICK(0, 1, 2);
+    self->alert_mode_copy = (uint8_t)rnd();
+    self->hunters_in_range_mask = (uint8_t)PICK(0, 0, 1, 2, 4, 8, 0x10, 0xF0, 0xFF);
+    self->script_random_counter = (uint16_t)rnd();
+    self->script_main_entry = (uint16_t)(rnd() % 4);
+    self->monster_flags = rnd() % 2 ? PICK(0, 0x10, ~0x10) : rnd();
+    self->locally_owned = (uint8_t)PICK(0, 1, 1);
+    self->script_restart_sync_kind = (uint8_t)PICK(0, 0, 1, 2, 3);
+    self->script_run_requested = (uint8_t)rnd();
+    self->script_nest_level = (uint8_t)rnd();
+    self->script_delay_ticks = (int16_t)rnd();
+    self->point_block_index = (int8_t)rnd();
+    self->point_block_goal = (int8_t)rnd();
+    self->id_sequence_length = (int8_t)rnd();
+    self->id_sequence_position = (int8_t)rnd();
+    self->route_final_area = (uint16_t)rnd();
+    self->previous_area = (uint16_t)rnd();
+    self->script_suspend_arg = (uint8_t)rnd();
+    self->script_position = rnd();
+    self->script_position_request_20 = rnd();
+    self->script_position_request_10 = rnd();
+    self->script_position_point_block = rnd();
+    self->script_position_request_08 = rnd();
+    self->script_position_request_04 = rnd();
+    self->script_position_request_02 = rnd();
+    stub_hook = script_stub_hook;
+    for (int n = 0; n < MAX_CALLS; n++) {
+        stub_short[n][0] = (int16_t)rnd();
+        stub_short[n][1] = (int16_t)rnd();
+    }
+    self->script_header = rnd() % 8 ? 0x09FFF3C0u : 0;
+    SW(0x09FFF3C0u, 0x09FFF3D0u);
+    for (uint32_t i = 0; i < 4; i++)
+        SW(0x09FFF3D0u + 4 * i, SCRIPT + 0x10 * i);
+    for (uint32_t i = 0; i < SCRIPT_SIZE; i++)
+        SB(SCRIPT + i, rnd() % 2 ? (int32_t)PICK(0xB, 0x39, 1, 0x80, 0, 0, 1, 2, 2, 0xFF) : (int32_t)rnd());
+    for (uint32_t i = 0; i < 32; i++)       /* in the first bytes, each thing the run tells apart */
+        SB(SCRIPT + i, rnd() % 2 ? (int32_t)(uint8_t)rnd() : (int32_t)PICK(5, 1, 7, 0xB, 0x80, 0x7B, 0x84, 0x31, 0x92, 4, 0x23, 0x37, 0x72, 0x6A, 0xFF, 0x95));
+    if (rnd() % 2)
+        SB(SCRIPT + rnd() % 16, 5);
+    /* Blocks that open seldom, so that nesting ends; and each opcode's closing pairs, so that a skip finds them. No 0x95 but the one placed below:
+     * inside a block it ends every skip where it stands, for ever (in the game too, if a script had an unclosed block) */
+    for (uint32_t i = 0; i + 1 < SCRIPT_SIZE; i++) {
+        if (LBU(SCRIPT + i + 1) == 0 && rnd() % 8)
+            SB(SCRIPT + i + 1, 3);
+        if (LBU(SCRIPT + i) == 0x95)
+            SB(SCRIPT + i, 0x94);
+    }
+    static const uint8_t blocks[] = {0xB, 0x39, 1, 0x80, 0xFF};
+    for (uint32_t i = 0; i < 5; i++) {
+        SB(SCRIPT + 0x3C0 + 6 * i, blocks[i]);
+        SB(SCRIPT + 0x3C0 + 6 * i + 1, 2);
+        SB(SCRIPT + 0x3C0 + 6 * i + 2, blocks[i]);
+        SB(SCRIPT + 0x3C0 + 6 * i + 3, 1);
+        SB(SCRIPT + 0x3C0 + 6 * i + 4, blocks[i]);
+        SB(SCRIPT + 0x3C0 + 6 * i + 5, 0xFF);
+        SB(SCRIPT + 0x3A0 + 6 * i, blocks[i]);
+        SB(SCRIPT + 0x3A0 + 6 * i + 1, 1);
+        SB(SCRIPT + 0x3A0 + 6 * i + 2, blocks[i]);
+        SB(SCRIPT + 0x3A0 + 6 * i + 3, 2);
+        SB(SCRIPT + 0x3A0 + 6 * i + 4, 0x97);
+        SB(SCRIPT + 0x3A0 + 6 * i + 5, 0x97);
+    }
+    script_stuck = rnd() % 32 == 0;
+    SB(SCRIPT + 0x100, 1);
+    uint32_t at = SCRIPT + rnd() % 16;
+    SB(at, PICK(0, 0, 0, 1, 2, 3, 0xD, 0xE, 0xFF, 0x95));
+    SB(at + 1, PICK(0, 1, 2, 3, 5, 8, 0xFF));
+    SB(at + 2, PICK(0, 1, 2, 0x20, 0xFF));
+    args[0] = at;
+    args[1] = PICK(0xB, 0x39, 1, 0x80, 0x1FF, 0x10B);
+    args[2] = PICK(2, 2, 0xFF, 1, 0x102);
+    script_else_then_end = rnd() % 4 == 0 && !script_stuck && (uint8_t)args[2] == 2;
+    if (script_stuck) {         /* where it stands isn't what it's looking for, and it goes on not being */
+        SB(at, 0x96);
+        args[1] = 0xB;
+        args[2] = 2;
+        for (uint32_t i = 0; i < 16; i++)
+            if (LBU(SCRIPT + i) == 0xB)
+                SB(SCRIPT + i, 0x97);
+    }
+}
+
 static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     Hunter *self = (Hunter *)MEM(hunter);
     GameState *g = (GameState *)MEM(LW(GAME_POINTER));
@@ -1873,6 +2051,9 @@ int main(int argc, char **argv) {
     int failed = 0;
     for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
         if (only && !strstr(cases[k].name, only))
+            continue;
+        /* Without stubs these two only run under script_run: given anything else, a real script may not hold what they look for, and they go on for ever */
+        if (!stub_mode && (strstr(cases[k].name, "script_skip_to") || strstr(cases[k].name, "script_past_end")))
             continue;
         int bad = 0;
         for (int i = 0; i < iterations && bad < 5; i++) {
