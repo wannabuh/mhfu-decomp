@@ -9,7 +9,16 @@
  *   - Blocks: many opcodes come in threes, "op 0 ..test..", "op 1", "op 2": if, else, end if (to_else_or_end and opcodes 1, 0xB, 0x39 below). A weighted choice
  *     (opcode 0x80 below) picks among branches by script_random_counter. Skipping forward uses a table of each instruction's length
  *     (next_instruction, game_task 09AB7858, still generated).
- *   - Interrupts: other code sets a bit of script_requests (who sets which isn't worked out yet); the next run takes the entry for it instead of going on (take_pending_entry).
+ *   - Interrupts: other code sets a bit of script_requests; the next run takes the entry for it instead of going on (take_pending_entry). Who sets each, all only if
+ *     09AC9740 doesn't block it (a running interrupt of that bit or above):
+ *       0x02  09AC5C30, for some types, not alert (or alert in types 0x34, 0x4B, 0x51, 0x55): 09AD21E8 finds a point of list +0x88 at 09C122B0 near, and the check 09C3E3D0 passes
+ *       0x04  in some classes' ticks (09AF7980, 09AFEB90, 09B07530, 09B153D8, 09B400E8): mostly not alert, 09AC77C8 finds a point of the list at 09C122B0 near that its type answers to
+ *       0x08  09AD24D0: the boost begins, attack and damage scaled up, from boost-meter-full (monster_flags 0x400)
+ *       0x10  09ACCB18: a hunter in sight range has approach points over the threshold, when not alert
+ *       0x20  09AC5C30: not alert, and a hunter is tracked (seen, hunters_tracked_mask); never for types 4, 9
+ *       0x40  09AC5C30: not alert, 09AD25A0 finds a point of list +0x108 at 09C122B0 near, with flag 2
+ *       0x80  09AD3228, 09AD51E8: rejoin_restart_ticks out, in the game's area; 09B14F18, type 0x50: 5000 or more from the area's point
+ *     None of these tests being hit or health itself: reactions to hits go through the code from 09AC7A08 into states. What the lists at 09C122B0 hold isn't worked out.
  *     Each has a saved position of its own, and script_active_requests says which is running, so that the main script can go on after.
  *
  * Opcodes' names are from reading their handlers: a test of a field, or a target chosen. What the game calls them isn't known. */
@@ -17,13 +26,11 @@
 
 #include "hand.h"
 #include "names.h"
+#include "monster_script.h"
 
 /* Named here by address as function names may change: */
 #define on_byte f_game_task_09AB6778                /* does nothing with the byte it's given: called all the same */
 #define no_op f_game_task_09AB6770
-#define next_instruction f_game_task_09AB7858
-#define skip_to f_game_task_09AB7728
-#define skip_past_end f_game_task_09AB8A38
 #define main_entry f_game_task_09ABAB90
 #define restart_if_flagged f_game_task_09AC8B78
 #define restart_script f_game_task_09ABAFF0
@@ -39,7 +46,7 @@
 
 /* Opcodes run here or tested */
 enum { OP_IF_ALERT_MODE = 0xB, OP_IF_4C4 = 0x39, OP_IF_HUNTERS_IN_RANGE = 1, OP_WEIGHTED = 0x80, OP_CHOOSE_ACTION = 5, OP_MAIN_ENTRY_RESET = 4, OP_ACTION_7B = 0x7B, OP_ACTION_84 = 0x84, OP_31 = 0x31, OP_92 = 0x92, OP_END_OF_SCRIPT = 0x95 };
-enum { IF_TEST = 0, IF_ELSE = 1, IF_END = 2 };
+enum { OP_SET_TARGET_SPEC = 6, OP_3E = 0x3E, OP_SWITCH_DISTANCE = 0x83, OP_85 = 0x85 };
 #define WEIGHTED_ENTRY_END 0xFF
 #define MAX_STEPS 1000          /* in a run, and in a skip */
 #define STATE_GROUP_NO_SCRIPT_A 5
@@ -169,8 +176,69 @@ void hand_monster_script_take_pending_entry(Ctx *c) {
 
 /* -- skipping forward --------------------------------------------------------------------------------------------------------------------- */
 
-static uint32_t next_of(Ctx *c, uint32_t self, uint32_t at) {
-    return call2(c, next_instruction, self, at);
+/* An instruction's length in bytes, by opcode and by the byte after it: for that byte being 0, 1, 2, anything else. Used only for skipping forward; a
+ * handler that runs moves on by itself. "If" opcodes: "op 0 <test bytes>", "op 1", "op 2". Switches: "op 0 ..", "op 1 ..". A length of 0 is what an opcode
+ * not listed has, 0 and 0x95 among them: a skip stepping onto one stays where it is. */
+typedef struct { uint8_t sub0, sub1, sub2, other; } InstructionLength;
+#define FIXED(n) {n, n, n, n}
+#define IF(test) {test, 2, 2, 1}
+#define SWITCH(first, second) {first, second, 2, 2}
+static const InstructionLength instruction_lengths[256] = {
+    [0x01] = FIXED(2), [0x02] = FIXED(2), [0x03] = FIXED(2), [0x04] = FIXED(1), [0x05] = FIXED(4), [0x07] = FIXED(2),
+    [0x08] = FIXED(2), [0x09] = FIXED(2), [0x0A] = FIXED(2), [0x0B] = IF(3), [0x0C] = FIXED(3), [0x0D] = FIXED(2),
+    [0x0E] = IF(4), [0x0F] = FIXED(6), [0x10] = FIXED(1), [0x11] = FIXED(1), [0x12] = FIXED(1), [0x13] = FIXED(1),
+    [0x14] = IF(3), [0x15] = SWITCH(7, 4), [0x16] = FIXED(2), [0x17] = FIXED(5), [0x18] = FIXED(1), [0x19] = FIXED(1),
+    [0x1A] = FIXED(3), [0x1B] = IF(3), [0x1C] = SWITCH(6, 3), [0x1D] = SWITCH(6, 3), [0x1E] = FIXED(1), [0x1F] = FIXED(2),
+    [0x20] = SWITCH(6, 3), [0x21] = IF(2), [0x22] = IF(3), [0x24] = {3, 2, 1, 1}, [0x25] = FIXED(1), [0x26] = FIXED(2),
+    [0x27] = SWITCH(6, 3), [0x28] = FIXED(2), [0x29] = FIXED(2), [0x2A] = FIXED(2), [0x2B] = IF(4), [0x2C] = SWITCH(6, 3),
+    [0x2D] = FIXED(1), [0x2E] = FIXED(2), [0x2F] = FIXED(2), [0x30] = FIXED(1), [0x31] = FIXED(1), [0x32] = IF(3),
+    [0x33] = SWITCH(6, 3), [0x34] = IF(4), [0x35] = FIXED(2), [0x36] = IF(3), [0x38] = FIXED(2), [0x39] = FIXED(2),
+    [0x3A] = FIXED(2), [0x3B] = FIXED(2), [0x3C] = FIXED(2), [0x3D] = IF(4), [0x3E] = {7, 4, 2, 1}, [0x3F] = FIXED(4),
+    [0x40] = FIXED(2), [0x41] = FIXED(2), [0x42] = IF(3), [0x43] = FIXED(2), [0x44] = FIXED(2), [0x45] = FIXED(2),
+    [0x46] = IF(4), [0x47] = FIXED(2), [0x48] = FIXED(2), [0x49] = FIXED(2), [0x4A] = FIXED(2), [0x4B] = FIXED(1),
+    [0x4C] = FIXED(1), [0x4D] = FIXED(1), [0x4E] = FIXED(2), [0x4F] = FIXED(2), [0x50] = FIXED(2), [0x51] = FIXED(2),
+    [0x52] = FIXED(1), [0x53] = FIXED(1), [0x54] = FIXED(2), [0x55] = FIXED(2), [0x56] = SWITCH(6, 3), [0x57] = SWITCH(6, 3),
+    [0x58] = FIXED(1), [0x59] = FIXED(2), [0x5A] = IF(3), [0x5B] = FIXED(2), [0x5C] = FIXED(2), [0x5D] = FIXED(2),
+    [0x5E] = IF(3), [0x5F] = FIXED(1), [0x60] = FIXED(2), [0x61] = FIXED(1), [0x62] = FIXED(2), [0x63] = IF(3),
+    [0x64] = IF(3), [0x65] = FIXED(1), [0x66] = FIXED(2), [0x67] = FIXED(2), [0x68] = FIXED(1), [0x69] = IF(3),
+    [0x70] = SWITCH(6, 3), [0x71] = IF(3), [0x75] = SWITCH(6, 3), [0x76] = SWITCH(6, 3), [0x77] = FIXED(2), [0x78] = IF(4),
+    [0x79] = SWITCH(7, 3), [0x7A] = SWITCH(6, 3), [0x7B] = FIXED(1), [0x7C] = FIXED(2), [0x7D] = FIXED(2), [0x7E] = SWITCH(6, 3),
+    [0x81] = FIXED(2), [0x82] = FIXED(3), [0x84] = FIXED(1), [0x86] = FIXED(3), [0x87] = IF(4), [0x90] = FIXED(2),
+    [0x91] = FIXED(2), [0x92] = FIXED(1), [0x93] = FIXED(1), [0x94] = SWITCH(5, 3), [0x99] = FIXED(2), [0xFF] = FIXED(2),
+};
+
+/* The few that don't fit the table: the length goes by a range of sub-codes, or a further one */
+static uint32_t instruction_length(uint8_t op, uint8_t sub) {
+    switch (op) {
+    case OP_SET_TARGET_SPEC:
+        return sub == 3 ? 5 : 4;
+    case OP_WEIGHTED:
+    case OP_85:
+        if (sub == 0)
+            return op == OP_WEIGHTED ? 6 : 7;
+        if (sub >= 1 && sub <= 0xD)
+            return 3;
+        return sub == WEIGHTED_ENTRY_END ? 2 : 1;
+    case OP_SWITCH_DISTANCE:
+        if (sub == 0)
+            return 5;
+        return (sub >= 1 && sub <= 5) || sub == 0xFF ? 2 : 1;
+    case OP_3E:
+        if (sub == 3)
+            return 2;
+        break;
+    }
+    const InstructionLength *length = &instruction_lengths[op];
+    return sub == 0 ? length->sub0 : sub == 1 ? length->sub1 : sub == 2 ? length->sub2 : length->other;
+}
+
+/* game_task 09AB7858: where the instruction at `at` ends. A wrong length here would misread a whole script: handtest checks every opcode with every second byte. */
+void hand_monster_script_next_instruction(Ctx *c) {
+    uint32_t self = c->r[4], at = c->r[5];
+    call2(c, on_byte, self, at);
+    if (LBU(at) != 0)
+        call2(c, on_byte, self, at + 1);
+    c->r[2] = at + instruction_length(LBU(at), LBU(at + 1));
 }
 
 /* game_task 09AB7728: forward to the next `op` that isn't its own block's start: blocks of the same op, in between, are stepped over whole.
@@ -218,16 +286,6 @@ void hand_monster_script_skip_past_block_end(Ctx *c) {
     while (LBU(at) != op || LBU(at + 1) != IF_END)
         at = call4(c, skip_to, self, at, op_arg, IF_END);
     c->r[2] = next_of(c, self, at);
-}
-
-/* A test that failed: to the else, or past the end */
-static uint32_t to_else_or_end(Ctx *c, uint32_t self, uint32_t at, uint8_t op) {
-    while (LBU(at) != op || (LBU(at + 1) != IF_ELSE && LBU(at + 1) != IF_END))
-        at = call4(c, skip_to, self, at, op, IF_END);
-    uint32_t next = next_of(c, self, at);
-    if (LBU(next) == op && LBU(next + 1) == IF_END)
-        return next_of(c, self, next);
-    return next;
 }
 
 /* -- blocks ----------------------------------------------------------------------------------------------------------------------------------- */

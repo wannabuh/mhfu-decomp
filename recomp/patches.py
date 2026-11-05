@@ -159,6 +159,8 @@ HAND = {
     ("game_task", 0x09BA8E80): "hand_hunter_weapon4_enter_state_09",
     ("game_task", 0x09BA8F40): "hand_hunter_weapon4_state_0c_or_button_4",
     ("game_task", 0x09AB4C68): "hand_monster_script_run",
+    ("game_task", 0x09AB7858): "hand_monster_script_next_instruction",
+    ("game_task", 0x09AB6788): "hand_monster_script_op_ff_end_block",
     ("game_task", 0x09AB7230): "hand_monster_script_take_pending_entry",
     ("game_task", 0x09AB7490): "hand_monster_script_get_saved_position",
     ("game_task", 0x09AB74D0): "hand_monster_script_set_saved_position",

@@ -71,6 +71,10 @@ static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_script(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_script_end_block(Ctx *c, uint32_t hunter, uint32_t args[3]);
+/* The cases' inputs for the script's opcodes' handlers: made by opcode number */
+static void inputs_script_op(Ctx *c, uint32_t hunter, uint32_t args[3], uint32_t op);
+#define OP_INPUTS(n) static void inputs_op_##n(Ctx *c, uint32_t hunter, uint32_t args[3]) { inputs_script_op(c, hunter, args, 0x##n); }
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -159,6 +163,8 @@ static const Case cases[] = {
     {"weapon4_evade 09BA8E30", f_game_task_09BA8E30, 0, 0, 0x09BA8E30, NULL, inputs_weapon0, &weapon0_pokes},
     {"weapon4_enter 09BA8E80", f_game_task_09BA8E80, 0, 0, 0x09BA8E80, NULL, inputs_weapon0, NULL},
     {"weapon4_0c_gather 09BA8F40", f_game_task_09BA8F40, 0, 0, 0x09BA8F40, NULL, inputs_weapon0, &weapon0_pokes},
+    {"script_next 09AB7858", f_game_task_09AB7858, 1, 0, 0x09AB7858, NULL, inputs_script, &script_pokes},
+    {"script_end_block 09AB6788", f_game_task_09AB6788, 1, 0, 0x09AB6788, NULL, inputs_script_end_block, &script_pokes},
     {"script_run 09AB4C68", f_game_task_09AB4C68, 0, 0, 0x09AB4C68, NULL, inputs_script, &script_pokes},
     {"script_pending 09AB7230", f_game_task_09AB7230, 1, 0, 0x09AB7230, NULL, inputs_script, &script_pokes},
     {"script_get_position 09AB7490", f_game_task_09AB7490, 1, 0, 0x09AB7490, NULL, inputs_script, &script_pokes},
@@ -1669,9 +1675,17 @@ static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
 
 /* -- the monster script: bytes made up, each opcode a test or handler, and stubs that go on through them ---------------------------------- */
 #define SCRIPT 0x09FFF400u
+#define GAME_ADDR_T(p) ((uint32_t)((const uint8_t *)(p) - c->mem))
 #define SCRIPT_SIZE 0x400u
 
 static uint32_t script_at(uint32_t at) { return SCRIPT + ((at - SCRIPT) % SCRIPT_SIZE); }
+#define FAKE_HUNTERS 0x09FFA000u
+#define ID_LIST 0x09FFE000u
+#define LINK_AREA 0x09FFE800u    /* what the area table gives: records of a link, each with its points */
+#define LINK_RECORDS (LINK_AREA + 0x20u)
+#define LINK_POINTS_AT (LINK_AREA + 0x200u)
+static uint32_t script_step_two_at;
+static uint32_t script_op;      /* the opcode a case is for: what its closing bytes are made for */
 static int script_stuck;        /* what goes round and round until something ends it: MAX_STEPS */
 static int script_else_then_end;        /* a skip lands on an else whose next instruction is the end: only here does a step go by two */
 
@@ -1681,12 +1695,47 @@ static void script_stub_hook(Ctx *c, uint32_t fn, int n) {
     case 0x09AB6778u: case 0x09AB6770u: case 0x09AC9740u: case 0x09AC9BC8u: case 0x09AC8B78u: case 0x09ABAFF0u: case 0x09AB74D0u: case 0x09AC4518u: case 0x09AC8AF0u:
         break;
     case 0x09AB7858u:
-        if (script_else_then_end && c->r[5] >= SCRIPT + 0x3A0 && c->r[5] < SCRIPT + 0x3C0) {
+        if (c->r[5] == script_step_two_at) {
+            c->r[2] = c->r[5] + 2;
+            break;
+        }
+        if (script_else_then_end && c->r[5] >= SCRIPT + 0x390 && c->r[5] < SCRIPT + 0x3C0) {
             c->r[2] = c->r[5] + 2;
             break;
         }
         c->r[2] = script_stuck ? c->r[5] : script_at(c->r[5] + 1);      /* byte by byte: going by more, it may step over what ends a skip, for ever */
         break;
+    case 0x09ACC450u:           /* its type in the group or not */
+        c->r[2] = (stub_short[n][1] & 3) == 0 ? 0x101u : 0x100u;
+        break;
+    case 0x09AD1CB8u:           /* an area's table; only one handler can go on without one */
+        c->r[2] = script_op == 0xF && (stub_short[n][1] & 7) == 0 ? 0 : LINK_AREA;
+        break;
+    case 0x09AC8BF0u: {         /* an angle: sometimes just off its facing by a limit the cases use: 90 degrees or one less, or 14 where rounding tells */
+        static const uint32_t offs[4] = {0x4000u, 16383u, 2548u, 0x4000u};
+        c->r[2] = (stub_short[n][1] & 1) == 0 ? ((const Monster *)MEM(c->r[4]))->facing + offs[(stub_short[n][1] >> 1) & 3] : (uint32_t)(int32_t)stub_short[n][0];
+        break;
+    }
+    case 0x09ABDA78u:           /* a list of ids, each a few ways. If the monster is in them all and it loops, that's for ever, in the game too: later they're elsewhere */
+        c->r[2] = ncalls[current] > 200 ? ID_LIST + 0x80 : ID_LIST;
+        break;
+    case 0x09ABDAA8u:
+        c->r[2] = ncalls[current] > 200 ? ID_LIST + 0x80 : ID_LIST + 0x40 + ((uint16_t)stub_short[n][0] & 0xE);
+        break;
+    case 0x088DCEBCu:           /* a hunter by slot: made up, so that its area and flag can be either way */
+        c->r[2] = (stub_short[n][1] & 7) == 0 ? 0 : FAKE_HUNTERS + (c->r[5] & 3) * 0x400;
+        break;
+    case 0x09AC33F8u:           /* a list of point numbers: a null one would be read from */
+        c->r[2] = SCRIPT + ((uint16_t)stub_short[n][0] & 0x1F);
+        break;
+    case 0x09AB9170u: {         /* the target's position, on the caller's stack */
+        const Monster *self = (const Monster *)MEM(c->r[4]);
+        int exact = stub_short[n][1] & 3;
+        *(float *)MEM(c->r[5]) = self->place[0] + (exact == 0 ? (stub_short[n][0] & 1 ? 500.0f : 500.01f) : exact == 1 ? (stub_short[n][0] & 1 ? 1000.0f : 1000.01f) : (float)(stub_short[n][0] % 1500));
+        *(float *)MEM(c->r[5] + 4) = (float)(stub_short[n][1] >> 4);
+        *(float *)MEM(c->r[5] + 8) = self->place[2] + (exact < 2 ? 0.0f : (float)(stub_short[n][1] % 1000));
+        break;
+    }
     case 0x09ABAB90u:           /* a main entry: out of being stuck */
         if (script_stuck) {
             c->r[2] = SCRIPT + 0x3C0;
@@ -1695,13 +1744,17 @@ static void script_stub_hook(Ctx *c, uint32_t fn, int n) {
         c->r[2] = (stub_short[n][1] & 0xF) == 0 ? 0 : SCRIPT + ((uint16_t)stub_short[n][0] & 0x1F);
         break;
     case 0x09AB7728u: {
-        if (script_else_then_end && c->r[5] < SCRIPT + 0x3A0) {       /* from further on it goes on, or a loop over entries would come back here for ever */
-            static const uint8_t ops[] = {0xB, 0x39, 1, 0x80, 0xFF};
-            for (uint32_t i = 0; i < 5; i++)
+        if (script_else_then_end && c->r[5] < SCRIPT + 0x390) {       /* from further on it goes on, or a loop over entries would come back here for ever */
+            const uint8_t ops[] = {0xB, 0x39, 1, 0x80, 0xFF, (uint8_t)script_op};
+            for (uint32_t i = 0; i < 6; i++)
                 if (ops[i] == (uint8_t)c->r[6]) {
-                    c->r[2] = SCRIPT + 0x3A0 + 6 * i;
+                    c->r[2] = SCRIPT + 0x390 + 6 * i;
                     return;
                 }
+        }
+        if (script_op != 0 && (stub_short[n][1] & 0x1F) == 1) {        /* a skip can end on something else, the end of the script */
+            c->r[2] = SCRIPT + 0x3E2;
+            break;
         }
         uint32_t at = script_at(c->r[5] + 1);
         for (uint32_t i = 0; i < SCRIPT_SIZE && LBU(at) != (uint8_t)c->r[6]; i++)
@@ -1792,20 +1845,30 @@ static void inputs_script(Ctx *c, uint32_t hunter, uint32_t args[3]) {
         if (LBU(SCRIPT + i) == 0x95)
             SB(SCRIPT + i, 0x94);
     }
-    static const uint8_t blocks[] = {0xB, 0x39, 1, 0x80, 0xFF};
-    for (uint32_t i = 0; i < 5; i++) {
+    const uint8_t blocks[] = {0xB, 0x39, 1, 0x80, 0xFF, (uint8_t)script_op};
+    for (uint32_t i = 0; i < 6; i++) {
         SB(SCRIPT + 0x3C0 + 6 * i, blocks[i]);
         SB(SCRIPT + 0x3C0 + 6 * i + 1, 2);
         SB(SCRIPT + 0x3C0 + 6 * i + 2, blocks[i]);
         SB(SCRIPT + 0x3C0 + 6 * i + 3, 1);
         SB(SCRIPT + 0x3C0 + 6 * i + 4, blocks[i]);
         SB(SCRIPT + 0x3C0 + 6 * i + 5, 0xFF);
-        SB(SCRIPT + 0x3A0 + 6 * i, blocks[i]);
-        SB(SCRIPT + 0x3A0 + 6 * i + 1, 1);
-        SB(SCRIPT + 0x3A0 + 6 * i + 2, blocks[i]);
-        SB(SCRIPT + 0x3A0 + 6 * i + 3, 2);
-        SB(SCRIPT + 0x3A0 + 6 * i + 4, 0x97);
-        SB(SCRIPT + 0x3A0 + 6 * i + 5, 0x97);
+        SB(SCRIPT + 0x390 + 6 * i, blocks[i]);
+        SB(SCRIPT + 0x390 + 6 * i + 1, 1);
+        SB(SCRIPT + 0x390 + 6 * i + 2, blocks[i]);
+        SB(SCRIPT + 0x390 + 6 * i + 3, 2);
+        SB(SCRIPT + 0x390 + 6 * i + 4, 0x97);
+        SB(SCRIPT + 0x390 + 6 * i + 5, 0x97);
+    }
+    /* what ends a switch on sub-code 3 */
+    {   /* spaced: a stub looks from the byte after where it's given */
+        const uint8_t closing[] = {2, 1, 3, 0xFF};
+        for (uint32_t i = 0; i < 4; i++) {
+            SB(SCRIPT + 0x3E0 + 4 * i, script_op);
+            SB(SCRIPT + 0x3E1 + 4 * i, closing[i]);
+            SB(SCRIPT + 0x3E2 + 4 * i, 0x97);
+            SB(SCRIPT + 0x3E3 + 4 * i, 0x97);
+        }
     }
     script_stuck = rnd() % 32 == 0;
     SB(SCRIPT + 0x100, 1);
@@ -1824,6 +1887,308 @@ static void inputs_script(Ctx *c, uint32_t hunter, uint32_t args[3]) {
         for (uint32_t i = 0; i < 16; i++)
             if (LBU(SCRIPT + i) == 0xB)
                 SB(SCRIPT + i, 0x97);
+    }
+}
+
+/* Every opcode with every byte after it, stubs or not: a wrong length would misread every script from there on, and random bytes may not find it. */
+static int script_every_length(Ctx *c, int stub_mode, uint32_t monster) {
+    int failed = 0;
+    for (uint32_t op = 0; op < 256; op++)
+        for (uint32_t sub = 0; sub < 256; sub++) {
+            uint32_t v0[2];
+            SB(SCRIPT, op);
+            SB(SCRIPT + 1, sub);
+            SB(SCRIPT + 2, rnd());
+            SB(SCRIPT + 3, rnd());
+            ncalls[0] = ncalls[1] = 0;
+            for (int mode = 0; mode < 2; mode++) {
+                c->r[29] = TEST_SP;
+                c->r[4] = monster;
+                c->r[5] = SCRIPT;
+                rt_hand = mode;
+                current = mode;
+                target = stub_mode ? 0x09AB7858u : 0;
+                stubbing = stub_mode;
+                running = 1;
+                f_game_task_09AB7858(c);
+                running = stubbing = 0;
+                v0[mode] = c->r[2];
+            }
+            if (v0[0] != v0[1] || ncalls[0] != ncalls[1]) {
+                printf("opcode %02X then %02X: generated %d bytes, %d calls; hand %d bytes, %d calls\n", op, sub, (int)(v0[0] - SCRIPT), ncalls[0], (int)(v0[1] - SCRIPT), ncalls[1]);
+                failed++;
+            }
+        }
+    return failed;
+}
+
+/* The fields handlers read, each a few ways. A real run keeps what's real but for the state of what it tests. */
+static void script_op_real_fields(Ctx *c, Monster *self) {
+    (void)c;
+    self->point_block_index = (int8_t)PICK(-1, 0, 1, 5);
+    self->script_nest_level = (uint8_t)PICK(0, 1, 2);
+    self->id_sequence_length = -1;      /* its list wouldn't be there */
+    self->target_param2 = (uint16_t)PICK(0, 1, 2, 3, 0xFF);
+    self->target_kind = 1;
+    self->target_param1 = 0;
+}
+
+static void script_op_stub_fields(Ctx *c, Monster *self, uint32_t at) {
+    self->state = (uint8_t)PICK(1, 2, 3);
+    self->state_group = (uint8_t)PICK(0, 1, 2, 3);
+    SB(at + 1, PICK(0, 1, 2, 3, 5, 8));
+    SB(at + 2, PICK(0, 1, 2, 3, 0xFF));
+    self->chosen_slot = (uint8_t)PICK(0xFF, 0, 1, 2, 3, 0x13);
+    self->resolved_target_kind = (uint16_t)PICK(1, 2, 3, 9, 0xD, 0xD, 0x10D);
+    self->target_kind = (uint16_t)rnd();
+    self->target_param1 = (uint16_t)rnd();
+    self->target_param2 = (uint16_t)rnd();
+    for (uint32_t i = 0; i < 4; i++) {
+        { const float v[] = {-1.0f, 0.0f, 0.01f, 10.0f, 100.0f, 200.0f, 300.0f, 500.0f}; (&self->script_distance_band0)[i] = v[rnd() % 8]; }
+        { const float v[] = {-2.0f, 0.0f, 0.005f, 10.0f, 100.0f, 150.0f, 200.0f, 1000.0f}; (&self->distance_to_hunter0)[i] = v[rnd() % 8]; }
+    }
+    self->distance_to_chosen_slot = (float)rnd();
+    uint32_t monsters = LW(MONSTERS_POINTER);
+    uint32_t first = 0;
+    while (LW(monsters + 0x1220u + 4 * first) == 0)
+        first++;
+    for (uint32_t i = first + 1; i < 20; i++)
+        SW(monsters + 0x1220u + 4 * i, PICK(0, 0, GAME_ADDR_T(self), FAKE_HUNTERS + (i & 3) * 0x400));
+    self->area_id = (uint16_t)PICK(0, 1, 2, 3, 0xFFFF);
+    SB(at + 3, PICK(0, 1, 2));
+    SB(at + 4, PICK(0, 1, 3));
+    for (uint32_t id = 0; id < 8; id++) {
+        SH(0x09CE5108u + id * 2, (uint16_t)PICK(0, 0, 1));
+        SH(0x09CE5320u + id * 2, (uint16_t)PICK(0xFFFF, 0, 1, 2, 3));
+    }
+    self->hunters_tracked_mask = (uint8_t)PICK(0, 0, 1, 2, 3, 4, 8, 0xC, 0xF, 0x10, 0xF0);
+    self->script_table_24_entry = (uint8_t)rnd();
+    self->script_level1_entry = (uint16_t)rnd();
+    self->script_level2_entry = (uint16_t)rnd();
+    self->script_return_table_24 = rnd();
+    self->script_return_level1 = rnd();
+    self->script_return_level2 = rnd();
+    self->script_nest_level = (uint8_t)PICK(0, 1, 2, 3);
+    self->script_active_requests = (uint8_t)rnd();
+    self->request_bit_8_ticks = (int8_t)rnd();
+    self->route_final_area = (uint16_t)rnd();
+    self->point_block_order = (uint8_t)PICK(0, 0, 1, 2, 3);
+    self->point_block_order_list = (uint8_t)rnd();
+    self->point_block_point_count = (int8_t)PICK(-1, 0, 1, 2, 3, 6, 10);
+    self->point_block_index = (int8_t)PICK(-2, -1, 0, 1, 2, 5, 10);
+    self->spawn_variant = (int16_t)PICK(-1, 0, 1, 2, 3, 0x100);
+    self->script_event_active = (uint8_t)PICK(0, 1, 2);
+    self->state = (uint8_t)PICK(1, 2, 3);
+    for (uint32_t i = 3; i < 10; i++)
+        SB(at + i, PICK(0, 1, 2, 3, 0x80));
+    SB(at + 1, PICK(0, 1, 2, 3, 5));
+    for (uint32_t i = 0; i < 4; i++) {
+        SH(FAKE_HUNTERS + i * 0x400 + offsetof(Monster, area_id), rnd() % 4 ? self->area_id : (uint16_t)rnd());
+        SW(FAKE_HUNTERS + i * 0x400 + 4, PICK(0, 1, 1, 1, 3));
+        (&self->target_points_hunter0)[i] = (int32_t)PICK(0, 0, 0, 1, 2, 29999, 30000, 49999, 50000, -1);
+    }
+    self->script_random_counter = (uint16_t)rnd();
+    self->target_kind = (uint16_t)PICK(1, 1, 1, 1, 2, 0x101);
+    self->target_param1 = (uint16_t)PICK(0, 0, 0, 0, 1, 0x100);
+    self->target_param2 = (uint16_t)PICK(0, 1, 2, 3, 0xFF, 0x102);
+    self->facing = rnd();
+    SB(at + 2, PICK(1, 2, 3, 30, 45, 90, 90, 90, 120, 180, 0xFF, 0x80, 0xD3));
+    SH(0x09CE5108u + 0xFFFFu * 2, 1);
+    SH(0x09CE5320u + 0xFFFFu * 2, 1);
+    SW(0x09FC0000u, rnd());
+    SW(0x09FC0004u, rnd());
+    SW(0x09FC0000u + 15000 * 4, rnd());
+    if (script_op == 6)
+        SB(at, PICK(0, 1, 2, 3, 4, 5, 6, 7, 0xA, 0xA, 0xD, 0xD));
+    if (script_op == 0x3E && rnd() % 2) {
+        SB(at + 4, 0xFF);
+        SB(at + 5, 0xFF);
+    }
+    script_step_two_at = 0;
+    if (script_op == 0x42 || script_op == 0x14) {       /* an else right after the test passes, and either way what's after that */
+        if (rnd() % 2) {
+            SB(at + 2, script_op);
+            SB(at + 3, PICK(1, 1, 1, 2));
+            SB(at + 4, PICK(script_op, script_op, 0x97));
+            SB(at + 5, PICK(2, 1));
+            script_step_two_at = at + 2;
+        }
+    }
+    for (uint32_t i = 0; i < 4; i++)
+        SW(FAKE_HUNTERS + i * 0x400 + offsetof(Monster, monster_flags), PICK(0, 2, 3));
+    if (script_op == 0x53) {    /* several hunters to choose among, some just as far */
+        self->hunters_tracked_mask = (uint8_t)PICK(3, 5, 7, 0xC, 0xF, 0xF, 0xF);
+        for (uint32_t i = 0; i < 4; i++)
+            (&self->distance_to_hunter0)[i] = rnd() % 2 ? 10.0f : 20.0f;
+    }
+    self->paired_monster = PICK(0, 0, 1, 0x09FFA000u);
+    SW(GAME_ADDR_T(self) + offsetof(Monster, meter_b_max), PICK(0, 1, 3, 10, 100, 1000, -100));
+    SW(GAME_ADDR_T(self) + offsetof(Monster, meter_b), PICK(0, 1, 2, 3, 29, 30, 31, 300, -1));
+    self->id_sequence_list = (uint8_t)rnd();
+    SB(GAME_ADDR_T(self) + 0x539, rnd());
+    self->id_sequence_length = (int8_t)PICK(-1, 0, 1, 2, 3, 8);
+    self->id_sequence_position = (int8_t)PICK(0, 0, 1, 2, 7);
+    self->id_sequence_loops = (uint8_t)PICK(0, 0, 0, 1, 2, 0x80);
+    self->script_sequence_loop_start = rnd();
+    for (uint32_t i = 0; i < 16; i++)
+        SH(ID_LIST + 2 * i, (uint16_t)(i == 15 ? self->area_id + 1 : PICK(self->area_id, self->area_id, 0xFFFF, 1, 2, 50000, 50001, 49999, 65000)));
+    for (uint32_t i = 0; i < 8; i++)
+        SH(ID_LIST + 0x40 + 2 * i, (uint16_t)PICK(self->area_id, 1, 2, 0xFFFF));
+    for (uint32_t i = 0; i < 128; i++)
+        SH(ID_LIST + 0x80 + 2 * i, self->area_id == 0xFFFF ? 1 : 0xFFFF);
+    SW(0x09FFD000u + 0x1C, 0x09FC0000u);     /* far enough down that an entry up to 15535 is in memory */
+    SH(0x09CE4908u + LW(LW(0x09A4F1A0u) + 0x284) * 2, (uint16_t)PICK(0xFFFF, 0, 1));
+    uint32_t mode_byte = LBU(LW(0x089CC558u) + 0x6AF10u);
+    SH(0x09CE4908u + mode_byte * 2, (uint16_t)PICK(0xFFFF, 9, 0xA, 0x16, 0x109, 0));
+    SB(LW(0x089CC558u) + 0x6AF10u, PICK(mode_byte, 9, 0xA, 0x16));
+    self->monster_flags = rnd();
+    self->movement_mode = (uint8_t)PICK(0, 0, 1, 2, 4, 5);
+    self->alert_area_table_ticks = (int16_t)PICK(-1, 0, 1, 100);
+    self->area_table_ticks = (int16_t)PICK(-1, 0, 1, 100);
+    self->previous_area = (uint16_t)PICK(0, 1, 2, 3, 0xFFFF, 0xFFFF);
+    SB(GAME_ADDR_T(self) + 0x292, PICK(0, 1, 2, 3));
+    self->quest_scale_row = (int8_t)PICK(-1, 0, 1, 2, 3);
+    self->script_position_point_block = rnd();
+    SW(MONSTER_TYPE(self->subtype, 0x158), LINK_AREA + 0x700);
+    SW(LINK_AREA + 0x700 + 4, rnd());
+    SH(LINK_AREA + 2, (uint16_t)PICK(-1, 0, 1, 2, 3, 5));
+    self->script_header = 0x09FFD000u;       /* its tables: anything there, it's only what's returned */
+    if (script_op == 0x42 || script_op == 0x14)         /* the limit, in degrees */
+        SB(at + 1, PICK(0, 1, 14, 14, 30, 45, 90, 90, 90, 120, 180, 0xD3, 0x80, 0xFF));
+    SW(self->script_header + 4, SCRIPT + 0x40);
+    for (uint32_t i = 0; i < 0x100; i++)
+        SW(self->script_header + 0x3C + 4 * i, SCRIPT + 0x100 + 4 * i);
+    (void)c;
+}
+
+/* A handler of an opcode: its sub-codes, and the fields the handlers go by */
+static void inputs_script_op(Ctx *c, uint32_t hunter, uint32_t args[3], uint32_t op) {
+    script_op = op;
+    script_step_two_at = 0;
+    inputs_script(c, hunter, args);
+    uint32_t monster = first_monster(c);
+    Monster *self = (Monster *)MEM(monster);
+    if (!record_method) {       /* with the real callees: a block they can walk, for they would look for its end for ever otherwise */
+        uint32_t at = SCRIPT + 0x10;
+        SB(SCRIPT, 0x13);
+        SB(at, PICK(0, 0, 0, 1, 2, 3, 4, 5, 0xFF, 0x20));
+        for (uint32_t i = 1; i < 8; i++)        /* not the opcode: "op 3" stops a search for the end, for ever */
+            SB(at + i, i == 1 ? PICK(1, 2, 3) : op == 3 || op == 4 ? 0x13 : PICK(1, 2, 3, 4, 0x13));
+        if (op == 1 || op == 2 || op == 3)
+            for (uint32_t i = 1; i < 8; i++)
+                SB(at + i, 0x13);
+        for (uint32_t i = 8; i < 0x20; i++)
+            SB(at + i, 0x13);
+        /* An else being skipped from goes to its end: another else first would stop the search for ever */
+        const uint8_t closing[] = {LBU(at) == 1 ? 2 : 1, 2, 3, 0xFF, 1, 2, 3, 0xFF};
+        for (uint32_t i = 0x20; i < 0x80; i++)  /* with room between: a case's value taken from one wouldn't step over the next */
+            SB(at + i, 0x13);
+        for (uint32_t i = 0; i < 8; i++) {
+            SB(at + 0x20 + 6 * i, op);
+            SB(at + 0x21 + 6 * i, closing[i]);
+        }
+        if (op == 0x82) {       /* a table and entry that are there */
+            uint32_t table = 0;
+            while (table < 32 && LW(self->script_header + 0x3C + 4 * table) == 0)
+                table++;
+            SB(at, table);
+            SB(at + 1, 0);
+        }
+        args[0] = at;
+        script_op_real_fields(c, self);
+        return;
+    }
+    script_op_stub_fields(c, self, args[0]);
+}
+
+/* Opcode FF: each sub-code, a link's records and points close enough for each way of a test, the fields it goes by */
+static void inputs_script_end_block(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    script_op = 0;
+    script_step_two_at = 0;
+    inputs_script(c, hunter, args);
+    uint32_t monster = first_monster(c);
+    Monster *self = (Monster *)MEM(monster);
+    uint32_t sub = PICK(0, 1, 2, 3, 4, 4, 4, 5, 5, 6, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE, 0xFE, 0xFF);
+    if (!record_method) {       /* with the real callees: only where a real table is there to find */
+        self->script_active_requests = (uint8_t)PICK(0, 1);
+        sub = PICK(1, 2, 3, 0xF8, 0xF9, 0xFB, 0xFC, 0xFD, 0xFF, 0xF4, 0, 0xF5, 0xF6, 0xF7, 5, 4, 0xFE);
+        if ((sub == 4 || sub == 5) && LW(MONSTER_TYPE(self->subtype, 0x158)) == 0)
+            sub = 1;
+        SB(SCRIPT, sub);
+        args[0] = SCRIPT;
+        return;
+    }
+    SB(args[0], sub);
+    self->subtype = (uint8_t)PICK(0, 1, 2, 7, 0x24, 0x32, 0x37, 0x47, 0x3A, 0x48, 3, 6, 8, 0x23, 0x25, 0x31, 0x33, 0x36, 0x38, 0x46, rnd() & 0x4F);
+    self->area_id = (uint16_t)(rnd() % 64);
+    self->place[0] = (float)((int)(rnd() % 2048) - 1024);
+    self->place[1] = (float)((int)(rnd() % 256) - 128);
+    self->place[2] = (float)((int)(rnd() % 2048) - 1024);
+    self->place_before[0] = (float)rnd();
+    self->facing = rnd();
+    self->previous_area = (uint16_t)rnd();
+    self->link_record_index = (uint8_t)(rnd() % 8);
+    self->link_point_index = (uint8_t)PICK(0, 0, 1, 2, 3, 7);
+    self->link_retry_count = (int8_t)PICK(0, 1, 8, 9, 10, -1, 0x7F);
+    self->link_script_entry = (uint8_t)rnd();
+    self->target_kind = (uint16_t)rnd();
+    self->target_param1 = (uint16_t)rnd();
+    self->target_param2 = (uint16_t)rnd();
+    self->resolved_target_kind = (uint16_t)PICK(9, 9, 9, 1, 0, 0x109);
+    self->resolved_target_param1 = (uint16_t)(rnd() % 6);
+    self->resolved_target_param2 = (uint16_t)rnd();
+    self->script_return_link = rnd();
+    self->script_return_level1 = rnd();
+    self->script_return_level2 = rnd();
+    self->script_return_table_24 = rnd();
+    self->script_sequence_loop_start = rnd();
+    self->id_sequence_position = (int8_t)PICK(-1, 0, 1, 2, 3, 0x7F);
+    self->id_sequence_length = (int8_t)PICK(-1, 0, 1, 2, 3, 4);
+    self->id_sequence_loops = (uint8_t)PICK(0, 0, 1, 2, 0x80);
+    self->chosen_slot = (uint8_t)PICK(0xFF, 0, 1, 2, 3, 0x13);
+    self->hunters_tracked_mask = (uint8_t)rnd();
+    for (uint32_t i = 0; i < 4; i++) {
+        SH(monster + offsetof(Monster, tracked_ticks_hunter0) + 2 * i, (uint16_t)rnd());
+        SW(monster + offsetof(Monster, approach_points_hunter0) + 4 * i, rnd());
+        SW(monster + offsetof(Monster, target_points_hunter0) + 4 * i, rnd());
+    }
+    self->point_block_start_entry = (uint8_t)rnd();
+    self->point_block_step_entry = (uint8_t)rnd();
+    self->point_block_order = (uint8_t)PICK(0, 0, 1, 2, 3);
+    self->point_block_order_list = (uint8_t)rnd();
+    self->point_block_visited = (int8_t)PICK(-1, 0, 1, 2, 3);
+    self->point_block_goal = (int8_t)PICK(-1, 0, 1, 2, 3);
+    self->point_block_index = (int8_t)PICK(-1, 0, 1, 2, 5);
+    self->point_block_point_count = (int8_t)PICK(-1, 0, 1, 2, 3, 6, 10);
+    self->alert_mode_copy = (uint8_t)rnd();
+    SW(MONSTER_TYPE(self->subtype, 0x158), LINK_AREA + 0x700);      /* its table of areas: not every type has one in memory */
+    SW(LINK_AREA + 0x700 + 0x18, rnd());
+    SH(0x09CE4908u + LW(LW(0x09A4F1A0u) + 0x284) * 2, (uint16_t)PICK(0xFFFF, 0, 1));
+    for (uint32_t id = 0; id < 0x102; id++) {
+        SH(0x09CE5108u + id * 2, (uint16_t)PICK(0, 1));
+        SH(0x09CE5320u + id * 2, (uint16_t)PICK(0xFFFF, 0xFFFF, id + 1));
+    }
+    /* The area's records and each's points: */
+    SH(LINK_AREA + 2, (uint16_t)PICK(1, 2, 3, 5));
+    SW(LINK_AREA + 4, rnd() % 8 ? LINK_RECORDS : 0);
+    for (uint32_t r = 0; r < 8; r++) {
+        uint32_t record = LINK_RECORDS + r * 0x18;
+        SH(record, (uint16_t)PICK(-1, 1, 2, 3, r, 0x10, 0x101));
+        SH(record + 2, (uint16_t)PICK(1, 2, 4, r + 1));
+        SW(record + 4, LINK_POINTS_AT + r * 0x80);
+        for (uint32_t o = 8; o <= 0x10; o += 4)
+            *(float *)MEM(record + o) = (float)(int16_t)rnd();
+        SH(record + 0x14, (uint16_t)rnd());
+        for (uint32_t i = 0; i < 6; i++) {
+            uint32_t point = LINK_POINTS_AT + r * 0x80 + i * 0x14;
+            int exact = rnd() % 2;
+            float radius = (float)(rnd() % 1024);
+            *(float *)MEM(point) = self->place[0] + (exact ? radius : (float)(rnd() % 2048) - 1024.0f);
+            *(float *)MEM(point + 4) = self->place[1] + (exact ? 0.0f : (float)(rnd() % 512));
+            *(float *)MEM(point + 8) = self->place[2] + (exact ? 0.0f : (float)(rnd() % 256));
+            *(float *)MEM(point + 0xC) = radius;
+            SH(point + 0x12, (uint16_t)rnd());
+        }
     }
 }
 
@@ -2056,6 +2421,8 @@ int main(int argc, char **argv) {
         if (!stub_mode && (strstr(cases[k].name, "script_skip_to") || strstr(cases[k].name, "script_past_end")))
             continue;
         int bad = 0;
+        if (cases[k].fn == f_game_task_09AB7858)
+            bad += script_every_length(c, stub_mode, first_monster(c));
         for (int i = 0; i < iterations && bad < 5; i++) {
             uint32_t a1;
             int tick30;
@@ -2130,6 +2497,7 @@ int main(int argc, char **argv) {
                 c->fpcond = 0;
                 memset(c->v, 0, sizeof c->v);
                 memset(c->vfpu_ctrl, 0, sizeof c->vfpu_ctrl);
+                c->vfpu_ctrl[0] = c->vfpu_ctrl[1] = 0xE4;      /* no prefix, as after any VFPU instruction: 0 would make the first one read x, x, x */
                 c->f[12].u = test_f12;
                 c->r[8] = test_t0;
                 c->r[9] = test_t1;
