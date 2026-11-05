@@ -76,7 +76,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
 | Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
 
-**Frame pacing, in order.** (1) Log each frame shown: when it's issued and presented, the game time it shows, and tick boundaries. Add a motion check, `MHFU_MOTION_LOG`'s even-steps measure, in a real window. (2) Reduce the GE's cost per tick, about 192 ms a second at 60 ticks against 69 at 30 in the village: re-walking what only changes at 30ths. (3) Draw display frames off the game's thread, if ticks still collide with frames due, leaving the game's fixed schedule alone. Check present mode, compositor and VRR.
+**Frame pacing, in order.** (1) Measure: log each frame shown with when it's issued and presented, the game time it shows, and tick boundaries; show real display timing in the panel; a motion check in a real window. (2) Lock pacing to the display: frames now run on their own 144.000 timer with mailbox present and VRR off, on a 143.973 Hz monitor, so their phase slides round about every 37 s, a suspected cause of smoothness coming and going *(check)*. (3) Reduce the GE's cost per tick, about 192 ms a second at 60 ticks against 69 at 30 in the village. (4) Draw display frames off the game's thread, if ticks still collide with frames due, leaving the game's fixed schedule alone.
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
 
