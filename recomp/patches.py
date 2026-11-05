@@ -120,6 +120,22 @@ HAND = {
     ("game_task", 0x09A6A598): "hand_hunter_stamina_add_scaled",
     ("EBOOT", 0x088D5C7C): "hand_hunter_motion_update",
     ("game_task", 0x09A665F0): "hand_hunter_state_run",
+    ("EBOOT", 0x088D6594): "hand_hunter_add_health",
+    ("game_task", 0x09A6C968): "hand_hunter_can_guard_received_hit",
+    ("EBOOT", 0x088D92F8): "hand_hunter_recalc_defense_value",
+    ("game_task", 0x09A6B130): "hand_hunter_process_received_hit",
+    ("game_task", 0x09AC8450): "hand_entity_sum_pending_damage_and_add_buildups",
+    ("game_task", 0x09AC7A08): "hand_entity_apply_pending_damage_and_choose_result_code",
+    ("EBOOT", 0x088D96BC): "hand_hunter_recalc_resist_values",
+    ("EBOOT", 0x088D9EB8): "hand_hunter_add_resist_value_by_id",
+    ("EBOOT", 0x088D9F3C): "hand_hunter_resist_values_add_game_bytes_6993d",
+    ("game_task", 0x09AC9318): "hand_entity_pending_damage_scale_from_quest_table",
+    ("game_task", 0x09A6FB30): "hand_hunter_clear_received_hit_fields",
+    ("game_sub", 0x09C45008): "hand_object_apply_hit_mask_28_amounts",
+    ("game_sub", 0x09C43000): "hand_hunter_register_hit_add_defense_scaled_damage",
+    ("game_sub", 0x09C426E0): "hand_hit_node_test_target_if_in_current_map_and_state_2",
+    ("game_sub", 0x09C41F58): "hand_hit_manager_test_nodes_against_targets",
+    ("game_sub", 0x09C42750): "hand_hit_node_test_target_and_apply",
 }
 
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to

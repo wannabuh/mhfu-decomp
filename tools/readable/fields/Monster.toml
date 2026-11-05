@@ -173,12 +173,12 @@ evidence = "game_task 09AC4518 increments it (ops 7B/84); game_task 09AB8AE0, 09
 [[field]]
 struct = "Monster"
 offset = 0x35E
-name = "point_check_block_ticks"
+name = "hit_immune_ticks"
 type = "u16"
 confidence = "inferred"
 decimal = true
-note = "while nonzero the area point cone check is skipped; counted down each tick"
-evidence = "game_task 09AC7620 decrements; game_task 09AD3EF8 returns when nonzero; game_task 09AD8808 and siblings set it to 5 or 10"
+note = "while nonzero, hit records are not tested against it (as a hunter's); and while nonzero the area point cone check is skipped; counted down each tick"
+evidence = "game_sub 09C42750 returns first thing if +0x35E of its target is nonzero, hunter or monster; game_task 09AC7620 decrements; game_task 09AD3EF8 returns when nonzero; game_task 09AD8808 and siblings set it to 5 or 10"
 
 [[field]]
 struct = "Monster"

@@ -13,6 +13,7 @@
 #include "runtime.h"
 #include "funcs.h"
 #include "mhfu_types.h"
+#include "../../readable/hit.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,7 +64,26 @@ static void inputs_common(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_stamina_scaled(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_motion_update(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_state_run(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_add_health(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_can_guard(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_recalc_defense(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
+static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_recalc_resists(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_add_resist(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_resist_bytes(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_scale_table(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_clear_hit_fields(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_sum_damage(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_apply_damage(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_test_if_in_map(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_test_target(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_hit_manager(Ctx *c, uint32_t hunter, uint32_t args[3]);
+extern const struct Pokes add_health_pokes, can_guard_pokes, recalc_defense_pokes, received_hit_pokes;
+extern const struct Pokes recalc_resists_pokes;
+extern const struct Pokes register_hit_pokes, sum_damage_pokes, apply_damage_pokes, test_if_in_map_pokes, test_target_pokes, hit_manager_pokes;
 
 static const Case cases[] = {
     {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL, NULL, NULL},
@@ -98,6 +118,22 @@ static const Case cases[] = {
     {"hunter_stamina_add_scaled 09A6A598", f_game_task_09A6A598, 0, 0, 0x09A6A598, NULL, inputs_stamina_scaled, NULL},
     {"hunter_motion_update 088D5C7C", f_EBOOT_088D5C7C, 0, 0, 0x088D5C7C, NULL, inputs_motion_update, NULL},
     {"hunter_state_run 09A665F0", f_game_task_09A665F0, 0, 0, 0x09A665F0, NULL, inputs_state_run, &run_pokes},
+    {"hunter_add_health 088D6594", f_EBOOT_088D6594, 1, 0, 0x088D6594, NULL, inputs_add_health, &add_health_pokes},
+    {"hunter_can_guard_received_hit 09A6C968", f_game_task_09A6C968, 1, 0, 0x09A6C968, NULL, inputs_can_guard, &can_guard_pokes},
+    {"hunter_recalc_defense_value 088D92F8", f_EBOOT_088D92F8, 0, 0, 0x088D92F8, NULL, inputs_recalc_defense, &recalc_defense_pokes},
+    {"hunter_process_received_hit 09A6B130", f_game_task_09A6B130, 0, 0, 0x09A6B130, NULL, inputs_received_hit, &received_hit_pokes},
+    {"hunter_recalc_resist_values 088D96BC", f_EBOOT_088D96BC, 0, 0, 0x088D96BC, NULL, inputs_recalc_resists, &recalc_resists_pokes},
+    {"hunter_add_resist_value_by_id 088D9EB8", f_EBOOT_088D9EB8, 0, 0, 0x088D9EB8, NULL, inputs_add_resist, NULL},
+    {"hunter_resist_values_add_game_bytes 088D9F3C", f_EBOOT_088D9F3C, 0, 0, 0x088D9F3C, NULL, inputs_resist_bytes, NULL},
+    {"entity_pending_damage_scale 09AC9318", f_game_task_09AC9318, 0, 0, 0x09AC9318, NULL, inputs_scale_table, NULL},
+    {"hunter_clear_received_hit_fields 09A6FB30", f_game_task_09A6FB30, 0, 0, 0x09A6FB30, NULL, inputs_clear_hit_fields, NULL},
+    {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
+    {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
+    {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
+    {"entity_apply_pending_damage 09AC7A08", f_game_task_09AC7A08, 1, 0, 0x09AC7A08, NULL, inputs_apply_damage, &apply_damage_pokes},
+    {"hit_node_test_if_in_map 09C426E0", f_game_sub_09C426E0, 0, 0, 0x09C426E0, NULL, inputs_test_if_in_map, &test_if_in_map_pokes},
+    {"hit_node_test_target 09C42750", f_game_sub_09C42750, 0, 0, 0x09C42750, NULL, inputs_test_target, &test_target_pokes},
+    {"hit_manager 09C41F58", f_game_sub_09C41F58, 0, 0, 0x09C41F58, NULL, inputs_hit_manager, &hit_manager_pokes},
 };
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
@@ -106,7 +142,8 @@ static const Case cases[] = {
  * the wrong side of a call shows even if the stub does nothing with it */
 typedef struct { uint32_t fn, a[8], f[8], stack0, hunter_hash; } Call;
 #define HUNTER_HASHED 0x1200u
-#define NINE_ARGUMENTS 0x08883988u      /* the one callee so far with an argument at its sp+0 */
+#define NINE_ARGUMENTS 0x08883988u      /* callees with an argument at their sp+0 */
+#define OBJECT_SOUND 0x08865F8Cu
 #define STUB_RECORD 0x09FF8000u         /* what a call returning a pointer to a record gets */
 #define RECORD_TYPE 0x3C
 #define REGEN_EFFECT_TEST 0x088DAE98u
@@ -121,7 +158,7 @@ static uint8_t stub_record_type[MAX_CALLS];
 static uint32_t record_method;              /* the method returning that pointer: *(*(*0x09A4F1A0)) slot 0x28 */
 typedef struct { uint32_t offset; uint8_t size; uint8_t in_game; } PokeField;
 /* What a callee answers more often than the random results would: a function's deep paths may need several answers at once. Ends with fn 0. */
-typedef struct { uint32_t fn; int count; int32_t values[8]; } Bias;
+typedef struct { uint32_t fn; int count; int32_t values[16]; } Bias;
 struct Pokes { const PokeField *fields; size_t count; const Bias *bias; };
 static const PokeField *pokable;   /* a callee may set one of these */
 static const Bias *stub_bias;
@@ -131,6 +168,14 @@ static int npokes;                          /* how many at each call, this time 
 static uint16_t stub_poke[MAX_CALLS][MAX_POKES];   /* indexes in them */
 static int32_t stub_poke_value[MAX_CALLS][MAX_POKES];
 static uint32_t stub_hunter;
+static uint32_t test_a0;            /* what the function under test gets as a0: the hunter, if its inputs don't say */
+static struct { uint32_t at, size; } hashed_more[2];     /* what else is hashed at each call: other objects a function writes */
+static uint32_t poke_base[4];       /* what a PokeField's in_game is relative to, from 2 on */
+static void (*stub_hook)(Ctx *c, uint32_t fn, int n);    /* what callees write through pointers they are given */
+static int stack_pattern;           /* a stack of words all different, so that reading the wrong one shows */
+static int compare_vfpu;            /* a function that leaves something in the vector registers */
+static int compare_f0;              /* a function returning a float */
+static uint32_t test_f12;           /* f12 to give it, as bits */
 static Call calls[2][MAX_CALLS];
 static int ncalls[2], current;
 
@@ -199,11 +244,23 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
             if (mask >> (8 + i) & 1)
                 call->f[i] = c->f[12 + i].u;
         }
-        if (fn == NINE_ARGUMENTS)
+        if (fn == NINE_ARGUMENTS || fn == OBJECT_SOUND)
             call->stack0 = LW(c->r[29]);
+        /* The angle of a hit, from two places it is pointed at. One NaN stands for all: added to another NaN, which comes out is the host compiler's
+         * choice of operand order, not the game's (seen: place 0xFFFFFFFF + 0x7FF3EBF0 came out each way, generated and hand-written). */
+        if (fn == 0x09C42DA0u)
+            for (uint32_t o = 0; o < 16; o += 4) {
+                uint32_t p = LW(c->r[6] + o), q = LW(c->r[7] + o);
+                p = (p & 0x7FFFFFFFu) > 0x7F800000u ? 0x7FC00000u : p;
+                q = (q & 0x7FFFFFFFu) > 0x7F800000u ? 0x7FC00000u : q;
+                call->stack0 = (call->stack0 ^ p ^ q * 3u) * 16777619u;
+            }
         uint32_t hash = 2166136261u;
         for (uint32_t o = 0; o < HUNTER_HASHED; o += 4)
             hash = (hash ^ LW(stub_hunter + o)) * 16777619u;
+        for (int more = 0; more < 2; more++)
+            for (uint32_t o = 0; o < hashed_more[more].size; o += 4)
+                hash = (hash ^ LW(hashed_more[more].at + o)) * 16777619u;
         call->hunter_hash = hash;
         if (bound >= 0) {
             c->r[2] = 0;
@@ -219,7 +276,8 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
             SB(STUB_RECORD + RECORD_TYPE, stub_record_type[n]);
         }
         for (int i = 0; pokable && i < npokes; i++) {
-            uint32_t at = (pokable[stub_poke[n][i]].in_game ? LW(GAME_POINTER) : stub_hunter) + pokable[stub_poke[n][i]].offset;
+            uint8_t where = pokable[stub_poke[n][i]].in_game;
+            uint32_t at = (where >= 2 ? poke_base[where] : where ? LW(GAME_POINTER) : stub_hunter) + pokable[stub_poke[n][i]].offset;
             int32_t value = stub_poke_value[n][i];
             if (pokable[stub_poke[n][i]].size == 1)
                 SB(at, value);
@@ -231,6 +289,8 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         /* two tests deep in regeneration, otherwise hardly ever passed */
         if (pokable && ((fn == REGEN_EFFECT_TEST && c->r[5] == 0x20) || (fn == SKILL_TEST && c->r[5] == 0x7A)) && (stub_record_type[n] & 3))
             c->r[2] = 1;
+        if (stub_hook)
+            stub_hook(c, fn, n);
         if (stub_stamina[n] != 0x7FFF)
             SH(stub_hunter + 0x55A, stub_stamina[n]);
         if (stub_slot[n] != 0xFF)
@@ -822,6 +882,688 @@ static void inputs_state_run(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     SW(LW(0x08A632C0u) + 0xF7A554u, PICK(30, 60, 0, 5, 10, 15, 20, 25, 7, 8, 9, 11, 13, 14, -30, -5, -10, -7, 0x7FFFFFFF));
 }
 
+/* -- damage to a hunter ---------------------------------------------------------------------------------------------------------------- */
+#define HEALTHS PICK(-1, 0, 0, 1, 2, 10, 11, 12, 40, 41, 63, 64, 65, 100, 150, 0x7FFF, -0x8000)
+
+static const Bias add_health_bias[] = {
+    {0x0884FA5Cu, 5, {0, 0, 1, 0x100, 0x101}},
+    {0x088D6A1Cu, 5, {0, 0, 1, 0x100, 0x101}},
+    {0, 0, {0}},
+};
+POKES(add_health_pokes, add_health_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x298, 1, 0}, {0x2E4, 2, 0}, {0x41C, 2, 0}, {0x41E, 2, 0});
+
+static void inputs_add_health(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->instance_index = pick_slot(c);
+    self->state_group = (uint8_t)PICK(0, 0, 1, 2, 3, 4);
+    self->health = (int16_t)HEALTHS;
+    self->health_red_limit = (int16_t)(self->health + PICK(0, 0, 1, -1, 50, -50));
+    self->health_max = (int16_t)PICK(100, 150, 150, self->health, self->health + 1, self->health - 1);
+    for (int i = 0; i < 6; i++)
+        SB(hunter + 0x676 + i, PICK(0, 0, 0xC8, 0xD3, 1));
+    args[0] = PICK(0, 1, -1, 5, -5, 30, 100, -100, -63, -64, -65, -0x8000, 0x7FFF, 0x10000, 0x10001, 0xFFFF, -self->health, -self->health + 1, -self->health - 1, 0x10000 - self->health);
+}
+
+static const Bias can_guard_bias[] = {
+    {0x088D6A1Cu, 4, {0, 1, 0x100, 0x101}},
+    {0x088D2830u, 4, {0, 1, 0x100, 0x101}},
+    {0x08865C88u, 5, {0, 0, 0, 1, 0x10000}},
+    {0, 0, {0}},
+};
+POKES(can_guard_pokes, can_guard_bias, {0x1E8, 1, 0}, {0x410, 4, 0}, {0x280, 1, 0}, {0x614, 4, 0}, {0x1F4, 4, 0}, {0x360, 2, 0}, {0x1E6, 2, 0});
+
+static void inputs_can_guard(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    (void)c;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->pending_damage_0 = (int16_t)PICK(0, 0, 1, 100, -1, 0x7FFF, -0x8000);
+    self->received_hit_type = (uint16_t)PICK(0, 2, 2, 2, 0xD, 0xE, 0xF, 0x10, 0x10E, 0x10F, 0xE0E);
+    self->stamina = (int16_t)PICK(75, 75, 76, 300, 300, 74, 0, -1);
+    self->pending_hit_flags = (uint8_t)PICK(0, 0, 0, 0x40, 0x80, 0xC0, 0x3F, 0xFF);
+    self->weapon_class = (uint8_t)PICK(1, 1, 9, 3, 4, 0, 2, 5, 8, 10, 0x81, 0xFF);
+    self->misc_flags = PICK(8, 8, 8, ~0, 0, ~8);
+    self->movement_mode = (uint8_t)PICK(0, 0, 1, 1, 2, 3, 0xFF);
+    self->hunter_flags = PICK(0, 0x20, 0x20, ~0x20, -1);
+    self->facing = rnd();
+    self->received_hit_angle = (uint16_t)rnd();
+}
+
+static const Bias recalc_defense_bias[] = {
+    {0x0885D300u, 8, {0, 1, 100, 0x7FFF, 0xFFFF, 0x8000, 0x10005, -1}},
+    {0x088568ACu, 6, {0, 0, 1, 2, -1, 0x80000000}},
+    {0x088D6A1Cu, 8, {0, 0, 0, 0, 0, 1, 0x100, 0x101}},
+    {0x088DAE98u, 4, {0, 1, 0x100, 0x101}},
+    {0x088D6A54u, 4, {0, 1, 0x100, 0x10000}},
+    {0x08856E34u, 4, {0, 1, 0x100, 0x101}},
+    {0, 0, {0}},
+};
+POKES(recalc_defense_pokes, recalc_defense_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x38B, 1, 0}, {0x3D8, 1, 0}, {0x2E4, 2, 0}, {0x41E, 2, 0}, {0x5F9, 1, 0}, {0x110E, 2, 0}, {0x422, 2, 0});
+
+static void inputs_recalc_defense(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->instance_index = rnd() % 8 ? ((GameState *)MEM(LW(GAME_POINTER)))->local_hunter_slot : pick_slot(c);
+    SW(LW(GAME_POINTER) + 0x6AF14u, PICK(0, 0, 8, ~8, -1));
+    self->defense_bonus = (int8_t)PICK(0, 0, 5, 127, -1, -128);
+    self->defense_bonus_timed = (int8_t)PICK(0, 0, 5, 127, -1, -128);
+    self->health_max = (int16_t)PICK(100, 150, 0, 1, -1);
+    self->health = (int16_t)(rnd() % 2 ? (int32_t)HEALTHS : (self->health_max * (int32_t)PICK(2, 4, 4, 5)) / 10 + (int32_t)PICK(0, 0, 1, -1));
+    self->defense_effect_level = (uint8_t)PICK(0, 1, 2, 3, 4, 5, 0x81);
+    self->defense_halved_ticks = (int16_t)PICK(0, 1, 100, -1);
+    for (int i = 0; i < 6; i++)
+        SB(hunter + 0x676 + i, PICK(0, 0, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0xA3, 0xA4, 0xA5, 0xD3));
+    self->timed_effect_mask = rnd();
+}
+
+#define RARELY_1 16, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x100, 0x101}
+static const Bias received_hit_bias[] = {
+    {0x09A6C968u, 8, {0, 0, 0, 0, 0, 1, 1, 0x100}},    /* can it guard */
+    {0x088D6A1Cu, RARELY_1},
+    {0x088DAE98u, RARELY_1},
+    {0x088D6A54u, 6, {0, 0, 0, 1, 0x100, 0x10000}},
+    {0x088900C4u, 8, {0, 1, 2, 3, 4, 7, 8, 0x10000}},   /* the chances */
+    {0x09A6D228u, RARELY_1},
+    {0x09A6D280u, 8, {0, 0, 0, 0, 0, 1, 0x100, 0x101}},
+    {0x09A6D2B8u, 4, {0, 0, 1, 0x100}},
+    {0x088DA324u, 4, {0, 1, 1, 0x100}},
+    {0x09AA8958u, 4, {0, 1, 1, 0x100}},
+    {0x088DACA4u, 4, {0, 1, 0x100, 0x101}},
+    {0x08865CB8u, 4, {0, 0, 1, 0x100}},
+    {0x08865C88u, 4, {0, 0, 1, 0x10000}},
+    {0x09C451E0u, 4, {0, 1, 1, 0x100}},
+    {0, 0, {0}},
+};
+POKES(received_hit_pokes, received_hit_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x2E4, 2, 0}, {0x3B8, 2, 0}, {0x3CE, 1, 0}, {0x1E8, 1, 0}, {0x3CC, 2, 0}, {0x440, 2, 0}, {0x442, 2, 0}, {0x446, 2, 0}, {0x458, 2, 0},
+      {0x394, 2, 0}, {0x38C, 2, 0}, {0x392, 2, 0}, {0x390, 2, 0}, {0x1118, 2, 0}, {0x10FC, 2, 0}, {0x1110, 2, 0}, {0x1100, 2, 0}, {0x1144, 2, 0}, {0x110C, 2, 0}, {0x41C, 2, 0}, {0x298, 1, 0}, {0x299, 1, 0},
+      {0x280, 1, 0}, {0x672, 2, 0}, {0x410, 4, 0}, {0x360, 2, 0}, {0x1F4, 4, 0}, {0x5FB, 1, 0}, {0x602, 1, 0}, {0x3CA, 2, 0}, {0x29C, 1, 0});
+
+static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    GameState *g = (GameState *)MEM(LW(GAME_POINTER));
+    self->hit_pending = (uint8_t)(rnd() % 16 ? PICK(2, 2, 1, 0x80) : 0);
+    self->instance_index = rnd() % 8 ? g->local_hunter_slot : pick_slot(c);
+    self->state_group = (uint8_t)PICK(0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 4, 5);
+    self->state = (uint8_t)PICK(0x1A, 0xF, 0xE, 7, 6, 5, 4, 3, 2, 1, 0, 0x10, 0x1B, 0x8);
+    self->received_hit_type = (uint16_t)(rnd() % 8 ? rnd() % 0x20 : PICK(0x20, 0x21, 0x100, 0x102, 0xFFFF, 0xD));
+    if (rnd() % 2)      /* the kinds with the most ways through */
+        self->received_hit_type = (uint16_t)PICK(5, 6, 7, 19, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 2);
+    self->received_hit_power = (uint16_t)PICK(0, 1, 10, 11, 12, 0x7FFF, 0x8000, 0xFFFF);
+    self->pending_damage_0 = (int16_t)PICK(0, 1, 1, 2, 3, 10, 50, 100, 101, -1, -5, 16385, 0x7FFF, -0x8000);
+    self->health = (int16_t)PICK(100, 100, 100, 100, 100, 100, 1, 2, 50, 0, -1);
+    self->health_red_limit = (int16_t)(self->health + (int32_t)PICK(0, 1, -1, 30));
+    self->health_max = 150;
+    self->pending_hit_flags = (uint8_t)PICK(0, 0, 0x40, 0x80, 0xC0, 0x3F);
+    self->weapon_class = (uint8_t)PICK(0, 1, 1, 2, 3, 8, 9, 0x81);
+    self->pending_buildup_direct = (int16_t)PICK(0, 0, 1, 30, 50, -1);
+    self->pending_buildup_mask1 = (int16_t)PICK(0, 0, 1, 30, -1);
+    self->pending_buildup_mask4 = (int16_t)PICK(0, 0, 1, 30, -1);
+    self->pending_buildup_mask2 = (int16_t)PICK(0, 0, 0, 1, 30, -1);
+    self->pending_drain_seconds = (int16_t)PICK(0, 0, 0, 1, 30, -1);
+    self->pending_item_restrict = (int16_t)PICK(0, 0, 1, 1800, -1);
+    self->pending_stamina_debuff = (int16_t)PICK(0, 0, 1, 1800, -1);
+    self->pending_buildup_mash = (int16_t)PICK(0, 0, 1, 30, -1);
+    self->pending_defense_halve = (int16_t)PICK(0, 0, 1, 30, -1);
+    self->buildup_state_2_13 = (int16_t)PICK(0, 0, 49, 50, 51, 20, -1);
+    self->buildup_state_2_15 = (int16_t)PICK(0, 7, -1);
+    self->buildup_state_2_16 = (int16_t)PICK(0, 7, -1);
+    self->buildup_mash_status = (int16_t)PICK(0, 7, -1);
+    self->movement_mode = (uint8_t)PICK(0, 0, 0, 0, 0, 1, 2, 3);
+    self->attached_part_mode = (uint8_t)PICK(0, 1, 0x80);
+    self->facing = rnd();
+    self->received_hit_angle = (uint16_t)rnd();
+    if (rnd() % 3 == 0)         /* just either side of a quarter turn */
+        self->facing = self->received_hit_angle + PICK(0x3FFF, 0x4000, 0x3FFE, -0x4000, -0x4001, -0x3FFF, 0, 0x8000, 0x10000);
+    self->facing_target = (uint16_t)rnd();
+    self->misc_flags = PICK(0, 8, ~8, -1);
+    self->charge_time = (int16_t)PICK(0, 0, 1, -1);
+    self->hit_type_5_6_7_immunity_level = (uint8_t)PICK(0, 0, 1, 2, 3, 0xFF);
+    self->hit_type_16_1e_immunity_level = (uint8_t)PICK(0, 0, 1, 2, 3, 0xFF);
+    self->hit_immune_ticks = (uint16_t)PICK(0, 5);
+    self->defense_bonus = (int8_t)PICK(0, 3);
+    self->defense_bonus_timed = (int8_t)PICK(0, 3);
+    self->defense_bonus_ticks = (uint16_t)PICK(0, 3);
+    self->defense_effect_level = (uint8_t)PICK(0, 3);
+    self->defense_effect_ticks = (int16_t)PICK(0, 3);
+    self->item_restrict_ticks = (int16_t)PICK(0, 3);
+    self->defense_halved_ticks = (int16_t)PICK(0, 3);
+    self->stamina_debuff_ticks = (int16_t)PICK(0, 3);
+    SW(LW(0x08A632C0u) + 0xF7A57Cu, PICK(0, 0, 1, 3, 2, -1));
+    if (rnd() % 2) {    /* straight to the reactions with the most tests */
+        self->hit_pending = 2;
+        self->instance_index = g->local_hunter_slot;
+        self->state_group = (uint8_t)PICK(0, 0, 1, 2, 2, 4, 5);
+        self->health = 100;
+        self->movement_mode = (uint8_t)PICK(0, 0, 0, 1);
+        self->received_hit_type = (uint16_t)PICK(5, 5, 5, 6, 6, 6, 7, 19, 20, 22, 26, 27, 28, 30, 31, 2);
+        self->weapon_class = (uint8_t)PICK(0, 2, 8, 9);
+        self->hit_type_5_6_7_immunity_level = (uint8_t)(self->received_hit_type == 7 ? PICK(2, 3, 3, 4) : PICK(0, 0, 0, 1, 1, 2));
+    }
+    for (int i = 0; i < 6; i++)     /* for the real callees */
+        SB(hunter + 0x676 + i, PICK(0, 0, 0, 0x58, 0x59, 8, 7, 0xD0, 5, 2, 0xBB, 0xD6, 0xE, 0xD5, 0xD, 0x2C, 0x5A, 0x5B, 0x82, 0x83, 0x84, 0xB5, 0xC8));
+    if (!record_method && (self->state_group == 3 || self->state_group == 4))   /* callees running for real: not those */
+        self->state_group = 0;
+}
+
+/* -- hits: objects made up in RAM nothing else uses, the records and shapes the code goes through ----------------------------------- */
+#define HIT_RECORD 0x09FF9000u
+#define HIT_RECORD_2 0x09FF9100u
+#define HIT_RECORD_3 0x09FF9200u
+#define HIT_CONTACT_AT 0x09FF9300u
+#define HIT_SHAPES 0x09FF9400u
+#define HIT_PARTS 0x09FF9600u
+#define HIT_OUT 0x09FF9800u
+#define HIT_TARGET_A 0x09FFA000u     /* targets: objects of the size the code reads */
+#define HIT_TARGET_B 0x09FFC000u
+#define HIT_ATTACKER 0x09FFE000u
+#define MONSTERS_POINTER 0x09C122B0u
+#define HUNTER_OF_SLOT 0x088DCEBCu
+#define RECORD_TEST 0x09B67728u
+#define MONSTER_TYPE_RECORD(subtype) (0x09BB8AB0u + (uint32_t)(subtype) * 0x1D0u)
+
+static uint32_t first_monster(Ctx *c) {
+    uint32_t monsters = LW(MONSTERS_POINTER);
+    for (uint32_t i = 0; i < 20; i++)
+        if (LW(monsters + 0x1220u + 4 * i) != 0)
+            return LW(monsters + 0x1220u + 4 * i);
+    fprintf(stderr, "no monster in this snapshot\n");
+    exit(2);
+}
+
+static void random_record(Ctx *c, uint32_t at) {
+    HitRecord *r = (HitRecord *)MEM(at);
+    for (uint32_t o = 0; o < 0x80; o += 4)
+        SW(at + o, rnd());
+    r->owner_kind = (uint8_t)PICK(0, 1, 2, 0xFF);
+    r->owner_table = (uint8_t)PICK(0, 0, 1, 2);
+    r->state = (uint8_t)PICK(2, 2, 2, 1, 0, 0x82);
+    r->owner_slot = (uint8_t)PICK(0, 1, 3, 19, 20, 0x80, 0xFF);
+    r->area_id = (uint16_t)PICK(5, 5, 5, 6, 0x105);
+    r->hit_id = (uint16_t)PICK(0xFFFF, 0xFFFF, 0x1234, 0x1235, 0x34);
+    r->damage = (uint8_t)PICK(0, 1, 2, 10, 50, 127, 128, 255);
+    r->kind = (uint8_t)PICK(0xB, 0xE, 0xF, 0x10, 0x15, 0x16, 0x19, 0x1A, 0x1E, 2, 8, 9, 0xC, 0xD, 3, 0x20, 0x80);
+    r->power = (uint8_t)PICK(0, 10, 11, 0xFF);
+    r->damage_bits = (uint8_t)(rnd() % 2 ? rnd() : 1u << (rnd() % 8));
+    r->sound_choice = (uint8_t)PICK(0, 1, 2, 0xFF);
+    r->buildup_mask = (uint16_t)(rnd() % 3 ? rnd() : PICK(8, 8, 0, 0x2000, 0xFFFF));
+    r->buildup_amount = (uint8_t)PICK(0, 1, 30, 127, 128, 255);
+    r->drain_amount = (uint8_t)PICK(0, 1, 0x7F, 0x80, 0x81, 0xFF);
+    r->uses = (uint8_t)PICK(0, 0, 1, 2, 0x10, 0x11, 0xF0, 0xFF);
+    r->direct_buildup = (uint8_t)PICK(0, 1, 30, 255);
+    r->damage_percent = (uint8_t)PICK(0, 0, 0, 1, 50, 100, 127, 128, 255);
+}
+
+/* The shapes and part records a record and a target go through. Each can jump, and each ends. */
+static void random_shape_list(Ctx *c, uint32_t at, int n) {
+    for (int i = 0; i < n; i++) {
+        SH(at + 0x28u * (uint32_t)i, PICK(0, 0, 3, 0x7E, 0x7F, 0x7D, 0x7C, 0x80, 0x17D));
+        SB(at + 0x28u * (uint32_t)i + 8, rnd() % 3 ? 0 : rnd());
+        SB(at + 0x28u * (uint32_t)i + 9, rnd() % 3 ? 0 : rnd());
+        SB(at + 0x28u * (uint32_t)i + 0xA, rnd() % 3 ? 0 : rnd());
+        SB(at + 0x28u * (uint32_t)i + 0xB, rnd() % 4 ? 0 : rnd());
+    }
+    SH(at + 0x28u * (uint32_t)n, -1);
+}
+
+static int16_t stub_short[MAX_CALLS][2];
+
+/* What the shapes' functions leave in the frame, and the lists' cursors */
+static void hit_stub_hook(Ctx *c, uint32_t fn, int n) {
+    switch (fn) {
+    case 0x09C387A0u: case 0x09C38758u:     /* a list goes on */
+        SW(c->r[5], LW(c->r[5]) + 0x28);
+        break;
+    case 0x09C37A50u: case 0x09C37898u:     /* the type word of a shape */
+        SW(c->r[6], stub_short[n][0] & 1);
+        break;
+    case 0x09C37BC0u:
+        SW(c->r[7], stub_short[n][0] & 1);
+        break;
+    case 0x09C426E0u:                       /* the list ends, as the test ran: is its end read after it? */
+        if ((stub_short[n][0] & 0xF) == 0)
+            SW(HIT_RECORD + 4, 0);
+        break;
+    default:
+        break;
+    }
+}
+
+static const Bias hit_shared_bias[] = {
+    {0x09C36238u, 4, {0, 1, 2, 0x101}}, {0x09C34718u, 4, {0, 1, 2, 0x101}}, {0x09C34878u, 4, {0, 0, 1, 0x100}}, {0x09C359C8u, 4, {0, 0, 1, 0x100}},
+    {RECORD_TEST, 6, {0, 0, 0, 1, 0x10000, -1}},
+    {0x09C45190u, 4, {0, 0, 1, 0x100}},
+    {0x08865BACu, 4, {0, 1, 1, 0x100}},
+    {HUNTER_OF_SLOT, 8, {0, HIT_TARGET_A, HIT_TARGET_A, HIT_TARGET_B, HIT_TARGET_B, HIT_ATTACKER, HIT_ATTACKER, 0}},
+    {0, 0, {0}},
+};
+
+static void random_target(Ctx *c, uint32_t at, uint32_t kind) {
+    Monster *t = (Monster *)MEM(at);
+    for (uint32_t o = 0; o < 0x800; o += 4)
+        SW(at + o, rnd());
+    t->kind = (uint8_t)kind;
+    t->area_id = (uint16_t)PICK(5, 5, 5, 6, 0x105);
+    t->hit_pending = (uint8_t)PICK(0, 0, 0, 0, 1);
+    t->last_hit_record = PICK(0, 0, 0, 0, 1);
+    t->hit_immune_ticks = (uint16_t)PICK(0, 0, 0, 0, 1, 0x100);
+    t->movement_mode = (uint8_t)PICK(0, 0, 1, 2, 3, 4);
+    t->state_group = (uint8_t)PICK(0, 0, 1, 3, 3);
+    t->state_flag_cleared_with_3cf = (uint8_t)PICK(0, 0, 0, 1, 0x80);
+    t->health = (int16_t)PICK(1, 1, 100, 0, -1);
+    t->place[1] = (float)PICK(0, 0, 100, -100) * 1.0f;
+    t->part_mask_3_ticks = (int8_t)PICK(0, 1, -1);
+    t->part_mask_c_ticks = (int8_t)PICK(0, 1, -1);
+    t->locally_owned = (uint8_t)PICK(0, 1, 1, 1);
+    t->status_hold_mode = (uint8_t)PICK(0, 1, 2, 3);
+    t->subtype = (uint8_t)PICK(77, 35, 2);
+    for (int i = 0; i < 16; i++)
+        SH(at + 0x33E + 2u * (uint32_t)i, rnd() % 16 ? rnd() : 0x1234);
+    SW(MONSTER_TYPE_RECORD(t->subtype) + 0x50, HIT_PARTS);
+}
+
+/* 09C42750 reads these again after its calls */
+POKES(test_target_pokes, hit_shared_bias, {0x1E9, 1, 0}, {0x635, 1, 0}, {0x634, 1, 0}, {0x6DB, 1, 0}, {0x3CF, 1, 0}, {0x4A0, 4, 0}, {0x4C0, 4, 0}, {0x200, 4, 0}, {0x204, 4, 0}, {0x208, 4, 0}, {0x4B0, 4, 0}, {0x4D0, 4, 0},
+      {0x1F, 1, 2}, {0x28, 2, 2}, {0x14, 1, 2});
+POKES(test_if_in_map_pokes, hit_shared_bias, {0x14, 1, 2});
+POKES(hit_manager_pokes, hit_shared_bias, {0x14, 1, 2}, {0x18, 2, 2}, {0x1A, 2, 2}, {0xE, 1, 2}, {0xF, 1, 2}, {0x15, 1, 2}, {0x1F, 1, 2}, {0x44, 4, 2}, {0x29A, 2, 0}, {0x285, 1, 0}, {0x2F0, 4, 0},
+      {0x280, 1, 0}, {0x613, 1, 0}, {0x2E4, 2, 0}, {0x204, 4, 0}, {0x33E, 2, 0}, {0x34C, 2, 0});
+
+static void hit_common(Ctx *c, uint32_t target) {
+    stub_hook = hit_stub_hook;
+    stack_pattern = 1;
+    stub_hunter = target;
+    hashed_more[0].at = HIT_RECORD;
+    hashed_more[0].size = 0x100;
+    hashed_more[1].at = HIT_ATTACKER;
+    hashed_more[1].size = 0x400;
+    poke_base[2] = HIT_RECORD;
+    poke_base[3] = HIT_ATTACKER;
+    random_record(c, HIT_RECORD);
+    for (int n = 0; n < MAX_CALLS; n++)
+        stub_short[n][0] = (int16_t)rnd();
+}
+
+static void real_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
+
+static void inputs_test_if_in_map(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    if (!record_method) {
+        hit_common(c, hunter);
+        real_hit(c, hunter, args);
+        return;
+    }
+    hit_common(c, HIT_TARGET_A);
+    random_target(c, HIT_TARGET_A, 0);
+    test_a0 = HIT_RECORD;
+    args[0] = HIT_ATTACKER;
+    args[1] = HIT_TARGET_A;
+}
+
+/* Callees running for real: a record of the kind the game makes, its shape a sphere or capsule at the target, so that it lands: real shapes and targets */
+static void real_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    uint32_t monster = first_monster(c), target = rnd() % 2 ? hunter : monster;
+    HitRecord *r = (HitRecord *)MEM(HIT_RECORD);
+    Monster *t = (Monster *)MEM(target);
+    r->state = 2;
+    r->owner_kind = (uint8_t)PICK(0, 0, 1, 0xFF);
+    r->owner_table = 0;
+    r->owner_slot = 0;
+    r->area_id = t->area_id;
+    r->hit_id = 0xFFFF;
+    r->kind = (uint8_t)PICK(0, 2, 3, 4, 8, 9, 0xB, 0xC, 0x16, 0x1A);
+    r->uses = (uint8_t)PICK(0, 1, 0x10);
+    r->sound_choice = (uint8_t)PICK(0, 1, 0xFF);
+    r->shape_a[0] = t->place[0];
+    r->shape_a[1] = t->place[1];
+    r->shape_a[2] = t->place[2];
+    r->shape_a[3] = 0.0f;
+    r->shapes = HIT_SHAPES;
+    SW(HIT_RECORD + 0x38, HIT_SHAPES);      /* the list 09C422E8 goes through */
+    SH(HIT_SHAPES, 0x7F);
+    SH(HIT_SHAPES + 2, rnd() % 4 ? 0 : 1);
+    SW(HIT_SHAPES + 0xC, float_bits((float)PICK(1, 50, 200, 1000)));
+    for (uint32_t o = 0x10; o < 0x28; o += 4)
+        SW(HIT_SHAPES + o, 0);
+    SH(HIT_SHAPES + 0x28, -1);
+    t->hit_pending = 0;
+    t->hit_immune_ticks = 0;
+    t->state_group = 0;
+    test_a0 = HIT_RECORD;
+    args[0] = rnd() % 2 ? hunter : monster;
+    args[1] = target;
+}
+
+static void inputs_test_target(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    if (!record_method) {
+        hit_common(c, hunter);
+        real_hit(c, hunter, args);
+        return;
+    }
+    hit_common(c, HIT_TARGET_A);
+    random_target(c, HIT_TARGET_A, PICK(0, 0, 1, 1, 1, 2));
+    if (rnd() % 2)      /* a fainting hunter's kind goes with its state */
+        ((Monster *)MEM(HIT_TARGET_A))->state_group = ((HitRecord *)MEM(HIT_RECORD))->kind == 0xD ? 3 : 0;
+    ((Monster *)MEM(HIT_TARGET_A))->hit_immune_ticks = (uint16_t)PICK(0, 0, 0, 0, 0, 0, 1);
+    random_shape_list(c, HIT_SHAPES, (int)(rnd() % 4));
+    random_shape_list(c, HIT_PARTS, (int)(rnd() % 4));
+    ((HitRecord *)MEM(HIT_RECORD))->shapes = rnd() % 16 ? HIT_SHAPES : 0;
+    test_a0 = HIT_RECORD;
+    args[0] = PICK(HIT_ATTACKER, HIT_ATTACKER, 0);
+    args[1] = HIT_TARGET_A;
+    ((HitRecord *)MEM(HIT_RECORD))->shape_a[1] = (float)PICK(0, 150, 151, 149);
+    /* the bits the kinds go by, and the buildup's */
+    if (rnd() % 2) {
+        ((HitRecord *)MEM(HIT_RECORD))->kind = (uint8_t)PICK(8, 8, 0xC, 9, 9, 0x1E, 0x16, 2, 0x20);
+        ((Monster *)MEM(HIT_TARGET_A))->locally_owned = (uint8_t)PICK(0, 1);
+        SB(HIT_PARTS + 8, PICK(0, 1, 2, 3, 4, 5, 6, 7));
+        SB(HIT_PARTS + 9, PICK(0, 0, 1, 2, 3, 8, 9));
+        SB(HIT_PARTS + 0xA, PICK(0, 0, 2, 8, 10));
+        SB(HIT_PARTS + 0xB, PICK(0, 0, 0, 1, 0xFE));
+    }
+}
+
+static void inputs_hit_manager(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    if (!record_method) {       /* the real ones, with a made-up record first, and targets free to take it */
+        static uint32_t real_first, seen;       /* what's set here stays set, from one time to the next */
+        if (!seen++)
+            real_first = LW(LW(0x09C190D0u) + 0x502Cu);
+        uint32_t monster = first_monster(c);
+        hit_common(c, hunter);
+        real_hit(c, hunter, args);
+        ((HitRecord *)MEM(HIT_RECORD))->next = real_first;
+        SW(LW(0x09C190D0u) + 0x502Cu, HIT_RECORD);
+        Monster *m = (Monster *)MEM(monster);
+        m->last_hit_record = 0;
+        m->hit_pending = 0;
+        ((Hunter *)MEM(hunter))->hit_pending = 0;
+        ((Hunter *)MEM(hunter))->last_hit_record = 0;
+        return;
+    }
+    (void)hunter;
+    hit_common(c, HIT_TARGET_A);
+    random_target(c, HIT_TARGET_A, 0);
+    random_target(c, HIT_TARGET_B, 1);
+    random_target(c, HIT_ATTACKER, 1);
+    random_record(c, HIT_RECORD_2);
+    random_record(c, HIT_RECORD_3);
+    SET_FLOAT_BITS(((HitRecord *)MEM(HIT_RECORD))->shape_a[1], PICK(float_bits(0.0f), float_bits(150.0f), float_bits(150.01f), float_bits(149.99f), float_bits(250.0f), float_bits(-50.0f)));
+    SET_FLOAT_BITS(((HitRecord *)MEM(HIT_RECORD_2))->shape_a[1], PICK(float_bits(0.0f), float_bits(150.0f), float_bits(150.01f), float_bits(149.99f), float_bits(250.0f), float_bits(-50.0f)));
+    SET_FLOAT_BITS(((HitRecord *)MEM(HIT_RECORD_3))->shape_a[1], PICK(float_bits(150.0f), FLOAT_NAN));
+    SW(HIT_RECORD + 4, PICK(0, HIT_RECORD_2, HIT_RECORD_2));
+    SW(HIT_RECORD_2 + 4, PICK(0, HIT_RECORD_3));
+    SW(HIT_RECORD_3 + 4, 0);
+    SW(LW(0x09C190D0u) + 0x502Cu, rnd() % 32 ? HIT_RECORD : 0);
+    uint32_t monsters = LW(MONSTERS_POINTER);
+    for (uint32_t i = 0; i < 20; i++)
+        SW(monsters + 0x1220u + 4 * i, 0);
+    SW(monsters + 0x1220u, PICK(0, HIT_TARGET_B, HIT_TARGET_B, HIT_ATTACKER));
+    SW(monsters + 0x1220u + 4 * 1, PICK(0, HIT_TARGET_B, HIT_ATTACKER));
+    SW(monsters + 0x1220u + 4 * 3, PICK(0, 0, HIT_TARGET_A));
+    SW(monsters + 0x1220u + 4 * 19, PICK(0, 0, 0, HIT_TARGET_B));
+}
+
+static const Bias register_hit_bias[] = {
+    {0x09C44FD8u, 8, {0, 0, 0, 0, 0, 1, 0x100, 0x101}},
+    {RECORD_TEST, 5, {0, 0, 1, 0x10000, -1}},
+    {0x088D6A1Cu, RARELY_1},
+    {0x088DAE98u, 8, {0, 0, 0, 0, 0, 1, 0x100, 0x101}},
+    {0x09C45190u, 4, {0, 1, 0x100, 0x101}},
+    {0x09C451E0u, 4, {0, 1, 0x100, 0x101}},
+    {0x09A6C968u, 4, {0, 0, 1, 0x100}},
+    {0, 0, {0}},
+};
+POKES(register_hit_pokes, register_hit_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x3B8, 2, 0}, {0x384, 4, 0}, {0x394, 2, 0}, {0x398, 1, 0}, {0x38A, 1, 0}, {0x38B, 1, 0}, {0x110E, 2, 0}, {0x602, 1, 0}, {0x3CE, 1, 0},
+      {0x39C, 4, 0}, {0x3B0, 1, 0}, {0x1F, 1, 2}, {0x1E, 1, 2}, {0x25, 1, 2}, {0x77, 1, 2}, {0x24, 1, 2}, {0x21, 1, 2}, {0x27, 1, 2}, {0xE, 1, 2}, {0xF, 1, 2}, {0x30, 1, 2}, {0x2C, 1, 2}, {0x380, 4, 3});
+
+#define FLOATS PICK(float_bits(0.0f), float_bits(1.0f), float_bits(0.5f), float_bits(25.0f), float_bits(-50.0f), float_bits(100.0f), float_bits(150.5f), float_bits(-80.0f), float_bits(1.35f), float_bits(1e-40f), FLOAT_NAN, FLOAT_INFINITY)
+
+static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    random_record(c, HIT_RECORD);
+    self->kind = (uint8_t)PICK(0, 0, 1, 3);
+    self->pending_buildup_mask1 = (int16_t)rnd();
+    self->pending_buildup_mask2 = (int16_t)rnd();
+    self->pending_buildup_mask4 = (int16_t)rnd();
+    self->pending_buildup_mask8 = (int16_t)rnd();
+    self->pending_buildup_mash = (int16_t)rnd();
+    self->pending_item_restrict = (int16_t)rnd();
+    self->pending_stamina_debuff = (int16_t)rnd();
+    self->pending_defense_halve = (int16_t)rnd();
+    self->pending_drain_seconds = (int16_t)rnd();
+    args[0] = HIT_RECORD;
+}
+
+static const Bias recalc_resists_bias[] = {
+    {0x0885D300u, 8, {0, 1, 5, 25, -10, 0x7FFF, 0x10005, 0x80000000}},
+    {0x088DA150u, 6, {0, 1, 1, 1, 0x100, 0x101}},
+    {0, 0, {0}},
+};
+POKES(recalc_resists_pokes, recalc_resists_bias, {0x39C, 4, 0}, {0x3A0, 4, 0}, {0x3A4, 4, 0}, {0x3A8, 4, 0}, {0x3AC, 4, 0}, {0x607, 1, 0}, {0x608, 1, 0}, {0x609, 1, 0}, {0x60A, 1, 0}, {0x60B, 1, 0});
+
+static void inputs_recalc_resists(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    SW(hunter + 0x39C, rnd());
+    SW(hunter + 0x3A0, rnd());
+    SW(hunter + 0x3A4, rnd());
+    SW(hunter + 0x3A8, rnd());
+    SW(hunter + 0x3AC, rnd());
+    for (uint32_t i = 0; i < 6; i++)
+        SB(hunter + 0x5F7 + 0x10 + i, PICK(0, 1, 2, 3, 4, 5, 0x81));
+    if (rnd() % 2) {        /* the table as other numbers */
+        for (uint32_t i = 0; i < 5; i++)
+            SH(0x089B6610u + 2 * i, PICK(0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0));
+    } else {
+        for (uint32_t i = 0; i < 5; i++)
+            SH(0x089B6610u + 2 * i, 0x10 + i);
+    }
+}
+
+static void inputs_add_resist(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    for (uint32_t o = 0x39C; o <= 0x3AC; o += 4)
+        SW(hunter + o, PICK(float_bits(0.0f), float_bits(10.0f), float_bits(-5.5f), float_bits(1e-40f), FLOAT_NAN, FLOAT_INFINITY));
+    args[0] = PICK(0x10, 0x11, 0x12, 0x13, 0x14, 0xF, 0x15, 0, 0x10010, 0x10013, 0x8010, 0xFFFF0014);
+    test_f12 = PICK(float_bits(10.0f), float_bits(15.0f), float_bits(20.0f), float_bits(-3.25f), float_bits(1e-40f), FLOAT_NAN);
+}
+
+static void inputs_resist_bytes(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    for (uint32_t o = 0x39C; o <= 0x3AC; o += 4)
+        SW(hunter + o, PICK(float_bits(0.0f), float_bits(10.0f), float_bits(-5.5f), float_bits(1e-40f)));
+    for (uint32_t i = 0; i < 6; i++)
+        SB(LW(GAME_POINTER) + 0x6993Du + i, PICK(0, 1, 5, 127, -1, -128));
+}
+
+static void inputs_scale_table(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Monster *self = (Monster *)MEM(hunter);
+    compare_f0 = 1;
+    self->subtype = (uint8_t)PICK(0x59, 0x59, 0x58, 0x5A, 0xD9, 2, 77);
+    /* tables made up, so that a wrong index or offset shows: the game's own may run short of quests */
+    uint32_t tables = HIT_SHAPES;
+    int table = PICK(0, 1, 2);
+    SB(0x09BB8AB0u + self->subtype * 0x1D0u + 0x14F, table);
+    SW(0x09BC7F80u + 4u * (uint32_t)table, tables);
+    SB(LW(0x08A62D9Cu) + 0x116, PICK(0, 1, 2));
+    for (uint32_t i = 0; i < 3; i++)
+        SW(tables + 4 * i, HIT_PARTS + 0x40 * i);
+    for (uint32_t o = 0; o < 0xC0; o += 4)
+        SW(HIT_PARTS + o, rnd());
+    SB(hunter + 0x4BC, PICK(0, 1, 2));
+    SW(LW(0x09BC2DACu) + 0x48, PICK(float_bits(1.0f), float_bits(1.5f), float_bits(0.3f), FLOAT_NAN));
+}
+
+static void inputs_clear_hit_fields(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    (void)c;
+    Hunter *self = (Hunter *)MEM(hunter);
+    self->pending_buildup_mash = 1;
+    self->pending_item_restrict = 2;
+    self->pending_defense_halve = 3;
+    self->pending_stamina_debuff = 4;
+    self->pending_drain_seconds = 5;
+}
+
+static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    GameState *g = (GameState *)MEM(LW(GAME_POINTER));
+    hit_common(c, hunter);
+    compare_vfpu = !!record_method;
+    random_target(c, HIT_ATTACKER, 0);
+    if (!record_method) {       /* the callees reach what a real attacker has */
+        memcpy(MEM(HIT_ATTACKER), MEM(hunter), 0x800);
+        ((HitRecord *)MEM(HIT_RECORD))->sound_choice = 0xFF;
+    }
+    self->instance_index = rnd() % 8 ? g->local_hunter_slot : pick_slot(c);
+    SET_FLOAT_BITS(((Hunter *)MEM(HIT_ATTACKER))->attack_multiplier, FLOATS);
+    SET_FLOAT_BITS(self->defense_for_damage, FLOATS);
+    SET_FLOAT_BITS(self->resist_pct_hit_bit_04, FLOATS);
+    SET_FLOAT_BITS(self->resist_pct_hit_bit_10, FLOATS);
+    SET_FLOAT_BITS(self->resist_pct_hit_bit_40, FLOATS);
+    SET_FLOAT_BITS(self->resist_pct_hit_bit_20, FLOATS);
+    SET_FLOAT_BITS(self->resist_pct_hit_bit_80, FLOATS);
+    if (rnd() % 2) {         /* numbers that aren't peculiar, where rounding shows */
+        SET_FLOAT_BITS(((Hunter *)MEM(HIT_ATTACKER))->attack_multiplier, float_bits(1.0f + (float)(rnd() % 256) / 64.0f));
+        SET_FLOAT_BITS(self->defense_for_damage, float_bits(1.0f + (float)(rnd() % 512) / 2.0f));
+        SET_FLOAT_BITS(self->resist_pct_hit_bit_04, float_bits((float)(rnd() % 64) - 20.0f));
+        SET_FLOAT_BITS(self->resist_pct_hit_bit_10, float_bits((float)(rnd() % 64) - 20.0f));
+    }
+    self->pending_damage_0 = (int16_t)PICK(0, 0, 1, -1, 32767, -32768, 100);
+    self->pending_buildup_direct = (int16_t)PICK(0, 1, 100);
+    self->hit_log_index = (uint8_t)PICK(0, 1, 14, 15, 15, 16, 0xFF);
+    self->pending_hit_bits_0 = (uint8_t)rnd();
+    self->pending_hit_flags = (uint8_t)rnd();
+    SB(hunter + 0x286, rnd());      /* cleared */
+    self->defense_bonus = (int8_t)PICK(0, 9, 10, 11, -1);
+    self->attack_bonus = (int8_t)PICK(0, 2, 3, 4, -1);
+    self->defense_halved_ticks = (int16_t)PICK(0, 0, 1, -1);
+    self->item_restrict_ticks = (int16_t)PICK(0, 5);
+    self->hit_type_16_1e_immunity_level = (uint8_t)PICK(0, 1, 2, 3, 0xFF);
+    SW(HIT_CONTACT_AT, rnd());
+    SW(HIT_CONTACT_AT + 4, rnd());
+    SW(HIT_CONTACT_AT + 8, rnd());
+    SW(HIT_CONTACT_AT + 12, rnd());
+    test_a0 = HIT_RECORD;
+    args[0] = HIT_ATTACKER;
+    args[1] = hunter;
+    args[2] = HIT_CONTACT_AT;
+    ((HitRecord *)MEM(HIT_RECORD))->kind = (uint8_t)PICK(0xB, 0xB, 0xE, 0xF, 0x10, 0x15, 0x16, 0x19, 0x1A, 0x1E, 2, 3, 0x20, 0x80);
+}
+
+/* -- damage to a monster ------------------------------------------------------------------------------------------------------------------ */
+#define DAMAGES PICK(0, 0, 0, 1, 2, -1, -2, 10, 100, 101, -100, 0x7FFF, -0x8000)
+
+static const Bias apply_damage_bias[] = {
+    {0x09AD8688u, 4, {0, 0, 1, 0x100}},
+    {0x09AD8458u, 4, {0, 1, 1, 0x100}},
+    {0x09AD8310u, 4, {0, 1, 1, 0x100}},
+    {0x09AC85F8u, 16, {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 0x100}},
+    {0x09C451F0u, 4, {0, 0, 1, 0x100}},
+    {0, 0, {0}},
+};
+POKES(sum_damage_pokes, NULL, {0x638, 4, 0}, {0x4C0, 1, 0}, {0x38C, 2, 0}, {0x38E, 2, 0}, {0x390, 2, 0}, {0x392, 2, 0}, {0x394, 2, 0});
+POKES(apply_damage_pokes, apply_damage_bias, {0x2E4, 2, 0}, {0x41E, 2, 0}, {0x384, 4, 0}, {0x3B8, 2, 0}, {0x3BA, 2, 0}, {0x3C6, 2, 0}, {0x3C8, 2, 0}, {0x4C0, 1, 0}, {0x4C2, 1, 0}, {0x1E8, 1, 0}, {0x3CF, 1, 0}, {0x3CA, 2, 0},
+      {0x29A, 2, 0}, {0x5F0, 1, 0}, {0x522, 1, 0}, {0x638, 4, 0}, {0x285, 1, 0}, {0x298, 1, 0}, {0x4B5, 1, 0}, {0x577, 1, 0}, {0x580, 2, 0}, {0x582, 1, 0}, {0x5C0, 2, 0}, {0x286, 1, 0}, {0x6DD, 1, 0}, {0x4BA, 1, 0});
+
+static void random_monster_damage(Ctx *c, uint32_t monster) {
+    Monster *self = (Monster *)MEM(monster);
+    for (int i = 0; i < 9; i++)
+        SH(monster + 0x3B8 + 2u * (uint32_t)i, DAMAGES);
+    for (int i = 0; i < 8; i++)
+        SB(monster + 0x3B0 + (uint32_t)i, PICK(0, 1, 3, 0xFF));
+    SET_FLOAT_BITS(self->damage_taken_scale, PICK(float_bits(1.0f), float_bits(0.5f), float_bits(0.001f), float_bits(1.5f), float_bits(0.3f), 0, FLOAT_NAN, FLOAT_INFINITY));
+    if (rnd() % 2)
+        SET_FLOAT_BITS(self->damage_taken_scale, float_bits((float)(rnd() % 4096) / 1024.0f));
+    self->monster_flags = rnd() % 2 ? PICK(0, 0x20, 2, 0x1000, 0x2000) : rnd();
+    self->cannot_die_ticks = (int8_t)PICK(0, 0, 0, 1, 5, -1);
+    self->pending_buildup_mask1 = (int16_t)rnd();
+    self->pending_buildup_mask2 = (int16_t)rnd();
+    self->pending_buildup_mask4 = (int16_t)rnd();
+    self->pending_buildup_mask8 = (int16_t)rnd();
+    self->pending_buildup_direct = (int16_t)rnd();
+    self->subtype = (uint8_t)PICK(2, 0x24, 0x47, 7, 0x32, 0x37, 0x4C, 0x58, 77, 35, 1);
+    SB(MONSTER_TYPE_RECORD(self->subtype) + 0x14A, PICK(-1, -1, 0, 1, 7, 8));
+    SB(MONSTER_TYPE_RECORD(self->subtype) + 0x14B, PICK(0, 1, 3, 0xFF));
+    SH(MONSTER_TYPE_RECORD(self->subtype) + 0x148, rnd());
+}
+
+/* The sums on the stack are read back: 09AC8450, when it is a stub, leaves something there */
+static void monster_stub_hook(Ctx *c, uint32_t fn, int n) {
+    if (fn == 0x09AC8450u) {
+        SH(c->r[5], LH(c->r[5]) + stub_short[n][0]);     /* adds to what they start at, as it does */
+        SH(c->r[6], LH(c->r[6]) + stub_short[n][1]);
+    }
+}
+
+static void inputs_sum_damage(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)hunter;
+    uint32_t monster = first_monster(c);
+    stub_hunter = test_a0 = monster;
+    random_monster_damage(c, monster);
+    SH(HIT_OUT, PICK(0, 0, 1, -1, 0x7FFF, 100));
+    SH(HIT_OUT + 2, PICK(0, 0, 1, -1, 0x7FFF, 100));
+    args[0] = HIT_OUT;
+    args[1] = HIT_OUT + 2;
+}
+
+static void inputs_apply_damage(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)hunter;
+    uint32_t monster = first_monster(c);
+    Monster *self = (Monster *)MEM(monster);
+    stub_hunter = test_a0 = monster;
+    stub_hook = monster_stub_hook;
+    random_monster_damage(c, monster);
+    for (int n = 0; n < MAX_CALLS; n++) {
+        stub_short[n][0] = (int16_t)PICK(0, 0, 1, 10, 100, 0x7FFF, -0x8000);
+        stub_short[n][1] = (int16_t)PICK(0, 0, 0, 1, 10, -1);
+    }
+    self->monster_flags = rnd() % 2 ? PICK(0, 0, 0, 2, 0x1000, 0x2000) : rnd();
+    self->damage_slot_mode = (uint8_t)PICK(1, 1, 8, 8, 9, 9, 0, 2, 0x89);
+    self->state_group = (uint8_t)PICK(0, 0, 0, 0, 1, 4, 5);
+    self->hit_pending = (uint8_t)PICK(2, 2, 2, 2, 1, 0, 0);
+    self->health = (int16_t)PICK(100, 100, 1, 2, 999, 1000, 1001, 0, -1, 0x7FFF);
+    self->health_max = (int16_t)PICK(100, 2000, 0x7FFF, 1, -1);
+    for (int i = 0; i < 9; i++) {
+        SH(monster + 0x580 + 8u * (uint32_t)i, PICK(1, 2, 10, 100, 3999, 4000, 4001, 0, -1, -0x8000));
+        SB(monster + 0x582 + 8u * (uint32_t)i, PICK(0, 1, 13, 14, 15, 16, 0xFF));
+    }
+    if (rnd() % 2)      /* none near breaking */
+        for (int i = 0; i < 9; i++)
+            SH(monster + 0x580 + 8u * (uint32_t)i, 3000);
+    self->slots_zeroed_total_mask = (uint8_t)rnd();
+    self->status_hold_mode = (uint8_t)PICK(0, 0, 0, 1, 2, 3, 4);
+    self->last_hit_kind = (uint16_t)PICK(0, 8, 8, 9, 9, 0xC, 0xC, 0x1A, 0x1E, 0x109, 0x10C, 0x108);
+    self->held_marker_ticks_0 = (int8_t)PICK(0, 0, 0, 1, -1);
+    self->status_mask = (uint8_t)rnd();
+    self->area_id = (uint16_t)PICK(0xC, 0xC, 5, 5, 6, 0x10C);
+    self->script_requests = (uint8_t)rnd();
+    self->script_run_requested = (uint8_t)PICK(0, 1);
+    self->hunters_engaged_mask = (uint8_t)PICK(0, 1);
+    self->alert_mode = (uint8_t)PICK(0, 0, 1, 0x80);
+    self->largest_damage_slot = (uint8_t)PICK(0, 1, 7, 8);
+    uint32_t game = LW(GAME_POINTER);
+    SH(game + 0x6AF0Eu, PICK(5, 5, 6));
+    SB(game + 0x6AF10u, PICK(0, 1, 2, 3, 4, 5, 6, 7, 8));
+    args[0] = HIT_OUT;
+    SB(HIT_OUT, rnd());
+    /* the table of quests to one subtype's rule */
+    SH(0x09CE4908u + 2u * LBU(game + 0x6AF10u), PICK(0, 1, 2, 0xFFFF, 0x101));
+    if (rnd() % 8 == 0) {   /* that rule, all the way */
+        self->subtype = 0x37;
+        self->area_id = 5;
+        self->health = (int16_t)PICK(1, 999, 1000);
+        self->cannot_die_ticks = 0;
+        self->hit_pending = 2;
+        self->state_group = 0;
+        SB(game + 0x6AF10u, PICK(1, 2));
+        SH(0x09CE4908u + 2u * LBU(game + 0x6AF10u), PICK(1, 2, 0xFFFF, 0xFFFF));
+    }
+    if (!record_method) {     /* callees running for real: a monster as it is, its state and its script left alone */
+        self->damage_slot_mode = (uint8_t)PICK(1, 8, 9);
+        self->state_group = 0;
+        self->last_hit_kind = (uint16_t)PICK(0, 8, 0xC);
+    }
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs <signatures.tsv>] [only <part of a case's name>]\n", argv[0]);
@@ -869,6 +1611,11 @@ int main(int argc, char **argv) {
         for (int i = 0; i < iterations && bad < 5; i++) {
             uint32_t a1;
             int tick30;
+            test_a0 = stub_hunter = hunter;
+            hashed_more[0].size = hashed_more[1].size = 0;
+            stub_hook = NULL;
+            stack_pattern = compare_vfpu = compare_f0 = 0;
+            test_f12 = 0;
             randomise(c, hunter, &a1, &tick30);
             /* how rarely a call does anything: a chain of 14 tests all answering 0 isn't reached otherwise */
             uint32_t quiet = 0;
@@ -892,8 +1639,13 @@ int main(int argc, char **argv) {
             }
             if (stub_mode)      /* what a version leaves unset on its stack shows, where a call's argument is compared */
                 memset(c->mem + STACK_LOW, 0xA5, TEST_SP - STACK_LOW);
+            if (stub_mode && stack_pattern)
+                for (uint32_t a = STACK_LOW; a < TEST_SP; a += 4)
+                    SW(a, a * 2654435761u);
             memcpy(start, c->mem + SNAP_START, SNAP_SIZE);
             uint32_t saved[9], after[2][9], v0[2];
+            static float after_v[2][sizeof c->v / sizeof c->v[0]];
+            uint32_t after_f0[2];
             for (int n = 0; n < MAX_CALLS; n++) {
                 results[n] = PICK(0, 0, 0, 0, 0, 0, 1, 1, 1, 2, 3, 3, 5, 0x105, 0x100, 0x101);   /* (a classifier's, a test's, a low byte's) */
                 fresults[n] = rnd();
@@ -928,8 +1680,9 @@ int main(int argc, char **argv) {
                 c->fpcond = 0;
                 memset(c->v, 0, sizeof c->v);
                 memset(c->vfpu_ctrl, 0, sizeof c->vfpu_ctrl);
+                c->f[12].u = test_f12;
                 c->r[29] = TEST_SP;
-                c->r[4] = hunter;
+                c->r[4] = test_a0;
                 c->r[5] = a1;
                 c->r[6] = args[1];
                 c->r[7] = args[2];
@@ -948,6 +1701,8 @@ int main(int argc, char **argv) {
                     after[mode][r] = c->r[16 + r];
                 after[mode][8] = c->r[30];
                 v0[mode] = c->r[2];
+                memcpy(after_v[mode], c->v, sizeof after_v[mode]);
+                after_f0[mode] = c->f[0].u;
                 if (c->r[29] != TEST_SP) {
                     printf("%s: sp not restored (mode %d)\n", cases[k].name, mode);
                     bad++;
@@ -967,6 +1722,8 @@ int main(int argc, char **argv) {
             int same = !memcmp(generated, c->mem + SNAP_START, SNAP_SIZE);
             same = same && !memcmp(after[0], saved, sizeof saved) && !memcmp(after[1], saved, sizeof saved);
             same = same && (!cases[k].returns || v0[0] == v0[1]);
+            same = same && (!compare_f0 || after_f0[0] == after_f0[1]);
+            same = same && (!compare_vfpu || !memcmp(after_v[0], after_v[1], sizeof after_v[0]));
             if ((ncalls[0] != ncalls[1] || memcmp(calls[0], calls[1], sizeof(Call) * (size_t)(ncalls[0] < MAX_CALLS ? ncalls[0] : MAX_CALLS)))) {
                 same = 0;
                 printf("%s: calls differ\n", cases[k].name);
