@@ -1,4 +1,4 @@
-# The readable code: report of the first run
+# The readable code: report
 
 Run overnight 2026-11-03 to 04, on `auto/readable-code`. How to use all this: `docs/readable.md`.
 
@@ -6,14 +6,25 @@ Run overnight 2026-11-03 to 04, on `auto/readable-code`. How to use all this: `d
 
 The sections below describe the first run. Since it:
 
-- **Types:** every vtable a struct, with typed `self`, arguments, pointer fields and globals: 3,404 functions' files use a typed `self`. 1,122 fields
-  named by agents across `Object`, `HunterBase`, `Hunter`, `Monster`, `GameState`, `Camera`, `HudContext`, `QuestState` and `TextSystem`. A sample of 40:
-  none wrong, 5 overclaimed and corrected. `field_XXX` uses in the view went from about 83,000 to about 35,000.
-- **Code rewritten by hand:** 7 functions in `readable/` (stamina, both sprints, out of breath, the per-tick upkeep), `MHFU_HAND=0` running the
-  generated code instead. How they were checked: `docs/readable.md`. The largest, 890 generated lines, cost one agent about 220,000 tokens and 40 minutes.
+- **Types:** every vtable a struct, with typed `self`, arguments, pointer fields and globals. 107 classes named, about 1,650 fields, across the characters, `GameState`,
+  `Camera`, `HudContext`, `QuestState`, `TextSystem`, `Stage`, `Comrade` and effects. `field_XXX` uses in the view went from about 83,000 to about 11,400.
+- **Names:** 7,634 of 16,966 functions (44%; 46% of lines), by how often they are called and, for monsters, three overlays. One-line stubs are named for what they do, and
+  carrying a name now compares the generated code.
+- **Code rewritten by hand:** 32 functions in `readable/`: stamina, both sprints, out of breath, the upkeep, the state machine, input, motion and the per-tick update. `MHFU_HAND=0` runs the
+  generated code instead. A long function cost an agent about 220,000 tokens and 40 minutes; 10 short ones about 170,000 and 30 minutes.
 - **The suite is on Vulkan:** about 5 minutes, against 33. The cause of the renderer difference left open below is known: see `docs/testing.md`.
-- **The view's errors:** the audits found calls hiding their arguments (a state setter's target state), monster functions typed from other overlays' stale
-  vtables, and member function pointers shown as floats. Fixed at their source; what remains is listed in `docs/readable.md`.
+- **Separate branches:** the sun flare told by shape (`auto/sun-textures`) and the grass's mistaking a sky for ground (`auto/area9`).
+
+How far to trust this:
+
+- Hand-written code: suite 21 of 21 on actions, rates and save states; `handdiff.py` accounts for every word of RAM that differs over all 22 recordings, none in a character; audio byte-identical on
+  `overnight-fight2`. Deliberate bugs caught throughout, except those shown to change nothing, and one: dropping `flag_1000_lockout_ticks != 0` in `flag_8000_actions` (`hunter_run.c`), which should only
+  matter if a callee changes the field: a reading, not a test. Two runs of `handtest` differed once each and never again (`hunter_stamina_add_scaled`, `hunter_common_input`), in 12 of 12 repeats since:
+  **not explained**. Only stamina has been played.
+- The view: an audit of 20 random functions found no wrong argument, callee, constant or condition; 4 had misleading names or anchors, now in `docs/readable.md`.
+- Names, audited samples: 40 fields: none wrong, 5 overclaimed. 75 functions, classes, fields: 63 right, 3 wrong, 6 overclaimed, 3 wrong notes. 35 monster functions read from code alone: 27 right, 1 wrong, 5
+  overclaimed, 2 wrong notes; all 22 state numbers right. The samples were corrected, not the rest. Species in class names are `inferred`, from a list no code is shown reading.
+- The audits weren't fully blind: the view's headers show a function's name and purpose beside its code.
 
 ## What there is now
 
