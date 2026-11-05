@@ -16,6 +16,7 @@
 #include "pacing.h"
 #include "capture.h"
 #include "inspect.h"
+#include "hitview.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -840,6 +841,7 @@ void present_frame(void) {
     pacing_tick(frame);
     capture_tick(frame);
     inspect_tick(frame);
+    hit_view_tick(frame);
     gpu_pick_frame(display_fb_addr);
     profile_frame(frame);
     /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */

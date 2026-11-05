@@ -15,6 +15,7 @@
  * Reads only: the game's memory is read, nothing else of the game's is touched. The selection goes to inspect.txt in the
  * captures' folder, and into a capture's info.txt (capture.c). Class names and species are shown with their confidence. */
 #include "inspect.h"
+#include "hitview.h"
 #include "capture.h"
 #include "objects.h"
 #include "hle.h"
@@ -61,7 +62,7 @@ void inspect_toggle_pause(void) {
 
 void inspect_toggle(void) {
     open = !open;
-    gpu_pick_enable(open);
+    gpu_pick_enable(open || hit_view_on);
     window_inspect_mode(open);
     if (open) {
         float wx, wy, x, y;

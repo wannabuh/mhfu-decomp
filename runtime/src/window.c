@@ -16,6 +16,7 @@
 #include "perf.h"
 #include "capture.h"
 #include "inspect.h"
+#include "hitview.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -327,6 +328,12 @@ int window_poll(void) {
         }
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F8 && !e.key.repeat)
             inspect_toggle_pause();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F12 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the hit overlay needs the Vulkan renderer");
+            else
+                hit_view_toggle();
+        }
         if (inspect_event(&e))          /* (the inspector open: the mouse's) */
             continue;
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&

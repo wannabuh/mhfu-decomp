@@ -13,6 +13,7 @@
 
 #include "hit.h"
 #include "names.h"
+#include "hitview.h"
 
 /* Named here by address as function names may change: */
 #define in_current_stage f_EBOOT_08865BAC
@@ -105,22 +106,29 @@ static int test_record(Ctx *c, const HitRecord *record, uint32_t mask) {
 /* The tests every target goes through; `flag_not` is the flag that rules out its class */
 static int can_take_at_all(Ctx *c, const HitRecord *record, uint32_t owner, uint32_t target_addr, uint32_t flag_not) {
     const Hunter *target = OBJ(Hunter, target_addr);
+#define SKIP(why) do { if (hit_view_on) hit_view_skip(GAME_ADDR(record), target_addr, why); return 0; } while (0)
     if (target->area_id != record->area_id)
-        return 0;
+        SKIP(HIT_SKIP_AREA);
     if (test_record(c, record, flag_not))
-        return 0;
+        SKIP(HIT_SKIP_RECORD_FLAG);
     if (record->owner_kind != OWNER_NONE && owner == target_addr && !test_record(c, record, RECORD_FLAG_HITS_OWN))
-        return 0;
+        SKIP(HIT_SKIP_OWN);
     if (record->hit_id != NO_HIT_ID)
         for (uint32_t i = 0; i < HIT_LOG_ENTRIES; i++)
             if (LHU(target_addr + HIT_LOG + 2 * i) == record->hit_id)
-                return 0;
-    return target->hit_pending == 0;
+                SKIP(HIT_SKIP_LOGGED);
+    if (target->hit_pending != 0)
+        SKIP(HIT_SKIP_PENDING);
+    return 1;
+#undef SKIP
 }
 
 static void test_a_monster(Ctx *c, const HitRecord *record, uint32_t owner, const Monster *monster) {
-    if (monster->last_hit_record != 0)
+    if (monster->last_hit_record != 0) {
+        if (hit_view_on)
+            hit_view_skip(GAME_ADDR(record), GAME_ADDR(monster), HIT_SKIP_LAST_HIT);
         return;
+    }
     switch (record->kind) {
     case KIND_9:
         if (monster->movement_mode == MODE_LYING_4 || monster->state_flag_cleared_with_3cf != 0)
@@ -296,10 +304,16 @@ static int test_monster_parts(Ctx *c, const HitRecord *record, uint32_t record_a
             call3(c, shape_from_place, monster_addr + 0x200, part, sp + F_TARGET_TYPE);
         else
             call3(c, shape_from_bone, monster_addr, part, sp + F_TARGET_TYPE);
-        if (monster_part_can_take(c, record, monster, sp)) {
+        int can_take = monster_part_can_take(c, record, monster, sp);
+        if (hit_view_on && !can_take)
+            hit_view_part(record_addr, monster_addr, LW(sp + F_TARGET_CURSOR), sp + F_ATTACKER_TYPE, sp + F_TARGET_TYPE, 0, 0);
+        if (can_take) {
             if (LW(sp + F_TARGET_TYPE) == 0)
                 call2(c, capsule_prepare, sp + F_TARGET_SHAPE, sp + F_TARGET_CAPSULE);
-            if (monster_shapes_touch(c, sp)) {
+            int touched = monster_shapes_touch(c, sp);
+            if (hit_view_on)
+                hit_view_part(record_addr, monster_addr, LW(sp + F_TARGET_CURSOR), sp + F_ATTACKER_TYPE, sp + F_TARGET_TYPE, 1, touched);
+            if (touched) {
                 uint32_t from = LW(sp + F_ATTACKER_TYPE) == 0 ? sp + F_ATTACKER_CONTACT : sp + F_ATTACKER_SHAPE;
                 uint32_t to = LW(sp + F_TARGET_TYPE) == 0 ? sp + F_TARGET_CONTACT : sp + F_TARGET_SHAPE;
                 call4(c, set_hit_angle, record_addr, monster_addr, to, from);
@@ -333,6 +347,8 @@ static void test_shapes(Ctx *c, uint32_t record_addr, uint32_t attacker, uint32_
             call3(c, shape_from_place, record_addr + 0x40, shape, sp + F_ATTACKER_TYPE);
         else
             call3(c, shape_from_bone, attacker, shape, sp + F_ATTACKER_TYPE);
+        if (hit_view_on)
+            hit_view_attacker(record_addr, sp + F_ATTACKER_TYPE);
         if (LW(sp + F_ATTACKER_TYPE) == 0)
             call2(c, capsule_prepare, sp + F_ATTACKER_SHAPE, sp + F_ATTACKER_CAPSULE);
         int landed = target->kind == 0 ? test_hunter_spheres(c, record_addr, attacker, target, sp)
@@ -349,8 +365,11 @@ void hand_hit_node_test_target_and_apply(Ctx *c) {
     uint32_t record_addr = c->r[4], attacker = c->r[5], target_addr = c->r[6];
     const HitRecord *record = OBJ(HitRecord, record_addr);
     const Hunter *target = OBJ(Hunter, target_addr);
-    if (target->hit_immune_ticks != 0)
+    if (target->hit_immune_ticks != 0) {
+        if (hit_view_on)
+            hit_view_skip(record_addr, target_addr, HIT_SKIP_IMMUNE);
         return;
+    }
     uint32_t shapes = record->shapes;
     if (shapes == 0)
         return;
