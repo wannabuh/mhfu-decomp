@@ -12,7 +12,7 @@ the repository: the game's and the player's).
     tools/suite.py --list
 
 It exits 1 if anything failed or changed, and writes `tests/data/runs/<date>/report.md` (and `report.json`). A full
-run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer the game is played on: `--renderer soft` has baselines of its own and takes about 33. RAM is the same on both, and with shadows on or off: what shadows draw just out of view (`rt_cull_margin`) is drawn apart from the game, nothing of it left in its memory (`runtime/src/shadow_extras.c`).
+run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer the game is played on: `--renderer soft` has baselines of its own and takes about 33. RAM is the same on both, and with shadows on or off: what is drawn just out of the game's view (`rt_cull_margin`) is drawn apart from the game, nothing of it left in its memory (`runtime/src/shadow_extras.c`).
 
 ## Checks
 
@@ -31,6 +31,14 @@ run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer th
   every frame after the load as before (savestate.c; the test prints the first words that differ).
 
 What is after a replay's end (the game playing on alone until the run is stopped) is left out of all of them.
+
+## The picture
+
+The suite compares RAM, and says nothing of what is shown. `tools/picture_check.py BIN [--base BIN]` plays the village,
+the snow, the ice cave and the camp at the player's settings, every frame shown dumped: how far frames stand out from
+those beside them (flicker: exit status 1 over the limit; the build with the sky flipping between two pictures measured
+37 where a steady one measures under 1), against another build's frames, and the images to look at, which the numbers
+do not replace. With `MHFU_FPS=0` the frames are the game's own, the same from run to run. It writes only under `--out`.
 
 ## Coverage
 
