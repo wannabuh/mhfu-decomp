@@ -1440,7 +1440,7 @@ typedef struct {
     uint64_t time;                  /* when the game finished it */
     /* (for matching: each draw's key and position, kept apart from the draws - and the draws in order of key, sorted
      * once, as the frame is first matched) */
-    uint64_t *keys;
+    uint64_t *keys, *skeys;         /* (skeys: in order of key, sort_frame's) */
     float (*pos)[3];
     int *order, kcap, sorted;
     /* (the GPU's vertex stage) its groups; their vertices and triangles' indices, sent into its slot (its
@@ -1587,6 +1587,7 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
         rec->keys = realloc(rec->keys, sizeof *rec->keys * (size_t)rec->kcap);
         rec->pos = realloc(rec->pos, sizeof *rec->pos * (size_t)rec->kcap);
         rec->order = realloc(rec->order, sizeof *rec->order * (size_t)rec->kcap);
+        rec->skeys = realloc(rec->skeys, sizeof *rec->skeys * (size_t)rec->kcap);
     }
     rec->keys[rec->n - 1] = draw_key(d);
     draw_position(d, rec->pos[rec->n - 1]);
@@ -2048,50 +2049,41 @@ static void sort_frame(Frame *f) {
     if (f->sorted)
         return;
     f->sorted = 1;
-    const uint64_t *keys = f->keys;
-    int *order = f->order;
-    for (int i = 0; i < f->n; i++)
-        order[i] = i;
-    /* insertion sort is too slow for thousands: a simple bottom-up merge sort on order[] by keys[] */
-    static int *spare;
-    static int spare_cap;
-    if (f->n > spare_cap) {
-        spare_cap = f->n * 2;
-        spare = realloc(spare, sizeof *spare * (size_t)spare_cap);
+    /* a radix sort, stable as the merge sort it replaces was: thousands of draws, and a merge's every comparison a coin
+     * toss to the CPU's branch prediction. The first frame shown after each tick pays for this */
+    typedef struct { uint64_t key; int i; } Keyed;
+    static Keyed *buffer;
+    static int buffer_cap;
+    if (f->n > buffer_cap) {
+        buffer_cap = f->n * 2;
+        buffer = realloc(buffer, 2 * sizeof *buffer * (size_t)buffer_cap);
     }
-    int *tmp = spare;
-    for (int w = 1; w < f->n; w *= 2) {
-        for (int lo = 0; lo < f->n; lo += 2 * w) {
-            int mid = lo + w < f->n ? lo + w : f->n, hi = lo + 2 * w < f->n ? lo + 2 * w : f->n;
-            int i = lo, j = mid, k = lo;
-            while (i < mid && j < hi)
-                tmp[k++] = keys[order[i]] <= keys[order[j]] ? order[i++] : order[j++];
-            while (i < mid) tmp[k++] = order[i++];
-            while (j < hi) tmp[k++] = order[j++];
+    Keyed *from = buffer, *to = buffer + buffer_cap;
+    uint32_t count[8][256] = {{0}};
+    for (int i = 0; i < f->n; i++) {
+        uint64_t k = f->keys[i];
+        from[i] = (Keyed){k, i};
+        for (int b = 0; b < 8; b++)
+            count[b][(k >> (8 * b)) & 255]++;
+    }
+    for (int b = 0; b < 8 && f->n; b++) {
+        uint32_t *c = count[b];
+        if (c[(from[0].key >> (8 * b)) & 255] == (uint32_t)f->n)
+            continue;                   /* (all of them the same here) */
+        uint32_t at = 0;
+        for (int v = 0; v < 256; v++) {
+            uint32_t n = c[v];
+            c[v] = at;
+            at += n;
         }
-        int *t = order; order = tmp; tmp = t;
+        for (int i = 0; i < f->n; i++)
+            to[c[(from[i].key >> (8 * b)) & 255]++] = from[i];
+        Keyed *t = from; from = to; to = t;
     }
-    if (order != f->order)
-        memcpy(f->order, order, sizeof *order * (size_t)f->n);
-}
-
-/* Where a key's draws start in a sorted frame */
-static int key_start(const Frame *f, uint64_t k) {
-    int lo = 0, hi = f->n;
-    while (lo < hi) {
-        int mid = (lo + hi) / 2;
-        if (f->keys[f->order[mid]] < k) lo = mid + 1;
-        else hi = mid;
+    for (int i = 0; i < f->n; i++) {
+        f->order[i] = from[i].i;
+        f->skeys[i] = from[i].key;
     }
-    return lo;
-}
-
-/* How many of the latest frame's draws have a key */
-static int latest_count(uint64_t k) {
-    int lo = key_start(latest, k), n = 0;
-    while (lo + n < latest->n && latest->keys[latest->order[lo + n]] == k)
-        n++;
-    return n;
 }
 
 /* -- what the game writes the vertices of -------------------------------------------------------------------------
@@ -2284,10 +2276,32 @@ static int *match(int in_world) {
     sort_frame(latest);
     const uint64_t *keys = previous->keys;
     const int *order = previous->order;
+    /* where each draw's key starts among the previous frame's and how many of the latest have it: both sorted, so one walk
+     * along them (not a search for each draw, which took a fifth of the first frame shown after a tick) */
+    static int *key_at, *key_n;
+    static int key_cap;
+    if (latest->n > key_cap) {
+        key_cap = latest->n * 2;
+        key_at = realloc(key_at, sizeof *key_at * (size_t)key_cap);
+        key_n = realloc(key_n, sizeof *key_n * (size_t)key_cap);
+    }
+    for (int a = 0, b = 0; a < latest->n;) {
+        uint64_t k = latest->skeys[a];
+        int end = a + 1;
+        while (end < latest->n && latest->skeys[end] == k)
+            end++;
+        while (b < previous->n && previous->skeys[b] < k)
+            b++;
+        for (int j = a; j < end; j++) {
+            key_at[latest->order[j]] = b;
+            key_n[latest->order[j]] = end - a;
+        }
+        a = end;
+    }
     for (int i = 0; i < latest->n; i++) {
         const Draw *d = &latest->draws[i];
         uint64_t k = latest->keys[i];
-        int lo = key_start(previous, k);
+        int lo = key_at[i];
         float p[3], p_late[3];
         memcpy(p, latest->pos[i], sizeof p);
         memcpy(p_late, p, sizeof p);
@@ -2299,7 +2313,7 @@ static int *match(int in_world) {
         int best = -1;
         float best_fresh = 0, best_late = 0;
         if (lo < previous->n && keys[order[lo]] == k && (lo + 1 == previous->n || keys[order[lo + 1]] != k) &&
-            latest_count(k) == 1) {
+            key_n[i] == 1) {
             m[i] = taken[order[lo]] ? -1 : order[lo];
             if (m[i] >= 0) {
                 taken[order[lo]] = 1;
@@ -3360,15 +3374,38 @@ static void tl_fill(TlDraw *d) {
     }
 }
 
+/* Three components of a format (read_comp's, not through; its format asked once, for each vertex's each attribute) */
+static inline void tl_read3(uint32_t a, int fmt, float *o) {
+    switch (fmt) {
+    case 1:
+        for (int i = 0; i < 3; i++)
+            o[i] = (float)(int8_t)LBU(a + (uint32_t)i) / 127.0f;
+        break;
+    case 2:
+        for (int i = 0; i < 3; i++)
+            o[i] = (float)(int16_t)LHU(a + 2 * (uint32_t)i) / 32767.0f;
+        break;
+    case 3:
+        for (int i = 0; i < 3; i++) {
+            uint32_t u = LW(a + 4 * (uint32_t)i);
+            memcpy(&o[i], &u, 4);
+        }
+        break;
+    default:
+        o[0] = o[1] = o[2] = 0.0f;
+        break;
+    }
+}
+
 /* Vertex n as the game gave it, decoded as vertex() reads it */
 static void tl_vertex(uint32_t base, int n, const Layout *l, TlVertex *o) {
     uint32_t vt = reg[0x12], v = base + (uint32_t)(n * l->size);
     int tc = vt & 3, nrm = (vt >> 5) & 3, pos = (vt >> 7) & 3, wt = (vt >> 9) & 3;
-    static const int sz[4] = {0, 1, 2, 4};
-    for (int i = 0; i < 3; i++) {
-        o->pos[i] = read_comp(v + l->po + (uint32_t)(i * sz[pos]), pos, 0, 1);
-        o->normal[i] = nrm ? read_comp(v + l->no + (uint32_t)(i * sz[nrm]), nrm, 0, 1) : i == 2 ? 1.0f : 0.0f;
-    }
+    tl_read3(v + l->po, pos, o->pos);
+    if (nrm)
+        tl_read3(v + l->no, nrm, o->normal);
+    else
+        o->normal[0] = o->normal[1] = 0.0f, o->normal[2] = 1.0f;
     o->color = read_color(v, l, vt, reg);
     o->uv[0] = o->uv[1] = 0;
     if (tc == 3) {
@@ -3627,20 +3664,11 @@ static void tl_prim(int type, int count, int idx, const Layout *l) {
  * recording waits for the renderer at each draw's texture); in a group with the draw before if they can be drawn as one -
  * the same registers but for those of the vertices' place, upload counters and the primitive itself, the same
  * matrices and texture */
-static int tl_reg_free(int r) {
-    return r <= 0x11 || r == 0x13 || r == 0x14 || r == 0x2A || r == 0x2B || (r >= 0x3A && r <= 0x3F);
-}
-
 static int tl_same_group(const Draw *a, const Draw *b) {
-    static uint8_t mask[256];
-    static int masked;
-    if (!masked) {
-        masked = 1;
-        for (int r = 0; r < 256; r++)
-            mask[r] = !tl_reg_free(r);
-    }
-    for (int r = 0; r < 256; r++)
-        if (mask[r] && a->reg[r] != b->reg[r])
+    /* (all but 0x00-0x11, 0x13, 0x14, 0x2A, 0x2B, 0x3A-0x3F; by ranges, this being asked of nearly every draw) */
+    static const struct { uint16_t from, to; } ranges[] = {{0x40, 0x100}, {0x12, 0x13}, {0x15, 0x2A}, {0x2C, 0x3A}};
+    for (size_t i = 0; i < sizeof ranges / sizeof ranges[0]; i++)
+        if (memcmp(a->reg + ranges[i].from, b->reg + ranges[i].from, sizeof a->reg[0] * (size_t)(ranges[i].to - ranges[i].from)))
             return 0;
     return !memcmp(a->world, b->world, sizeof a->world) && !memcmp(a->view, b->view, sizeof a->view) &&
            !memcmp(a->proj, b->proj, sizeof a->proj) &&

@@ -267,13 +267,23 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
     Texture *t = NULL;
     if (last_found >= 0 && last_found < ntextures && textures[last_found].key == key)
         t = &textures[last_found];
-    else
-        for (int i = 0; i < ntextures; i++)
-            if (textures[i].key == key) {
-                t = &textures[i];
-                last_found = i;
-                break;
-            }
+    else {
+        /* (a table of where each key was last found, checked, before going through them all: draws change texture often) */
+        static int found_at[4096];
+        size_t cell = (size_t)((key * 0x9E3779B97F4A7C15ull) >> 52);
+        int i = found_at[cell];
+        if (i < ntextures && textures[i].key == key)
+            t = &textures[i];
+        else
+            for (i = 0; i < ntextures; i++)
+                if (textures[i].key == key) {
+                    t = &textures[i];
+                    found_at[cell] = i;
+                    break;
+                }
+        if (t)
+            last_found = (int)(t - textures);
+    }
     if (t && t->checked == frame_no) {
         t->used = frame_no;
         return t->slot;
