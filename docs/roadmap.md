@@ -113,6 +113,21 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 
 **Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
 
+## Replacing PSP emulation with native code
+
+The runtime is our own code, so this isn't rewriting the game. Do each only where a goal needs it, keep an off switch while it's new, and check it as any other change.
+
+| Part | Now | Native would give | Worth it? | Next step |
+|---|---|---|---|---|
+| Files (`io.c`) | Reads the ISO's files | Mods replace any file by a folder over the ISO | **Yes, first:** cheap, and most modding needs it | Design with mod folders |
+| Drawing: GE commands (`ge.c`, `gpu.c`) | Translates the PSP's display lists; GE and render were 57% of samples, game code 2% (`docs/ticks.md`) | Direct paths for chosen objects: new meshes, effects, less work | **Yes, by object type:** replacing it all isn't needed | With mesh replacement |
+| Screen layout | Game draws for 480x272 | HUD and menus laid out for the display | Yes, for goal 3 | With the native interface decision |
+| Input | Pad state, read at 30ths in a hunt | Read every tick; true actions for mouse and keys | Yes, in goal 1 | Already listed |
+| Memory | PSP's 32 MB layout | More room | Partly: see extended memory | Measure first |
+| Audio (`audio.c`, `atrac.c`) | Plays the game's formats | New sound formats, more voices | Later, for sound mods | None yet |
+| Threads (`thread.c`) | One host thread, deterministic | Little: game code is 2% of samples, and tests rely on the fixed schedule | **No** | |
+| CPU, VFPU instructions (`vfpu.c`) | Generated C | Little, as above | **No** | |
+
 ## Status file
 
 To build: a script that regenerates, per function, its system, lines, whether it's named or hand-written, and whether it ran in a
