@@ -197,6 +197,83 @@ static void advance_to(uint64_t until) {
     now_us = until;
 }
 
+/* -- ticks between the display's frames --------------------------------------------------------------------------------
+ *
+ * The game's thread is the display's too (present_pump), so a frame due in the middle of a tick waits for the tick. The
+ * game's clock is its own, though: nothing in the game can tell when in wall time a vblank came. So a vblank whose work
+ * would run into the next frame is let go that much early, straight after the frame before, to be done when the frame is
+ * due. Its time on the game's clock is unchanged, and so are the game's schedule and what the frames interpolate between.
+ * MHFU_TICK_PHASE=0: each at its own time. */
+
+#define TICK_MARGIN_US 500          /* the frame's turn begins this long after the tick is reckoned done */
+#define TICK_EARLY_MAX_US 8000      /* never by more, whatever the display's frame rate */
+
+static uint64_t work_began, work_us;    /* the game's thread at work since the last vblank, on the wall clock */
+static uint64_t work_vblank;            /* that vblank */
+static uint64_t work_cost[2];           /* what each of odd and even vblanks' work takes: near the most of late */
+static unsigned long early_n, phased_n;
+static uint64_t early_us;
+
+static void tick_work_began(void) {
+    work_began = wall_us();
+}
+
+static void tick_work_ended(void) {
+    uint64_t span = work_began ? wall_us() - work_began : 0;
+    work_began = 0;
+    if (work_vblank != vblank_count) {
+        uint64_t *cost = &work_cost[work_vblank & 1];
+        if (work_us >= *cost)
+            *cost = work_us;
+        else
+            *cost -= (*cost - work_us) / 64;    /* (a second or so to come down, at once to go up) */
+        work_us = 0;
+        work_vblank = vblank_count;
+    }
+    work_us += span;
+}
+
+/* When to let vblank go, on the game's clock, with the display's next frame due at `display` */
+static uint64_t tick_begins(uint64_t vblank, uint64_t display) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_TICK_PHASE") || atoi(getenv("MHFU_TICK_PHASE")) != 0;
+    if (!on || display == ~(uint64_t)0 || fast_forward())
+        return vblank;
+    uint64_t need = work_cost[(vblank_count + 1) & 1] + TICK_MARGIN_US;
+    phased_n++;
+    if (vblank + need <= display)
+        return vblank;
+    uint64_t begins = display > need ? display - need : 0;
+    if (vblank > TICK_EARLY_MAX_US && begins < vblank - TICK_EARLY_MAX_US)
+        begins = vblank - TICK_EARLY_MAX_US;
+    return begins;
+}
+
+/* The clock moved to `until` once the wall clock is at `begins`, no later than it */
+static void advance_early(uint64_t until, uint64_t begins) {
+    if (begins >= until || until <= now_us || fast_forward()) {
+        advance_to(until);
+        return;
+    }
+    if (begins > now_us)
+        advance_to(begins);
+    uint64_t at = wall_us();
+    if (pacing_watch)
+        idle_end_us = at;
+    early_n++;
+    early_us += wall_base + until > at ? wall_base + until - at : 0;
+    now_us = until;
+}
+
+void tick_phase_stats(unsigned long *early, double *early_ms, double *cost_ms) {
+    *early = early_n;
+    *early_ms = early_n ? (double)early_us / 1000 / (double)early_n : 0;
+    *cost_ms = (double)(work_cost[0] > work_cost[1] ? work_cost[0] : work_cost[1]) / 1000;
+    early_n = phased_n = 0;
+    early_us = 0;
+}
+
 /* pacing.c: how long the game's thread has been at work since it last slept (a tick in a frame's way) */
 uint64_t wall_since_idle_us(void) {
     return idle_end_us ? wall_us() - idle_end_us : 0;
@@ -495,8 +572,13 @@ void scheduler_run(void) {
         if (!t) {
             if (state_point())              /* (every thread waits: a save state saved or loaded here) */
                 continue;
+            tick_work_ended();
             uint64_t next = next_event(), display = present_pump();
-            advance_to(display < next ? display : next);
+            if (next < display && next == next_vblank)
+                advance_early(next, tick_begins(next, display));
+            else
+                advance_to(display < next ? display : next);
+            tick_work_began();
             continue;
         }
         current = t;

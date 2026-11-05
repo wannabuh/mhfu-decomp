@@ -602,6 +602,14 @@ uint64_t present_pump(void) {
                     (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
                     m + u ? 100.0 * (double)m / (double)(m + u) : 0.0, (double)drawn_us / 1000 / (double)(shown ? shown : 1),
                     (double)flip_us / 1000 / (double)(shown ? shown : 1));
+            {
+                void tick_phase_stats(unsigned long *early, double *early_ms, double *cost_ms);
+                unsigned long early;
+                double early_ms, cost_ms;
+                tick_phase_stats(&early, &early_ms, &cost_ms);
+                fprintf(stderr, "display: %lu ticks begun early, by %.2f ms on average; a tick reckoned at %.2f ms\n", early,
+                        early_ms, cost_ms);
+            }
             drawn_us = flip_us = 0;
             skipped = 0;
             stats_at = wall;
