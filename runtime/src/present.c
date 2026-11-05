@@ -12,6 +12,7 @@
 #include "savestate.h"
 #include "render.h"
 #include "perf.h"
+#include "pacing.h"
 #include "capture.h"
 #include "inspect.h"
 
@@ -328,6 +329,7 @@ static void record_input(float mx, float my) {
 }
 
 static uint64_t next_display;
+static double next_display_fraction;
 
 /* A state loaded (savestate.c): a recording of this run's input ends - its frames would go back -, and the frames
  * shown are due again from now (by the game's clock, which went back with it: else none until it got to where it was) */
@@ -465,7 +467,7 @@ static void watch(void) {
     }
 }
 
-uint64_t wall_time_us(void), time_slept_us(void);
+uint64_t wall_time_us(void), time_slept_us(void), game_to_wall_us(uint64_t game_us), wall_to_game_us(uint64_t wall);
 int64_t clock_behind_us(void);
 static unsigned long skipped;        /* frames not shown, the game running late (for MHFU_FPS_STATS) */
 static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
@@ -496,25 +498,47 @@ static int display_fps(void) {
 uint64_t present_pump(void) {
     if (!display_fps() || fast_forward())
         return ~(uint64_t)0;
-    uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
+    uint64_t now = time_us();
+    /* when the next frame begins: for its refresh, if the display's are known (pacing.c); else on a timer at MHFU_FPS */
+    uint64_t due_wall = 0, target_wall = 0, shows_wall = 0, wall_now = wall_time_us();
+    int locked = pacing_next(fps, wall_now, &due_wall, &target_wall, &shows_wall);
+    uint64_t interval = 1000000u / (uint64_t)fps, shows = now;
+    if (locked) {
+        next_display = wall_to_game_us(due_wall);
+        shows = wall_to_game_us(shows_wall);
+    } else if (!pacing_old() && next_display_fraction >= 1) {   /* (the whole frame: 1000000 / 144 is not a whole us) */
+        next_display++;
+        next_display_fraction -= 1;
+    }
     if (now < next_display)
         return next_display;
     /* the game first: when it is running late (the frames shown taking the time it needs), a frame is not shown */
     if (clock_behind_us() > (int64_t)interval) {
         skipped++;
         perf_skipped++;
-        next_display = now + interval;
+        if (locked)
+            pacing_issued(fps, wall_now);
+        else
+            next_display = now + interval;
         return next_display;
     }
     /* the input first, so that the frame shows the mouse as it is now (as the game's frames do) */
     if (!window_poll())
         exit(0);
     /* the moment shown trails the game by one frame: t runs from 0, as a frame lands, towards 1 */
-    uint64_t since = now - gpu_last_frame_time(), period = gpu_frame_period();
+    int64_t since = (int64_t)shows - (int64_t)gpu_last_frame_time();
+    uint64_t period = gpu_frame_period();
     float t = period ? (float)since / (float)period : 1.0f;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     uint64_t drawing = wall_time_us();
+    if (pacing_watch)
+        pacing_frame(game_to_wall_us(next_display), target_wall, drawing,
+                     (int64_t)gpu_last_frame_time() - (int64_t)((1.0f - t) * (float)period), frame, t);
+    if (locked)
+        pacing_issued(fps, wall_now);
     uint32_t addr = gpu_render_frame(t);
+    if (pacing_watch)
+        pacing_drawn(wall_time_us());
     static long dump_at = -1;
     if (dump_at < 0)
         dump_at = getenv("MHFU_DUMP_AT") ? atol(getenv("MHFU_DUMP_AT")) : 0;
@@ -586,7 +610,10 @@ uint64_t present_pump(void) {
             shown = 0;
         }
     }
+    if (locked)
+        return now + 1;     /* (pacing_next says when: asked again at once) */
     next_display += interval;
+    next_display_fraction += 1000000.0 / fps - (double)interval;
     if (next_display < now)
         next_display = now + interval;
     return next_display;
@@ -771,6 +798,7 @@ void present_frame(void) {
     }
     frame++;
     perf_game_frame(frame);
+    pacing_tick(frame);
     capture_tick(frame);
     inspect_tick(frame);
     gpu_pick_frame(display_fb_addr);

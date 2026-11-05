@@ -28,6 +28,7 @@
 #include "post.h"
 #include "glyphs.h"
 #include "perf.h"
+#include "pacing.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -1742,11 +1743,13 @@ void render_flip(uint32_t addr) {
     vkCmdEndRendering(cmd);
     vk_transition(&swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vk_submit(vk.acquired, vk.rendered);
-    VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL, 1, &vk.rendered, 1, &vk.swapchain, &index, NULL};
+    VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, pacing_present_chain(), 1, &vk.rendered, 1, &vk.swapchain,
+                           &index, NULL};
     present_at = perf_on ? perf_ns() : 0;
     r = vkQueuePresentKHR(vk.queue, &pi);
     if (present_at)
         perf_present_ns += perf_ns() - present_at;
+    pacing_presented(r);
     end_frame();
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || window_resized)
         window_changed();

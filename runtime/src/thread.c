@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 #include "hle.h"
 #include "savestate.h"
+#include "pacing.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -123,6 +124,10 @@ static uint64_t wall_us(void) {
 
 uint64_t wall_time_us(void) { return wall_us(); }
 
+/* The wall clock's time for a time of the game's clock, as it now runs */
+uint64_t game_to_wall_us(uint64_t game_us) { return wall_base + game_us; }
+uint64_t wall_to_game_us(uint64_t wall) { return wall > wall_base ? wall - wall_base : 0; }
+
 /* How far the game's clock is behind the wall clock (us; negative: ahead) - the game running slower than it should */
 int64_t clock_behind_us(void) {
     return fast_forward() ? 0 : (int64_t)wall_us() - (int64_t)(wall_base + now_us);
@@ -166,6 +171,8 @@ uint64_t run_epoch_us(void) {
     return epoch_now_us() - now_us;
 }
 
+static uint64_t idle_end_us;        /* (only for pacing_watch) */
+
 /* Every thread waits: move the clock to `until`, once the wall clock is there (unless fast-forwarding). Ahead or behind
  * by more than a quarter of a second - after fast-forwarding, or a stall - the pacing starts again from now. */
 static void advance_to(uint64_t until) {
@@ -184,8 +191,15 @@ static void advance_to(uint64_t until) {
             slept_us += (uint64_t)ahead;
             slept_total_us += (uint64_t)ahead;
         }
+        if (pacing_watch)
+            idle_end_us = wall_us();
     }
     now_us = until;
+}
+
+/* pacing.c: how long the game's thread has been at work since it last slept (a tick in a frame's way) */
+uint64_t wall_since_idle_us(void) {
+    return idle_end_us ? wall_us() - idle_end_us : 0;
 }
 
 #define VBLANK_US_NUM 1001000u        /* 59.94 Hz: a vblank every 1001000 / 60 us */

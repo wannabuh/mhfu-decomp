@@ -17,6 +17,10 @@
  *   ACQ+PRES          vkAcquireNextImage and vkQueuePresent, where a full swapchain's wait shows up
  *   RENDER THREAD     running its queue's commands: clipping, batches, textures, Vulkan calls
  *   IDLE              the game's thread asleep until the game's clock is due (thread.c)
+ *   DISPLAY...        the driver's reports of when frames really went out, over a second (pacing.c; not on every driver):
+ *                     SHOWN frames that reached the screen, REPEATS refreshes that showed a frame again, REPLACED
+ *                     frames that never reached it, LATE those after the refresh they were for, STEP the least and most
+ *                     game time (ms) from one refresh to the next, LOCK how long before its refresh a frame begins
  * DRAWS and TRIS are as the game issues them a tick (every primitive, render targets included, sprites as two
  * triangles), not the GPU's draw calls, which are fewer (batches, groups).
  * RAM is the kernel's view (kernel.c): the EBOOT's image and the blocks allocated from the user partition, out of the
@@ -24,6 +28,7 @@
  * allocators work inside those blocks, so it says how much the game took, not how much of that it uses. */
 #include "perf.h"
 #include "hle.h"
+#include "pacing.h"
 
 #include <stdatomic.h>
 #include <stdio.h>
@@ -66,8 +71,10 @@ void perf_game_frame(unsigned long frame) {
 }
 
 static void test_read(void) {
-    if (getenv("MHFU_TEST_PERF") && atoi(getenv("MHFU_TEST_PERF")))
+    if (getenv("MHFU_TEST_PERF") && atoi(getenv("MHFU_TEST_PERF"))) {
         perf_on = 1;
+        pacing_watch_panel(1);
+    }
 }
 
 /* Over the last `seconds`: how many frames shown, their longest interval */
@@ -186,6 +193,7 @@ static void update_every_second(uint64_t now) {
 
 void perf_toggle(void) {
     perf_on = !perf_on;
+    pacing_watch_panel(perf_on);
     last_snap.wall = 0;                 /* (what it measures starts again from now: the counters stood still) */
     split.ready = 0;
 }
@@ -206,7 +214,7 @@ int perf_rects(float x0, float y0, float scale, HintRect *out, int max) {
     if (!perf_on)
         return 0;
     int dot = (int)(scale / 2) < 1 ? 1 : (int)(scale / 2);
-    int lines = 9;
+    int lines = 12;
     int height = 4 + GRAPH_H + 3 + lines * LINE + 2;
     int picture_w = (int)(480 * scale);
     Pen p = {out, 0, max, dot, (int)x0 + picture_w - (PANEL_DOTS + 3) * dot, (int)y0 + 3 * dot};
@@ -251,6 +259,19 @@ int perf_rects(float x0, float y0, float scale, HintRect *out, int max) {
     TEXT(C_FACE, " ACQ+PRES %.1f  RENDER THR %.1f", split.present, split.render);
     TEXT(C_WHITE, "TICK: DRAWS %.0f  TRIS %.0f", split.draws, split.tris);
     TEXT(C_WHITE, "RAM %.1f/%.1f MB  KERNEL BLOCKS", (double)split.ram_used / 1048576, (double)split.ram_total / 1048576);
+    PacingStats ps;
+    pacing_stats(&ps);
+    if (ps.have) {
+        if (ps.lead_ms > 0)
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  LOCK %.1f MS", ps.refresh_hz, ps.lead_ms);
+        else
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  TIMER", ps.refresh_hz);
+        TEXT(ps.repeats || ps.replaced || ps.late ? C_YELLOW : C_WHITE, "SHOWN %lu REPEAT %lu REPLACED %lu", ps.shown,
+             ps.repeats, ps.replaced);
+        TEXT(ps.late ? C_YELLOW : C_WHITE, "LATE %lu  STEP %.1f-%.1f MS", ps.late, ps.step_min_ms, ps.step_max_ms);
+    } else {
+        TEXT(C_GREY, "DISPLAY: NOT REPORTED");
+    }
 #undef TEXT
     return p.n;
 }

@@ -2,6 +2,7 @@
  * textures) and extended dynamic state 3 (blending set per draw), so the renderer needs a single pipeline.
  * MHFU_VK_VALIDATE=1 turns the validation layer on. */
 #include "vk.h"
+#include "pacing.h"
 #include "perf.h"
 
 #include <stdatomic.h>
@@ -44,8 +45,9 @@ int vk_init(void *window) {
     if (window) {
         Uint32 n;
         const char *const *sdl = SDL_Vulkan_GetInstanceExtensions(&n);
-        for (Uint32 i = 0; i < n && n_exts < 14; i++)
+        for (Uint32 i = 0; i < n && n_exts < 13; i++)
             exts[n_exts++] = sdl[i];
+        exts[n_exts++] = VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME;     /* (the display's timing: below) */
     }
     if (validate)
         exts[n_exts++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
@@ -137,7 +139,7 @@ int vk_init(void *window) {
         f2.features.shaderClipDistance = f2.features.depthClamp = VK_TRUE, vk.clip_distance = 1;
     if (have2.features.samplerAnisotropy)
         f2.features.samplerAnisotropy = VK_TRUE, vk.anisotropy = 1;
-    const char *dev_exts[3] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME};
+    const char *dev_exts[8] = {VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME};
     uint32_t next = 1;
     if (vk.surface)
         dev_exts[next++] = VK_KHR_SWAPCHAIN_EXTENSION_NAME;
@@ -161,6 +163,40 @@ int vk_init(void *window) {
                 vk.barycentric = 1;
             }
         }
+    /* when each frame really goes out, if the driver can say it for this window (pacing.c) */
+    VkPhysicalDevicePresentId2FeaturesKHR id2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_2_FEATURES_KHR};
+    VkPhysicalDevicePresentTimingFeaturesEXT timing = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_TIMING_FEATURES_EXT};
+    int has_id2 = 0, has_timing = 0, has_calibrated = 0;
+    for (uint32_t i = 0; i < nexts; i++) {
+        has_id2 |= !strcmp(props[i].extensionName, VK_KHR_PRESENT_ID_2_EXTENSION_NAME);
+        has_timing |= !strcmp(props[i].extensionName, VK_EXT_PRESENT_TIMING_EXTENSION_NAME);
+        has_calibrated |= !strcmp(props[i].extensionName, VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+    }
+    if (vk.surface && has_id2 && has_timing && has_calibrated && !(getenv("MHFU_PRESENT_TIMING") && !atoi(getenv("MHFU_PRESENT_TIMING")))) {
+        VkPresentTimingSurfaceCapabilitiesEXT st = {VK_STRUCTURE_TYPE_PRESENT_TIMING_SURFACE_CAPABILITIES_EXT};
+        VkSurfaceCapabilitiesPresentId2KHR sid = {VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_PRESENT_ID_2_KHR, &st};
+        VkSurfaceCapabilities2KHR sc = {VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR, &sid};
+        VkPhysicalDeviceSurfaceInfo2KHR si = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR, NULL, vk.surface};
+        PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR caps2 = (PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR)
+            vkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceSurfaceCapabilities2KHR");
+        id2.pNext = &timing;
+        VkPhysicalDeviceFeatures2 h2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &id2};
+        vkGetPhysicalDeviceFeatures2(vk.gpu, &h2);
+        if (caps2 && caps2(vk.gpu, &si, &sc) == VK_SUCCESS && sid.presentId2Supported && st.presentTimingSupported &&
+            (st.presentStageQueries & VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_OUT_BIT_EXT) && id2.presentId2 &&
+            timing.presentTiming) {
+            vk.present_timing = 1;
+            vk.present_at_time = st.presentAtAbsoluteTimeSupported && timing.presentAtAbsoluteTime;
+            vk.present_stages = st.presentStageQueries;
+            timing.presentAtRelativeTime = VK_FALSE;
+            timing.presentAtAbsoluteTime = vk.present_at_time ? VK_TRUE : VK_FALSE;
+            timing.pNext = f2.pNext;
+            f2.pNext = &id2;
+            dev_exts[next++] = VK_KHR_PRESENT_ID_2_EXTENSION_NAME;
+            dev_exts[next++] = VK_EXT_PRESENT_TIMING_EXTENSION_NAME;
+            dev_exts[next++] = VK_KHR_CALIBRATED_TIMESTAMPS_EXTENSION_NAME;
+        }
+    }
     free(props);
     float prio = 1.0f;
     VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, vk.queue_family, 1, &prio};
@@ -221,20 +257,19 @@ void vk_recreate_swapchain(void) {
         ext.height = (uint32_t)h;
     }
     vk.swap_extent = ext;
-    /* mailbox if there is one: the game paces itself, the display should not hold it back */
     uint32_t np = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &np, NULL);
-    VkPresentModeKHR modes[8], mode = VK_PRESENT_MODE_FIFO_KHR;
+    VkPresentModeKHR modes[8];
     if (np > 8) np = 8;
     vkGetPhysicalDeviceSurfacePresentModesKHR(vk.gpu, vk.surface, &np, modes);
-    for (uint32_t i = 0; i < np; i++)
-        if (modes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
-            mode = modes[i];
+    VkPresentModeKHR mode = pacing_present_mode(modes, np);
     uint32_t count = caps.minImageCount + 1;
     if (caps.maxImageCount && count > caps.maxImageCount)
         count = caps.maxImageCount;
     VkSwapchainKHR old = vk.swapchain;
-    VkSwapchainCreateInfoKHR sci = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, NULL, 0, vk.surface, count,
+    VkSwapchainCreateFlagsKHR flags = vk.present_timing ?
+        VK_SWAPCHAIN_CREATE_PRESENT_TIMING_BIT_EXT | VK_SWAPCHAIN_CREATE_PRESENT_ID_2_BIT_KHR : 0;
+    VkSwapchainCreateInfoKHR sci = {VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR, NULL, flags, vk.surface, count,
         fmt.format, fmt.colorSpace, ext, 1, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_SHARING_MODE_EXCLUSIVE, 0, NULL, caps.currentTransform, VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, mode, VK_TRUE,
         old};
@@ -248,6 +283,7 @@ void vk_recreate_swapchain(void) {
             VK_IMAGE_VIEW_TYPE_2D, fmt.format, {0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1}};
         CHECK(vkCreateImageView(vk.device, &vci, NULL, &vk.swap_views[i]));
     }
+    pacing_swapchain_created();
 }
 
 VkBuf vk_buffer(VkDeviceSize size, VkBufferUsageFlags usage, int host) {
