@@ -419,7 +419,7 @@ module = "game_sub"
 address = "09CB8ED0"
 name = "fx_spawn_class_from_09c31380_at_position"
 purpose = "Allocates through 09C31380, fx_base_init, copies the position from a0, +0x24 = a1, links it in the node manager's list."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "First 22 view lines read; caller record_type_2b_dispatch_nodes_and_sound."
 
 [[function]]

@@ -843,7 +843,7 @@ module = "EBOOT"
 address = "088B0C8C"
 name = "net_copy_0x29_halfwords_pairs_to_two_records"
 purpose = "Copies 0x29 pairs of shorts from a0 to 09A289DC and to 09A20350."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "First 22 view lines read."
 
 [[function]]
@@ -859,7 +859,7 @@ module = "EBOOT"
 address = "0885D134"
 name = "item_extra_skill_points_for_skill"
 purpose = "Sums the points of the (skill, points) pairs in item_data_extra_entry's record at +8, +0xA, +0xC... for skill a1."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "First 22 view lines read; caller equip_skill_points_for_skill."
 
 [[function]]
@@ -867,7 +867,7 @@ module = "EBOOT"
 address = "0885E3D4"
 name = "equip_box_set_flag_10_clear_20_by_arg"
 purpose = "For an entry of type 6, with a1 0 sets flag 0x10 of +0x54C and clears 0x20; otherwise clears 0x10."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "First 22 view lines read."
 
 [[function]]
@@ -875,7 +875,7 @@ module = "EBOOT"
 address = "0885E5C0"
 name = "equip_box_set_flag_80_clear_20_by_arg"
 purpose = "For an entry of type 6, with a1 0 sets flag 0x80 of +0x54C and clears 0x20; otherwise clears 0x80."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "First 22 view lines read."
 
 [[function]]
