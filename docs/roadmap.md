@@ -82,10 +82,10 @@ Most of this lives in `runtime/src/`. Where a feature needs to know what the gam
 |---|---|---|---|
 | Controls, rebinding, F1 screen | Basics | Merged; F1 live path untested *(check)* | User tries F1 |
 | Button hints in menus' text | Still shows PSP buttons | Partly done: 2 of about 15 sprite drawers | Hook the rest, then font text |
-| Native interface: menus and HUD | The main item here | Not started | Decide scope with the user: restyle, resize, or replace. Then convert the menu code it needs |
+| Native interface: menus and HUD | The main item here | Not started | Restyle everything first: art, fonts, layout, scaling, hints, mouse (user's decision). Then replace only the worst screens, chosen by the user |
 | Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)* | Inventory what's missing |
 
-Menu and HUD code would be the next hand conversion after the framerate work. It's mostly unnamed so far.
+Restyling leaves game logic alone. Replacing a screen is where menu code needs naming and perhaps hand conversion, and where saves and inventories need their own checks.
 
 ## 4. Modding
 
@@ -142,6 +142,5 @@ hand-written and verified (1.2% of lines), 137 once the current batch passes (1.
 
 ## Open questions for the user
 
-- Native interface: restyle the existing menus, or replace them?
 - New areas: wanted enough to survey now, or later?
 - Which artifacts bother you most right now?
