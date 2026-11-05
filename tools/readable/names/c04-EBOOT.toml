@@ -1,0 +1,24 @@
+[[function]]
+module = "EBOOT"
+address = "088C7424"
+name = "stage_nearest_volume_to_point"
+purpose = "From the stage volumes of game +0x284, returns the id of the one nearest the point's X,Z (signed distance past a circle's radius, or from a box when volume byte +1 is nonzero); with no volumes, the first u16 of the table DAT_09ce480c[map]."
+confidence = "inferred"
+evidence = "First 30 view lines read; the box case from its inputs. Result used in hunter_state_function."
+
+[[function]]
+module = "EBOOT"
+address = "088DE6EC"
+name = "asset_slots_start_load_for_id"
+purpose = "Starts loading asset slots 0x15 and 0x29 (id + 0x16B0, id + 0x15A6), calls 088711C0(g_quest, id), and slots 0x26, 0x27, 0x28 from the tables at 09CE4948, 089A9590 and 089A9592 by id."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08813188"
+name = "camera_request_yaw_from_local_hunter"
+purpose = "Sets yaw_from_hunter_request to 1 if the hunter at a1 is the local one."
+confidence = "confirmed"
+evidence = "Whole body read."
+

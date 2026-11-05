@@ -1,0 +1,1064 @@
+[[function]]
+module = "game_task"
+address = "09ABCE90"
+name = "monster_script_op_03_if_route_next_area_reachable"
+purpose = "Handler for opcode 3, if/else/end: sub-code 0 enters when route_next_area differs from area_id, is not 0xFFFF and is reachable (monster_area_is_or_reachable_by_map_table returns 1); otherwise clears the target and resolved target, then skips to the else or end."
+confidence = "inferred"
+evidence = "Whole body read; skip helpers take opcode 3."
+
+[[function]]
+module = "game_task"
+address = "09ABD208"
+name = "monster_script_op_09_if_movement_mode_2"
+purpose = "Handler for opcode 9, if/else/end: sub-code 0 skips to the else or end unless movement_mode is 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABD308"
+name = "monster_script_op_0a_set_status_hold_mode"
+purpose = "Handler for opcode 0xA: stores the next byte in status_hold_mode."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABD318"
+name = "monster_script_op_0c_set_script_timers_by_index"
+purpose = "Handler for opcode 0xC, bytes (index, value): writes value to one of sight_off_ticks, meter_b_empty_latched, perception_pause_ticks, script_stored_value, or calls vtable +0x94, +0x9C, +0xA4, +0xCC, +0xD4 with it, by index 1 to 9; index 0 means all of them."
+confidence = "confirmed"
+evidence = "Whole body and generated C read; the setters' purpose isn't read here."
+
+[[function]]
+module = "game_task"
+address = "09ABC858"
+name = "monster_script_op_0d_clear_script_timers_by_index"
+purpose = "Handler for opcode 0xD, byte index: the same targets as opcode 0xC zeroed, by index 1 to 9, and index 0xA sets previous_area to 0xFFFF; index 0 means all ten."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABD480"
+name = "monster_script_op_0e_if_area_id_equals_remapped"
+purpose = "Handler for opcode 0xE, if/else/end: sub-code 0 takes a big-endian 16-bit area id (0xFFFF passes), remaps it through DAT_09ce5108 and DAT_09ce5320, and skips to the else or end when area_id differs."
+confidence = "inferred"
+evidence = "Whole body read; the remap is the one 09ABC600 uses. What the remap means isn't read."
+
+[[function]]
+module = "game_task"
+address = "09AC2DE8"
+name = "monster_script_op_11_target_highest_slot_in_hunters_over_points"
+purpose = "Handler for opcode 0x11: target_param2 becomes the highest of slots 0 to 3 set in hunters_over_points_mask, target_kind 1, target_param1 0; if locally_owned, request_bit_4_ticks is set to 2."
+confidence = "confirmed"
+evidence = "Whole body read. target_param2 stays as it was when the mask is empty."
+
+[[function]]
+module = "game_task"
+address = "09ABDBD8"
+name = "monster_script_op_1a_route_to_area"
+purpose = "Handler for opcode 0x1A: target_kind 3, and from a big-endian 16-bit area id works out route_final_area, walking tables by the area (table_lookup_bb8c0c_by_field_5f3_and_field_29a, 09ABE6C8) with the same id remap as 09ABC600."
+confidence = "inferred"
+evidence = "First 90 lines of the view and its end read, not all of 572 generated lines. Takes 2 bytes."
+
+[[function]]
+module = "game_task"
+address = "09ABEE10"
+name = "monster_script_op_1c_switch_health_percent_below"
+purpose = "Handler for opcode 0x1C, a multi-case block: sub-code 0 has a count of byte thresholds and enters the first with health*100/health_max under it; sub-codes 1 and 2 skip to the (0x1C,3) end."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABEF68"
+name = "monster_script_op_1d_switch_script_event_code"
+purpose = "Handler for opcode 0x1D, a multi-case block over sorted byte ids: sub-code 0 enters the case equal to script_event_code, and leaves to the (0x1D,2) default or end when the id passes it."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF108"
+name = "monster_script_op_1e_clear_script_event_and_requests"
+purpose = "Handler for opcode 0x1E: zeroes script_event_active, _code, _priority, the request_ bytes and both meter latches, and +0x52A."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABD108"
+name = "monster_script_op_1f_if_movement_mode_1"
+purpose = "Handler for opcode 0x1F, if/else/end: sub-code 0 skips to the else or end unless movement_mode is 1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF140"
+name = "monster_script_op_20_switch_angle_to_target_hunter"
+purpose = "Handler for opcode 0x20, a multi-case block: with a hunter slot targeted (target_kind 1, target_param1 0, param2 not 0xFF) takes the angle from place_plus_area_offset to the hunter less facing, and enters the first case whose byte<<8 is at least that angle; no such target skips to the (0x20,2) default or end."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF4D0"
+name = "monster_script_op_22_if_move_target_within_range_xz"
+purpose = "Handler for opcode 0x22, if/else/end: sub-code 0 skips to the else or end when the X,Z distance from place to move_target_place is over byte*100."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF658"
+name = "monster_script_op_36_if_move_target_within_range"
+purpose = "Handler for opcode 0x36, if/else/end: as opcode 0x22 with all three axes."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF7C0"
+name = "monster_script_op_24_counted_loop"
+purpose = "Handler for opcode 0x24: sub-code 0 takes a count and remembers the position (script_counted_loop_count, _start), skipping to the (0x24,2) when the count is under 1; sub-code 1 decrements and goes back while above 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF8B0"
+name = "monster_script_op_25_clear_counted_loop"
+purpose = "Handler for opcode 0x25: zeroes script_counted_loop_count."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABF8C0"
+name = "monster_script_op_26_set_script_requests_off"
+purpose = "Handler for opcode 0x26: stores the next byte in script_requests_off."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABFAD0"
+name = "monster_script_op_2b_if_script_timer_by_index"
+purpose = "Handler for opcode 0x2B, if/else/end, bytes (index, value): indexes 1 to 4 test the fields opcode 0xC sets against value; 5 to 9 call vtable +0x98, +0xA0, +0xA8, +0xD0, +0xD8, the getters beside its setters. A nonzero result skips to the else or end."
+confidence = "inferred"
+evidence = "Whole body read; generated C shows the getters are called with a1 as left by the handler, and value isn't compared with their result here."
+
+[[function]]
+module = "game_task"
+address = "09ABFE90"
+name = "monster_script_op_2d_target_nearby_point"
+purpose = "Handler for opcode 0x2D: target_kind 7, target_param1 nearby_point_group, target_param2 nearby_point_id."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABFEB0"
+name = "monster_script_op_2f_if_any_hunter_listed_item_ticks"
+purpose = "Handler for opcode 0x2F, if/else/end: sub-code 0 skips to the else or end unless a hunter slot has listed_item_ticks (+0x1138) nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC0018"
+name = "monster_script_op_30_request_if_any_hunter_listed_item_ticks"
+purpose = "Handler for opcode 0x30: sets request_hunter_condition to 1 if a hunter slot has listed_item_ticks (+0x1138) nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC00B0"
+name = "monster_script_op_32_if_status_hold_mode_equals"
+purpose = "Handler for opcode 0x32, if/else/end: sub-code 0 skips to the else or end unless status_hold_mode equals the byte."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC01B0"
+name = "monster_script_op_33_switch_status_hold_mode"
+purpose = "Handler for opcode 0x33, a multi-case block: sub-code 0 enters the first byte case equal to status_hold_mode."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABB328"
+name = "monster_script_op_3a_if_perception_pause_zero"
+purpose = "Handler for opcode 0x3A, if/else/end: sub-code 0 skips to the else or end when perception_pause_ticks is nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABC4D0"
+name = "monster_script_op_3c_if_paired_monster_same_area_and_4b9_is_1"
+purpose = "Handler for opcode 0x3C, if/else/end: sub-code 0 skips to the else or end unless paired_monster exists, has byte +0x4B9 of 1 and +0x29A equal to area_id."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC0568"
+name = "monster_script_op_3d_if_previous_area_equals_remapped"
+purpose = "Handler for opcode 0x3D, if/else/end: sub-code 0 compares previous_area and a big-endian 16-bit id, both remapped through DAT_09ce5108 and DAT_09ce5320 (id 0xFFFF skips); a difference skips to the else or end."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC0A30"
+name = "monster_script_op_41_heal_percent_by_subtype"
+purpose = "Handler for opcode 0x41: for sub-code 0, adds to health, clamped: 15% of health_max for subtype 0x4D or 0x1B, 10% for 0x1F or 0x1C; other subtypes nothing."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09ABB548"
+name = "monster_script_op_44_if_paired_monster_same_area"
+purpose = "Handler for opcode 0x44, if/else/end: sub-code 0 skips to the else or end unless paired_monster exists with +0x29A equal to area_id."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC0DC8"
+name = "monster_script_op_45_if_sole_hunter_here_with_flag_choose_slot"
+purpose = "Handler for opcode 0x45, if/else/end: counts active hunter slots (subtype not 0xC, flags bit 0) in this area. With no more than one, and it having flag 0x80000 at +0x288 and game_sub 09C33778 answering 1, chosen_slot becomes it; otherwise skips to the else or end."
+confidence = "inferred"
+evidence = "Whole body read; 09C33778 not read."
+
+[[function]]
+module = "game_task"
+address = "09AC1000"
+name = "monster_script_op_46_if_chosen_hunter_state_is"
+purpose = "Handler for opcode 0x46, if/else/end: sub-code 0 skips to the else or end if the chosen slot's hunter exists and object_state_is(two bytes) is false."
+confidence = "confirmed"
+evidence = "Whole body read. No hunter at the slot enters the block."
+
+[[function]]
+module = "game_task"
+address = "09AC1158"
+name = "monster_script_op_47_if_monster_flag_40_consume"
+purpose = "Handler for opcode 0x47, if/else/end: sub-code 0 skips to the else or end if monster_flags bit 0x40 is clear, and clears it if set."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1270"
+name = "monster_script_op_48_set_script_delay_ticks"
+purpose = "Handler for opcode 0x48: script_delay_ticks = next byte."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1280"
+name = "monster_script_op_49_target_chosen_slot_with_byte"
+purpose = "Handler for opcode 0x49: with chosen_slot set, target_kind 0xB, param1 the slot, param2 the byte; with it 0xFF, target_kind 1, param2 0xFF. Copies them to the resolved target too."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC12E0"
+name = "monster_script_op_4a_if_chosen_hunter_in_sight"
+purpose = "Handler for opcode 0x4A, if/else/end: sub-code 0 skips to the else or end unless chosen_slot's bit is set in hunters_in_sight_mask and it isn't 0xFF."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC13F8"
+name = "monster_script_op_4b_clear_approach_points_of_chosen"
+purpose = "Handler for opcode 0x4B: zeroes the word at +0x688 + slot*4 (approach_points) for chosen_slot unless 0xFF."
+confidence = "confirmed"
+evidence = "Generated C read."
+
+[[function]]
+module = "game_task"
+address = "09AC1428"
+name = "monster_script_op_4c_clear_target_points_of_chosen"
+purpose = "Handler for opcode 0x4C: zeroes the word at +0x554 + slot*4 (target_points) for chosen_slot unless 0xFF."
+confidence = "confirmed"
+evidence = "Generated C read."
+
+[[function]]
+module = "game_task"
+address = "09AC1488"
+name = "monster_script_op_4e_add_half_meter_b"
+purpose = "Handler for opcode 0x4E: for sub-code 0, monster_meter_b_add_clamped with meter_b_max / 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC14D8"
+name = "monster_script_op_4f_add_half_meter_a"
+purpose = "Handler for opcode 0x4F: for sub-code 0, monster_meter_a_add_clamped with meter_a_max / 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1528"
+name = "monster_script_op_50_add_half_meter_c"
+purpose = "Handler for opcode 0x50: for sub-code 0, object_add_49c_clamped_to_4a8 with meter_c_max / 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1678"
+name = "monster_script_op_52_choose_slot_by_target_points"
+purpose = "Handler for opcode 0x52: among hunters in hunters_tracked_mask whose area is reachable, chooses by target_points: those at 50000 or more first, then 30000 or more, the highest of them; chosen_slot, or 0xFF with no tracked hunter or nobody qualifying."
+confidence = "inferred"
+evidence = "The two threshold passes read, and the last one's comparison; last 70 lines skimmed only."
+
+[[function]]
+module = "game_task"
+address = "09AC1A08"
+name = "monster_script_op_55_if_chosen_target_points_at_least_30000"
+purpose = "Handler for opcode 0x55, if/else/end: sub-code 0 skips to the else or end if chosen_slot is 0xFF or its target_points are under 30000."
+confidence = "confirmed"
+evidence = "Whole body read; the view's move_target_place[slot - 0x1F] is +0x554 + slot*4."
+
+[[function]]
+module = "game_task"
+address = "09AC1B20"
+name = "monster_script_op_56_switch_route_table_row"
+purpose = "Handler for opcode 0x56, a multi-case block over sorted byte ids: sub-code 0 enters the case equal to route_table_row."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1CC0"
+name = "monster_script_op_57_switch_band_of_field_4bc"
+purpose = "Handler for opcode 0x57, a multi-case block over sorted signed ids: sub-code 0 enters the case equal to object_band_from_field_4bc's result."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1E88"
+name = "monster_script_op_58_target_paired_monsters_chosen_hunter"
+purpose = "Handler for opcode 0x58: target_kind 1, param1 0, param2 the byte at paired_monster +0x542, or 0xFF with none; chosen_slot the same."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1EC0"
+name = "monster_script_op_59_if_block_gate_ticks_nonzero"
+purpose = "Handler for opcode 0x59, if/else/end: sub-code 0 skips to the else or end when script_block_59_gate_ticks is zero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC1FC0"
+name = "monster_script_op_5a_if_hunter_target_word_292_equals"
+purpose = "Handler for opcode 0x5A, if/else/end: sub-code 0 enters only if resolved_target_kind is 1 or 0xB and the chosen slot's hunter has the byte at +0x292 equal to the script's byte."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2120"
+name = "monster_script_op_5b_clear_tracked_ticks_of_unseen"
+purpose = "Handler for opcode 0x5B: for sub-code 0, zeroes tracked_ticks_hunter (u16 at +0x514 + slot*2) of each slot not in hunters_in_sight_mask."
+confidence = "confirmed"
+evidence = "Whole body read; offset from the view's anchor +0x5D0 - 0xBC."
+
+[[function]]
+module = "game_task"
+address = "09AC2178"
+name = "monster_script_op_5c_if_in_current_stage_and_position_check"
+purpose = "Handler for opcode 0x5C, if/else/end: sub-code 0 skips to the else or end unless area_id is g_game's stage_id and game_sub 09C401D0(DAT_09d1a160, place, ...) is nonzero."
+confidence = "inferred"
+evidence = "Whole body read; 09C401D0 not read."
+
+[[function]]
+module = "game_task"
+address = "09AC22C0"
+name = "monster_script_op_5d_if_resolved_target_position_nonzero"
+purpose = "Handler for opcode 0x5D, if/else/end: sub-code 0 resolves the target into move_target_place and skips to the else or end if any of its three coordinates is 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2410"
+name = "monster_script_op_5f_choose_slot_here_by_word_292_band"
+purpose = "Handler for opcode 0x5F: among tracked hunters in this area with flags bit 0, keeps those whose +0x292 is in the same band as the monster's (1 to 3, or 4 to 10), then chooses by target_points starting at those of 50000; chosen_slot or 0xFF."
+confidence = "inferred"
+evidence = "First 60 lines of the view read; the rest is more of the choosing and not read closely."
+
+[[function]]
+module = "game_task"
+address = "09AC2840"
+name = "monster_script_op_60_if_game_mode_flag_2"
+purpose = "Handler for opcode 0x60, if/else/end: sub-code 0 skips to the else or end when bit 2 of g_game mode_flags is clear."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2958"
+name = "monster_script_op_61_load_550_from_area_table"
+purpose = "Handler for opcode 0x61: calls entity_load_550_from_area_table_with_offset."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2980"
+name = "monster_script_op_62_switch_by_chosen_hunter_word_292"
+purpose = "Handler for opcode 0x62, sections ended by (0x62,0xFF): sub-code 0 maps the chosen hunter's +0x292 to a section 1, 2 or 3: with the monster's +0x292 equal to 1, values 2 and 3 give 2 and others 3; otherwise 4,5,7,9 give 2, 6 and 8 give 1, others 3. No hunter gives 3. Section 1 is the code following; others are skipped to."
+confidence = "inferred"
+evidence = "Whole body read. What +0x292 means isn't known: net_synced_word_292."
+
+[[function]]
+module = "game_task"
+address = "09AC2C80"
+name = "monster_script_op_64_if_chosen_target_points_over_table"
+purpose = "Handler for opcode 0x64, if/else/end: sub-code 0 skips to the else or end if chosen_slot is 0xFF or its target_points are under word [byte] of the three at 09BCF270."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2DD0"
+name = "monster_script_op_65_clear_all_target_points"
+purpose = "Handler for opcode 0x65: zeroes the four target_points."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2E40"
+name = "monster_script_op_66_if_any_hunter_attached_to_part"
+purpose = "Handler for opcode 0x66, if/else/end: sub-code 0 skips to the else or end unless a hunter slot has attached_part_mode (+0x29C) nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC2FA8"
+name = "monster_script_op_67_if_locally_owned"
+purpose = "Handler for opcode 0x67, if/else/end: sub-code 0 skips to the else or end when locally_owned is 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC30C0"
+name = "monster_script_op_68_restart_from_main_entry"
+purpose = "Handler for opcode 0x68: calls monster_script_restart_from_main_entry."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC0B70"
+name = "monster_script_op_69_if_target_angle_outside_cone"
+purpose = "Handler for opcode 0x69, if/else/end: resolves the target into move_target_place, takes the unsigned angle off facing against a cone of (signed byte) degrees; within a cone under 90 degrees skips to the else or end; otherwise a following (0x69, x) with the next byte 1 is passed over."
+confidence = "inferred"
+evidence = "First part read closely; the outside-cone branch's last lines less so."
+
+[[function]]
+module = "game_task"
+address = "09AC3B08"
+name = "monster_script_op_75_switch_field_492"
+purpose = "Handler for opcode 0x75, a multi-case block over sorted byte ids: sub-code 0 enters the case equal to +0x492."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC3FE0"
+name = "monster_script_op_78_if_angle_to_target_hunter_in_range"
+purpose = "Handler for opcode 0x78, if/else/end, two bytes: with a hunter slot targeted, the angle from place_plus_area_offset to it less facing must be within [first<<8, second<<8], otherwise skips to the else or end."
+confidence = "inferred"
+evidence = "Most of the body read; as in opcode 0x20."
+
+[[function]]
+module = "game_task"
+address = "09AC3DD0"
+name = "monster_script_op_7a_switch_map_id_remapped"
+purpose = "Handler for opcode 0x7A, a multi-case block: compares g_game's map_id with sorted byte ids, both remapped through u16 table DAT_09ce4908 (0xFFFF means unchanged), entering the equal case."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC36A0"
+name = "monster_script_op_7d_block_always_skipped"
+purpose = "Handler for opcode 0x7D, if/else/end: sub-code 0 always skips to the else or end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC4278"
+name = "monster_script_op_7e_switch_distance_to_chosen"
+purpose = "Handler for opcode 0x7E, a multi-case block over byte ranges *100: the distance to chosen_slot's hunter comes from +0x640 + slot*4 (or for target kind 0xD from place to the object at DAT_09c122b0 +0x1220 + slot*4); enters the first range containing it, -1 with no slot skipping out."
+confidence = "inferred"
+evidence = "Most of the body read; the offset +0x640 is worked out from the view's anchor, not the generated C."
+
+[[function]]
+module = "game_task"
+address = "09AB8C88"
+name = "monster_script_op_85_weighted_branch_by_shifted_random"
+purpose = "Handler for opcode 0x85: as weighted_branch 09AB8AE0 with a shift byte (capped at 0xB) saying which 5 bits of script_random_counter to use, weights summed until past them; a weight of 0xFF always taken."
+confidence = "inferred"
+evidence = "Whole body read; the view shows the skip helper called with opcode 0x80, not 0x85."
+
+[[function]]
+module = "game_task"
+address = "09AC4660"
+name = "monster_script_op_86_choose_slot_highest_points_in_mask"
+purpose = "Handler for opcode 0x86: chosen_slot = monster_pick_hunter_highest_554_by_mask(big-endian 16-bit argument)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC4528"
+name = "monster_script_op_87_if_any_hunter_by_points_mask"
+purpose = "Handler for opcode 0x87, if/else/end: sub-code 0 skips to the else or end when monster_pick_hunter_highest_554_by_mask(16-bit argument) finds none (0xFF)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC30E8"
+name = "monster_script_op_90_teleport_to_table_point"
+purpose = "Handler for opcode 0x90: place and place_before become entry [byte] of a 12-byte point table found at DAT_09bb8c10 + subtype*0x1D0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC3160"
+name = "monster_script_op_91_face_table_point"
+purpose = "Handler for opcode 0x91: facing becomes the angle from place to entry [byte] of that table."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC3218"
+name = "monster_script_op_93_no_op"
+purpose = "Handler for opcode 0x93: returns the script position unchanged."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC3220"
+name = "monster_script_op_94_switch_on_word_84_of_global"
+purpose = "Handler for opcode 0x94, a multi-case block over sorted byte ids: sub-code 0 enters the case equal to the word at DAT_09c122b0 +0x84."
+confidence = "inferred"
+evidence = "Whole body read. What the global holds isn't read here."
+
+[[function]]
+module = "game_task"
+address = "09AC31F8"
+name = "monster_script_op_99_set_facing_from_byte"
+purpose = "Handler for opcode 0x99: facing = byte << 8."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9C0D8"
+name = "hunter_state_0_02_use_item_until_motion_ends"
+purpose = "Group 0 state 2: on step 0 a local hunter calls hunter_use_item_spawn_by_id_and_consume; when motion part 0's flag bit clears, resets to base state 0,8."
+confidence = "confirmed"
+evidence = "Whole body read; state number from hunter_state_group0_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09A9D860"
+name = "hunter_state_0_16_motion_1a_until_vector_short"
+purpose = "Group 0 state 0x16: sets motion 0x1A; on step 1 resets to base 0,8 once hunter_enter_state_16_if_vector_3e0_long_unless_monster_37 answers 0."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9DAD0"
+name = "hunter_state_0_19_motion_7_then_state_18"
+purpose = "Group 0 state 0x19: motion 7, doubled by hunter_skill_c2_double_motion_speed; at its end a local hunter goes to 0,0x18, a remote one plays motion 8."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9E0E0"
+name = "hunter_state_0_1e_motion_12_snap_to_floor_ahead"
+purpose = "Group 0 state 0x1E: motion 0x12 from frame 0x58; on entry takes a point 55 units ahead by the rotation matrix, moves to the floor height there if there is one; push_off_ticks 2 each tick."
+confidence = "inferred"
+evidence = "First 40 lines of the view read."
+
+[[function]]
+module = "game_task"
+address = "09A9EAE8"
+name = "hunter_state_0_21_stamina_refill_150_ticks"
+purpose = "Group 0 state 0x21: adds 4 stamina each tick; motion 5 for 150 ticks, then motion 6, and at its end stamina to maximum and base 0,6."
+confidence = "confirmed"
+evidence = "Whole body read. Which item or action enters it isn't read."
+
+[[function]]
+module = "game_task"
+address = "09A9ECB0"
+name = "hunter_state_0_27_hold_motion_22_or_23_shoulder_input"
+purpose = "Group 0 state 0x27: sets flag 0x20000 and motion 0x22 or 0x23 from a frame by how far the current one is; each tick push_off_ticks 2 and hunter_input_shoulder_buttons_to_state."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9F1F8"
+name = "hunter_state_0_2a_motion_24_then_base"
+purpose = "Group 0 state 0x2A: motion 0x24 updating the rotation matrix, base 0,6 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9F2A8"
+name = "hunter_state_0_2b_detach_motion_22_until_frame_90"
+purpose = "Group 0 state 0x2B: clears attached_part_mode, calls 09AA9DB0, motion 0x22; at frame 90 goes to 0,0x27."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9F458"
+name = "hunter_state_0_2e_motion_195_19a_then_state_2f"
+purpose = "Group 0 state 0x2E: motion 0x195 to frame 130, motion 0x19A to frame 60, then a local hunter goes to 0,0x2F; a remote one waits for the motion's end, then base 0,0xA."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A9F5B0"
+name = "hunter_state_0_2f_motion_195_while_world_slot_active"
+purpose = "Group 0 state 0x2F: goes by the +0x5EC counter and whether g_game's player record of item_give_world_slot is active, using_item_id 0x4EC counting faster on a flag at game +0xF7A57C; then motion 0x195 from frame 0xCE."
+confidence = "inferred"
+evidence = "First 40 of 100 view lines read."
+
+[[function]]
+module = "game_task"
+address = "09A9FCC0"
+name = "hunter_state_0_33_clear_ailments_motion_1aa"
+purpose = "Group 0 state 0x33: on entry zeroes buildup_mash_status, mash_status_left, item_restrict_ticks, buildup_state_2_13, defense_halved_ticks, stamina_debuff_ticks and the 0x388 timer; motion 0x1AA, then 0,0x34."
+confidence = "confirmed"
+evidence = "Whole body read. What the game calls it isn't known."
+
+[[function]]
+module = "game_task"
+address = "09A9FDC0"
+name = "hunter_state_0_34_motion_1ab_120_ticks_random_1ac"
+purpose = "Group 0 state 0x34: motion 0x1AB with an effect at a bone, 120 ticks, 1 in 128 per tick plays motion 0x1AC; a local hunter then goes to 0,0x35."
+confidence = "inferred"
+evidence = "First 40 lines of the view read."
+
+[[function]]
+module = "game_task"
+address = "09A9FFC8"
+name = "hunter_state_0_35_turn_around_motion_1ad"
+purpose = "Group 0 state 0x35: facing + 0x8000, motion 0x1AD, base 0,6 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA04B0"
+name = "hunter_state_0_37_motion_d3_d4_camera_shake_spawn"
+purpose = "Group 0 state 0x37: motion 0xD3 with camera shake 5 and owned_obj_spawn_089bd7c4_one_or_two_setup_9b89418(1), then at its end motion 0xD4, then base 0,4."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA05C8"
+name = "hunter_state_0_39_motion_9_then_base"
+purpose = "Group 0 state 0x39: motion 9 once, base 0,4 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA0700"
+name = "hunter_state_0_3b_motion_a_wait_button_or_ground_pick"
+purpose = "Group 0 state 0x3B: motion 0xA with flag 0x1000; each tick a local hunter goes to 0,0x2D if button 0x4000 is pressed with stamina 75 or more, otherwise hunter_pick_state_by_quest_state_ground_forces."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA0828"
+name = "hunter_state_0_3c_motion_8_12_ticks_then_state_1d"
+purpose = "Group 0 state 0x3C: motion 8 after flags 0x8001, after 12 ticks goes to 0,0x1D by vtable +0x6C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA0900"
+name = "hunter_state_0_3d_motion_25_wait_button_or_ground_pick"
+purpose = "Group 0 state 0x3D: as 0x3B with motion 0x25 and flag 0x2000000."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA0A18"
+name = "hunter_state_0_3e_motion_29_then_base"
+purpose = "Group 0 state 0x3E: motion 0x29, base 0,8 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA0B80"
+name = "hunter_state_0_44_motion_2f_rise_100_air_then_land_motion_30"
+purpose = "Group 0 state 0x44: hit_immune_ticks 3; at a motion's end plays 0x2F, raises place Y by 100 and adds velocity through the rotation matrix; air_step until falling at floor_y, then motion 0x30 with a camera shake."
+confidence = "inferred"
+evidence = "First 34 view lines read, the rest not."
+
+[[function]]
+module = "game_task"
+address = "09AA0328"
+name = "hunter_state_0_48_use_item_369_every_60_ticks"
+purpose = "Group 0 state 0x48: motion 0x19E from frame 0x42, takes one item 0x369 from the pouch and spawns owned_obj(0), then for a local hunter after 60 ticks goes to 0,0x7A if any remain, otherwise base 0,6."
+confidence = "confirmed"
+evidence = "Whole body read. What item 0x369 is isn't read."
+
+[[function]]
+module = "game_task"
+address = "09AA19F0"
+name = "hunter_state_0_4c_motion_320_then_state_55"
+purpose = "Group 0 state 0x4C: motion 0x320, keeps ui token, EBOOT 088131B8(g_camera, self), and within 16 frames of the end calls sound_state_duck_slot_0 once; at its end goes to 0,0x55."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA1C20"
+name = "hunter_state_0_motion_324_or_326_input_loop"
+purpose = "Group 0 state with an argument: motion 0x324 if the argument is 0, else 0x326, flag 0x80000; each tick runs 09AAADC0 with ticks_5f0 latched into state_scratch_b."
+confidence = "inferred"
+evidence = "Whole body read; which state numbers pass which argument not checked."
+
+[[function]]
+module = "game_task"
+address = "09AA1D50"
+name = "hunter_state_0_4f_motion_325_game_sub_9c92470_at_frame_104"
+purpose = "Group 0 state 0x4F: motion 0x325; at frame 104 calls game_sub 09C92470(self, using_item_id == 0x8B); at its end goes to 0,0x50."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA1EA0"
+name = "hunter_state_0_53_motion_328_d8_sets_gamedata_bit_8"
+purpose = "Group 0 state 0x53: hit immune; several steps of motions (0x328, then 0xD8 from frame 0x24); step 1 walks a table of up to 0x14 entries; at the last motion's end, base 0,4 and gamedata_bitflag_508_set(8)."
+confidence = "inferred"
+evidence = "First 34 view lines of 138 and the ends read."
+
+[[function]]
+module = "game_task"
+address = "09AA2590"
+name = "hunter_state_0_55_motion_323_loop"
+purpose = "Group 0 state 0x55: motion 0x323 from a random frame under 0x40; for a local hunter unless mode byte 2E allows index 1, plays sound 0x18E9 on slot 1; goes on by counter +0x698."
+confidence = "inferred"
+evidence = "First 30 view lines of 178 read: long function, only its entry understood."
+
+[[function]]
+module = "game_task"
+address = "09AA2CC0"
+name = "hunter_state_0_56_motion_19f_call_quest_8872aac"
+purpose = "Group 0 state 0x56: motion 0x19F and EBOOT 08872AAC(g_quest, self), base 0,6 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA3328"
+name = "hunter_state_0_59_motion_199_until_frame_20"
+purpose = "Group 0 state 0x59: motion 0x199 doubled by hunter_skill_c2_double_motion_speed; at frame 20 a local hunter goes to 0,0x14, a remote one plays motion 8."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA3460"
+name = "hunter_state_0_5b_hit_immune_motion_1_repeat_count_to_7"
+purpose = "Group 0 state 0x5B: hit_immune_ticks 3, motion 1, menu_camera_lock_ticks 60; repeat_use_count rises to 7, or jumps there at more than 3 uses on a 1 in 2 unless list byte 0xE is held, and sets 10F4 to 0x9000 if not positive."
+confidence = "inferred"
+evidence = "Most of the body read."
+
+[[function]]
+module = "game_task"
+address = "09AA3AB0"
+name = "hunter_state_0_61_motion_19d_use_item_by_amount"
+purpose = "Group 0 state 0x61: motion 0x19D, with active skill 0x26 jumping to frame 0xEE at frame 98; at frame 260 unless mode byte 2E allows index 1, takes one using_item_id from the pouch; amount 100 for item 0x363, 150 for 0xE5 and 0x99, halved with active skill 0x27."
+confidence = "inferred"
+evidence = "First 34 view lines read; what the amount goes to isn't."
+
+[[function]]
+module = "game_task"
+address = "09AA3E00"
+name = "hunter_state_0_67_motion_3c_wait_button_or_give_finished"
+purpose = "Group 0 state 0x67: motion 0x3C; a local hunter goes to 0,0x69 on button 0x2000 or item_give_finished."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA3F18"
+name = "hunter_state_0_68_motion_1_wait_world_slot_or_give_finished"
+purpose = "Group 0 state 0x68: motion 1, counts +0x5EC up to 0x708 ticks while the player record of item_give_world_slot is active and item_give_finished is 0."
+confidence = "inferred"
+evidence = "First 34 view lines read."
+
+[[function]]
+module = "game_task"
+address = "09AA4090"
+name = "hunter_state_0_69_motion_3d_then_base"
+purpose = "Group 0 state 0x69: motion 0x3D, base 0,6 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA4180"
+name = "hunter_state_0_6a_motion_280_then_base"
+purpose = "Group 0 state 0x6A: motion 0x280, base 0,6 at its end."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA48E8"
+name = "hunter_state_0_6f_motion_1b0_until_frame_78_then_70"
+purpose = "Group 0 state 0x6F: motion 0x1B0 doubled by hunter_skill_c2_double_motion_speed; at frame 78 a local hunter goes to 0,0x70, a remote one holds frame 0x4E."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA49F0"
+name = "hunter_state_0_70_motion_1b0_use_item_spawn"
+purpose = "Group 0 state 0x70: motion 0x1B0 from frame 0x4E; a local hunter calls hunter_use_item_spawn_9b820f0_by_id_and_consume; base 0,8 at its end; goes to 2,7 if hunter_linked_monster_of_listed_types_has_480."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AA4D00"
+name = "hunter_state_0_7f_wait_1800_ticks_or_world_slot_gone"
+purpose = "Group 0 state 0x7F: hit_immune_ticks 3, motion 1; base 0,2 after 0x708 ticks or when the player record of item_give_world_slot isn't active."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09A98DE8"
+name = "hunter_state_group5_dispatch"
+purpose = "Group 5's state function, by state. Clears misc_flags bit 8 first; its states are the listed-item ones (hunter_state_listed_item_motions and those near it)."
+confidence = "confirmed"
+evidence = "Called with group 5 from hunter_state_dispatch_by_group_298 (hand: hand_hunter_run_state)."
+
+[[function]]
+module = "game_task"
+address = "09A8BCB0"
+name = "hunter_state_group6_dispatch"
+purpose = "Group 6's state function, by state; unlisted states reset to base 0,4. Calls hunter_clear_614_mask_1000_and_564_680 first."
+confidence = "confirmed"
+evidence = "Called with group 6 from hunter_state_dispatch_by_group_298 (hand: hand_hunter_run_state)."
+
+[[function]]
+module = "game_task"
+address = "09BA1FB8"
+name = "weapon0_state_motion_583_spawn_kind_00"
+purpose = "Weapon class 0 state: motion 0x583, owned_obj_spawn_kind_00_hunter(4, 0), base 0,4 at its end."
+confidence = "confirmed"
+evidence = "Whole body read; move_e in readable/weapon0_moves.c."
+
+[[function]]
+module = "game_task"
+address = "09AC3210"
+name = "monster_script_op_92_no_op"
+purpose = "Handler for opcode 0x92: returns the script position unchanged."
+confidence = "confirmed"
+evidence = "Whole body read; op_92 in readable/monster_script.c."
+
+[[function]]
+module = "game_task"
+address = "09AC3428"
+name = "monster_script_header_entry_34"
+purpose = "Returns the first word pointed to by word +0x34 of script_header, or 0 if that word is 0."
+confidence = "confirmed"
+evidence = "Whole body read; one of the entries monster_script_take_pending_entry tries."
+
+[[function]]
+module = "game_task"
+address = "09AC3448"
+name = "monster_script_header_entry_38"
+purpose = "Returns the first word pointed to by word +0x38 of script_header, or 0 if that word is 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AC34C8"
+name = "monster_script_header_entry_20_by_index"
+purpose = "Returns word [index] of the table at word +0x20 of script_header, or 0 if there's no table."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09AD8310"
+name = "monster_subtype_table_word_not_minus_1"
+purpose = "True unless the word for this subtype in the 0x740-byte records at 09BB8BFC is -1."
+confidence = "confirmed"
+evidence = "Whole body read; the view's index is subtype*0x1D0 of words."
+
+[[function]]
+module = "game_task"
+address = "09A636D8"
+name = "stage_set_6c_on_stage_39_or_100"
+purpose = "Sets the word at +0x6C of the object given to 1 when g_game's stage_id is 0x39 or remaps to 0x100 through DAT_09ce5108 and DAT_09ce5320."
+confidence = "confirmed"
+evidence = "Whole body read; readable/hunter_tick.c passes it the stage pointer."
+
+[[function]]
+module = "game_task"
+address = "09A6CB90"
+name = "hunter_received_hit_power_with_skills"
+purpose = "Adjusts received_hit_power by active skills 0x28 to 0x2B (0x29 minus 20, 0x28 minus 10 down to a minimum of 1, 0x2A plus 10 up to 0xFF), other than on weapon class 1."
+confidence = "inferred"
+evidence = "First 32 view lines of 100 read. Caller: hunter_process_received_hit."
+
+[[function]]
+module = "game_task"
+address = "09A6EB30"
+name = "hunter_draw_at_bone_e_on_screen"
+purpose = "Takes a point 1000 units along hunter bone 0xE's Z axis, to the screen by camera_world_to_screen, and if in front draws 2D on list 9."
+confidence = "inferred"
+evidence = "Most of the body read; what it draws isn't."
+
+[[function]]
+module = "game_task"
+address = "09A6EC50"
+name = "hunter_matrix_from_angles_1f4_680"
+purpose = "Starts from identity and the angles at +0x1F4 and +0x680, to sines and cosines, building a rotation matrix."
+confidence = "inferred"
+evidence = "First 30 view lines read of 72."
+
+[[function]]
+module = "game_task"
+address = "09A8BB20"
+name = "hunter_is_local_and_action_allowed"
+purpose = "False if flags bit 4 is set or the hunter isn't local; true if misc_flags bit 8 is clear; for weapon classes 1 and 5, false in group 0 state 4 or 0x17 or for motions 0x58E, 0x58F."
+confidence = "inferred"
+evidence = "Most of the body read. Called from hunter_state_run."
+
+[[function]]
+module = "game_task"
+address = "09A8BBE0"
+name = "hunter_item_selector_button_active"
+purpose = "With option_item_selector_mode 1: tests button state 0x200 against +0x11B0 under 10 and flag 0x2000 of +0x111C (consuming it), or else +0x614 bit 0x1000; with another mode, button +0x484 bit 0x200."
+confidence = "inferred"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BA6590"
+name = "hunter_weapon_set_flag_800_state_1_8"
+purpose = "Sets quest_flags bit 0x800, hunter_clear_111c_mask_1000_set_1114_to_one, and goes to state 1,8 how 4 by vtable +0x6C."
+confidence = "confirmed"
+evidence = "Whole body read; called from hunter_common_input_handler."
+
+[[function]]
+module = "game_task"
+address = "09BA7E98"
+name = "hunter_weapon_clear_flag_20_set_800_state_1_8"
+purpose = "As 09BA6590, also clearing quest_flags bit 0x20."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BA8818"
+name = "weapon4_state_motion_588_spawn_then_2_c"
+purpose = "Weapon class 4 state: motion 0x588, owned_obj_spawn_kind_00_hunter(0x18, 0); at its end goes to 2,0xC; hunter_handle_field_33d_once_by_byte_397(5) each tick until then."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BA8BC0"
+name = "weapon4_state_motion_580_button_window_14_50"
+purpose = "Weapon class 4 state: motion 0x580 with a camera shake; between frames 14 and 50 marks button_action 1 to 3 in state_scratch_a."
+confidence = "inferred"
+evidence = "First 32 view lines read."
+
+[[function]]
+module = "game_task"
+address = "09BAE028"
+name = "hunter_weapon_set_flag_800_state_1_13"
+purpose = "Sets quest_flags bit 0x800, hunter_clear_111c_mask_1000_set_1114_to_one, and goes to state 1,0x13 how 4 by vtable +0x6C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BB0830"
+name = "hunter_weapon_set_flag_800_state_1_19"
+purpose = "Sets quest_flags bit 0x800, hunter_clear_111c_mask_1000_set_1114_to_one, and goes to state 1,0x19 how 4."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BB0FE0"
+name = "hunter_weapon_kind_from_09bb0f30_or_group1_list"
+purpose = "Returns 09BB0F30's result if nonzero; otherwise 3 in group 1 states 0xF, 0x10, 0x11, 0x12, 0x17, 0x1C to 0x22, else 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BB4DC0"
+name = "hunter_weapon_set_flag_800_state_1_14"
+purpose = "Sets quest_flags bit 0x800, hunter_clear_111c_mask_1000_set_1114_to_one, and goes to state 1,0x14 how 4 by vtable +0x6C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09BB6AE0"
+name = "hunter_weapon_state_1_14_set_flag_8"
+purpose = "Goes to state 1,0x14 how 5 and sets quest_flags bit 8."
+confidence = "confirmed"
+evidence = "Whole body read."
+

@@ -1,0 +1,8 @@
+[[function]]
+module = "game_sub"
+address = "09C44F70"
+name = "hit_record_use_up_one"
+purpose = "Takes one from the low 4 bits of byte +0x2E of a hit record; if the high 4 bits are nonzero, puts them in +0x1C, sets +0x14 to 1 and takes a new serial for +0x1A."
+confidence = "confirmed"
+evidence = "Whole body read; called use_up_record in readable/hit_damage.c."
+
