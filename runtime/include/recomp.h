@@ -68,6 +68,10 @@ void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    
 void rt_trace_call(Ctx *c, uint32_t fn);   /* a call of fn (recomp.py's RECOMP_TRACE): logged with MHFU_CALL_LOG */
 extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
 extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
+int rt_view_test(Ctx *c);       /* (shadow_extras.c: those drawn, apart from the game) */
+void rt_queues_cleared(void);
+void rt_render_pass_begin(void);
+void rt_shadow_extras(Ctx *c);
 void rt_menu_list(uint32_t layout, uint32_t row);   /* a list window drawn, its cursor's bar on row (menu.c) */
 void rt_menu_bar(uint32_t x, uint32_t y, uint32_t w, uint32_t h);   /* a menu cursor's bar drawn (menu.c) */
 void rt_menu_item(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int selected, uint32_t cursor);  /* a list's item drawn

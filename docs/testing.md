@@ -12,7 +12,7 @@ the repository: the game's and the player's).
     tools/suite.py --list
 
 It exits 1 if anything failed or changed, and writes `tests/data/runs/<date>/report.md` (and `report.json`). A full
-run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer the game is played on: `--renderer soft` has baselines of its own and takes about 33. RAM differs between them, as shadows draw models just out of view (`rt_cull_margin`), which draws from the game's random numbers: compare only within one renderer and shadow setting.
+run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer the game is played on: `--renderer soft` has baselines of its own and takes about 33. RAM is the same on both, and with shadows on or off: what shadows draw just out of view (`rt_cull_margin`) is drawn apart from the game, nothing of it left in its memory (`runtime/src/shadow_extras.c`).
 
 ## Checks
 

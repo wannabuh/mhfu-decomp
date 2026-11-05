@@ -43,10 +43,19 @@ static HleFunc *lookup(uint32_t stub) {
     return NULL;
 }
 
+extern int rt_shadow_extras_running;
+
 void hle_call(Ctx *c, uint32_t stub) {
     HleFunc *f = lookup(stub);
     if (!f)
         rt_fatal(c, "call to %08X: not an import stub", stub);
+    if (rt_shadow_extras_running) {     /* (the game's code run apart from it, shadow_extras.c: nothing of the kernel) */
+        static int warned;
+        if (!warned++)
+            fprintf(stderr, "shadow extras: %s called (none has been seen: returned 0)\n", f->name);
+        RET(0);
+        return;
+    }
     if (!hle_enabled)
         rt_fatal(c, "import %s (%s %08X): no HLE here", f->name, f->library, f->nid);
     if (hle_trace)

@@ -233,6 +233,7 @@ int camera_game(float *inv, float *target);
 void camera_invert(const float *v, float *out);
 void render_shadow_frame(const float *light_vp, int on);
 void render_prim_world(int on);
+void render_shadow_only(int on);
 void render_prim_view(const float *screen_from_view, const float *world_from_view);
 void camera_invert(const float *v, float *out);
 void render_prim_lights(int n, const float *dirs, const float *colors, int sun);
@@ -799,7 +800,7 @@ static void to_screen(const ClipVertex *c, int through, Vertex *s) {
  * and its vertices after the vertex stage, written into the queue as they are made - and the render thread does it:
  * the clipping, the renderer's batches and textures (as the registers given have them: its own copy), Vulkan. Off
  * (MHFU_RENDER_THREAD=0, or the software renderer), each is done at once, as before. */
-enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW, Q_TL, Q_TL_STORE, Q_TL_SLOT };
+enum { Q_BEGIN, Q_WORLD, Q_VIEW, Q_LIGHTS, Q_SHADOW_FRAME, Q_TIME, Q_OVERRIDE, Q_CLUT, Q_DRAW, Q_TL, Q_TL_STORE, Q_TL_SLOT, Q_SHADOW_ONLY };
 typedef struct { uint32_t kind, a, b, c; } QHead;   /* (16 bytes: what follows stays aligned) */
 
 static void gpu_run_command(const void *cmd, size_t n);
@@ -1041,6 +1042,9 @@ static void gpu_run_command(const void *cmd, size_t n) {
         break;
     case Q_WORLD:
         render_prim_world((int)h->a);
+        break;
+    case Q_SHADOW_ONLY:
+        render_shadow_only((int)h->a);
         break;
     case Q_VIEW:
         render_prim_view(p, (const float *)p + 16);
@@ -4123,6 +4127,59 @@ static void transfer(uint32_t data) {
     for (int y = 0; y < h; y++)
         memmove(MEM(dst + (uint32_t)(((dy + y) * (int)dw + dx) * bpp)),
                 MEM(src + (uint32_t)(((sy + y) * (int)sw + sx) * bpp)), (size_t)(w * bpp));
+}
+
+/* shadow_extras.c: the GE's state put aside over what is drawn on the side (the renderer is given each draw's whole) */
+static struct {
+    uint32_t reg[256], vaddr, iaddr, clut[256];
+    float world[12], view[12], proj[16], bones[8][12];
+    int world_i, view_i, proj_i, bone_i;
+} aside;
+
+static void q_shadow_only(int on) {
+    if (!render_on)
+        return;
+    if (!queued()) {
+        render_shadow_only(on);
+        return;
+    }
+    q_cmd(Q_SHADOW_ONLY, (uint32_t)on, 0, 0, 0);
+    render_queue_commit();
+}
+
+void gpu_state_put_aside(void) {
+    q_shadow_only(1);
+    memcpy(aside.reg, reg, sizeof reg);
+    aside.vaddr = vaddr;
+    aside.iaddr = iaddr;
+    memcpy(aside.clut, clut, sizeof clut);
+    memcpy(aside.world, world, sizeof world);
+    memcpy(aside.view, view, sizeof view);
+    memcpy(aside.proj, proj, sizeof proj);
+    memcpy(aside.bones, bones, sizeof bones);
+    aside.world_i = world_i;
+    aside.view_i = view_i;
+    aside.proj_i = proj_i;
+    aside.bone_i = bone_i;
+}
+
+void gpu_state_put_back(void) {
+    q_shadow_only(0);
+    memcpy(reg, aside.reg, sizeof reg);
+    vaddr = aside.vaddr;
+    iaddr = aside.iaddr;
+    memcpy(clut, aside.clut, sizeof clut);
+    memcpy(world, aside.world, sizeof world);
+    memcpy(view, aside.view, sizeof view);
+    memcpy(proj, aside.proj, sizeof proj);
+    memcpy(bones, aside.bones, sizeof bones);
+    world_i = aside.world_i;
+    view_i = aside.view_i;
+    proj_i = aside.proj_i;
+    bone_i = aside.bone_i;
+    if (texpack_active())               /* (the renderer's own note of the last palette) */
+        q_clut((reg[0xB0] & 0xFFFFF0) | ((reg[0xB1] & 0x0F0000) << 8),
+               (reg[0xC4] & 0x7F) == 0x40 ? 0x40 * 32 : (reg[0xC4] & 0x3F) * 32);
 }
 
 /* One command of a display list; addr is its data as an address (BASE and OFFSET applied) */

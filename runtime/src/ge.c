@@ -16,6 +16,7 @@ typedef struct {
     uint32_t base, offset;
     uint32_t stack[32];
     int depth;
+    int alone;                      /* a chunk run by itself (ge_run_chunk): no callbacks, no gated chunks */
     int chunk[11];                  /* each call's: the gated chunk it was made from (native.c), or -1 */
 } GeList;
 
@@ -81,7 +82,7 @@ static void run_list_on(GeList *l) {
         gpu_cmd_at = at;
         l->pc += 4;
         /* drawn by gated code at a 30th (its draws kept for the frames between: native.c), or a chunk's in its place */
-        int chunk = native_chunk_at(at);
+        int chunk = l->alone ? -1 : native_chunk_at(at);
         if (chunk < 0 && l->depth >= 3)
             chunk = l->chunk[l->depth / 3 - 1];
         gpu_held_chunk(chunk);
@@ -114,12 +115,13 @@ static void run_list_on(GeList *l) {
             l->active = 0;
             break;
         case 0x0E:                                  /* SIGNAL (followed by END) */
-            if ((data >> 16) <= 3)
+            if ((data >> 16) <= 3 && !l->alone)
                 callback(l, 0, data & 0xFFFF);
             l->pc += 4;
             break;
         case 0x0F:                                  /* FINISH (followed by END) */
-            callback(l, 1, data & 0xFFFF);
+            if (!l->alone)
+                callback(l, 1, data & 0xFFFF);
             break;
         case 0x10:                                  /* BASE */
             l->base = (data << 8) & 0x0F000000u;
@@ -135,6 +137,16 @@ static void run_list_on(GeList *l) {
         }
         gpu_command(cmd, relative(l, data));
     }
+}
+
+/* shadow_extras.c: the commands from start up to end, as if linked into the frame's list (its link sets the base) */
+void ge_run_chunk(uint32_t start, uint32_t end) {
+    GeList l = {0};
+    l.used = l.active = l.alone = 1;
+    l.pc = start;
+    l.stall = end;
+    l.base = start & 0x0F000000u;
+    run_list_on(&l);
 }
 
 void ge_process(void) {

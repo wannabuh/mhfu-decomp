@@ -118,6 +118,10 @@ static int prim_world;
 static int blob_shadows, blob_prim;
 
 static Target *rendering;            /* the target being rendered into, or NULL */
+/* What is drawn next goes only to the shadow maps, and to what the frame's lights, grass and feet are made from, not the
+ * picture - nor its order, which the effects go by (occlusion, post-processing, water): what is out of view, drawn
+ * before the frame's own (shadow_extras.c) */
+static int shadow_only;
 static DrawState cur;                /* the current primitive's state */
 static DrawState last;               /* the last draw's, as set in the command buffer */
 static int last_valid;
@@ -542,7 +546,7 @@ void end_rendering(void) {
 }
 
 void begin_rendering(Target *t) {
-    if (rendering == t)
+    if (rendering == t || shadow_only)
         return;
     end_rendering();
     vk_transition(&t->color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -840,8 +844,9 @@ void render_prim_begin(const uint32_t *reg) {
     s.scissor = (VkRect2D){{(int32_t)scaled(sx0), (int32_t)scaled(sy0)}, {scaled(sx1) - scaled(sx0), scaled(sy1) - scaled(sy0)}};
     /* the solid world drawn, then what is not: its occlusion (and the grass), then post-processing; its fog and depth
      * test noted (the grass's) */
-    int solid = (s.flags & DRAW_WORLD) && s.depth_write;
-    ao_state(s.target, solid, clear);
+    int solid = (s.flags & DRAW_WORLD) && s.depth_write && !shadow_only;
+    if (!shadow_only)
+        ao_state(s.target, solid, clear);
     if (solid) {
         scene.depth_op = s.depth_op;
         uint32_t fe = reg[0xCD] << 8, fs = reg[0xCE] << 8;
@@ -850,8 +855,9 @@ void render_prim_begin(const uint32_t *reg) {
         scene.fog[2] = (s.flags & DRAW_FOG) ? 1.0f : 0.0f;
         scene.fog_color = s.fog_color;
     }
-    post_state(s.target, s.flags, solid, clear);
-    if (!clear && water_prim(reg, &s))
+    if (!shadow_only)
+        post_state(s.target, s.flags, solid, clear);
+    if (!clear && !shadow_only && water_prim(reg, &s))
         s.flags |= DRAW_WATER;
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
@@ -871,6 +877,12 @@ void render_prim_begin(const uint32_t *reg) {
                 (reg[0xC3] & 0xF) == 5 && (reg[0xB8] & 0xF0F) == 0x707;
 }
 
+/* gpu.c: what comes next is for the shadow maps only, or no longer */
+void render_shadow_only(int on) {
+    flush();
+    shadow_only = on;
+}
+
 /* gpu.c: the next primitive's vertices have their place in the world (shadows fall on it, and it casts them) */
 void render_prim_world(int on) {
     prim_world = on;
@@ -880,6 +892,21 @@ static uint32_t tl_wind(void);
 
 /* A batch of the GPU's vertex stage drawn: each segment a draw, its record the instance */
 static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
+    if (shadow_only) {                  /* (the same push constants as below, for the shadows' vertex stage) */
+        pc->camera = ~0u;
+        if (shaded(s)) {
+            pc->flags |= DRAW_SHADED | DRAW_FACES | (relief_on && s->tex_slot < MAX_TEXTURES ? DRAW_RELIEF : 0u);
+        } else if (swaying(s)) {
+            pc->flags |= DRAW_SWAY;
+            pc->camera = tl_wind();
+        }
+        if (tl_nfeet)
+            scene_lit_batch(tl_nfeet);
+        tl_nfeet = 0;
+        shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
+        tl_nseg = 0;
+        return;
+    }
     if (bound_pipeline != tl_pipeline) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, tl_pipeline);
         bound_pipeline = tl_pipeline;
@@ -923,7 +950,7 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
 /* Draw what has been batched with the current state */
 void flush(void) {
     VkDeviceSize n = (vertex_used - batch_start) / sizeof(GpuVertex);
-    if ((!n && !tl_nseg) || !rendering) {
+    if ((!n && !tl_nseg) || (!rendering && !shadow_only)) {
         shadow_skip();
         tl_nseg = 0;
         tl_nfeet = 0;
@@ -939,6 +966,8 @@ void flush(void) {
         scene_lit_batch((size_t)n);
     VkCommandBuffer cmd = vk_cmd();
     DrawState *s = &cur;
+    if (shadow_only)
+        goto state_set;
     if (!last_valid || memcmp(&s->scissor, &last.scissor, sizeof s->scissor))
         vkCmdSetScissor(cmd, 0, 1, &s->scissor);
     if (!last_valid || s->depth_test != last.depth_test)
@@ -959,6 +988,7 @@ void flush(void) {
         vkCmdSetCullMode(cmd, s->cull);
     if (!last_valid || s->front != last.front)
         vkCmdSetFrontFace(cmd, s->front);
+state_set:;
     DrawPush pc = {{s->tex_w ? s->tex_w : 1, s->tex_h ? s->tex_h : 1}, s->tex_slot,
         shadow_on ? s->flags : s->flags & ~(DRAW_WORLD | DRAW_LIT_GE), s->alpha_test, s->env_color, s->fog_color, s->lights, {0},
         point_lights_on > 0 && (s->flags & DRAW_WORLD) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
@@ -966,8 +996,17 @@ void flush(void) {
     memcpy(pc.light, scene.sun_vp, sizeof pc.light);
     if (tl_nseg) {                      /* the GPU's vertex stage: its segments (none of the effects' work yet) */
         flush_tl(cmd, s, &pc);
-        last = *s;
-        last_valid = 1;
+        if (!shadow_only) {
+            last = *s;
+            last_valid = 1;
+        }
+        return;
+    }
+    if (shadow_only) {
+        if (tess_pipeline && (s->flags & DRAW_LIT_PIXEL))
+            memcpy((uint8_t *)vertices.map + batch_start, shading_kept(), (size_t)n * sizeof(GpuVertex));
+        shadow_draw(s, pc, (uint32_t)(batch_start / sizeof(GpuVertex)), (uint32_t)n);
+        batch_start = vertex_used;
         return;
     }
     /* lit by the pixel, opaque: also drawn tessellated (rounder), over itself drawn flat - which shows through any

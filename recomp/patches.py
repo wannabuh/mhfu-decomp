@@ -145,9 +145,11 @@ NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x0
 CAMERA = "the hunt's camera: its own turns away from the scenery, left out while the mouse has the camera"
 
 # The test of a model's sphere against the camera's view (EBOOT 088160F0: a0 the scene, a1 the centre, f12 the radius;
-# 1 if it is to be drawn): what is drawn casts the renderer's shadows, so with them a model is drawn when within
-# rt_cull_margin (units) of the view - the shadows of what is just out of view do not come and go as the camera turns.
-CULL = "the view test of a model's sphere: the sphere larger by rt_cull_margin (the shadows of what is just out of view)"
+# 1 if it is to be drawn): what is drawn casts the renderer's shadows, so that the shadows of what is just out of view
+# do not come and go as the camera turns, what is within rt_cull_margin (units) of the view is drawn too - apart from the
+# game, nothing of it left in its memory (runtime/src/shadow_extras.c): noted here; the render queues' being emptied and
+# the render pass tell for which frames; drawn just before the frame's list runs.
+CULL = "the view test of a model's sphere: what the shadows want just out of view noted (shadow_extras.c)"
 
 # The game's list windows (the menus, shops, quest lists...) are drawn by EBOOT 0882F580 (a0 the drawer, a1 the
 # window's layout, a2 its title, a3 the row the cursor's bar is on, below 0 none): noted for the mouse (menu.c)
@@ -372,5 +374,8 @@ PATCHES = {
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
-    ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
+    ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "if (rt_view_test(c)) return; c->r[2] = LBU((c->r[4] + 0xAAAu));", CULL),
+    ("EBOOT", 0x0884BB00): ("lui $a2, 0x894", "rt_queues_cleared(); c->r[6] = 0x8940000u;", CULL),
+    ("EBOOT", 0x0884BB58): ("addiu $sp, $sp, -0x70", "rt_render_pass_begin(); c->r[29] = c->r[29] + 0xFFFFFF90u;", CULL),
+    ("EBOOT", 0x08859728): ("lui $v0, 0x8A6", "rt_shadow_extras(c); c->r[2] = 0x8A60000u;", CULL),
 }
