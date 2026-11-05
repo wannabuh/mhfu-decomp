@@ -6,22 +6,9 @@
  * so that's where a move's timing can be changed. What the game calls each move isn't known from this code: only motion numbers.
  *
  * Each thing called may change what's read next, so fields are read where the original reads them. */
-#include "hit.h"
-#include "names.h"
+#include "weapon_moves.h"
 
 /* Named here by address as function names may change: */
-#define set_motion f_EBOOT_088D5C74
-#define frame_reached f_EBOOT_08864408
-#define frame_just_reached f_EBOOT_08864348
-#define reset_to_base f_game_task_09A678F8
-#define set_movement_and_flags f_game_task_09A6F5C0
-#define attack_begins f_game_task_09B62F48
-#define state_flags_reset_motion f_EBOOT_08865CEC
-#define camera_shake f_EBOOT_08812F90
-#define can_chain f_game_task_09A8B058
-#define before_chain f_game_task_09A8B100
-#define clear_chain_flags f_game_task_09A8BC90
-#define stick_says f_game_task_09A8B790
 #define chain_kind f_game_task_09BA2E28
 #define chain_to_state f_game_task_09BA2E68
 #define connected_reaction f_game_task_09BA32E8
@@ -34,7 +21,6 @@
 #define charged_release f_game_task_09BA2608
 #define tier_applied f_game_task_09BA3200
 #define charge_tier_of f_EBOOT_088D1BA8
-#define set_state_noted f_game_task_09A67878
 #define active_skill f_EBOOT_088D6A1C
 
 /* In game_sub, not resident at link time: called as the game does */
@@ -42,16 +28,8 @@
 #define IMPACT_EFFECT 0x09C572D0u
 #define HUNTER_EFFECT 0x09CB1D58u
 
-#define HIT_LISTS_POINTER 0x09C190D0u
-#define CAMERA_POINTER 0x089CBD04u
-#define VSLOT_SET_STATE 0x6C
 
-#define MOTION_PART0 0x80u      /* offset in the hunter of what frames are asked of */
 #define HUNTER_FLAG_ATTACKING 0x800
-#define MISC_FLAG_WEAPON_OUT 8
-#define QUEST_FLAG_1000 0x1000
-#define QUEST_FLAG_800 0x800
-#define REACTION_BLOCK_TICKS 60
 #define AFTER_CONNECTED_SOUND 0x1C
 #define WEAK_CONNECT_SOUND 0xF
 #define IMPACT_Y 15.0f
@@ -59,49 +37,15 @@
 
 enum { CAMERA_SHAKE = 0, CAMERA_SHAKE_LONG = 1, CAMERA_SHAKE_OTHER = 2 };
 
-static uint32_t set_state(Ctx *c, Hunter *self, uint32_t group, uint32_t state, uint32_t how) {
-    return call_method3(c, GAME_ADDR(self), VSLOT_SET_STATE, group, state, how);
-}
-
-static void motion(Ctx *c, Hunter *self, uint32_t id, uint32_t blend, uint32_t start_frame) {
-    call4(c, set_motion, GAME_ADDR(self), id, blend, start_frame);
-}
-
-static void attack(Ctx *c, Hunter *self, uint32_t which) {
-    call4(c, attack_begins, LW(HIT_LISTS_POINTER), GAME_ADDR(self), which, 0);
-}
-
 static void turn(Hunter *self, int32_t by) {
     uint32_t facing = self->facing + (uint32_t)by;
     self->facing = facing & 0xFFFF;
     self->facing_target = (uint16_t)facing;
 }
 
-static void back_to_base(Ctx *c, Hunter *self, uint32_t how) {
-    call4(c, reset_to_base, GAME_ADDR(self), 0, how, 0);
-}
-
-static int motion_ended(const Hunter *self) {
-    return !(self->motion_part0_flags & 1);
-}
-
-static int reached(Ctx *c, Hunter *self, float frame) {
-    c->f[12].f = frame;
-    return (uint8_t)call2(c, frame_reached, GAME_ADDR(self) + MOTION_PART0, 0) != 0;
-}
-
-/* From one frame up to another */
-static int within(Ctx *c, Hunter *self, float from, float to) {
-    return reached(c, self, from) && !reached(c, self, to);
-}
-
 static void chain_in_window(Ctx *c, Hunter *self, float from, float to, uint32_t move) {
     if (within(c, self, from, to))
         call2(c, chain_to_state, GAME_ADDR(self), move);
-}
-
-static void shake(Ctx *c, Hunter *self, uint32_t how) {
-    call3(c, camera_shake, LW(CAMERA_POINTER), how, GAME_ADDR(self));
 }
 
 /* The last steps, the same in most moves */

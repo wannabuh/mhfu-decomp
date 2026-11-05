@@ -147,6 +147,17 @@ static const Case cases[] = {
     {"weapon0_enter_14 09BA31B0", f_game_task_09BA31B0, 0, 0, 0x09BA31B0, NULL, inputs_weapon0, NULL},
     {"weapon0_apply_tier 09BA3200", f_game_task_09BA3200, 0, 0, 0x09BA3200, NULL, inputs_weapon0, NULL},
     {"weapon0_tier 088D1BA8", f_EBOOT_088D1BA8, 1, 0, 0x088D1BA8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_dispatch 09BA7EF0", f_game_task_09BA7EF0, 0, 0, 0x09BA7EF0, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_0579 09BA7FF8", f_game_task_09BA7FF8, 0, 0, 0x09BA7FF8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_057c 09BA8450", f_game_task_09BA8450, 0, 0, 0x09BA8450, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_057d 09BA8700", f_game_task_09BA8700, 0, 0, 0x09BA8700, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_0588 09BA8818", f_game_task_09BA8818, 0, 0, 0x09BA8818, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_057e 09BA88D8", f_game_task_09BA88D8, 0, 0, 0x09BA88D8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_0580 09BA8BC0", f_game_task_09BA8BC0, 0, 0, 0x09BA8BC0, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_pick 09BA8D40", f_game_task_09BA8D40, 0, 0, 0x09BA8D40, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_evade 09BA8E30", f_game_task_09BA8E30, 0, 0, 0x09BA8E30, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon4_enter 09BA8E80", f_game_task_09BA8E80, 0, 0, 0x09BA8E80, NULL, inputs_weapon0, NULL},
+    {"weapon4_0c_gather 09BA8F40", f_game_task_09BA8F40, 0, 0, 0x09BA8F40, NULL, inputs_weapon0, &weapon0_pokes},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -1584,6 +1595,7 @@ static const Bias weapon0_bias[] = {
     {0x09A8B790u, 4, {0, 1, 0x100, 0x101}},
     {0x088D6A1Cu, 4, {0, 1, 0x100, 0x101}},
     {0x088D1BA8u, 5, {0, 1, 2, 3, 0x103}},
+    {0x09A8B650u, 4, {0, 0, 1, 0x100}},
     {0, 0, {0}},
 };
 POKES(weapon0_pokes, weapon0_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x60E, 1, 0}, {0x672, 2, 0}, {0x414, 4, 0}, {0x1124, 4, 0}, {0x1149, 1, 0}, {0x484, 4, 0}, {0x55A, 2, 0}, {0x1D5, 1, 0}, {0x1D6, 1, 0}, {0x1D7, 1, 0}, {0xBC, 2, 0}, {0x33D, 1, 0}, {0x558, 1, 0}, {0x410, 4, 0}, {0x614, 4, 0}, {0x1F4, 4, 0}, {0x1120, 4, 0}, {0x397, 1, 0}, {0x111C, 4, 0}, {0x299, 1, 0},
@@ -1593,8 +1605,9 @@ static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     Hunter *self = (Hunter *)MEM(hunter);
     compare_vfpu = !!record_method;
     self->state = (uint8_t)(rnd() % 0x22);
+    self->selector_input_flags = (uint8_t)rnd();
     self->state_step = (uint8_t)PICK(0, 0, 1, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 0xFF);
-    self->state_scratch_a = (uint8_t)PICK(0, 0, 1, 2);
+    self->state_scratch_a = (uint8_t)PICK(0, 0, 1, 2, 3);
     self->state_scratch_b = (uint8_t)PICK(0, 0, 1, 2);
     self->attack_connected = (uint8_t)PICK(0, 0, 1, 0x80);
     self->motion_part0_flags = (uint16_t)PICK(0, 1, 1, 2, 3, 0x100, 0x101);
