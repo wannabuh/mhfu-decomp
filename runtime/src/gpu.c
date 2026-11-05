@@ -4844,3 +4844,82 @@ void gpu_command(uint32_t cmd, uint32_t addr) {
     default: break;
     }
 }
+
+/* -- a frame's draws to a file (a capture while held: frame-N.txt, N frames newer than the one shown, -N older) ----------
+ * For measuring what can't be told from a picture, such as seams. Lines by their first word:
+ *   F  draws, groups, vertices, triangle indices, whether the groups ran out of room
+ *   D  a draw: number, its group or -1, HUD part, far, primitive type, count, vertex and index addresses, vertex format,
+ *      texture slot, width, height, address
+ *   G  a group of draws sharing state: number, first draw, draws, first index, indices, first vertex, vertices, bones;
+ *      then W its world matrix, B each bone's (12 floats, by columns)
+ *   V  a vertex, its number among the frame's: where the draw's world and bone matrices put it (x y z: good for how far
+ *      apart two vertices are, but not in the same place as objects' +0x200 in a state tried), then as the game gave it: position,
+ *      normal, colour, uv, weights
+ *   T  a group's triangles: group, then three vertex numbers each
+ * Only draws the GPU's vertex stage takes have groups and vertices. As recorded: before the display's interpolation. */
+static void dump_frame(const Frame *f, const char *path) {
+    FILE *o = fopen(path, "w");
+    if (!o)
+        return;
+    fprintf(o, "F %d %d %u %u %d\n", f->n, f->ntlg, f->tl_nv, f->tl_ni, f->tl_full);
+    for (int i = 0; i < f->n; i++) {
+        const Draw *d = &f->draws[i];
+        fprintf(o, "D %d %d %d %d %u %u %08X %08X %06X %X %d %d %08X\n", i, d->group, d->hud, d->far, (d->data >> 16) & 7, d->data & 0xFFFF,
+                d->vaddr, d->iaddr, d->reg[0x12] & 0xFFFFFF, d->tex_slot, d->tex_w, d->tex_h,
+                (d->reg[0xA0] & 0xFFFFF0) | ((d->reg[0xA8] & 0x0F0000) << 8));
+    }
+    for (int g = 0; g < f->ntlg; g++) {
+        const TlGroup *t = &f->tlg[g];
+        const Draw *d = &f->draws[t->first];
+        int nb = draw_bones(d);
+        fprintf(o, "G %d %d %d %u %u %u %u %d\nW", g, t->first, t->n, t->index, t->nindex, t->vertex, t->nvertex, nb);
+        for (int k = 0; k < 12; k++)
+            fprintf(o, " %.5f", (double)d->world[k]);
+        fputc('\n', o);
+        for (int b = 0; b < nb; b++) {
+            fputc('B', o);
+            for (int k = 0; k < 12; k++)
+                fprintf(o, " %.5f", (double)d->bones[b][k]);
+            fputc('\n', o);
+        }
+        for (uint32_t i = t->vertex; i < t->vertex + t->nvertex; i++) {
+            const TlVertex *v = &f->tlv[i];
+            float in[3] = {v->pos[0], v->pos[1], v->pos[2]}, at[3] = {0, 0, 0}, w[3];
+            if (nb) {
+                for (int b = 0; b < nb; b++) {
+                    float p[3];
+                    mul43(d->bones[b], v->pos, p);
+                    for (int k = 0; k < 3; k++)
+                        at[k] += p[k] * v->weights[b];
+                }
+            } else
+                memcpy(at, in, sizeof at);
+            mul43(d->world, at, w);
+            fprintf(o, "V %u %.3f %.3f %.3f  %.5f %.5f %.5f  %.4f %.4f %.4f  %08X  %.5f %.5f ", i, (double)w[0], (double)w[1], (double)w[2],
+                    (double)v->pos[0], (double)v->pos[1], (double)v->pos[2], (double)v->normal[0], (double)v->normal[1], (double)v->normal[2],
+                    v->color, (double)v->uv[0], (double)v->uv[1]);
+            for (int b = 0; b < nb; b++)
+                fprintf(o, " %.4f", (double)v->weights[b]);
+            fputc('\n', o);
+        }
+        for (uint32_t i = 0; i + 2 < t->nindex; i += 3)
+            fprintf(o, "T %d %u %u %u\n", g, f->tli[t->index + i], f->tli[t->index + i + 1], f->tli[t->index + i + 2]);
+    }
+    fclose(o);
+}
+
+/* The frame shown and those either side that there are, into a folder */
+void gpu_dump_frames(const char *folder) {
+    Frame *now = latest, *older = previous;
+    char path[4200];
+    render_queue_sync();
+    snprintf(path, sizeof path, "%s/frame-0.txt", folder);
+    dump_frame(now, path);
+    snprintf(path, sizeof path, "%s/frame--1.txt", folder);
+    if (older->n)
+        dump_frame(older, path);
+    if (view_back) {
+        snprintf(path, sizeof path, "%s/frame-1.txt", folder);
+        dump_frame(frame_back(view_back - 1), path);
+    }
+}

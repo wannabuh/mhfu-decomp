@@ -75,6 +75,8 @@ int inspect_paused(void) {
     return paused;
 }
 
+int inspect_held(void) { return paused; }
+
 void inspect_toggle_pause(void) {
     paused = !paused;
     step_due = 0;

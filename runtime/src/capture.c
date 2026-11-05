@@ -5,6 +5,7 @@
  *   info.txt        when, the build, the settings, where the game is, the hunter, every object
  *   inputs.txt, frame-times.txt, events.txt  the last 10 s
  *   env.txt         MHFU_ environment, for tools/capture.py to run it again
+ *   frame-*.txt     held (F8) only: the draws, vertices and bones of the frame shown and either side (gpu.c dump_frame)
  *
  * It must not change the game. Everything it touches is the host's: rings kept apart from what a state saves, reads of the
  * game's memory, files. On the game's thread it takes the state's copy (as F2 does) and the frame's read back; the files
@@ -13,6 +14,7 @@
  *
  * To load one: MHFU_STATEDIR=<the folder> MHFU_STATE_LOAD=30,1 build/mhfu, or tools/capture.py (docs/runtime.md). */
 #include "capture.h"
+#include "inspect.h"
 #include "objects.h"
 #include "perf.h"
 #include "savestate.h"
@@ -450,6 +452,10 @@ void capture_take_shot(uint32_t addr, const uint32_t *soft_pixels) {
     } else {
         render_shown_size(&k->shot_w, &k->shot_h);
         k->shot = render_readback_present(addr, k->shot_w, k->shot_h);
+    }
+    if (!soft_pixels && inspect_held()) {   /* (held: time doesn't matter, and it's for looking closely) */
+        void gpu_dump_frames(const char *folder);
+        gpu_dump_frames(k->folder);
     }
     FILE *f = open_memstream(&k->info, &k->info_n);
     write_info(f, k, present_frame_number());
