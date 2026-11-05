@@ -256,6 +256,16 @@ PLACED = {
 # to hang from one (09A9D478: 30 back, 195 down)
 NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x09A9D584)}
 
+# The camera's height over slopes (EBOOT 08886E50, view at $s4 - 0xA0): its target's y goes half way to where it is
+# going a game frame, its eye's y an eighth of the way (a quarter over a long drop) - each a fraction of what is left,
+# so f a game frame is 1 - (1 - f)^scale at the time scale, not f * scale: rt_ease, which leaves it as it is at 30. The
+# eye's lift over a drop (0888D1BC's +0xD8, 20 units up or down a game frame) is linear: 20 * scale. The shake's
+# countdown (EBOOT 08814E18: three records, +0xAC0 on while +0xAC2 lasts) counts 30ths. 08812DB8 works the shake out
+# from that count: left to count game frames it ran out and flipped its sign twice as fast
+CAMERA_HEIGHT = "the camera's height: each ease a fraction of what is left a game frame, in game time"
+CAMERA_LIFT = "the camera's lift over a drop: its 20 units a game frame times the time scale"
+CAMERA_SHAKE = "the camera shake's countdown: 1 less a 30th, not a game frame"
+
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
 # clear; the line of sight lost (+0x89), it swings an eighth of the way behind the hunter a frame. With the mouse
@@ -462,6 +472,13 @@ PATCHES = {
     ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
     ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
     ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("EBOOT", 0x08887A10): ("mul.s $f0, $f20, $f0", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, 2.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887BDC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 4.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887D1C): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887EFC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x0888D24C): ("add.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f + c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x0888D280): ("sub.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f - c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x08814E44): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SHAKE),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
