@@ -6,6 +6,13 @@ convert it in. Surveyed 2026-11-05 on `a6ca90e`; no game behaviour changed. `doc
 Each claim is marked **[M]** measured, **[R]** read from code, or **[I]** inferred. Runs are headless, on Vulkan, with `MHFU_FPS=0` unless
 stated. The fights are `tests/data/rec/overnight-fight1.rec` and `-fight2.rec` with the `overnight` saves.
 
+**The target changed while this was being written:** the roadmap now fixes the game at 60 ticks, shown at the display's rate by interpolation. So read this for tick 60 + `fps` 144 (the combined mode): that's the mode that matters, and native 144 figures only show the same faults more plainly.
+
+- Rate bugs count double at 60, not 4.8 times: hit-stop 2.5 30ths against 5, poison twice as fast. Still wrong, and the order below stands.
+- Pad every frame means at 60: a press acted on within about 17 ms, not 33.
+- Combined mode already holds 144 here, with 29-34% idle (section 4). Monsters are shown smoothed to 60, then interpolated to 144.
+- Everything can now count in steps of 2 at a time rather than fractions: a count in 30ths becomes "every second tick", which is simpler for every conversion left.
+
 ## Short version
 
 - Half the code a fight runs still runs at 30ths: 1,047 functions and 101,000 generated lines, against 891 and 119,000 every frame **[M]**.
