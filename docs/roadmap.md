@@ -66,6 +66,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
 | The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
 | The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
+| Consistent smoothness: a steady 144 fps as felt | The main goal. It sometimes feels below 144 while frame times look good | Not started | Measure pacing and motion, not only issue times: see below |
 | The pad, read at 30ths | A press waits up to 33 ms; every tick makes it 17 | Not started | Read it every tick in a hunt. Medium risk |
 | The hunter's 45-unit jump, 0 / 2 / 6 30ths after a draw attack at 30 / 60 / 144 | Possible real rate bug; blocks comparing fights | Not started | Explain it |
 | Inventory of everything that ticks | Conversion goes class by class (`MHFU_NATIVE_VT`): today only the hunter and Popos | Partly done: 107 classes named of 519 vtables; 17 monster overlays, 11 weapon classes | Table: each monster, NPC, weapon class, attack volume, effect and stage object, its class, and how it's tested |
@@ -74,6 +75,8 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
 | Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
+
+**Frame pacing, in order.** (1) Log each frame shown: when it's issued and presented, the game time it shows, and tick boundaries. Add a motion check, `MHFU_MOTION_LOG`'s even-steps measure, in a real window. (2) Reduce the GE's cost per tick, about 192 ms a second at 60 ticks against 69 at 30 in the village: re-walking what only changes at 30ths. (3) Draw display frames off the game's thread, if ticks still collide with frames due, leaving the game's fixed schedule alone. Check present mode, compositor and VRR.
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
 
