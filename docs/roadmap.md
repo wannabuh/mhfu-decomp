@@ -8,7 +8,7 @@ confirmed against the current build.
 
 ## Goals, in order
 
-1. Smoother gameplay: higher tick rate, optimized for 144 fps
+1. Smoother gameplay: a fixed 60 ticks a second, shown at the display's rate (144 fps and up) by interpolation
 2. Graphics: native options, fixes for current artifacts, further enhancements that stay fast
 3. Better PC support: native interface and controls
 4. Modding: tools and workflows for textures, meshes, attacks, particles, monsters, and maybe areas
@@ -20,6 +20,7 @@ confirmed against the current build.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
 - Merge into `native-fps` only at the user's word. "Verified" and "played" are separate states.
+- The game ticks at a fixed 60 (user's decision, 2026-11-05): no 120 or 144 ticks, no variable tick. Display rate comes from interpolation.
 - Prefer branches; a new worktree only when two things must run at once.
 - One set of baselines (user's decision, 2026-11-05): once the shadows fix merges, `tools/suite.py` on Vulkan compares against
   `tests/data/baselines`, the software ones, and `baselines-vulkan` is retired after the merge has settled. Tests still run on Vulkan.
@@ -34,7 +35,7 @@ confirmed against the current build.
 
 ## 1. Smoother gameplay
 
-**Done when:** the game plays at 144 fps with no system visibly running at a lower rate, and no behaviour depends on the frame rate.
+**Done when:** the game plays at 60 ticks shown at 144 fps with no system visibly running at a lower rate, and everything lasts the same real time as at 30.
 
 | Work | Why | Status | Next step |
 |---|---|---|---|
@@ -45,7 +46,7 @@ confirmed against the current build.
 | A way to test each one without playing | Only `em20` has run in a recording | Not started | Force a monster or weapon by quest swap and save edits; compare ticks at 30 and 60 automatically |
 | Monsters at a higher tick | Biggest visible part left *(check)* | Not started | Read how much the script and tick code assume 30ths; hand-written interpreter helps here |
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
-| Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 and 144 |
+| Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
 | Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
