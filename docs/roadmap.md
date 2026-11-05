@@ -21,6 +21,9 @@ confirmed against the current build.
   game's files.
 - Merge into `native-fps` only at the user's word. "Verified" and "played" are separate states.
 - Prefer branches; a new worktree only when two things must run at once.
+- One set of baselines (user's decision, 2026-11-05): once the shadows fix merges, `tools/suite.py` on Vulkan compares against
+  `tests/data/baselines`, the software ones, and `baselines-vulkan` is retired after the merge has settled. Tests still run on Vulkan.
+  The first deliberate RAM change re-blesses them from Vulkan, which ends their independence from the code; say so in that commit.
 
 ## Status words
 
@@ -37,7 +40,9 @@ confirmed against the current build.
 |---|---|---|---|
 | Hunter at native rate | Controls and motion feel | Merged; played | Keep checking per weapon |
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
-| What still ticks at 30 | Tells us what's left | Not started | List every remaining gate and the systems behind it: this list sets the rest of this table |
+| What still ticks at 30 | Tells us what's left | In progress | List every remaining gate and the systems behind it: this list sets the rest of this table |
+| Inventory of everything that ticks | Conversion goes class by class (`MHFU_NATIVE_VT`): today only the hunter and Popos | Partly done: 107 classes named of 519 vtables; 17 monster overlays, 11 weapon classes | Table: each monster, NPC, weapon class, attack volume, effect and stage object, its class, and how it's tested |
+| A way to test each one without playing | Only `em20` has run in a recording | Not started | Force a monster or weapon by quest swap and save edits; compare ticks at 30 and 60 automatically |
 | Monsters at a higher tick | Biggest visible part left *(check)* | Not started | Read how much the script and tick code assume 30ths; hand-written interpreter helps here |
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 and 144 |
@@ -52,12 +57,13 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 | Work | Why | Status | Next step |
 |---|---|---|---|
 | In-game graphics options | Many settings are env vars or `settings.ini` only | Not started | Inventory them; extend the F1 overlay (`runtime/src/overlay.c`) |
+| Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
 | Known artifacts | User-visible | Sun flare merged, not confirmed by play | Build a list from the user; snow haze edges are still open *(check)* |
-| Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; decide on baselines; merge |
+| Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
 | God rays | Requested | Not started | Design in the renderer, using the existing sun direction; no game code needed *(check)* |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
-Almost none of this needs converted game code: it lives in `runtime/src/`.
+Most of this lives in `runtime/src/`. Where a feature needs to know what the game's data means, understanding it comes first; rewriting it by hand is a separate question.
 
 ## 3. PC support
 
