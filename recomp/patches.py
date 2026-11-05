@@ -127,6 +127,7 @@ HAND = {
     ("game_task", 0x09AC8450): "hand_entity_sum_pending_damage_and_add_buildups",
     ("game_task", 0x09AC7A08): "hand_entity_apply_pending_damage_and_choose_result_code",
     ("EBOOT", 0x088D96BC): "hand_hunter_recalc_resist_values",
+    ("EBOOT", 0x088D9880): "hand_hunter_resist_values_add_skill_bonuses",
     ("EBOOT", 0x088D9EB8): "hand_hunter_add_resist_value_by_id",
     ("EBOOT", 0x088D9F3C): "hand_hunter_resist_values_add_game_bytes_6993d",
     ("game_task", 0x09AC9318): "hand_entity_pending_damage_scale_from_quest_table",

@@ -1,5 +1,5 @@
 /* The hunter's defense value and its five resistances, worked out afresh from equipment, items, skills and timed effects. Rewritten by hand from
- * EBOOT 088D92F8, 088D96BC, 088D9EB8 and 088D9F3C, the generated code still behind them (MHFU_HAND=0).
+ * EBOOT 088D92F8, 088D96BC, 088D9880, 088D9EB8 and 088D9F3C, the generated code still behind them (MHFU_HAND=0).
  *
  * To change defense: the numbers below. What it does to a hit is in hit_damage.c: damage * (1 - d / (d + 80)), d being half the value here.
  * Every skill's id and amount is what the code shows; what the game calls the skills isn't known from it. */
@@ -123,7 +123,7 @@ void hand_hunter_recalc_defense_value(Ctx *c) {
 
 /* -- the resistances ------------------------------------------------------------------------------------------------------------------------ */
 
-/* Each has the equipment's stat, then skills' bonuses (088D9880, not rewritten), timed effects', bytes of the quest's, and a last step (088DA008).
+/* Each has the equipment's stat, then skills' bonuses (below), timed effects', bytes of the quest's, and a last step (088DA008).
  * What each is called in the game isn't settled here: hit_damage.c says which bit of a hit chooses which. */
 #define RESIST_EFFECT_TABLE 0x089B6610u     /* five s16: the ids of the effects, and the index of their level */
 #define RESIST_EFFECTS 5
@@ -132,9 +132,56 @@ void hand_hunter_recalc_defense_value(Ctx *c) {
 #define RESIST_LEVEL_2_3 15.0f
 #define RESIST_LEVEL_4 20.0f
 #define QUEST_RESIST_BYTES 0x6993Du         /* of the game's state: five s8 */
+#define SKILL_RESIST_04_PLUS_10_B 0x67
 
 static float resist_stat(Ctx *c, Hunter *self, uint32_t selector) {
     return (float)(int32_t)call4(c, equipment_stat, LW(HUD_EQUIPMENT_POINTER), GAME_ADDR(self), selector, 0);
+}
+
+/* The skills for one resistance: the first found counts. Which is which element isn't known from this code. */
+static void resist_skills(Ctx *c, Hunter *self, float *resist, uint8_t plus_10, uint8_t plus_5, uint8_t minus_10, uint8_t minus_5) {
+    if (has_skill(c, self, plus_10))
+        *resist = *resist + 10.0f;
+    else if (has_skill(c, self, plus_5))
+        *resist = *resist + 5.0f;
+    else if (has_skill(c, self, minus_10))
+        *resist = *resist - 10.0f;
+    else if (has_skill(c, self, minus_5))
+        *resist = *resist - 5.0f;
+}
+
+static void all_resists_add(Hunter *self, float amount) {
+    self->resist_pct_hit_bit_04 = self->resist_pct_hit_bit_04 + amount;
+    self->resist_pct_hit_bit_10 = self->resist_pct_hit_bit_10 + amount;
+    self->resist_pct_hit_bit_40 = self->resist_pct_hit_bit_40 + amount;
+    self->resist_pct_hit_bit_20 = self->resist_pct_hit_bit_20 + amount;
+    self->resist_pct_hit_bit_80 = self->resist_pct_hit_bit_80 + amount;
+}
+
+/* EBOOT 088D9880: a skill for each, then one that moves all five, first found */
+void hand_hunter_resist_values_add_skill_bonuses(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    /* The first has a second skill worth the same */
+    if (has_skill(c, self, SKILL_RESIST_04_PLUS_10_B))
+        self->resist_pct_hit_bit_04 = self->resist_pct_hit_bit_04 + 10.0f;
+    else
+        resist_skills(c, self, &self->resist_pct_hit_bit_04, 0xD4, 0x66, 0x69, 0x68);
+    resist_skills(c, self, &self->resist_pct_hit_bit_10, 0x6B, 0x6A, 0x6D, 0x6C);
+    resist_skills(c, self, &self->resist_pct_hit_bit_40, 0x73, 0x72, 0x75, 0x74);
+    resist_skills(c, self, &self->resist_pct_hit_bit_20, 0x77, 0x76, 0x79, 0x78);
+    resist_skills(c, self, &self->resist_pct_hit_bit_80, 0x6F, 0x6E, 0x71, 0x70);
+    if (has_skill(c, self, 0x60))
+        all_resists_add(self, 3.0f);
+    else if (has_skill(c, self, 0x61))
+        all_resists_add(self, 5.0f);
+    else if (has_skill(c, self, 0x62))
+        all_resists_add(self, 10.0f);
+    else if (has_skill(c, self, 0x63))
+        all_resists_add(self, -3.0f);
+    else if (has_skill(c, self, 0x64))
+        all_resists_add(self, -5.0f);
+    else if (has_skill(c, self, 0x65))
+        all_resists_add(self, -10.0f);
 }
 
 /* EBOOT 088D96BC */

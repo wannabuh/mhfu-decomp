@@ -70,6 +70,7 @@ static void inputs_recalc_defense(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_recalc_resists(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_add_resist(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_bytes(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -127,6 +128,7 @@ static const Case cases[] = {
     {"hunter_resist_values_add_game_bytes 088D9F3C", f_EBOOT_088D9F3C, 0, 0, 0x088D9F3C, NULL, inputs_resist_bytes, NULL},
     {"entity_pending_damage_scale 09AC9318", f_game_task_09AC9318, 0, 0, 0x09AC9318, NULL, inputs_scale_table, NULL},
     {"hunter_clear_received_hit_fields 09A6FB30", f_game_task_09A6FB30, 0, 0, 0x09A6FB30, NULL, inputs_clear_hit_fields, NULL},
+    {"hunter_resist_skills 088D9880", f_EBOOT_088D9880, 0, 0, 0x088D9880, NULL, inputs_resist_skills, NULL},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -1401,6 +1403,15 @@ static void inputs_clear_hit_fields(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     self->pending_defense_halve = 3;
     self->pending_stamina_debuff = 4;
     self->pending_drain_seconds = 5;
+}
+
+static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    for (uint32_t o = 0x39C; o <= 0x3AC; o += 4)
+        SW(hunter + o, float_bits((float)(rnd() % 256) / 8.0f - 10.0f));
+    static const uint8_t skills[] = {0x67, 0xD4, 0x66, 0x69, 0x68, 0x6B, 0x6A, 0x6D, 0x6C, 0x73, 0x72, 0x75, 0x74, 0x77, 0x76, 0x79, 0x78, 0x6F, 0x6E, 0x71, 0x70, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x10};
+    for (int i = 0; i < 6; i++)     /* real callee, and stubs by chance */
+        SB(hunter + 0x676 + i, skills[rnd() % sizeof skills]);
 }
 
 static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
