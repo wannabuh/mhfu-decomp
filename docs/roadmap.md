@@ -41,7 +41,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
 - Merge into `native-fps` only at the user's word. "Verified" and "played" are separate states.
-- The game ticks at a fixed 60 (user's decision, 2026-11-05): no 120 or 144 ticks, no variable tick. Display rate comes from interpolation.
+- The game ticks at a fixed 60 by default (user's decision, 2026-11-05), no variable tick; display rate comes from interpolation. Ticks above 60 are to be supported as well, up to 144 (user, later the same day), starting with poses: see the table below.
 - Prefer branches; a new worktree only when two things must run at once.
 - One set of baselines (user's decision, 2026-11-05): once the shadows fix merges, `tools/suite.py` on Vulkan compares against
   `tests/data/baselines`, the software ones, and `baselines-vulkan` is retired after the merge has settled. Tests still run on Vulkan.
@@ -64,7 +64,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
 | What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
 | Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
-| Poses above 60 ticks | Not a problem at the chosen 60. `motion_sample_bone_tree` (EBOOT 885FA0C) cuts the motion's frame to a whole number, so poses change at most 60 times a second: at 120 and 144 ticks they step unevenly, seen on attacks, items and sheathing, with interpolation on or off. The user sees none of it at 60 ticks, 144 fps | Only if ticks above 60 are wanted | Sample the two whole frames either side and blend; rotations need care, and hit shapes come from these bones |
+| Ticks above 60: poses | Wanted by the user (2026-11-05). `motion_sample_bone_tree` (EBOOT 885FA0C) cuts the motion's frame to a whole number and motions hold 60 poses a second, so at 120 and 144 ticks poses repeat, unevenly at 144: seen on attacks, items and sheathing, with interpolation on or off. None of it at 60 ticks | Planned | Sample the whole frames either side and blend by the fraction; whole frames unchanged, so 30 and 60 at normal speed stay the same. Read `motion_sample_channels` first: rotations mustn't blend the long way round, and hit shapes come from these bones, so decide whether they use the blended pose. Then check 120 and 144 by bone logs and by play. Above 60 also costs more: a tick is about 5.3 ms against 6.94 ms a frame at 144 |
 | The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
 | The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
 | Consistent smoothness: a steady 144 fps as felt | The main goal. The user reports the locked build "running much smoother" (2026-11-05, fullscreen) | In progress | Fewer ticks holding frames up: see below |
