@@ -73,7 +73,7 @@ Size counts **own** functions and generated lines: what only that system reached
 | Hunter | every frame, upkeep at 30 | fine **[M]**: action lengths match within a 30th or so, and the field scan finds only hit-stop as a counter | fix the rate bugs in section 2.1; other weapons unchecked | every frame already | low |
 | Hunter's weapon and attacks | moves every frame; attack volumes and hit tests at 30 | swing smooth; hit-stop wrong **[M]**; hits land at 30ths | hit-stop patch; keep hits at 30 | 1 line for the patch | low |
 | Large monsters, `game_task` | 30 | smoothed well **[M]**, shown a 30th late **[R]** | base timers, then each class | base 413 / 36,752 / 350 / 171; Congalala family 211 / 29,333 / 399 / 51; Drome 95 / 7,194 / 134 / 18 | high: AI, hits, state timing |
-| Large monsters, `em*` | 30 | unknown, **no recording reaches one** | the same, plus recordings | 17 overlays, 299,214 lines in all; 6,253 to 51,099 each | highest: nothing can check them today |
+| Large monsters, `em*` | 30 | unknown: neither fight reaches one; `overnight-misc` ran only 42 functions of `em20` **[M]** | the same, plus recordings | 17 overlays, 299,214 lines in all; 6,253 to 51,099 each | highest: nothing can check them today |
 | Small monsters | 30 | smoothed **[M]** | base timers, then each class | Prey 106 / 7,101 / 149 / 10; Vespoid 83 / 5,889 / 188 / 75; Kelbi 65 / 5,376 / 231 / 24 | medium |
 | Popos | every frame | fine in looks; base timers still count frames **[M from the hook, R]** | the same base timers | 82 / 8,393 / 189 / 83, done bar those | low |
 | NPCs | 30, village only | smoothed **[R]** | no reason to convert yet | not measured | low value |
@@ -144,7 +144,7 @@ Your settings (`settings.ini`, 2560x1440, shadows and point lights on, `gpu_tl` 
 4. **Scale camera easing and shake.** About 15 functions, on one path. *You'd see:* the camera moving over slopes as at 30, and shakes as long. Risk low to medium.
 5. **Explain the hunter's jump at the draw attack (section 3).** It may be a real rate bug. Then decide how to compare fights: by kind, or with the random stream's order fixed. Nothing else visible, but monster work can't be proven without it.
 6. **Monsters' base timers, then small classes.** Start with those every class shares (`+0x4BE`, `+0x514`, `+0x550` were seen, and the rest of section 2.1's last row), then Drome and Prey, then Congalala. *You'd see:* monsters no longer a 30th behind the hunter, so a hit and its reaction line up, and fast lunges and turns follow their true curve. They won't stop stepping, as they already don't. Risk high; keep hits at 30ths.
-7. **`em*` monsters need recordings first.** Rathian and the rest have 299,000 lines and no way to check them. Ask for a recording of each kind, or a poke to reach them.
+7. **`em*` monsters need recordings first.** Rathian and the rest have 299,000 lines and almost no way to check them: `overnight-misc` touches `em20`, and no recording fights one. Ask for a recording of each kind, or a poke to reach them.
 8. **Effects' colours and texture scroll, in `gpu.c`, not by conversion.** *You'd see:* fades and scrolls without steps. Whether they are noticeable at all is unknown: check by eye first.
 9. **Leave alone:** HUD, text, quest, sound, menus, hits, push. The roadmap's "done when" ("no system visibly running at a lower rate") is met for these by smoothing, and converting them adds risk with nothing to see. Its other half, "no behaviour depends on the frame rate", is what items 1 and 4 are for.
 

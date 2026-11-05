@@ -41,10 +41,14 @@ confirmed against the current build.
 |---|---|---|---|
 | Hunter at native rate | Controls and motion feel | Merged; played | Keep checking per weapon |
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
-| What still ticks at 30 | Tells us what's left | In progress | List every remaining gate and the systems behind it: this list sets the rest of this table |
+| What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
+| Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
+| The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
+| The pad, read at 30ths | A press waits up to 33 ms; every tick makes it 17 | Not started | Read it every tick in a hunt. Medium risk |
+| The hunter's 45-unit jump, 0 / 2 / 6 30ths after a draw attack at 30 / 60 / 144 | Possible real rate bug; blocks comparing fights | Not started | Explain it |
 | Inventory of everything that ticks | Conversion goes class by class (`MHFU_NATIVE_VT`): today only the hunter and Popos | Partly done: 107 classes named of 519 vtables; 17 monster overlays, 11 weapon classes | Table: each monster, NPC, weapon class, attack volume, effect and stage object, its class, and how it's tested |
 | A way to test each one without playing | Only `em20` has run in a recording | Not started | Force a monster or weapon by quest swap and save edits; compare ticks at 30 and 60 automatically |
-| Monsters at a higher tick | Biggest visible part left *(check)* | Not started | Read how much the script and tick code assume 30ths; hand-written interpreter helps here |
+| Monsters at 60 ticks | Less lag, hits line up, sharper arcs; smoothing already handles stepping (`docs/ticks.md`) | Not started | Decide after the fixes below are played. High risk; `em*` overlays need recordings first |
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
 | Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
@@ -61,8 +65,11 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 | Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
 | Known artifacts | User-visible | Sun flare merged, not confirmed by play | Build a list from the user; snow haze edges are still open *(check)* |
 | Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
+| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started | See below |
 | God rays | Requested | Not started | Design in the renderer, using the existing sun direction; no game code needed *(check)* |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
+
+**Wounds, in stages, each playable:** (1) one slash at the true hit point, staying on the moving model; (2) blood running down from it under gravity; (3) drops falling; (4) pools on the ground. Purely visual: reads the game's memory, writes none of it, draws no game random numbers, has an off switch and a stated frame cost. Proposed: wounds kept in bone space and drawn in the fragment shader, as UVs may be mirrored or shared *(check)*. Size and sharpness come from `readable/monster_hit_damage.c`; first prove the hit's position and the drawn model can be linked. Cut against impact isn't settled yet (see Balance, goal 4).
 
 Most of this lives in `runtime/src/`. Where a feature needs to know what the game's data means, understanding it comes first; rewriting it by hand is a separate question.
 
