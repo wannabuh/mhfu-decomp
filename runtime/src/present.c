@@ -618,8 +618,14 @@ static uint64_t pump(void) {
                 unsigned long early;
                 double early_ms, cost_ms;
                 tick_phase_stats(&early, &early_ms, &cost_ms);
-                fprintf(stderr, "display: %lu ticks begun early, by %.2f ms on average; a tick reckoned at %.2f ms\n", early,
-                        early_ms, cost_ms);
+                static uint64_t was_sync, was_ge;   /* (with the panel's counters on: MHFU_TEST_PERF) */
+                unsigned long ticks = frame >= stats_frame ? frame - stats_frame : 0;
+                fprintf(stderr, "display: %lu ticks begun early, by %.2f ms on average; a tick reckoned at %.2f ms; "
+                        "a tick's GE %.2f ms, waiting for the render thread %.2f ms\n", early, early_ms, cost_ms,
+                        (double)(perf_ge_ns - was_ge) / 1e6 / (double)(ticks ? ticks : 1),
+                        (double)(perf_sync_ns - was_sync) / 1e6 / (double)(ticks ? ticks : 1));
+                was_sync = perf_sync_ns;
+                was_ge = perf_ge_ns;
             }
             drawn_us = flip_us = 0;
             skipped = 0;
