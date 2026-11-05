@@ -107,11 +107,14 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | Extended game memory | Lifts the 32 MB limit on what game logic can hold | Not started | See below |
 | Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
 | Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
-| Visual simulation: debris, cloth, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
+| Cloth simulation | Requested 2026-11-05. Capes, banners, loose armour moving properly. Visual only | Not started | Prototype on one mesh: see below |
+| Visual simulation: debris, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
 | Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
 
 **Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
+
+**Cloth, in steps.** (1) Find what the game's own spring chains already move, and whether they can run smoothly at the display's rate. (2) Prototype on one piece of a game mesh, picked by hand, simulated in the renderer and pinned to its bones, colliding with simple body shapes. (3) Finding cloth in general: by tagging in a mod's mesh, as game meshes don't say which parts are cloth *(check)*. Best results come after mesh replacement, as PSP models have few vertices to bend. Simulated at the display's rate, writing nothing to game memory.
 
 ## Replacing PSP emulation with native code
 
