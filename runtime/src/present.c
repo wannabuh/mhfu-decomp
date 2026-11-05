@@ -12,6 +12,7 @@
 #include "savestate.h"
 #include "render.h"
 #include "perf.h"
+#include "pacing.h"
 #include "capture.h"
 #include "inspect.h"
 
@@ -465,7 +466,7 @@ static void watch(void) {
     }
 }
 
-uint64_t wall_time_us(void), time_slept_us(void);
+uint64_t wall_time_us(void), time_slept_us(void), game_to_wall_us(uint64_t game_us);
 int64_t clock_behind_us(void);
 static unsigned long skipped;        /* frames not shown, the game running late (for MHFU_FPS_STATS) */
 static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
@@ -514,7 +515,12 @@ uint64_t present_pump(void) {
     float t = period ? (float)since / (float)period : 1.0f;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     uint64_t drawing = wall_time_us();
+    if (pacing_watch)
+        pacing_frame(game_to_wall_us(next_display), drawing, (int64_t)gpu_last_frame_time() - (int64_t)((1.0f - t) * (float)period),
+                     frame, t);
     uint32_t addr = gpu_render_frame(t);
+    if (pacing_watch)
+        pacing_drawn(wall_time_us());
     static long dump_at = -1;
     if (dump_at < 0)
         dump_at = getenv("MHFU_DUMP_AT") ? atol(getenv("MHFU_DUMP_AT")) : 0;
@@ -759,6 +765,7 @@ void present_frame(void) {
     }
     frame++;
     perf_game_frame(frame);
+    pacing_tick(frame);
     capture_tick(frame);
     inspect_tick(frame);
     gpu_pick_frame(display_fb_addr);
