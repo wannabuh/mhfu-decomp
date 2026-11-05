@@ -30,6 +30,22 @@ run of the 21 scenarios takes about 5 minutes at -j 6, on the Vulkan renderer th
 - **state** - a save state saved and loaded at 60 (`MHFU_STATE_TEST=A,B`, default the end's last 400 to 100 frames):
   every frame after the load as before (savestate.c; the test prints the first words that differ).
 
+Game RAM is not the same on the two renderers (so each has its baselines): with shadows on, `rt_cull_margin`
+(1200; patches.py `CULL`, `render_shadow_frame`) widens the game's own view test, so models just out of view are drawn
+and animated, and those with effects draw from the game's random numbers (EBOOT 088900C4, stream 1) - the stream
+gameplay uses too. Off, or on soft, it is 0. So compare runs within one renderer and shadow setting; `MHFU_CULL_MARGIN=0`
+on Vulkan matches soft (`quest.rec`, sampled to frame 2140). Test save states on Vulkan, which is what is played: with
+`MHFU_HEADLESS=1` it runs without a window, the same every time.
+
+Save states across builds (by hand, not in the suite yet): a second binary from a worktree with something unrelated
+changed (`-O1`, `-pie`, a `SAVED` variable added and another's `SAVED` taken off). One run with the first,
+`MHFU_STATE_SAVE=F,1 MHFU_RAM_HASH=1`; another with the second, the same recording and `MHFU_TICK_HZ`, `MHFU_STATEDIR` the
+first's, `MHFU_STATE_LOAD=30,1 MHFU_RAM_HASH=1`. Every frame's hash after F should be the same in both. Compare only to the
+replay's end (`end N` in the recording): after it the game plays on alone, paced as it would be, and little happens. Use
+fights too (`overnight-fight*.rec`, saves `overnight`), and F well before the end. A load must be in a new process:
+`MHFU_STATE_TEST`, in the same one, cannot show what only that process holds (the sun, once: differences from 786 frames
+after the state).
+
 What is after a replay's end (the game playing on alone until the run is stopped) is left out of all of them.
 
 ## Coverage

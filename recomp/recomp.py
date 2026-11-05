@@ -95,6 +95,7 @@ class Translator:
         self.functions = functions                       # module name -> [function dicts]
         self.starts = {n: {f["start"] for f in fs} for n, fs in functions.items()}
         self.vfpu_used = set()
+        self.returns = {}                                # module name -> [(return point, its C function)]
 
     def fname(self, mod, addr):
         return f"f_{mod.name}_{addr:08X}"
@@ -385,25 +386,36 @@ class Translator:
             elif a in tables:
                 labels.update(t for t in tables[a] if inside(t))
 
+        # where a call returns to: a save state's thread goes on from there (runtime/src/dispatch.c rt_resume_run)
+        returns = [a + 8 for a in range(start, end, 4) if mod.ins(a).isJump() and mod.ins(a).doesLink() and a + 8 < end]
+        return_set = set(returns)
+        self.returns.setdefault(mod.name, []).extend(
+            (r, self.fname(mod, start) + ("_gated" if (mod.name, start) in GATES else "")) for r in returns)
+
         # a gated function (patches.py's GATES): its body behind rt_gate, which runs it on the frames a 30th falls on
         gated = (mod.name, start) in GATES
         if gated:
             self.gated += 1
             if GATES[(mod.name, start)][1] != "on":
                 raise SystemExit(f"gate at {mod.name} {start:#x}: a function's gate is \"on\" (the others are calls')")
-        out = [f"static void {self.fname(mod, start)}_gated(Ctx *c) {{" if gated else
+        out = [f"void {self.fname(mod, start)}_gated(Ctx *c) {{" if gated else
                f"void {self.fname(mod, start)}(Ctx *c) {{"]
         emit = out.append
+        if returns:
+            cases = " ".join(f"case {hx(r)}: goto R_{r:08X};" for r in returns)
+            emit(f"    if (__builtin_expect(rt_resume_pc != 0, 0)) {{ uint32_t r = rt_resume_pc; rt_resume_pc = 0; switch (r) {{ {cases} }} }}")
         if TRACE_ALL:
             emit(f"    if (rt_trace_all(c, {list(self.by_name).index(mod.name)}, {hx(start)})) return;")
         if (mod.name, start) in HAND:       # rewritten by hand (patches.py HAND): that runs instead, unless MHFU_HAND=0
             if gated:
                 raise SystemExit(f"{mod.name} {start:#x} is gated: a function rewritten by hand can't be, yet")
-            emit(f"    if (rt_hand) {{ {HAND[(mod.name, start)]}(c); return; }}")
+            emit(f"    if (rt_hand) {{ rt_no_resume++; {HAND[(mod.name, start)]}(c); rt_no_resume--; return; }}")
         if start in TRACE:                  # RECOMP_TRACE=addr,...: the function's calls logged (rt_trace_call)
             emit(f"    rt_trace_call(c, {hx(start)});")
         a = start
         while a < end:
+            if a in return_set:
+                emit(f"R_{a:08X}:;")
             if a in labels:
                 emit(f"L_{a:08X}:;")
             i = mod.ins(a)
@@ -468,7 +480,7 @@ class Translator:
                     if not fn.startswith("f_"):
                         raise SystemExit(f"gate at {mod.name} {a:#x}: a call to {t:#x}, not to a function")
                     gfn = GATE_FUNCTIONS[GATES[(mod.name, a)][1]]
-                    return f"c->r[31] = {hx(a + 8)}; {delay} {gfn}(c, {fn[:-len('(c);')]}, 0, {hx(a)}); /* gated */"
+                    return f"c->r[31] = {hx(a + 8)}; {delay} {gfn}(c, {fn[:-len('(c);')]}, {hx(t)}, {hx(a)}); /* gated */"
                 return f"c->r[31] = {hx(a + 8)}; {delay} {self.call(mod, t)}"
             return f"{delay} " + (goto(t) if inside(t) else tail(t))
         n = i.uniqueId.name
@@ -526,6 +538,8 @@ def main():
         chunks, lines = [[]], 0
         for f in tr.functions[m.name]:
             protos.append(f"void {tr.fname(m, f['start'])}(Ctx *c);")
+            if (m.name, f["start"]) in GATES:
+                protos.append(f"void {tr.fname(m, f['start'])}_gated(Ctx *c);")
             try:
                 code = tr.function(m, f)
             except Unsupported as e:
@@ -574,7 +588,12 @@ def main():
             out.write(f"static const RecompEntry funcs_{m.name}[] = {{\n")
             out.write("".join(f"    {{{hx(f['start'])}, {tr.fname(m, f['start'])}}},\n" for f in fs))
             out.write("};\n")
-            entries.append(f"    {{\"{m.name}\", {m.region}, {m.number}, {hx(m.base)}, funcs_{m.name}, {len(fs)}}},")
+            rets = sorted(set(tr.returns.get(m.name, [])))
+            out.write(f"static const RecompEntry returns_{m.name}[] = {{\n")
+            out.write("".join(f"    {{{hx(r)}, {fn}}},\n" for r, fn in rets))
+            out.write("};\n")
+            entries.append(f"    {{\"{m.name}\", {m.region}, {m.number}, {hx(m.base)}, funcs_{m.name}, {len(fs)}, "
+                           f"returns_{m.name}, {len(rets)}}},")
         out.write("\nconst RecompModule recomp_modules[] = {\n" + "\n".join(entries) + "\n};\n")
         out.write(f"const int recomp_nmodules = {len(entries)};\n\n")
         imps = sorted(mods[0].imports.items())
