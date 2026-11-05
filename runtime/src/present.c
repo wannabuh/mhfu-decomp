@@ -592,6 +592,18 @@ uint64_t present_pump(void) {
     return next_display;
 }
 
+/* MHFU_DUMP with MHFU_DUMP_FULL: the frame at the internal resolution too */
+static void dump_full(uint32_t addr, unsigned long at) {
+    int w, h;
+    uint32_t *full = getenv("MHFU_DUMP_FULL") ? render_readback_full(addr, &w, &h) : NULL;
+    if (full) {
+        char path[64];
+        snprintf(path, sizeof path, "build/frames/%06lu-full.png", at);
+        write_png_size(path, full, w, h);
+        free(full);
+    }
+}
+
 /* MHFU_SNAPSHOT="frame,frame,...": RAM at those game frames, to build/ram-<frame>.bin (finding variables by diffing) */
 static void snapshots(void) {
     static const char *list;
@@ -831,11 +843,15 @@ void present_frame(void) {
             render_finish_frame();
     } else if (display_fps()) {
         gpu_frame_end(display_fb_addr, time_us());
-        if (dump && gpu_render_frame(1.0f))
+        if (dump && gpu_render_frame(1.0f)) {
             render_readback(display_fb_addr, pixels);
+            dump_full(display_fb_addr, frame);
+        }
     } else if (render_on) {
-        if (dump)
+        if (dump) {
             render_readback(display_fb_addr, pixels);
+            dump_full(display_fb_addr, frame);
+        }
         if (!gpu_skip_draw) {
             uint64_t before = wall_time_us();
             if (capture_wants_shot())

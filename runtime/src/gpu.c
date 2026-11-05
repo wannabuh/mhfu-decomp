@@ -215,7 +215,7 @@ SAVED static float world[12], view[12], proj[16], bones[8][12];
  * since (mx, my, mz) */
 static float earlier_world[12], earlier_bones[8][12];
 static int earlier;
-float render_motion_step(void);     /* the game's frames between two shown (0: no motion blur) */
+int render_motion_wanted(void);     /* (the motion blur's, the anti-aliasing's) */
 SAVED static int world_i, view_i, proj_i, bone_i;
 
 /* Shadows (render_shadow.c): the GE's world space - which has the camera in it: the game multiplies it into each world
@@ -1825,6 +1825,10 @@ static void pick_end(uint32_t display_addr);
 static void pick_camera_recorded(void);
 static void pick_set_source(uint32_t vaddr);
 
+/* How far the frame shown now is from the one shown before, in the game's frames (t's unit): their time on the screen,
+ * not a nominal one, as the camera's motion is between those two. 0: no motion wanted */
+static float shown_step;
+
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
     /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
@@ -1836,7 +1840,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
                 reg[k] = to_ge_float(a + (b - a) * t);
         }
     /* the hunter, monsters and people (lit by the GE, in the world, matched): where they were a frame shown earlier */
-    float step = render_motion_step();
+    float step = shown_step;
     earlier = 0;
     if (step > 0 && moved && native_camera && d->proj[11] != 0 && (d->reg[0x17] & 1)) {
         int late = stale_known && stale[d - latest->draws];
@@ -2471,10 +2475,18 @@ uint32_t gpu_render_frame(float t) {
     q_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
     int matched_frames = previous->n && !camera_cut(previous, latest);
     int interpolate = matched_frames && t < 1.0f;
+    {
+        static float last_t;
+        static unsigned last_generation;
+        float step = (float)(frame_generation - last_generation) + t - last_t;
+        shown_step = render_motion_wanted() ? (step < 0 ? 0 : step > 1 ? 1 : step) : 0;
+        last_t = t;
+        last_generation = frame_generation;
+    }
     camera_frames_late(frames_late);
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
     /* (matched for the motion blur too, at the frame's end) */
-    int *m = interpolate || (matched_frames && native_camera && render_motion_step() > 0) ? match(native_camera) : NULL;
+    int *m = interpolate || (matched_frames && native_camera && render_motion_wanted()) ? match(native_camera) : NULL;
     stale_known = m && native_camera;
     shadow_frame(native_camera ? shown_view : NULL);
     if (pick_on)
@@ -2790,6 +2802,19 @@ void gpu_camera_between(const float *a, const float *b, float t, float *out) {
         memcpy(out, t < 0.5f ? a : b, sizeof(float) * 12);
 }
 
+/* A frame's next draw: room for it, its key */
+static int placing_add(Placings *f, uint64_t key) {
+    if (f->n == f->cap) {
+        f->cap = f->cap ? f->cap * 2 : 4096;
+        f->p = realloc(f->p, sizeof *f->p * (size_t)f->cap);
+        f->bones = realloc(f->bones, sizeof *f->bones * (size_t)f->cap);
+        f->keys = realloc(f->keys, sizeof *f->keys * (size_t)f->cap);
+        f->pos = realloc(f->pos, sizeof *f->pos * (size_t)f->cap);
+    }
+    f->keys[f->n] = key;
+    return f->n++;
+}
+
 /* prim: a draw in the world about to be drawn (key: its draw_key) - noted, and its matrices smoothed if it ticks at
  * 30 (nat_override: they are put back after) */
 static void native_place(uint64_t key) {
@@ -2800,16 +2825,8 @@ static void native_place(uint64_t key) {
     Placings *f = nat_c;
     if (!f->cams)
         return;
-    if (f->n == f->cap) {
-        f->cap = f->cap ? f->cap * 2 : 4096;
-        f->p = realloc(f->p, sizeof *f->p * (size_t)f->cap);
-        f->bones = realloc(f->bones, sizeof *f->bones * (size_t)f->cap);
-        f->keys = realloc(f->keys, sizeof *f->keys * (size_t)f->cap);
-        f->pos = realloc(f->pos, sizeof *f->pos * (size_t)f->cap);
-    }
-    int qi = f->n++;
+    int qi = placing_add(f, key);
     Placing *q = &f->p[qi];
-    f->keys[qi] = key;
     q->nb = (int8_t)((reg[0x12] >> 9) & 3 ? (int)((reg[0x12] >> 14) & 7) + 1 : 0);
     /* drawn again from the last 30th: with its camera */
     compose43(held_drawing && nat_b && nat_b->cams ? nat_b->inv : f->inv, world, q->w);
@@ -2861,9 +2878,49 @@ static void native_place(uint64_t key) {
     nat_slow += from != to;
 }
 
+/* The game's own frames, drawn as it draws them (no MHFU_FPS): where the hunter, monsters and people were in the frame
+ * drawn before, as replay() has it from the frames recorded - for the anti-aliasing and the motion blur. Each frame's
+ * such draws are noted as they were drawn, in the world (to_world: whichever camera is in the matrices now), bones and
+ * all, and matched by key and place as native_place matches; unmatched, a draw has no motion. */
+static Placings drawn[2];
+static Placings *drawn_now = &drawn[0], *drawn_last;
+static unsigned drawn_generation;
+
+static void native_motion(uint64_t key) {
+    if (drawn_generation != frame_generation_direct) {
+        drawn_generation = frame_generation_direct;
+        placings_done(drawn_now);
+        ready_to_match(drawn_now);
+        drawn_last = drawn_now;
+        drawn_now = drawn_now == &drawn[0] ? &drawn[1] : &drawn[0];
+        drawn_now->n = 0;
+    }
+    Placings *f = drawn_now;
+    int qi = placing_add(f, key);
+    Placing *q = &f->p[qi];
+    q->nb = (int8_t)((reg[0x12] >> 9) & 3 ? (int)((reg[0x12] >> 14) & 7) + 1 : 0);
+    compose43(to_world, world, q->w);
+    memcpy(f->bones[qi], bones, sizeof(float) * 12 * (size_t)q->nb);
+    if (q->nb)
+        mul43(q->w, &f->bones[qi][0][9], f->pos[qi]);
+    else
+        memcpy(f->pos[qi], &q->w[9], sizeof f->pos[qi]);
+    Placings *r = drawn_last;
+    int j = r ? find(r, &r->next, r->taken, key, f->pos[qi]) : -1;
+    if (j < 0 || r->p[j].nb != q->nb)
+        return;
+    float shown[12];
+    camera_invert(to_world, shown);
+    compose43(shown, r->p[j].w, earlier_world);
+    memcpy(earlier_bones, r->bones[j], sizeof(float) * 12 * (size_t)q->nb);
+    earlier = 1;
+}
+
 /* A state loaded (savestate.c): what ticks at 30 smoothed from the next 30ths only - not from where it was before */
 void gpu_state_loaded(void) {
     nat_a = nat_b = nat_p = NULL;
+    drawn_last = NULL;
+    drawn_now->n = 0;
 }
 
 /* -- what gated code drew, kept for the frames between 30ths (native.c) --------------------------------------------
@@ -3096,6 +3153,7 @@ static int nat_view_ok(void) {
     return nat_view_now[0] != 0 || nat_view_now[4] != 0 || nat_view_now[8] != 0;
 }
 static void native_place(uint64_t key);
+static void native_motion(uint64_t key);
 static int native_camera_between(const float *view, const float *target, float *base, float *base_target);
 int gpu_native_smoothing(void);
 int camera_native_shown(const float *view, const float *target, float *shown);
@@ -4461,6 +4519,9 @@ static void prim_drawn(uint32_t data) {
                 compose43(native_shown_view, w, world);
             }
         }
+        /* (lit by the GE, in the world: where it was in the frame drawn before; as replay()) */
+        if (!in_replay && !(vt >> 23 & 1) && proj[11] != 0 && (reg[0x17] & 1) && shadow_world && render_motion_wanted())
+            native_motion(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
         if (motion_log_on && !fast_forward() && !(vt >> 23 & 1) && proj[11] != 0 && ((vt >> 9) & 3))
             motion_log(in_replay ? replay_key : ((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^
                                                 ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
@@ -4550,6 +4611,8 @@ static void prim_drawn(uint32_t data) {
         free(v);
         }
     }
+    if (!in_replay)
+        earlier = 0;
     if (nat_override) {                 /* (the matrices as the game gave them, for what comes after) */
         nat_override = 0;
         memcpy(world, nat_world, sizeof world);
