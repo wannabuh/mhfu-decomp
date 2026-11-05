@@ -43,6 +43,7 @@ confirmed against the current build.
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
 | What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
 | Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
+| The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
 | The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
 | The pad, read at 30ths | A press waits up to 33 ms; every tick makes it 17 | Not started | Read it every tick in a hunt. Medium risk |
 | The hunter's 45-unit jump, 0 / 2 / 6 30ths after a draw attack at 30 / 60 / 144 | Possible real rate bug; blocks comparing fights | Not started | Explain it |
@@ -107,14 +108,14 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | Extended game memory | Lifts the 32 MB limit on what game logic can hold | Not started | See below |
 | Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
 | Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
-| Cloth simulation | Requested 2026-11-05. Capes, banners, loose armour moving properly. Visual only | Not started | Prototype on one mesh: see below |
+| Cloth simulation | Requested 2026-11-05. The hunter first: armour and capes moving properly. Visual only | Not started; waits for mesh replacement (user's decision) | See below |
 | Visual simulation: debris, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
 | Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
 
 **Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
 
-**Cloth, in steps.** (1) Find what the game's own spring chains already move, and whether they can run smoothly at the display's rate. (2) Prototype on one piece of a game mesh, picked by hand, simulated in the renderer and pinned to its bones, colliding with simple body shapes. (3) Finding cloth in general: by tagging in a mod's mesh, as game meshes don't say which parts are cloth *(check)*. Best results come after mesh replacement, as PSP models have few vertices to bend. Simulated at the display's rate, writing nothing to game memory.
+**Cloth, in steps,** on the hunter first, then perhaps banners, fabric and NPCs. It waits for mesh replacement, as PSP models have few vertices to bend. (1) Simulate tagged parts of a replacement mesh in the renderer at the display's rate, pinned to bones, colliding with simple body shapes, writing nothing to game memory. (2) Use the same system on the world's fabric. Separately, under goal 1: check whether the game's own `hunter_spring_chains_step` is right at 60 ticks, as its steps run every frame and may not be scaled *(check)*.
 
 ## Replacing PSP emulation with native code
 
