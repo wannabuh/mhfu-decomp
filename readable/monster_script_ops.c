@@ -599,3 +599,204 @@ void hand_monster_script_op_71_if_field_4bc_at_least(Ctx *c) {
     uint8_t row = LBU(at + 1);
     if_test_answer(c, self_addr, at + 2, OP_IF_SCALE_ROW, self->quest_scale_row >= row);
 }
+
+/* -- which way it faces -------------------------------------------------------------------------------------------------------------------------- */
+
+/* Degrees, as angle units */
+static uint32_t degrees_to_angle(float degrees) {
+    return rt_trunc_w(0.5f + 65536.0f * degrees / 360.0f) & 0xFFFFu;
+}
+
+/* How far off its facing an angle is, either way */
+static int32_t angle_off_facing(const Monster *self, uint32_t angle) {
+    uint32_t off = ((angle & 0xFFFFu) - self->facing) & 0xFFFFu;
+    return off < 0x8001u ? (int32_t)off : (int32_t)((0x10000u - off) & 0xFFFFu);
+}
+
+/* These two tests that passed look further: an "else" right after goes past the end, where it isn't left to be run into. */
+static uint32_t passed_angle_test(Ctx *c, uint32_t self, uint32_t at, uint8_t op) {
+    if (LBU(at) != op || LBU(at + 1) != IF_ELSE)
+        return at;
+    uint32_t next = next_of(c, self, at);
+    if (LBU(next) == op && LBU(next + 1) == IF_END)
+        return next_of(c, self, next);
+    return next_of(c, self, call4(c, skip_to, self, next, op, IF_END));
+}
+
+/* game_task 09ABCC40, opcode 0x42: "42 0 degrees": works out the target's place, and tests that it is at least this many degrees off the monster's facing (signed degrees) */
+void hand_monster_script_op_42_if_target_angle_off_field_1f4_at_least(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_TARGET_ANGLE))
+        return;
+    uint32_t target = self_addr + offsetof(Monster, move_target_place);
+    call2(c, resolve_target_position, self_addr, target);
+    uint32_t limit = degrees_to_angle((float)(int8_t)LBU(at + 1));
+    uint32_t angle = call3(c, angle_to_place, self_addr, self_addr + offsetof(Monster, place), target);
+    at += 2;
+    c->r[2] = angle_off_facing(self, angle) < (int32_t)limit ? to_else_or_end(c, self_addr, at, OP_IF_TARGET_ANGLE) : passed_angle_test(c, self_addr, at, OP_IF_TARGET_ANGLE);
+}
+
+/* game_task 09ABEA38, opcode 0x14: "14 0 degrees": as 0x42, but only for a hunter as the target, a point of it (09ABA0C8) brought to the map of its area (EBOOT 08865C2C), from
+ * place_plus_area_offset. Any other target fails. */
+void hand_monster_script_op_14_if_hunter_target_angle_off_field_1f4_at_least(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5], sp = c->r[29] - 0x40;
+    c->r[29] = sp;
+    if (if_not_the_test(c, self_addr, at, OP_IF_HUNTER_ANGLE)) {
+        c->r[29] = sp + 0x40;
+        return;
+    }
+    uint32_t limit = degrees_to_angle((float)LBU(at + 1));
+    at += 2;
+    int passed = 0;
+    if (self->target_kind == TARGET_KIND_HUNTER_SLOT && self->target_param1 == 0 && self->target_param2 != 0xFF) {
+        uint32_t hunter = hunter_of_slot(c, self->target_param2);
+        if (hunter != 0) {
+            call4(c, hunter_point, self_addr, (uint8_t)self->target_param2, sp + 0x30, 0);
+            call4(c, point_in_area, self_addr, sp + 0x20, OBJ(Monster, hunter)->area_id, sp + 0x30);
+            uint32_t angle = call3(c, angle_to_place, self_addr, self_addr + offsetof(Monster, place_plus_area_offset), sp + 0x20);
+            passed = !(angle_off_facing(self, angle) < (int32_t)limit);
+        }
+    }
+    c->r[2] = passed ? passed_angle_test(c, self_addr, at, OP_IF_HUNTER_ANGLE) : to_else_or_end(c, self_addr, at, OP_IF_HUNTER_ANGLE);
+    c->r[29] = sp + 0x40;
+}
+
+/* game_task 09AC1458, opcode 0x4D: works out the target's place into move_target_place */
+void hand_monster_script_op_4d_compute_position_into_5d0(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    call2(c, resolve_target_position, self_addr, self_addr + offsetof(Monster, move_target_place));
+    c->r[2] = at;
+}
+
+/* -- more tests ---------------------------------------------------------------------------------------------------------------------------------- */
+
+/* game_task 09AC3550, opcode 0x7C: if the game's +0x6AF10 byte, through the remap table, is 9, 0xA or 0x16 */
+void hand_monster_script_op_7c_if_game_6af10_remapped_is_09_0a_or_16(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_GAME_MODE))
+        return;
+    uint8_t mode = LBU(LW(GAME_POINTER_ADDR) + GAME_MODE_BYTE);
+    uint16_t remapped = LHU(AREA_REMAP_FLAG + 2u * mode);
+    uint8_t value = remapped == 0xFFFF ? mode : (uint8_t)remapped;
+    if_test_answer(c, self_addr, at + 1, OP_IF_GAME_MODE, value == 9 || value == 0xA || value == 0x16);
+}
+
+/* game_task 09AC3CA8, opcode 0x77: if the remap flag table has no value (0xFFFF) for +0x284 of what POINTER_09A4F1A0 points at. The name says the other way: it was a partial reading. */
+void hand_monster_script_op_77_if_global_a4f1a0_id_has_remap_entry(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_REMAP_ENTRY))
+        return;
+    int none = LHU(AREA_REMAP_FLAG + LW(LW(POINTER_09A4F1A0) + 0x284) * 2) == 0xFFFF;
+    if_test_answer(c, self_addr, at + 1, OP_IF_REMAP_ENTRY, none);
+}
+
+/* game_task 09AC3970, opcode 0x76: a switch in the shape of the sorted ones, on the value 0: only a case of 0 is ever taken */
+void hand_monster_script_op_76_switch_with_selector_0(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_ZERO, 1))
+        return;
+    c->r[2] = sorted_cases(c, self_addr, at + 4, OP_SWITCH_ZERO, LBU(at + 1), 0);
+}
+
+/* game_task 09ABB7B8, opcode 0x3B: if there's a paired monster */
+void hand_monster_script_op_3b_if_field_5c4_nonzero(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_PAIRED))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_PAIRED, self->paired_monster != 0);
+}
+
+/* game_task 09AC2B78, opcode 0x63: "63 0 mask": if spawn_variant has a bit of the mask */
+void hand_monster_script_op_63_if_field_4ae_has_operand_mask(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_VARIANT_BITS))
+        return;
+    uint8_t mask = LBU(at + 1);
+    if_test_answer(c, self_addr, at + 2, OP_IF_VARIANT_BITS, ((int32_t)self->spawn_variant & mask) != 0);
+}
+
+/* game_task 09AC1578, opcode 0x51: if movement_mode is 4 */
+void hand_monster_script_op_51_if_byte_280_is_4(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_MODE_4))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_MODE_4, self->movement_mode == 4);
+}
+
+/* game_task 09AC03D8, opcode 0x38: if 09AC04F0 says anything but 0 */
+void hand_monster_script_op_38_if_cond_9ac04f0(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_09AC04F0))
+        return;
+    if_test_answer(c, self_addr, at + 1, OP_IF_09AC04F0, call1(c, condition_09ac04f0, self_addr) != 0);
+}
+
+/* game_task 09ABF3B0, opcode 0x21: if meter_b is at most 30% of meter_b_max. A meter is what its readers say; which one it is isn't known here. */
+void hand_monster_script_op_21_if_field_498_at_most_30pct_of_field_4a0(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_METER_LOW))
+        return;
+    int32_t limit = (int32_t)rt_trunc_w(0.3f * (float)(int32_t)LW(self_addr + offsetof(Monster, meter_b_max)));
+    if_test_answer(c, self_addr, at + 1, OP_IF_METER_LOW, !(limit < (int32_t)LW(self_addr + offsetof(Monster, meter_b))));
+}
+
+/* -- the id sequence ------------------------------------------------------------------------------------------------------------------------------ */
+
+/* game_task 09ABD7C0, opcode 0x17: "17 list entry length loops": begins a sequence of ids, unless one is going on. Length 0 is none. */
+void hand_monster_script_op_17_set_id_sequence(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (self->id_sequence_length == -1) {
+        self->id_sequence_list = LBU(at);
+        self->id_sequence_length = (int8_t)LBU(at + 1);
+        SB(self_addr + ID_SEQUENCE_ENTRY, LBU(at + 2));
+        self->id_sequence_loops = LBU(at + 3);
+        self->id_sequence_position = 0;
+        if (self->id_sequence_length == 0)
+            self->id_sequence_length = -1;
+    }
+    c->r[2] = at + 4;
+}
+
+/* game_task 09ABD818, opcode 0x18: enters the entry for the sequence's next id that's another area than the one it's in, noting route_final_area. Areas of 50000 up are looked up further,
+ * in the table at header +0x1C. Those it's in already are passed. Coming to the end: over, going on after this instruction, or round again if it loops, for ever if it's in them all. */
+void hand_monster_script_op_18_enter_next_sequence_id_differing_from_field_29a(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (self->id_sequence_length == -1) {
+        c->r[2] = at;
+        return;
+    }
+    self->monster_flags |= MONSTER_FLAG_200;
+    self->previous_area = 0xFFFF;
+    for (;;) {
+        uint32_t list = call2(c, id_sequence_list_of, self_addr, self->id_sequence_list);
+        uint32_t id = LHU(list + 2 * (uint32_t)(int32_t)self->id_sequence_position);
+        if ((int32_t)id >= ID_LOOKED_UP) {
+            uint32_t index = (id - ID_LOOKED_UP) & 0xFFFF;
+            uint32_t looked_up = call2(c, id_lookup, self_addr, LW(LW(self->script_header + 0x1C) + 4 * index));
+            id = LHU(looked_up);
+        }
+        self->route_final_area = area_by_remap_flag(c, (uint16_t)id);
+        if (self->route_final_area != self->area_id) {
+            self->script_sequence_loop_start = at;
+            call2(c, id_sequence_entry_enter, self_addr, LBU(self_addr + ID_SEQUENCE_ENTRY));
+            return;
+        }
+        self->id_sequence_position++;
+        if (self->id_sequence_position >= self->id_sequence_length) {
+            if (self->id_sequence_loops == 0) {
+                self->id_sequence_position = -1;
+                self->id_sequence_length = -1;
+                c->r[2] = at;
+                return;
+            }
+            self->id_sequence_position = 0;
+        }
+    }
+}

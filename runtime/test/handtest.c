@@ -85,6 +85,19 @@ OP_INPUTS(82)
 OP_INPUTS(19)
 OP_INPUTS(10)
 OP_INPUTS(34)
+OP_INPUTS(42)
+OP_INPUTS(14)
+OP_INPUTS(4D)
+OP_INPUTS(7C)
+OP_INPUTS(77)
+OP_INPUTS(76)
+OP_INPUTS(3B)
+OP_INPUTS(63)
+OP_INPUTS(51)
+OP_INPUTS(38)
+OP_INPUTS(21)
+OP_INPUTS(17)
+OP_INPUTS(18)
 OP_INPUTS(35)
 OP_INPUTS(28)
 OP_INPUTS(70)
@@ -225,6 +238,19 @@ static const Case cases[] = {
     {"op0F 09ABD630", f_game_task_09ABD630, 1, 0, 0x09ABD630, NULL, inputs_op_0F, &script_pokes},
     {"op43 09ABB428", f_game_task_09ABB428, 1, 0, 0x09ABB428, NULL, inputs_op_43, &script_pokes},
     {"op71 09ABBA08", f_game_task_09ABBA08, 1, 0, 0x09ABBA08, NULL, inputs_op_71, &script_pokes},
+    {"op42 09ABCC40", f_game_task_09ABCC40, 1, 0, 0x09ABCC40, NULL, inputs_op_42, &script_pokes},
+    {"op14 09ABEA38", f_game_task_09ABEA38, 1, 0, 0x09ABEA38, NULL, inputs_op_14, &script_pokes},
+    {"op4D 09AC1458", f_game_task_09AC1458, 1, 0, 0x09AC1458, NULL, inputs_op_4D, &script_pokes},
+    {"op7C 09AC3550", f_game_task_09AC3550, 1, 0, 0x09AC3550, NULL, inputs_op_7C, &script_pokes},
+    {"op77 09AC3CA8", f_game_task_09AC3CA8, 1, 0, 0x09AC3CA8, NULL, inputs_op_77, &script_pokes},
+    {"op76 09AC3970", f_game_task_09AC3970, 1, 0, 0x09AC3970, NULL, inputs_op_76, &script_pokes},
+    {"op3B 09ABB7B8", f_game_task_09ABB7B8, 1, 0, 0x09ABB7B8, NULL, inputs_op_3B, &script_pokes},
+    {"op63 09AC2B78", f_game_task_09AC2B78, 1, 0, 0x09AC2B78, NULL, inputs_op_63, &script_pokes},
+    {"op51 09AC1578", f_game_task_09AC1578, 1, 0, 0x09AC1578, NULL, inputs_op_51, &script_pokes},
+    {"op38 09AC03D8", f_game_task_09AC03D8, 1, 0, 0x09AC03D8, NULL, inputs_op_38, &script_pokes},
+    {"op21 09ABF3B0", f_game_task_09ABF3B0, 1, 0, 0x09ABF3B0, NULL, inputs_op_21, &script_pokes},
+    {"op17 09ABD7C0", f_game_task_09ABD7C0, 1, 0, 0x09ABD7C0, NULL, inputs_op_17, &script_pokes},
+    {"op18 09ABD818", f_game_task_09ABD818, 1, 0, 0x09ABD818, NULL, inputs_op_18, &script_pokes},
     {"script_next 09AB7858", f_game_task_09AB7858, 1, 0, 0x09AB7858, NULL, inputs_script, &script_pokes},
     {"script_end_block 09AB6788", f_game_task_09AB6788, 1, 0, 0x09AB6788, NULL, inputs_script_end_block, &script_pokes},
     {"script_run 09AB4C68", f_game_task_09AB4C68, 0, 0, 0x09AB4C68, NULL, inputs_script, &script_pokes},
