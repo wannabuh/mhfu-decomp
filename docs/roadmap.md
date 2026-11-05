@@ -40,8 +40,8 @@ confirmed against the current build.
 | What still ticks at 30 | Tells us what's left | Not started | List every remaining gate and the systems behind it: this list sets the rest of this table |
 | Monsters at a higher tick | Biggest visible part left *(check)* | Not started | Read how much the script and tick code assume 30ths; hand-written interpreter helps here |
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
-| Frame-rate dependence in big-monster fights | No recording tested this until recently | In progress | `tools/ratecheck.py` over the fight recordings at 60 and 144 |
-| Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fixed, unmerged parts merged | Measure stage by stage with `MHFU_PROFILE`; log the worst |
+| Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 and 144 |
+| Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
 
