@@ -39,10 +39,11 @@ for the rest, in the order it is needed to boot.
   later by the text's code: by their entries; the name, given once, by its place). The menus' windows, the supply box
   and the windows drawn among them (the quest's details, an item obtained) are no part. The button hints (`glyphs.c`)
   with their part.
-- **The sun flare** (`gpu.c` `flare_texture`): the Old Jungle's and the Desert's - a glare and a rainbow ring, models
-  of the map's - stood in the middle of the picture wherever the sun was behind trees or turned from, and moved about
-  with the camera. Left out: their draws told by their textures (64 x 64: the data's hashes, or the glare's look - black,
-  a glow in one corner, the middle dim). `MHFU_SUN_FLARE=1` keeps it.
+- **The sun flare** (`gpu.c` `flare_texture`): models drawn towards the sun in several maps, glares and rainbow rings, left out. It stood in the
+  middle of the picture wherever the sun was behind the trees or turned from, and moved about with the camera. Told by what its textures are, not
+  which, as the maps have several: added onto the picture, and a quarter of a circle round one corner, drawn four times mirrored, so that what
+  lies at the same distance from that corner is alike and the far side black. `MHFU_SUN_FLARE=1` keeps it. `MHFU_TEX_LOG=<dir>` lists and saves the
+  textures the game adds onto the picture, and `MHFU_TEX_HIDE=hash,...` leaves some out, to look over others like them.
 - **The Snowy Mountains' haze**: a dome of mist round the map (`game_sub 09CC0CE0`, an object's draw method, once a
   frame in the snowfields and the ice cave) and the snowstorm's sheets of fog (`game_sub 09C57E08`) - big flat
   triangles whose straight edges show as the camera turns. `MHFU_SNOW_HAZE=0` leaves both out (`patches.py` `SNOW`,
@@ -110,6 +111,10 @@ The display's frames are drawn while the game waits (one host thread); when the 
 clock by more than a frame shown, frames are left out rather than the game slowed. Each primitive keeps only the span
 of vertices it indexes, consecutive primitives on one buffer sharing a copy (a hunt's strips index big shared buffers:
 copied whole, that was 70 MB a frame, and the game ran at 20-24 at 144).
+`MHFU_FRAME_LOG=<file>` writes each game frame's wall time and stage (with `MHFU_PRIM_STATS=1`, the primitives by class every 240 frames), and
+`MHFU_PROFILE=<file>,<from>,<to>` samples where the time goes between two frames, named by `tools/profile.py BINARY FILE`. Measure with `MHFU_FPS=0`: a recording
+doesn't stay in step at a display's rate.
+
 `MHFU_FPS_STATS=1` reports, by the wall clock, the frames shown and left out, the game's rate, its longest frame, the
 time idle, and the matching (with `MHFU_PRIM_STATS=1`, also the primitives a frame drawn by class - 2D, scenery,
 lit, skinned... -, their vertices, the vertex stage's time on them and how often their matrices change);

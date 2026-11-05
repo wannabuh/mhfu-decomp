@@ -4,6 +4,10 @@
  * MHFU_FPS=N (with the Vulkan renderer) shows N frames a second, whatever the game's 30: the game's frames are
  * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
  * idle time (present_pump). */
+#define _GNU_SOURCE 1
+#include <signal.h>
+#include <sys/time.h>
+#include <ucontext.h>
 #include "hle.h"
 #include "savestate.h"
 #include "render.h"
@@ -670,6 +674,52 @@ void present_input_read(void) {
 void glyphs_frame_end(void);
 int overlay_open(void);
 
+static uint64_t flip_us;     /* (MHFU_FRAME_LOG: of the frame's time, what the renderer's flip took) */
+
+/* MHFU_PROFILE=<file>,<from>,<to>: where the time goes between two game frames, by a timer's samples of the instruction pointer
+ * (of the game's own thread and any other that has the signal), written as addresses for tools/profile.py to name */
+#define PROFILE_SAMPLES (1 << 21)
+static uint64_t *profile_at;
+static volatile int profile_n;
+static void profile_signal(int sig, siginfo_t *info, void *context) {
+    (void)sig;
+    (void)info;
+    if (profile_n < PROFILE_SAMPLES)
+        profile_at[profile_n++] = (uint64_t)((ucontext_t *)context)->uc_mcontext.gregs[REG_RIP];
+}
+static void profile_frame(unsigned long f) {
+    static int state = -1;
+    static long from, to;
+    static char path[1024];
+    if (state < 0) {
+        state = 0;
+        const char *e = getenv("MHFU_PROFILE");
+        if (e && sscanf(e, "%1023[^,],%ld,%ld", path, &from, &to) == 3) {
+            state = 1;
+            profile_at = malloc(PROFILE_SAMPLES * sizeof *profile_at);
+        }
+    }
+    if (state == 1 && (long)f >= from) {
+        struct sigaction sa = {0};
+        sa.sa_sigaction = profile_signal;
+        sa.sa_flags = SA_SIGINFO | SA_RESTART;
+        sigaction(SIGPROF, &sa, NULL);
+        struct itimerval t = {{0, 500}, {0, 500}};
+        setitimer(ITIMER_PROF, &t, NULL);
+        state = 2;
+    } else if (state == 2 && (long)f >= to) {
+        struct itimerval t = {{0, 0}, {0, 0}};
+        setitimer(ITIMER_PROF, &t, NULL);
+        FILE *o = fopen(path, "wb");
+        if (o) {
+            fwrite(profile_at, sizeof *profile_at, (size_t)profile_n, o);
+            fclose(o);
+        }
+        fprintf(stderr, "profile: %d samples, frames %ld to %ld\n", profile_n, from, to);
+        state = 0;
+    }
+}
+
 void present_frame(void) {
     glyphs_frame_end();             /* (the button hints drawn in this frame: those shown) */
     static uint64_t frame_wall;
@@ -684,6 +734,30 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    profile_frame(frame);
+    /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */
+    {
+        static FILE *frame_log;
+        static int read;
+        static uint64_t last;
+        if (!read) {
+            read = 1;
+            if (getenv("MHFU_FRAME_LOG"))
+                frame_log = fopen(getenv("MHFU_FRAME_LOG"), "w");
+        }
+        if (frame_log) {
+            uint32_t game = *(uint32_t *)(rt_mem + 0x089CC558u);
+            unsigned area = game >= 0x08800000u && game < 0x0A000000u ? *(uint16_t *)(rt_mem + game + 0x6AF0Eu) : 0;
+            fprintf(frame_log, "%lu\t%llu\t%u\t%llu\n", frame, (unsigned long long)(wall - last), area, (unsigned long long)flip_us);
+            flip_us = 0;
+            last = wall;
+            if (frame % 240 == 0) {
+                void gpu_prim_stats_now(void);
+                fprintf(stderr, "frame %lu, stage %u:\n", frame, area);
+                gpu_prim_stats_now();
+            }
+        }
+    }
     /* MHFU_FPS_STATS without a frame rate of the display's own: the game's (each of its frames shown) */
     static uint64_t stats_wall;
     static unsigned long stats_frame;
@@ -732,10 +806,13 @@ void present_frame(void) {
     } else if (render_on) {
         if (dump)
             render_readback(display_fb_addr, pixels);
-        if (!gpu_skip_draw)
+        if (!gpu_skip_draw) {
+            uint64_t before = wall_time_us();
             render_flip(display_fb_addr);
-        else
+            flip_us += wall_time_us() - before;
+        } else {
             native_skipped++;
+        }
         if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
             fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
         /* the game at its own rate above 30, well behind (four frames, as it shows one - its own work in it): the next

@@ -412,8 +412,13 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
         return;
     float x0 = fminf(p[0][0], fminf(p[1][0], p[2][0])), x1 = fmaxf(p[0][0], fmaxf(p[1][0], p[2][0]));
     float z0 = fminf(p[0][2], fminf(p[1][2], p[2][2])), z1 = fmaxf(p[0][2], fmaxf(p[1][2], p[2][2]));
+    float y0 = fminf(p[0][1], fminf(p[1][1], p[2][1])), y1 = fmaxf(p[0][1], fmaxf(p[1][1], p[2][1]));
     float reach = radius + TILE;
     if (x1 < eye[0] - reach || x0 > eye[0] + reach || z1 < eye[2] - reach || z0 > eye[2] + reach)
+        return;
+    /* nor far above or below: a map's sky, 30000 units up and some 27000 across, faces up too. As ground it was laid over every tile
+     * about the camera, some 450000 cells a triangle, and as the top surface stood in for the ground */
+    if (y1 < eye[1] - reach || y0 > eye[1] + reach)
         return;
     G.d = e1[0] * e2[2] - e2[0] * e1[2];
     if (fabsf(G.d) < 1e-6f)

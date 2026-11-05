@@ -2354,6 +2354,10 @@ static void prim_stats_print(void) {
     memset(ps_runs, 0, sizeof ps_runs);
 }
 
+void gpu_prim_stats_now(void) {     /* (MHFU_FRAME_LOG with MHFU_PRIM_STATS: every so many frames, whatever the display) */
+    prim_stats_print();
+}
+
 static unsigned long cuts, shown_frames;      /* for MHFU_FPS_STATS */
 static float cut_turn, cut_move;
 
@@ -3623,37 +3627,59 @@ static void tl_group_draw(const TlGroup *g) {
     }
 }
 
-/* The game's sun flare (models of the map's drawn towards the sun: the Old Jungle's glare and rainbow ring, the
- * Desert's glare), left out unless MHFU_SUN_FLARE=1: it stood in the middle of the picture wherever the sun was behind
- * the trees or turned from, and moved about with the camera. Told by its textures (64 x 64): their data's hashes, as
- * texture packs name them (the address they are at is the map's), or the glare's look - black, a glow in one corner
- * (a quarter of it, drawn four times), the middle dim: unlike a fire's glow, bright in the middle. Each texture is
- * looked at once, while it stays at its address */
-static const uint32_t flare_hashes[] = {0x16144919u, 0xBF92C2B0u, 0x48BCDF67u};
-static int glare_look(void) {
-    static uint32_t px[64 * 64];
-    gpu_decode_texture(px, 64, 64, reg);
-    float corner[5];
-    static const int at[5][2] = {{0, 0}, {60, 0}, {0, 60}, {60, 60}, {30, 30}};
-    for (int k = 0; k < 5; k++) {
-        float sum = 0;
-        for (int y = 0; y < 4; y++)
-            for (int x = 0; x < 4; x++) {
-                uint32_t c = px[(at[k][1] + y) * 64 + at[k][0] + x];
-                sum += (float)((c & 255) + ((c >> 8) & 255) + ((c >> 16) & 255)) / (3 * 255.0f);
-            }
-        corner[k] = sum / 16;
+/* The game's sun flare (models of the map's drawn towards the sun: glares and rainbow rings, in several maps), left out unless
+ * MHFU_SUN_FLARE=1: it stood in the middle of the picture wherever the sun was behind the trees or turned from, and moved about with the
+ * camera. Told by what its textures are, not which: added onto the picture, and a quarter of a circle round one corner, drawn four times
+ * mirrored - so what lies at the same distance from that corner is alike, and the far side black. A fire's glow is round its middle, and
+ * nothing else the game adds comes near: over the recordings' 39 textures, these score under 0.04 and the next 0.41. Each texture is looked
+ * at once, while it stays at its address. The hashes (as texture packs name them) are glares known from before that the recordings don't reach. */
+static const uint32_t flare_hashes[] = {0x16144919u, 0x48BCDF67u};
+#define FLARE_BINS 48
+static int flare_look(int w, int h) {
+    static uint32_t px[256 * 256];
+    static float lum[256 * 256];
+    gpu_decode_texture(px, w, h, reg);
+    for (int i = 0; i < w * h; i++) {
+        uint32_t c = px[i];
+        lum[i] = (float)((c & 255) + ((c >> 8) & 255) + ((c >> 16) & 255)) / (3 * 255.0f) * (float)(c >> 24) / 255.0f;
     }
-    int bright = 0, dark = 0;
-    for (int k = 0; k < 4; k++)
-        bright += corner[k] > 0.8f, dark += corner[k] < 0.05f;
-    return bright == 1 && dark == 3 && corner[4] < 0.25f;
+    for (int corner = 0; corner < 4; corner++) {
+        float cx = corner & 1 ? (float)(w - 1) : 0, cy = corner & 2 ? (float)(h - 1) : 0;
+        float sum[FLARE_BINS] = {0}, sq[FLARE_BINS] = {0};
+        int n[FLARE_BINS] = {0};
+        float all = 0, allsq = 0, far = 0;
+        int nfar = 0;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++) {
+                float dx = ((float)x - cx) / (float)w, dy = ((float)y - cy) / (float)h, d = sqrtf(dx * dx + dy * dy);
+                float v = lum[y * w + x];
+                int k = (int)(d * 32);
+                if (k >= FLARE_BINS)
+                    k = FLARE_BINS - 1;
+                sum[k] += v;
+                sq[k] += v * v;
+                n[k]++;
+                all += v;
+                allsq += v * v;
+                if (d >= 1.2f)
+                    far += v, nfar++;
+            }
+        float count = (float)(w * h), mean = all / count, total = allsq / count - mean * mean, within = 0;
+        for (int k = 0; k < FLARE_BINS; k++)
+            if (n[k])
+                within += sq[k] - sum[k] * sum[k] / (float)n[k];
+        within /= count;
+        if (total > 1e-5f && within / total < 0.1f && (nfar == 0 || far / (float)nfar < 0.02f))
+            return 1;
+    }
+    return 0;
 }
 static int flare_texture(void) {
     static int keep = -1;
     if (keep < 0)
         keep = getenv("MHFU_SUN_FLARE") && atoi(getenv("MHFU_SUN_FLARE")) != 0;
-    if (keep || !(reg[0x1E] & 1) || (reg[0xB8] & 0xF0F) != 0x606 || (reg[0x12] >> 23 & 1))
+    int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
+    if (keep || !(reg[0x1E] & 1) || !(reg[0x21] & 1) || ((reg[0xDF] >> 4) & 15) != 10 || w != h || w < 16 || w > 256 || (reg[0x12] >> 23 & 1))
         return 0;
     uint32_t addr = (reg[0xA0] & 0xFFFFF0) | ((reg[0xA8] & 0x0F0000) << 8);
     static struct { uint32_t addr, first[4]; int8_t flare; } seen[64];
@@ -3673,7 +3699,7 @@ static int flare_texture(void) {
     texpack_key(reg, 512, &key, &hash);
     seen[k].addr = addr;
     memcpy(seen[k].first, PTR(addr), 16);
-    seen[k].flare = (int8_t)glare_look();
+    seen[k].flare = (int8_t)flare_look(w, h);
     for (size_t i = 0; i < sizeof flare_hashes / sizeof *flare_hashes; i++)
         if (hash == flare_hashes[i])
             seen[k].flare = 1;
@@ -3821,10 +3847,89 @@ static void prim(uint32_t data) {
     vaddr = v + (uint32_t)(count * l.size);
 }
 
+/* MHFU_TEX_LOG=<dir>: each texture drawn blended onto what's behind it (additive or a fixed blend), once per address and hash: a line in
+ * <dir>/log.tsv and its pixels in <dir>/<hash>.rgba, to look over what the game draws as glows and flares */
+extern unsigned long present_frame_number(void);
+static void tex_log(uint32_t prims) {
+    static const char *dir;
+    static int read;
+    static FILE *log;
+    if (!read) {
+        read = 1;
+        dir = getenv("MHFU_TEX_LOG");
+    }
+    if (!dir || !(reg[0x1E] & 1))
+        return;
+    uint32_t blend = reg[0xDF] & 0xFFFFFF;
+    int src = blend & 15, dst = (blend >> 4) & 15;
+    if (!(reg[0x21] & 1) || dst != 10 || src > 10)      /* (blending on; the destination's factor fixed) */
+        return;
+    uint64_t key;
+    uint32_t hash;
+    static struct { uint32_t hash; unsigned long count; } seen[4096];
+    static int nseen;
+    texpack_key(reg, 512, &key, &hash);
+    for (int k = 0; k < nseen; k++)
+        if (seen[k].hash == hash) {
+            seen[k].count += prims;
+            return;
+        }
+    if (nseen == 4096)
+        return;
+    seen[nseen++].hash = hash;
+    int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
+    if (!log) {
+        char path[1024];
+        snprintf(path, sizeof path, "%s/log.tsv", dir);
+        log = fopen(path, "w");
+    }
+    uint32_t addr = (reg[0xA0] & 0xFFFFF0) | ((reg[0xA8] & 0x0F0000) << 8);
+    fprintf(log, "%08X\t%08X\t%d\t%d\t%lu\t%06X\t%06X\t%06X\t%u\t%d\t%d\n", hash, addr, w, h, present_frame_number(), blend, reg[0xE0] & 0xFFFFFF,
+            reg[0xE1] & 0xFFFFFF, prims, (reg[0x12] >> 23) & 1, flare_texture());
+    fflush(log);
+    if (w <= 512 && h <= 512) {
+        static uint32_t px[512 * 512];
+        gpu_decode_texture(px, w, h, reg);
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%08X.rgba", dir, hash);
+        FILE *o = fopen(path, "wb");
+        if (o) {
+            fwrite(px, 4, (size_t)(w * h), o);
+            fclose(o);
+        }
+    }
+}
+
+/* MHFU_TEX_HIDE=hash,hash,...: textures left out, by their hash, to see what one is in the picture */
+static int tex_hidden(void) {
+    static uint32_t hide[32];
+    static int n = -1;
+    if (n < 0) {
+        n = 0;
+        const char *e = getenv("MHFU_TEX_HIDE");
+        while (e && *e && n < 32) {
+            char *end;
+            hide[n++] = (uint32_t)strtoul(e, &end, 16);
+            e = *end ? end + 1 : end;
+        }
+    }
+    if (!n || !(reg[0x1E] & 1))
+        return 0;
+    uint64_t key;
+    uint32_t hash;
+    texpack_key(reg, 512, &key, &hash);
+    for (int i = 0; i < n; i++)
+        if (hide[i] == hash)
+            return 1;
+    return 0;
+}
+
 static void prim_drawn(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
-    if ((data & 0xFFFF) && flare_texture()) {      /* (left out: its vertices passed over) */
+    if (data & 0xFFFF)
+        tex_log(data & 0xFFFF);
+    if ((data & 0xFFFF) && (flare_texture() || tex_hidden())) {      /* (left out: its vertices passed over) */
         int n = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
         if (idx)
             iaddr += (uint32_t)(n * (idx == 1 ? 1 : 2));
