@@ -256,3 +256,200 @@ void hand_monster_script_op_10_target_point_index_534(Ctx *c) {
     c->r[29] = sp + 0x20;
     c->r[2] = at;
 }
+
+/* A hunter by slot, or 0 */
+static uint32_t hunter_of_slot(Ctx *c, uint32_t slot) {
+    return call2(c, hunter_by_slot, LW(HUNTER_MANAGER_POINTER), slot);
+}
+
+/* game_task 09ABA858, opcode 0x13: the target is the chosen hunter, or slot 0xFF if there's none */
+void hand_monster_script_op_13_target_chosen_slot_511(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    self->target_kind = TARGET_KIND_HUNTER_SLOT;
+    self->target_param1 = 0;
+    uint8_t chosen = self->chosen_slot;
+    self->target_param2 = chosen == 0xFF ? 0xFF : chosen & 0xFu;
+    c->r[2] = c->r[5];
+}
+
+/* Going to an area: nothing further after it */
+static void target_area_set(Monster *self) {
+    self->target_param1 = self->target_param2;
+    self->route_next_area = self->target_param2;
+    self->route_final_area = 0xFFFF;
+}
+
+/* game_task 09AB8E48, opcode 6: "06 kind a b": sets the target. Mostly kind and two parameters. Kind 3: an area, whose big-endian id follows. Kind 0xA: the area the chosen hunter
+ * is in, as kind 3. Kind 0xD: the first other live monster in the same area with monster_flags 2, or 0xFF. */
+void hand_monster_script_op_06_set_target_spec(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    uint16_t kind = LBU(at);
+    self->target_kind = kind;
+    if (kind == TARGET_KIND_AREA) {
+        self->target_param1 = LBU(at + 1);
+        self->target_param2 = (uint16_t)(LBU(at + 2) << 8 | LBU(at + 3));
+        self->target_param2 = area_by_remap_flag(c, self->target_param2);
+        target_area_set(self);
+        c->r[2] = at + 4;
+        return;
+    }
+    self->target_param1 = LBU(at + 1);
+    self->target_param2 = LBU(at + 2);
+    c->r[2] = at + 3;
+    if (kind == TARGET_KIND_HUNTERS_AREA) {
+        self->target_kind = TARGET_KIND_AREA;
+        uint8_t chosen = self->chosen_slot;
+        if (chosen == 0xFF) {
+            self->target_param2 = self->area_id;
+        } else {
+            uint32_t hunter = hunter_of_slot(c, chosen);
+            self->target_param2 = hunter != 0 ? OBJ(Monster, hunter)->area_id : self->area_id;
+        }
+        target_area_set(self);
+        c->r[2] = at + 3;
+    } else if (kind == TARGET_KIND_OTHER_MONSTER) {
+        uint32_t monsters = LW(MONSTERS_POINTER), slot;
+        for (slot = 0; slot < 20; slot++) {
+            uint32_t other = LW(monsters + MONSTERS_LIST + 4 * slot);
+            if (other != 0 && (LW(other + 4) & 1) && OBJ(Monster, other)->area_id == self->area_id && other != self_addr && (OBJ(Monster, other)->monster_flags & 2))
+                break;
+        }
+        self->target_param2 = slot < 20 ? (uint16_t)slot : 0xFF;
+    }
+}
+
+/* Among hunters whose points are at least these: returns how many, listed. */
+static int hunters_with_points(const Monster *self, uint8_t usable, int32_t points, uint8_t list[4]) {
+    int n = 0;
+    for (uint32_t slot = 0; slot < 4; slot++)
+        if ((&self->target_points_hunter0)[slot] >= points && (usable & (1u << slot)))
+            list[n++] = (uint8_t)slot;
+    return n;
+}
+
+/* Of those listed, the farthest */
+static uint8_t farthest_listed(const Monster *self, const uint8_t *list, int n) {
+    const float *values = &self->distance_to_hunter0;
+    uint8_t best = list[0];
+    for (int i = 1; i < n; i++)
+        if (values[best] < values[list[i]])
+            best = list[i];
+    return best;
+}
+
+/* game_task 09ABA4B0, opcode 0x53: chooses which hunter to go for, among those tracked, live and in its area. Those with 50000 points or more first, then 30000 or more: alone, the one,
+ * or if more the farthest. Otherwise the one with most points; if all have none (or the first has none and none has more), at random
+ * by script_random_counter. Nobody: chosen_slot 0xFF. Points are target_points_hunter0.. */
+void hand_monster_script_op_53_choose_hunter_slot_by_field_554_tiers(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t at = c->r[5];
+    uint8_t usable = 0;
+    if (self->hunters_tracked_mask != 0) {
+        for (uint32_t slot = 0; slot < 4; slot++) {
+            uint32_t hunter = hunter_of_slot(c, slot);
+            if (hunter != 0 && (self->hunters_tracked_mask & (1u << slot)) && self->area_id == OBJ(Monster, hunter)->area_id && (LW(hunter + 4) & 1))
+                usable |= (uint8_t)(1u << slot);
+        }
+    }
+    uint8_t list[4], chosen = 0xFF;
+    int n;
+    if (usable == 0) {
+        chosen = 0xFF;
+    } else if ((n = hunters_with_points(self, usable, POINTS_TOP_TIER, list)) != 0) {
+        chosen = n == 1 ? list[0] : farthest_listed(self, list, n);
+    } else if ((n = hunters_with_points(self, usable, POINTS_SECOND_TIER, list)) != 0) {
+        chosen = n == 1 ? list[0] : farthest_listed(self, list, n);
+    } else {
+        n = 0;
+        for (uint32_t slot = 0; slot < 4; slot++)
+            if (usable & (1u << slot))
+                list[n++] = (uint8_t)slot;
+        const int32_t *points = &self->target_points_hunter0;
+        chosen = list[0];
+        if (n != 1) {
+            int nobody_has_more = points[chosen] == 0;
+            for (int i = 1; i < n; i++)
+                if (points[chosen] < points[list[i]]) {
+                    chosen = list[i];
+                    nobody_has_more = 0;
+                }
+            if (nobody_has_more)
+                chosen = list[self->script_random_counter % n];
+        }
+    }
+    self->chosen_slot = chosen;
+    c->r[2] = at;
+}
+
+/* game_task 09ABB8B8, opcode 0x54: if the chosen hunter is live and in the monster's area */
+void hand_monster_script_op_54_if_chosen_hunter_active_same_field_29a(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_CHOSEN_HUNTER_HERE))
+        return;
+    int here = 0;
+    uint8_t chosen = self->chosen_slot;
+    if (chosen != 0xFF) {
+        uint32_t hunter = hunter_of_slot(c, chosen);
+        here = hunter != 0 && self->area_id == OBJ(Monster, hunter)->area_id && (LW(hunter + 4) & 1);
+    }
+    if_test_answer(c, self_addr, at + 1, OP_IF_CHOSEN_HUNTER_HERE, here);
+}
+
+/* game_task 09ABED10, opcode 0x1B: "1B 0 value": if script_event_active is the value */
+void hand_monster_script_op_1b_if_field_544_equals(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (if_not_the_test(c, self_addr, at, OP_IF_EVENT))
+        return;
+    uint8_t value = LBU(at + 1);
+    if_test_answer(c, self_addr, at + 2, OP_IF_EVENT, value == self->script_event_active);
+}
+
+/* game_task 09ABA888, opcode 0x40: "40 0" ends alert, "40 n" begins it, with the value from the monster's type. */
+void hand_monster_script_op_40_set_mode_4b9_zero_or_one(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (LBU(at) == 0)
+        call3(c, set_alert_mode, self_addr, 0, 0);
+    else
+        call3(c, set_alert_mode, self_addr, 1, (uint32_t)(int32_t)LH(MONSTER_TYPE(self->subtype, MONSTER_TYPE_ALERT_ARG)));
+    c->r[2] = at + 1;
+}
+
+/* game_task 09ABB040, opcode 0x2C: a switch on the monster's type, by a list test: 09ACC450 given its type and the case's byte. */
+void hand_monster_script_op_2c_switch_on_field_1e8_group(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_TYPE_GROUP, 1))
+        return;
+    int32_t count = LBU(at + 1);
+    at += 4;
+    for (int32_t i = 0; i < count; i++) {
+        uint8_t value = LBU(at);
+        at++;
+        if ((call3(c, type_in_group, self_addr, self->subtype, value) & 0xFF) != 0 || !to_next_case(c, self_addr, &at, OP_SWITCH_TYPE_GROUP))
+            break;
+    }
+    c->r[2] = at;
+}
+
+/* game_task 09ABB188, opcode 0x27: a switch on spawn_variant, cases in order */
+void hand_monster_script_op_27_switch_on_field_4ae_sorted(Ctx *c) {
+    Monster *self = OBJ(Monster, c->r[4]);
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_VARIANT, 1))
+        return;
+    c->r[2] = sorted_cases(c, self_addr, at + 4, OP_SWITCH_VARIANT, LBU(at + 1), (int16_t)self->spawn_variant);
+}
+
+/* game_task 09AC3798, opcode 0x79: "79 0 count key .. ..": a switch on what the monster's method +0xDC says of the key, cases in order. */
+void hand_monster_script_op_79_switch_on_vfunc_dc(Ctx *c) {
+    uint32_t self_addr = c->r[4], at = c->r[5];
+    if (switch_not_the_first_case(c, self_addr, at, OP_SWITCH_METHOD_DC, 1))
+        return;
+    uint8_t count = LBU(at + 1);
+    int32_t value = call_method1(c, self_addr, 0xDC, LBU(at + 2)) & 0xFF;
+    c->r[2] = sorted_cases(c, self_addr, at + 5, OP_SWITCH_METHOD_DC, count, value);
+}

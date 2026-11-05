@@ -85,6 +85,15 @@ OP_INPUTS(82)
 OP_INPUTS(19)
 OP_INPUTS(10)
 OP_INPUTS(34)
+OP_INPUTS(13)
+OP_INPUTS(06)
+OP_INPUTS(53)
+OP_INPUTS(2C)
+OP_INPUTS(54)
+OP_INPUTS(27)
+OP_INPUTS(79)
+OP_INPUTS(1B)
+OP_INPUTS(40)
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -183,6 +192,15 @@ static const Case cases[] = {
     {"op19 09ABCC10", f_game_task_09ABCC10, 1, 0, 0x09ABCC10, NULL, inputs_op_19, &script_pokes},
     {"op10 09ABC9B8", f_game_task_09ABC9B8, 1, 0, 0x09ABC9B8, NULL, inputs_op_10, &script_pokes},
     {"op34 09ABB670", f_game_task_09ABB670, 1, 0, 0x09ABB670, NULL, inputs_op_34, &script_pokes},
+    {"op13 09ABA858", f_game_task_09ABA858, 1, 0, 0x09ABA858, NULL, inputs_op_13, &script_pokes},
+    {"op06 09AB8E48", f_game_task_09AB8E48, 1, 0, 0x09AB8E48, NULL, inputs_op_06, &script_pokes},
+    {"op53 09ABA4B0", f_game_task_09ABA4B0, 1, 0, 0x09ABA4B0, NULL, inputs_op_53, &script_pokes},
+    {"op2C 09ABB040", f_game_task_09ABB040, 1, 0, 0x09ABB040, NULL, inputs_op_2C, &script_pokes},
+    {"op54 09ABB8B8", f_game_task_09ABB8B8, 1, 0, 0x09ABB8B8, NULL, inputs_op_54, &script_pokes},
+    {"op27 09ABB188", f_game_task_09ABB188, 1, 0, 0x09ABB188, NULL, inputs_op_27, &script_pokes},
+    {"op79 09AC3798", f_game_task_09AC3798, 1, 0, 0x09AC3798, NULL, inputs_op_79, &script_pokes},
+    {"op1B 09ABED10", f_game_task_09ABED10, 1, 0, 0x09ABED10, NULL, inputs_op_1B, &script_pokes},
+    {"op40 09ABA888", f_game_task_09ABA888, 1, 0, 0x09ABA888, NULL, inputs_op_40, &script_pokes},
     {"script_next 09AB7858", f_game_task_09AB7858, 1, 0, 0x09AB7858, NULL, inputs_script, &script_pokes},
     {"script_end_block 09AB6788", f_game_task_09AB6788, 1, 0, 0x09AB6788, NULL, inputs_script_end_block, &script_pokes},
     {"script_run 09AB4C68", f_game_task_09AB4C68, 0, 0, 0x09AB4C68, NULL, inputs_script, &script_pokes},
