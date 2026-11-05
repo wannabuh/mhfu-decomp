@@ -60,7 +60,10 @@ static void inputs_set_motion(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_motion_copy(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_copy_pad(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_common(Ctx *c, uint32_t hunter, uint32_t args[3]);
-extern const struct Pokes upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
+static void inputs_stamina_scaled(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_motion_update(Ctx *c, uint32_t hunter, uint32_t args[3]);
+static void inputs_state_run(Ctx *c, uint32_t hunter, uint32_t args[3]);
+extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
 
 static const Case cases[] = {
     {"hunter_stamina_add 09A6A2D0", f_game_task_09A6A2D0, 0, 0, 0x09A6A2D0, NULL, NULL, NULL},
@@ -92,6 +95,9 @@ static const Case cases[] = {
     {"hunter_tick_motion_copy 088D1DD0", f_EBOOT_088D1DD0, 0, 0, 0x088D1DD0, NULL, inputs_motion_copy, NULL},
     {"hunter_copy_pad 088D61CC", f_EBOOT_088D61CC, 0, 0, 0x088D61CC, NULL, inputs_copy_pad, &copy_pad_pokes},
     {"hunter_common_input 09AA5270", f_game_task_09AA5270, 0, 0, 0x09AA5270, NULL, inputs_common, &common_pokes},
+    {"hunter_stamina_add_scaled 09A6A598", f_game_task_09A6A598, 0, 0, 0x09A6A598, NULL, inputs_stamina_scaled, NULL},
+    {"hunter_motion_update 088D5C7C", f_EBOOT_088D5C7C, 0, 0, 0x088D5C7C, NULL, inputs_motion_update, NULL},
+    {"hunter_state_run 09A665F0", f_game_task_09A665F0, 0, 0, 0x09A665F0, NULL, inputs_state_run, &run_pokes},
 };
 
 /* -- the stubs: in a trace build, rt_trace_all is at the top of every generated function --------------------------------------- */
@@ -304,7 +310,7 @@ static void randomise_upkeep(Ctx *c, uint32_t hunter) {
     self->push_off_ticks = (uint16_t)T16;
     self->hit_immune_ticks = (uint16_t)T16;
     self->reaction_block_item_ticks = (int16_t)T16;
-    self->state_wait_ticks = (uint8_t)T8;
+    self->menu_camera_lock_ticks = (uint8_t)T8;
     self->repeat_use_ticks = (int16_t)T16;
     self->stamina_loss_block_ticks = (int16_t)T16;
     self->area_1_2_ward_ticks = (uint16_t)PICK(0, 0, 0, 1, 1, 2, 3, 0x8000, 0xFFFF);
@@ -678,6 +684,144 @@ static void inputs_common(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     SW(LW(0x08A632C0u) + 0xF7A57Cu, PICK(0, 1, 2, 3));
 }
 
+/* -- floats: bits on the boundaries a function tests, either side of them, and what compares false either way ------------------------ */
+#define FLOAT_NAN 0x7FC00001u
+#define FLOAT_SIGNALLING_NAN 0x7F800001u
+#define FLOAT_INFINITY 0x7F800000u
+static uint32_t float_bits(float f) {
+    uint32_t bits;
+    memcpy(&bits, &f, sizeof bits);
+    return bits;
+}
+#define SET_FLOAT_BITS(field, bits) memcpy(&(field), &(uint32_t){bits}, sizeof(uint32_t))
+
+static void inputs_stamina_scaled(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    ((Hunter *)MEM(hunter))->instance_index = pick_slot(c);
+    args[0] = PICK(-1, -2, -3, -4, -5, -7, -100, -300, 1, 2, 3, 4, 7, 100, 300, 0x7FFF, -0x8000, 0x10000, 0x10003, 0x12345, 0x7FFFFFFF, 0x80000000, 21845, 16777217);
+    if (rnd() % 2)      /* large enough that the factor's last bit shows */
+        args[0] = (rnd() & 0x3FFFFFF) * PICK(1, -1);
+}
+
+static void inputs_motion_update(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    HunterBase *self = (HunterBase *)MEM(hunter);
+    self->freeze_ticks = (uint8_t)PICK(0, 0, 0, 0, 1, 0x80);
+    self->motion_slow_timer = (uint8_t)PICK(0, 0, 0, 0, 1, 2, 0x80, 0xFF);
+    self->motion_id = (uint16_t)PICK(0x23, 0x22, 0x731, 3, 0x1A7, 0x1A6, 0x1A3, 0x1A2, 0x1A0, 0x19F, 0x19D, 0x19C, 0x19B, 0x197, 0x196, 0x195, 0x58A, 0x587,
+                                     0x24, 0x21, 2, 4, 0x1A8, 0x1A5, 0x1A4, 0x1A1, 0x19E, 0x19A, 0x198, 0x194, 0x58B, 0x589, 0x588, 0x586, 0x732, 0x730);
+    self->motion_id_layer1 = (uint16_t)rnd();
+    self->hunter_flags = PICK(0, 0x80, 0x100, 0x180, ~0x180, -1);
+    self->motion_start_frame = (uint16_t)rnd();
+    self->part1_motion_start_frame = (uint16_t)rnd();
+    self->motion_blend_frames = (int16_t)rnd();
+    self->part1_motion_blend_frames = (int16_t)rnd();
+    SET_FLOAT_BITS(self->motion_part0_speed, PICK(float_bits(2.0f), float_bits(1.9999999f), float_bits(2.0000002f), 0, 0x80000000, float_bits(-1.0f), float_bits(3.5f), FLOAT_NAN, FLOAT_SIGNALLING_NAN, FLOAT_INFINITY));
+    SET_FLOAT_BITS(self->motion_part1_speed, rnd());
+    SET_FLOAT_BITS(self->motion_speed_scale, PICK(float_bits(1.0f), float_bits(0.5f), float_bits(1.1f), float_bits(0.3f), float_bits(1e-40f), 0x80000000, FLOAT_NAN, FLOAT_INFINITY));
+    ((GameState *)MEM(LW(GAME_POINTER)))->mode_flags = PICK(0, 1, 2, 3, ~1, -1);
+    if (!record_method) {       /* callees running for real: a motion that isn't one, or a speed that isn't a number, crashes them, whichever version runs */
+        self->hunter_flags |= 0x180;
+        SET_FLOAT_BITS(self->motion_part0_speed, PICK(float_bits(2.0f), float_bits(1.9999999f), float_bits(2.0000002f), 0, float_bits(3.5f)));
+        SET_FLOAT_BITS(self->motion_speed_scale, PICK(float_bits(1.0f), float_bits(0.5f), float_bits(1.1f), float_bits(0.3f)));
+    }
+}
+
+static const Bias run_bias[] = {
+    {0x08865CB8u, 8, {0, 0, 0, 1, 1, 0x100, 0x101, 2}},     /* the state's tests */
+    {0x088D69F0u, 6, {0, 1, 2, 3, 0x101, 0x102}},
+    {0x08865BACu, 6, {1, 1, 1, 0, 0x100, 0x101}},           /* in the stage being played */
+    {0x09AA8958u, 5, {0, 0, 1, 0x100, 2}},
+    {0x09A8BBE0u, 3, {0, 1, 0x100}},
+    {0x088DACA4u, 5, {0, 1, 1, 0x101, 2}},
+    {0x09AA6B18u, 8, {0x18, 0x21, 0x1E, 0x10018, 0x1001E, 0x10021, 0, 0x19}},
+    {0x09C3E698u, 4, {0, 1, 2, 0x101}},
+    {0x09BB0FE0u, 4, {0, 1, 0x10000, 0x10001}},
+    {0x09A8BB20u, 4, {0, 1, 0x100, 0x101}},
+    {0x08814048u, 3, {0, 1, 0x101}},
+    {0, 0, {0}},
+};
+POKES(run_pokes, run_bias, {0x4, 4, 0}, {0x28, 1, 1}, {0x1D6, 1, 0}, {0x1E0, 1, 0}, {0x1E6, 2, 0}, {0x1E8, 1, 0}, {0x200, 4, 0}, {0x204, 4, 0}, {0x208, 4, 0}, {0x20C, 4, 0},
+      {0x280, 1, 0}, {0x298, 1, 0}, {0x299, 1, 0}, {0x29C, 1, 0}, {0x2CC, 4, 0}, {0x2E4, 2, 0}, {0x33C, 1, 0}, {0x410, 4, 0}, {0x424, 2, 0}, {0x484, 4, 0},
+      {0x564, 1, 0}, {0x564, 1, 0}, {0x564, 1, 0}, {0x5F3, 1, 0}, {0x614, 4, 0}, {0x111C, 4, 0});
+
+static void inputs_state_run(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    (void)args;
+    Hunter *self = (Hunter *)MEM(hunter);
+    GameState *g = (GameState *)MEM(LW(GAME_POINTER));
+    self->instance_index = rnd() % 8 ? g->local_hunter_slot : pick_slot(c);
+    self->hunter_flags = rnd() & rnd();
+    self->misc_flags = rnd() & rnd();
+    self->flags = rnd();
+    self->health = (int16_t)PICK(1, 1, 1, 100, 0, -1);
+    self->freeze_ticks = (uint8_t)PICK(0, 0, 0, 1);
+    self->state_group = (uint8_t)PICK(0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 5, 6, 6, 7);
+    self->state = (uint8_t)(rnd() % 2 ? rnd() % 0x80 : PICK(1, 3, 9, 0x13, 0x1B, 0x1C, 0x1D, 0x1E, 0x20, 0x23, 0x24, 0x27, 0x3A, 0x36, 0x65, 0x66, 0x67, 0x6A, 0x7E, 0x7D, 0x7F));
+    self->state_scratch_a = (uint8_t)PICK(0, 0, 1, 8, 8, 9, 9, 10, 0xFF);
+    self->movement_mode = (uint8_t)PICK(0, 0, 0, 2, 2, 1);
+    self->attached_part_mode = (uint8_t)PICK(0, 0, 0, 0, 1);
+    self->ground_forces_state_3b = (uint8_t)PICK(0, 1, 1, 0x80);
+    self->weapon_class = (uint8_t)PICK(0, 1, 1, 5, 5, 8, 8, 9, 10);
+    self->weapon_uses_load = (uint8_t)PICK(0, 1, 2);
+    self->status_bits = (uint16_t)PICK(0, 0x200, 0x800, 0x1000, 0x1800, ~0x1A00, -1);
+    self->buttons_pressed = rnd() & rnd();
+    self->quest_flags = PICK(0, 2, ~2, -1);
+    self->flag_1000_lockout_ticks = (uint8_t)PICK(0, 0, 1, 10);
+    self->ledge_grabs_from_fall = (int8_t)rnd();
+    self->hud_request = (uint8_t)PICK(0, 1);
+    self->selector_input_flags = (uint8_t)rnd();
+    self->place[0] = (float)(int16_t)rnd() / 16.0f;
+    self->place[2] = (float)(int16_t)rnd() / 16.0f;
+    SET_FLOAT_BITS(self->place_w, rnd());
+    /* above or below the floor, around where the fall starts, and NaN each way round */
+    float floor_y = (float)(int16_t)rnd() / 8.0f;
+    uint32_t y = float_bits(floor_y + (float)PICK(-1, 0, 1, 29, 30, 31, 100) * 1.0f);
+    switch (rnd() % 8) {
+    case 0: y = float_bits(floor_y + 29.999998f); break;
+    case 1: y = float_bits(floor_y + 30.000002f); break;
+    case 2: y = FLOAT_NAN; break;
+    case 3: y = FLOAT_SIGNALLING_NAN; break;
+    default: break;
+    }
+    SET_FLOAT_BITS(self->place[1], y);
+    self->floor_y = floor_y;
+    if (rnd() % 16 == 0)
+        SET_FLOAT_BITS(self->floor_y, FLOAT_NAN);
+    /* the two long ways: starting to fall, and flag 0x1000 with the weapon out */
+    if (rnd() % 4 == 0) {
+        self->instance_index = g->local_hunter_slot;
+        self->movement_mode = 0;
+        self->attached_part_mode = 0;
+        self->health = 1;
+        self->floor_y = 0.0f;
+        SET_FLOAT_BITS(self->place[1], PICK(float_bits(29.999998f), float_bits(30.0f), float_bits(30.000002f), float_bits(31.0f)));
+        self->state_group = (uint8_t)PICK(0, 0, 2, 2, 2, 5, 1, 6);
+        self->state = (uint8_t)PICK(0x7E, 0x7D, 0x7F, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x23, 0x23, 0x23, 0x24, 0x24, 0);
+    } else if (rnd() % 3 == 0) {
+        self->instance_index = g->local_hunter_slot;
+        self->misc_flags |= 8;
+        self->weapon_class = (uint8_t)PICK(1, 5);
+        self->flag_1000_lockout_ticks = (uint8_t)PICK(0, 0, 0, 1);
+        self->state_group = (uint8_t)PICK(0, 0, 0, 0, 1, 6, 5);
+        self->state = (uint8_t)PICK(0x3A, 0x1B, 0x1C, 0x67, 0x68, 0x69, 0x6A, 0x66, 0x6B, 0x1A, 0);
+        self->hunter_flags = (self->hunter_flags & ~0x9000u) | PICK(0, 0x8000, 0x8000, 0x1000);
+    } else if (rnd() % 2 == 0) {     /* forced by the ground, and the states it isn't */
+        self->state_group = 0;
+        self->state = (uint8_t)PICK(0x08, 0x09, 0x0F, 0x14, 0x1A, 0x1C, 0x1D, 0x2D, 0x2E, 0x2F, 0x31, 0x32, 0x3B, 0x3C, 0x3D, 0x44, 0x59, 0x5D, 0x60, 0x7D, 0x7E, 0x07, 0x0A, 0x15, 0x1E);
+        self->ground_forces_state_3b = 1;
+        self->movement_mode = 0;
+    }
+    if (!record_method) {       /* callees running for real: the faint and end states' reach further than this state can hold up */
+        if (self->state_group == 3 || self->state_group == 4 || self->state_group > 6)
+            self->state_group = 0;
+    }
+    uint32_t camera = LW(0x089CBD04u);
+    SB(camera + 0x1DF, PICK(0, 0, 0, 1, 0x80));
+    SB(camera + 0xA8D, PICK(0, 0, 0, 1));
+    g->option_camera_follow_mode = (int8_t)PICK(0, 0, 1, 2, -1, 0x41);
+    SB(LW(0x09A1DC2Cu), PICK(0, 1, 2, 3));
+    SW(LW(0x08A632C0u) + 0xF7A554u, PICK(30, 60, 0, 5, 10, 15, 20, 25, 7, 8, 9, 11, 13, 14, -30, -5, -10, -7, 0x7FFFFFFF));
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <RAM snapshot> [iterations] [stubs <signatures.tsv>] [only <part of a case's name>]\n", argv[0]);
@@ -746,6 +890,8 @@ int main(int argc, char **argv) {
                 cases[k].inputs(c, hunter, args);
                 a1 = args[0];
             }
+            if (stub_mode)      /* what a version leaves unset on its stack shows, where a call's argument is compared */
+                memset(c->mem + STACK_LOW, 0xA5, TEST_SP - STACK_LOW);
             memcpy(start, c->mem + SNAP_START, SNAP_SIZE);
             uint32_t saved[9], after[2][9], v0[2];
             for (int n = 0; n < MAX_CALLS; n++) {
@@ -812,6 +958,12 @@ int main(int argc, char **argv) {
             /* blank the stack in both: what's left there is dead */
             memset(generated + (STACK_LOW - SNAP_START), 0, TEST_SP - STACK_LOW);
             memset(c->mem + STACK_LOW, 0, TEST_SP - STACK_LOW);
+            /* Callees running for real: game_sub 09C375D8 stores two positions with vfpu_sv_q, each's fourth word left from whatever was on the stack,
+             * which differs with the stack frames above it (docs/readable.md, handdiff.py): dead */
+            if (!stub_mode)
+                for (int m = 0; m < 2; m++)
+                    for (uint32_t o = 0x4AC; o <= 0x4CC; o += 0x20)
+                        *(uint32_t *)((m ? c->mem + SNAP_START : generated) + (hunter - SNAP_START) + o) = 0;
             int same = !memcmp(generated, c->mem + SNAP_START, SNAP_SIZE);
             same = same && !memcmp(after[0], saved, sizeof saved) && !memcmp(after[1], saved, sizeof saved);
             same = same && (!cases[k].returns || v0[0] == v0[1]);

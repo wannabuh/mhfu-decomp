@@ -10,6 +10,13 @@ enum {
     SKILL_STAMINA_USE_HALVED = 0xA8,    /* costs half, or a cost of 1 every other time */
     SKILL_STAMINA_USE_SPIKES = 0xA9,    /* every fifth tick costs double */
     TIMED_EFFECT_NO_STAMINA_LOSS = 5,   /* in the timed effects, from +0x6A0 */
+    /* For hand_hunter_stamina_add_scaled: only how they move the level is known from the code */
+    SKILL_STAMINA_LEVEL_UP_2 = 0xCA,
+    SKILL_STAMINA_LEVEL_UP_1 = 0xC9,
+    SKILL_STAMINA_LEVEL_DOWN_1 = 0xCB,
+    SKILL_STAMINA_LEVEL_DOWN_2 = 0xCC,
+    BONUS_STAMINA_LEVEL_UP_2 = 6,
+    BONUS_STAMINA_LEVEL_UP_1 = 7,
 };
 
 static int is_local_hunter(Ctx *c, const Hunter *self) {
@@ -91,4 +98,35 @@ void hand_hunter_stamina_use_alternate_ticks(Ctx *c) {
     if (amount < 0 && !apply_skills(c, self, &amount, &half_tick))
         return;
     call2(c, hunter_stamina_add_clamped, GAME_ADDR(self), (uint32_t)(int32_t)amount);
+}
+
+/* game_task 09A6A598: a stamina change, larger or smaller by skills and bonuses that each move a level up or down. Only the local player's.
+ * Skills that don't apply here leave the amount exactly as it came, all 32 bits of it. */
+void hand_hunter_stamina_add_scaled(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    uint32_t amount = c->r[5];
+    if (!is_local_hunter(c, self))
+        return;
+    int level = 0;
+    if (has_skill(c, self, SKILL_STAMINA_LEVEL_UP_2))
+        level = 2;
+    else if (has_skill(c, self, SKILL_STAMINA_LEVEL_UP_1))
+        level = 1;
+    else if (has_skill(c, self, SKILL_STAMINA_LEVEL_DOWN_1))
+        level = -1;
+    else if (has_skill(c, self, SKILL_STAMINA_LEVEL_DOWN_2))
+        level = -2;
+    if (call2(c, player_byte_list_contains, GAME_ADDR(self), BONUS_STAMINA_LEVEL_UP_2) != 0)
+        level += 2;
+    else if (call2(c, player_byte_list_contains, GAME_ADDR(self), BONUS_STAMINA_LEVEL_UP_1) != 0)
+        level += 1;
+    if (level >= 2)
+        amount = (uint32_t)(int32_t)(int16_t)((int32_t)amount >> 1);
+    else if (level == 1)
+        amount = (uint32_t)(int32_t)(int16_t)(amount - (uint32_t)(int32_t)(int16_t)((int32_t)(int16_t)amount >> 2));
+    else if (level == -1)
+        amount = (uint32_t)(int32_t)(int16_t)rt_trunc_w(1.2f * (float)(int32_t)amount);
+    else if (level < -1)
+        amount = (uint32_t)(int32_t)(int16_t)rt_trunc_w(1.35f * (float)(int32_t)amount);
+    call2(c, hunter_stamina_add_clamped, GAME_ADDR(self), amount);
 }

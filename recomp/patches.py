@@ -117,6 +117,9 @@ HAND = {
     ("EBOOT", 0x088D1DD0): "hand_hunter_tick_motion_copy",
     ("EBOOT", 0x088D61CC): "hand_hunter_copy_pad",
     ("game_task", 0x09AA5270): "hand_hunter_common_input",
+    ("game_task", 0x09A6A598): "hand_hunter_stamina_add_scaled",
+    ("EBOOT", 0x088D5C7C): "hand_hunter_motion_update",
+    ("game_task", 0x09A665F0): "hand_hunter_state_run",
 }
 
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to
