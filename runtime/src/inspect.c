@@ -1,4 +1,6 @@
-/* The click inspector (F7 opens and closes; F8 holds the game while it is open; MHFU_TEST_INSPECT="frame,x,y;..." clicks at
+/* The click inspector (F7 opens and closes) and the hold (F8, with or without it: the game stopped, its last tick shown; "."
+ * lets one tick through; F6 captures what is shown, the game going on to where its state can be taken, then held again;
+ * MHFU_TEST_STEP="every,count" steps for a test; MHFU_TEST_INSPECT="frame,x,y;..." clicks at
  * those PSP pixels, MHFU_TEST_PAUSE="frame,n" holds the game there for n passes). The mouse is let go of, as a pointer,
  * and is not the game's while it is open: keys and the pad still are.
  *
@@ -28,6 +30,7 @@ int window_point(float wx, float wy, float *x, float *y);
 int window_mouse_position(float *x, float *y);
 void window_inspect_mode(int on);
 void window_note(const char *text);
+unsigned long present_frame_number(void);
 uint64_t wall_time_us(void);
 
 #define MAX_OBJECTS 2048
@@ -46,18 +49,35 @@ static int write_due;
 static uint64_t last_request;
 
 int inspect_open(void) { return open; }
+static int step_due;                /* ticks to let through while held (the . key) */
+static long test_step_every, test_steps_left, test_step_count;
+
 int inspect_paused(void) {
     if (test_pause_left > 0 && --test_pause_left == 0)
         paused = 0;
+    if (paused && test_steps_left > 0 && ++test_step_count >= test_step_every) {
+        test_step_count = 0;
+        test_steps_left--;
+        step_due = 1;
+    }
+    if (paused && step_due) {
+        step_due = 0;
+        gpu_pick_request();
+        return 0;
+    }
     return paused;
 }
 
 void inspect_toggle_pause(void) {
-    if (!open)
-        return;
     paused = !paused;
+    step_due = 0;
     gpu_pick_request();
-    window_note(paused ? "game held: f8 lets go" : "game running");
+    window_note(paused ? "game held: f8 lets go, . a tick on, f6 captures" : "game running");
+}
+
+void inspect_step(void) {
+    if (paused)
+        step_due = 1;
 }
 
 void inspect_toggle(void) {
@@ -69,8 +89,7 @@ void inspect_toggle(void) {
         if (window_mouse_position(&wx, &wy) && window_point(wx, wy, &x, &y))
             pointer_x = x, pointer_y = y;
         gpu_pick_request();
-    } else
-        paused = 0;
+    }
 }
 
 /* -- the selection -------------------------------------------------------------------------------------------------- */
@@ -184,6 +203,9 @@ void inspect_tick(unsigned long frame) {
             if (*e == ';')
                 e++;
         }
+        e = getenv("MHFU_TEST_STEP");       /* every,count: a tick let through every that many passes, while held */
+        if (e)
+            sscanf(e, "%ld,%ld", &test_step_every, &test_steps_left);
         e = getenv("MHFU_TEST_PAUSE");
         if (e)
             sscanf(e, "%lu,%ld", &pause_at, &pause_for);
@@ -195,7 +217,7 @@ void inspect_tick(unsigned long frame) {
             click(test[i].x, test[i].y);
         }
     if (pause_for && frame == pause_at) {
-        if (!open)
+        if (!open && !getenv("MHFU_TEST_PAUSE_PLAIN"))
             inspect_toggle();
         paused = 1;
         test_pause_left = pause_for;
@@ -271,8 +293,19 @@ void inspect_write(FILE *f) {
 #define LINE 9
 
 int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
-    if (!open)
-        return 0;
+    if (!open) {
+        if (!paused)
+            return 0;
+        /* (held without the inspector: only a mark that it is) */
+        int d = (int)(scale / 2) < 1 ? 1 : (int)(scale / 2);
+        char line[64];
+        snprintf(line, sizeof line, "HELD %lu  F8 RUN  . STEP  F6 CAPTURE", present_frame_number());
+        int w = pen_text_width(line) + 6;
+        Pen m = {out, 0, max, d, (int)(x0 + 240 * scale) - w * d / 2, (int)y0 + 3 * d};
+        pen_box(&m, 0, 0, w, 13, C_INK);
+        pen_text(&m, 3, 3, line, C_LIT);
+        return m.n;
+    }
     if (click_pending)
         click(pending_x, pending_y);
     update_hits();

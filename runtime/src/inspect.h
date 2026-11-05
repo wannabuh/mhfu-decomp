@@ -8,6 +8,7 @@
 int inspect_open(void);
 void inspect_toggle(void);
 void inspect_toggle_pause(void);
+void inspect_step(void);                /* held: one tick on (the . key) */
 int inspect_paused(void);               /* present.c: hold the game, as the controls screen does */
 int inspect_event(const SDL_Event *e);  /* window.c: 1 if taken */
 void inspect_tick(unsigned long frame); /* present.c, each game frame: new pick data asked for, test hooks */

@@ -956,6 +956,10 @@ void present_frame(void) {
     while (overlay_open() || (inspect_paused() && !capture_state_pending())) {
         if (!window_poll())
             exit(0);
+        if (!overlay_open()) {          /* (held: the mouse moved meanwhile isn't the camera's when the game goes on) */
+            float dx, dy;
+            window_mouse(&dx, &dy);
+        }
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
         if (render_on && shown && capture_wants_shot())
             capture_take_shot(shown, NULL);
