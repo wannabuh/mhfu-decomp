@@ -75,6 +75,11 @@ EASE = "a colour's ease: a fifth of the way a game frame, in game time"
 # game frame - through a greatsword's attacks): found by tools/ratecheck.py
 COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
 
+# Hit-stop (EBOOT 088D5C7C, a character's motion update: motion_slow_timer +0x558, set from a hit record, counts down
+# while the layers run at speed 0.2): counted in 30ths, as freeze_ticks +0x33C beside it is (COUNTDOWN33C). The speed
+# needs nothing: the motion player scales it, as any layer's (MOTION)
+HIT_STOP = "hit-stop's countdown +0x558: 1 less a 30th, not a game frame"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -407,6 +412,7 @@ PATCHES = {
     ("EBOOT", 0x08860DC0): ("div.s $f1, $f1, $f3", "{ extern float rt_ease(float x, float n); c->f[1].f = rt_ease(c->f[1].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08860DC4): ("div.s $f0, $f0, $f3", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
+    ("EBOOT", 0x088D5CB4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", HIT_STOP),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),

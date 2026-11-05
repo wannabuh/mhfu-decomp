@@ -522,7 +522,7 @@ void hand_hunter_motion_update(Ctx *c) {
     if (self->freeze_ticks != 0) {
         set_motion_speeds(self, 0.0f);
     } else if (self->motion_slow_timer != 0) {
-        self->motion_slow_timer--;
+        self->motion_slow_timer -= rt_tick30;
         set_motion_speeds(self, MOTION_SPEED_SLOWED);
     } else if (self->motion_id != 0x23) {
         motion_speed_by_id(c, self);
