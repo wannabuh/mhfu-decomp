@@ -6,6 +6,26 @@ end. Results and history go in `docs/readable-report.md` and the commit log; how
 **Draft, 2026-11-05.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
 confirmed against the current build.
 
+## Tools first
+
+Built before the goals' next large jobs, as they make those cheaper. The rate fixes in progress finish first. Tools read the game's state and don't change it, except where stated. Rough is fine: they're for us.
+
+| Step | Tool | What it does | Status |
+|---|---|---|---|
+| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Not started |
+| 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Not started |
+| 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |
+| 2 | Freeze with free camera | Game stopped, camera moves round the frozen frame. Objects the game culled aren't there, and sprites keep their angle *(check)* | Not started |
+| 2 | Frame dump | A frame's draws, vertices, bones and textures to files I can read and measure; RenderDoc on the Vulkan side | Not started |
+| 2 | Automatic triage | From a capture, one frame with each setting off, side by side, and PPSSPP's where possible | Not started |
+| 3 | Debug console | Commands to a running game by local socket: pause, step, read and watch fields, dump. Live inspection for me, and a live panel for the user | Not started |
+| 3 | Monster lab | Any monster in a test area without playing to it; checks at 30 and 60. Changes game state on purpose | Not started |
+| 3 | Stall recorder | Details saved when a frame takes too long | Not started |
+| 3 | Picture regression test | Key frames compared in the suite, which today checks actions, rates and RAM, not the picture *(check)* | Not started |
+| 4 | Debug overlay | Hit zones, attack volumes, monster state drawn in-game | Not started |
+| 4 | First-difference finder | The exact frame and field where two runs part | Not started |
+| 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |
+
 ## Goals, in order
 
 1. Smoother gameplay: a fixed 60 ticks a second, shown at the display's rate (144 fps and up) by interpolation
@@ -98,7 +118,6 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 
 | Mod type | What it needs | Status | Next step |
 |---|---|---|---|
-| Debug overlay: hit zones, attack volumes, monster state, drawn in-game | Makes balance and new attacks far easier, and checks our own findings | Not started | **First modding item.** Purely visual; much of the data is already understood |
 | Mod folders with live reload | Change a texture or value and see it at once | Not started | Start with textures and tunable values; design with the tools row below |
 | Free camera, photo mode | Inspect models and effects, check visual mods | Not started | Cheap; must leave the game's camera state untouched |
 | Textures | Packs, dumping | Works, PPSSPP-compatible. Missing: zip, DDS/KTX2, `[indexed]`, pack mipmaps | Docs and an example workflow |
