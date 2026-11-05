@@ -5,6 +5,7 @@
  * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
  * idle time (present_pump). */
 #define _GNU_SOURCE 1
+#include <pthread.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <ucontext.h>
@@ -495,7 +496,17 @@ static int display_fps(void) {
 }
 
 /* Draw and show a frame if one is due; returns when the next is (or ~0 with no frame rate of its own) */
+static uint64_t pump(void);
+volatile int present_pumping;    /* (for MHFU_PROFILE: the game's thread at the display's work, not the game's) */
+
 uint64_t present_pump(void) {
+    present_pumping = 1;
+    uint64_t next = pump();
+    present_pumping = 0;
+    return next;
+}
+
+static uint64_t pump(void) {
     if (!display_fps() || fast_forward())
         return ~(uint64_t)0;
     uint64_t now = time_us();
@@ -752,11 +763,13 @@ static uint64_t flip_us;     /* (MHFU_FRAME_LOG: of the frame's time, what the r
 #define PROFILE_SAMPLES (1 << 21)
 static uint64_t *profile_at;
 static volatile int profile_n;
+static pthread_t profile_thread;
 static void profile_signal(int sig, siginfo_t *info, void *context) {
     (void)sig;
     (void)info;
     if (profile_n < PROFILE_SAMPLES)
-        profile_at[profile_n++] = (uint64_t)((ucontext_t *)context)->uc_mcontext.gregs[REG_RIP];
+        profile_at[profile_n++] = (uint64_t)((ucontext_t *)context)->uc_mcontext.gregs[REG_RIP] |
+                                  (uint64_t)(pthread_equal(pthread_self(), profile_thread) ? (present_pumping ? 2 : 1) : 0) << 56;
 }
 static void profile_frame(unsigned long f) {
     static int state = -1;
@@ -772,6 +785,7 @@ static void profile_frame(unsigned long f) {
     }
     if (state == 1 && (long)f >= from) {
         struct sigaction sa = {0};
+        profile_thread = pthread_self();
         sa.sa_sigaction = profile_signal;
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigaction(SIGPROF, &sa, NULL);
@@ -787,6 +801,17 @@ static void profile_frame(unsigned long f) {
             fclose(o);
         }
         fprintf(stderr, "profile: %d samples, frames %ld to %ld\n", profile_n, from, to);
+        {
+            char maps[1040], line[1024];    /* (libraries' places, to name them) */
+            snprintf(maps, sizeof maps, "%s.maps", path);
+            FILE *in = fopen("/proc/self/maps", "r"), *out = fopen(maps, "w");
+            while (in && out && fgets(line, sizeof line, in))
+                fputs(line, out);
+            if (in)
+                fclose(in);
+            if (out)
+                fclose(out);
+        }
         state = 0;
     }
 }
