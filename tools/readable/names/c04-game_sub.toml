@@ -19,7 +19,7 @@ module = "game_sub"
 address = "09C752F0"
 name = "fx_randomized_element_burst_destructor"
 purpose = "Destructor of FxRandomizedElementBurst: sets vtable 089BDE98, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -27,7 +27,7 @@ module = "game_sub"
 address = "09C5AE70"
 name = "fx_randomized_node_by_kind_destructor"
 purpose = "Destructor of FxRandomizedNodeByKind: sets vtable 089BDCE0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -35,15 +35,15 @@ module = "game_sub"
 address = "09CCC248"
 name = "stage_drift_fade_sprite_destructor_vtable_chain"
 purpose = "Writes vtables 089BE6F0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09C7F320"
 name = "fx_elements_with_kind_sound_destructor"
 purpose = "Destructor of FxElementsWithKindSound: sets vtable 089BDF10, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -51,7 +51,7 @@ module = "game_sub"
 address = "09C60D40"
 name = "fx_bone_trail_strip_destructor"
 purpose = "Destructor of FxBoneTrailStrip: sets vtable 089BDD58, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -59,7 +59,7 @@ module = "game_sub"
 address = "09C64C70"
 name = "fx_bone_parts_by_type_destructor"
 purpose = "Destructor of FxBonePartsByType: sets vtable 089BDD80, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -67,7 +67,7 @@ module = "game_sub"
 address = "09C915E8"
 name = "fx_ten_element_records_destructor"
 purpose = "Destructor of FxTenElementRecords: sets vtable 089BDFB0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -75,7 +75,7 @@ module = "game_sub"
 address = "09C58BE8"
 name = "fx_owner_floor_mark_at_bones_destructor"
 purpose = "Destructor of FxOwnerFloorMarkAtBones: sets vtable 089BDCB8, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -83,31 +83,31 @@ module = "game_sub"
 address = "09CC4EB8"
 name = "stage_texture_counter_group_destructor_vtable_chain"
 purpose = "Writes vtables 089BE550, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CBACE8"
 name = "stage_ramped_group_destructor_vtable_chain"
 purpose = "Writes vtables 089BE310, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CC7478"
 name = "stage_frame_step_sprite_setup_mode_3_fn_cf9080"
 purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF9080 to +0x1C if set, and stores a1 at +0x34."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09C9A690"
 name = "fx_marker_above_owner_destructor"
 purpose = "Destructor of FxMarkerAboveOwner: sets vtable 089BE0A0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -115,15 +115,15 @@ module = "game_sub"
 address = "09CC7438"
 name = "stage_frame_step_sprite_destructor_vtable_chain"
 purpose = "Writes vtables 089BE5F0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09C68478"
 name = "fx_randomized_element_burst_b_destructor"
 purpose = "Destructor of FxRandomizedElementBurstB: sets vtable 089BDDD0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -195,7 +195,7 @@ module = "game_sub"
 address = "09C970C0"
 name = "fx_weighted_random_model_destructor"
 purpose = "Destructor of FxWeightedRandomModel: sets vtable 089BE028, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -203,7 +203,7 @@ module = "game_sub"
 address = "09CB66C8"
 name = "fx_element_array_by_kind_destructor"
 purpose = "Destructor of FxElementArrayByKind: sets vtable 089BE208, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -211,7 +211,7 @@ module = "game_sub"
 address = "09C8A4D0"
 name = "fx_node_at_owner_bone_destructor"
 purpose = "Destructor of FxNodeAtOwnerBone: sets vtable 089BDF88, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -219,23 +219,23 @@ module = "game_sub"
 address = "09CC0C50"
 name = "stage_snow_mist_dome_setup_mode_3_fn_cf8df0"
 purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF8DF0 to +0x1C if set, and stores a1 at +0x34."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CC22B8"
 name = "stage_snow_mist_dome_destructor_vtable_chain"
 purpose = "Writes vtables 089BE490, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09C85970"
 name = "fx_update_elements_member_fns_destructor"
 purpose = "Destructor of FxUpdateElementsMemberFns: sets vtable 089BDF38, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -243,7 +243,7 @@ module = "game_sub"
 address = "09C89980"
 name = "fx_keyframe_elements_member_fns_destructor"
 purpose = "Destructor of FxKeyframeElementsMemberFns: sets vtable 089BDF60, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -251,40 +251,40 @@ module = "game_sub"
 address = "09CBD218"
 name = "stage_camera_facing_glare_setup_mode_3_fn_cf8738"
 purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF8738 to +0x1C if set, and stores a1 at +0x34."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CBDEB8"
 name = "stage_camera_facing_glare_destructor_vtable_chain"
 purpose = "Writes vtables 089BE3B0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CBE8B0"
 name = "stage_counted_alpha_group_destructor_vtable_chain"
 purpose = "Writes vtables 089BE3D0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CBF0E0"
 name = "stage_orbiting_model_setup_mode_3_fn_cf88c8"
 purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF88C8 to +0x1C if set, and stores a1 at +0x34."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
 address = "09CC73F8"
 name = "stage_record_point_shuttle_destructor_vtable_chain"
 purpose = "Writes vtables 089BE5D0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
@@ -299,8 +299,8 @@ module = "game_sub"
 address = "09C7CEA8"
 name = "fx_elements_with_kind_sound_queue_elements"
 purpose = "For each element up to the count for this kind (table 09CEC6F0 by +0x24; 80 byte stride from +0x60) with flag bit 4 clear at element +4, inserts it in depth-sorted render queue list 7."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"
@@ -315,8 +315,8 @@ module = "game_sub"
 address = "09C7EF98"
 name = "fx_elements_with_kind_sound_free_elements"
 purpose = "Frees each element's run with entity_manager_free_element_run, up to the count for this kind, then fx_base_release_render_nodes."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_sub"

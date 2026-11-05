@@ -3,7 +3,7 @@ module = "lobby_task"
 address = "09AF26A0"
 name = "lobby_fx_textured_strip_destructor"
 purpose = "Destructor of LobbyFxTexturedStrip: sets vtable 089BB194, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -220,7 +220,7 @@ address = "09AA9318"
 name = "lobby_hunter_construct"
 purpose = "hunter_construct, then vtable 089BB05C."
 confidence = "inferred"
-evidence = "Whole body read; the vtable is hunter-derived by this; no caller found by direct call."
+evidence = "Whole body read; the vtable is hunter-derived by this; called through rt_call at EBOOT 088DB6C4 in 088DB608, on a 0x1120-byte allocation."
 
 [[function]]
 module = "lobby_task"
@@ -265,8 +265,8 @@ evidence = "Whole body read."
 [[function]]
 module = "lobby_task"
 address = "09A7B9D8"
-name = "lobby_set_words_1_and_call_9a8e260"
-purpose = "Writes 1 at a0 +8 and a0, runs 09A8E260 on a0 + 0xA780."
+name = "lobby_set_byte_8_and_word_0_call_9a8e260"
+purpose = "Sets byte +8 and word +0 to 1, then tail-calls 09A8E260 on a0 + 0xA780."
 confidence = "confirmed"
 evidence = "Whole body read: the view's param_1 + 0x29E0 is in words."
 

@@ -610,9 +610,9 @@ evidence = "Whole body read."
 module = "game_task"
 address = "09A9E0E0"
 name = "hunter_state_0_1e_motion_12_snap_to_floor_ahead"
-purpose = "Group 0 state 0x1E: motion 0x12 from frame 0x58; on entry takes a point 55 units ahead by the rotation matrix, moves to the floor height there if there is one; push_off_ticks 2 each tick."
+purpose = "Group 0 state 0x1E: motion 0x12 from frame 0x58; on entry takes the point 55 units ahead by the rotation matrix, sets place Y to the floor height there if game_sub 09C3F740 answers 1, then moves place by that same offset; push_off_ticks 2 each tick; base 0,6 at the motion's end."
 confidence = "inferred"
-evidence = "First 40 lines of the view read."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
@@ -825,16 +825,16 @@ evidence = "First 34 view lines read; what the amount goes to isn't."
 [[function]]
 module = "game_task"
 address = "09AA3E00"
-name = "hunter_state_0_67_motion_3c_wait_button_or_give_finished"
-purpose = "Group 0 state 0x67: motion 0x3C; a local hunter goes to 0,0x69 on button 0x2000 or item_give_finished."
+name = "hunter_state_0_67_motion_3c_wait_button_or_byte_5c8"
+purpose = "Group 0 state 0x67: motion 0x3C; a local hunter goes to 0,0x69 on button 0x2000 or byte +0x5C8 nonzero (cleared on entry)."
 confidence = "confirmed"
-evidence = "Whole body read."
+evidence = "Whole body read; what +0x5C8 means is not shown here: game_task 09A71AB0 writes it, from bits it unpacks, at 09A723C8 with state 0,0x67 and at 09A72490, 09A72504, 09A72550."
 
 [[function]]
 module = "game_task"
 address = "09AA3F18"
-name = "hunter_state_0_68_motion_1_wait_world_slot_or_give_finished"
-purpose = "Group 0 state 0x68: motion 1, counts +0x5EC up to 0x708 ticks while the player record of item_give_world_slot is active and item_give_finished is 0."
+name = "hunter_state_0_68_motion_1_wait_world_slot_or_byte_5c8"
+purpose = "Group 0 state 0x68: motion 1, counts +0x5EC up to 0x708 ticks while the player record of item_give_world_slot is active and byte +0x5C8 is 0."
 confidence = "inferred"
 evidence = "First 34 view lines read."
 
@@ -937,10 +937,10 @@ evidence = "Whole body read."
 [[function]]
 module = "game_task"
 address = "09AD8310"
-name = "monster_subtype_table_word_not_minus_1"
-purpose = "True unless the word for this subtype in the 0x740-byte records at 09BB8BFC is -1."
+name = "monster_subtype_table_byte_10c_not_minus_1"
+purpose = "True unless the signed byte at +0x10C of this subtype's 0x1D0-byte record in the table at 09BB8AF0 is -1 (read at 09BB8BFC + subtype*0x1D0)."
 confidence = "confirmed"
-evidence = "Whole body read; the view's index is subtype*0x1D0 of words."
+evidence = "Whole body read in the generated C: subtype*29*16 is 0x1D0 bytes, read with LB; the table and stride as in field subtype."
 
 [[function]]
 module = "game_task"
@@ -1068,14 +1068,14 @@ address = "09B67258"
 name = "returns_a1_placement_new_game_task"
 purpose = "Returns its second argument. Callers pass it memory just allocated and go on to construct there: C++ placement new, so its a0 is a size or unused."
 confidence = "inferred"
-evidence = "The generated code, one line; callers read (e.g. game_sub 09C2F6A0)."
+evidence = "The generated code, one line; callers read (e.g. the call at game_task 09B66514, a 0x160-byte allocation)."
 
 [[function]]
 module = "game_task"
 address = "09B68290"
 name = "hunter_weapon_attack_volume_destructor"
 purpose = "Destructor of HunterWeaponAttackVolume: sets vtable 089BD3B0, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1083,8 +1083,8 @@ module = "game_task"
 address = "09B854D0"
 name = "vespoid_attack_volume_clear_byte_14_set_state_fn_c038b0"
 purpose = "Clears +0x14 and, if the member function pointer at 09C038B0 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1099,7 +1099,7 @@ module = "game_task"
 address = "09B85590"
 name = "vespoid_attack_volume_destructor"
 purpose = "Destructor of VespoidAttackVolume: sets vtable 089BD624, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1107,7 +1107,7 @@ module = "game_task"
 address = "09B8F988"
 name = "pelagus_attack_volume_destructor"
 purpose = "Destructor of PelagusAttackVolume: sets vtable 089BD8D4, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1115,8 +1115,8 @@ module = "game_task"
 address = "09B90310"
 name = "pelagus_attack_volume_clear_byte_14_set_state_fn_c087a0"
 purpose = "Clears +0x14 and, if the member function pointer at 09C087A0 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1147,7 +1147,7 @@ module = "game_task"
 address = "09B86970"
 name = "prey_attack_volume_destructor"
 purpose = "Destructor of PreyAttackVolume: sets vtable 089BD6B4, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1155,8 +1155,8 @@ module = "game_task"
 address = "09B86D78"
 name = "prey_attack_volume_clear_byte_14_set_state_fn_c03d48"
 purpose = "Clears +0x14 and, if the member function pointer at 09C03D48 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1171,7 +1171,7 @@ module = "game_task"
 address = "09B06348"
 name = "aptonoth_apceros_popo_destructor"
 purpose = "Destructor of AptonothApcerosPopo: sets vtable 089BC680, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1187,7 +1187,7 @@ module = "game_task"
 address = "09B889D0"
 name = "drome_attack_volume_destructor"
 purpose = "Destructor of DromeAttackVolume: sets vtable 089BD73C, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1195,8 +1195,8 @@ module = "game_task"
 address = "09B88DE8"
 name = "drome_attack_volume_clear_byte_14_set_state_fn_c04180"
 purpose = "Clears +0x14 and, if the member function pointer at 09C04180 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1227,7 +1227,7 @@ module = "game_task"
 address = "09B0E8E0"
 name = "prey_raptor_destructor"
 purpose = "Destructor of PreyRaptor: sets vtable 089BC77C, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1243,7 +1243,7 @@ module = "game_task"
 address = "09B15338"
 name = "vespoid_hornetaur_destructor"
 purpose = "Destructor of VespoidHornetaur: sets vtable 089BC974, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1275,7 +1275,7 @@ module = "game_task"
 address = "09B69B10"
 name = "shared_attack_volume_kirin_felyne_kelbi_destructor"
 purpose = "Destructor of SharedAttackVolumeKirinFelyneKelbi: sets vtable 089BD438, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1283,8 +1283,8 @@ module = "game_task"
 address = "09B6A078"
 name = "shared_attack_volume_kirin_felyne_kelbi_clear_byte_14_set_state_fn_bfdd88"
 purpose = "Clears +0x14 and, if the member function pointer at 09BFDD88 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1323,7 +1323,7 @@ module = "game_task"
 address = "09AFC160"
 name = "proximity_creature_type_0a_destructor"
 purpose = "Destructor of ProximityCreatureType0A: sets vtable 089BC584, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1331,7 +1331,7 @@ module = "game_task"
 address = "09B44C60"
 name = "pelagus_destructor"
 purpose = "Destructor of Pelagus: sets vtable 089BCD64, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1339,7 +1339,7 @@ module = "game_task"
 address = "09B72F28"
 name = "shared_large_monster_attack_volume_destructor"
 purpose = "Destructor of SharedLargeMonsterAttackVolume: sets vtable 089BD504, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
@@ -1347,8 +1347,8 @@ module = "game_task"
 address = "09B732D8"
 name = "shared_large_monster_attack_volume_clear_byte_14_set_state_fn_bff7f0"
 purpose = "Clears +0x14 and, if the member function pointer at 09BFF7F0 is set, copies it to the state function at +0x78."
-confidence = "confirmed"
-evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+confidence = "inferred"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
@@ -1403,7 +1403,7 @@ module = "game_task"
 address = "09B8F950"
 name = "pelagus_attack_volume_construct"
 purpose = "owned_obj_base_construct, then vtable 089BD8D4."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read. Class name as in classes.toml."
 
 [[function]]
@@ -1411,32 +1411,32 @@ module = "game_task"
 address = "09B86938"
 name = "prey_attack_volume_construct"
 purpose = "owned_obj_base_construct, then vtable 089BD6B4."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
 address = "09B88998"
 name = "drome_attack_volume_construct"
 purpose = "owned_obj_base_construct, then vtable 089BD73C."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
 address = "09B69AD8"
 name = "shared_attack_volume_kirin_felyne_kelbi_construct"
 purpose = "owned_obj_base_construct, then vtable 089BD438."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
 address = "09B72EF0"
 name = "shared_large_monster_attack_volume_construct"
 purpose = "owned_obj_base_construct, then vtable 089BD504."
-confidence = "confirmed"
-evidence = "Whole body read."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
 
 [[function]]
 module = "game_task"
