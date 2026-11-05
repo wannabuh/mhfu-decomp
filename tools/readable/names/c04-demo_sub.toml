@@ -1,0 +1,8 @@
+[[function]]
+module = "demo_sub"
+address = "09C1B780"
+name = "crt_static_init_09c1b780_register_destructor"
+purpose = "Constructs the global at 9C1B810 and registers f_demo_sub_9C191A0 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+

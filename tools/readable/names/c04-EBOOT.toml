@@ -22,3 +22,355 @@ purpose = "Sets yaw_from_hunter_request to 1 if the hunter at a1 is the local on
 confidence = "confirmed"
 evidence = "Whole body read."
 
+[[function]]
+module = "EBOOT"
+address = "088DD3E4"
+name = "motion_update_layers_thunk"
+purpose = "Jumps to motion_update_layers (EBOOT 08865648)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECA8"
+name = "sound_bank_get_wave_data_size_thunk"
+purpose = "Jumps to sound_bank_get_wave_data_size (EBOOT 088A59C4)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAB4"
+name = "sound_se_change_send_1_with_slot_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EE68."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE68"
+name = "sound_se_change_send_1_with_slot_thunk"
+purpose = "Jumps to sound_se_change_send_1_with_slot (EBOOT 088A6868)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE88"
+name = "sound_se_change_send_1_with_ids_thunk"
+purpose = "Jumps to sound_se_change_send_1_with_ids (EBOOT 088A69DC)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "08897290"
+name = "returns_a1_placement_new_eboot"
+purpose = "Returns its second argument. Callers pass it memory just allocated and go on to construct there: C++ placement new, so its a0 is a size or unused."
+confidence = "inferred"
+evidence = "The generated code, one line; callers read (e.g. game_sub 09C2F6A0)."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC80"
+name = "sound_spu_map_select_wrapper_thunk"
+purpose = "Jumps to EBOOT 088A4BC4."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC88"
+name = "sound_spu_map_get_slot_offset_thunk_thunk"
+purpose = "Jumps to sound_spu_map_get_slot_offset_thunk (EBOOT 088A4BE8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC90"
+name = "sound_bank_slot_set_thunk"
+purpose = "Jumps to sound_bank_slot_set (EBOOT 088A4BF0)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECA0"
+name = "sound_entry_table_set_thunk"
+purpose = "Jumps to sound_entry_table_set (EBOOT 088A6024)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE48"
+name = "sound_rpc_send_channel_ramp_thunk"
+purpose = "Jumps to sound_rpc_send_channel_ramp (EBOOT 088A6628)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE50"
+name = "sound_se_change_send_2_empty_thunk"
+purpose = "Jumps to sound_se_change_send_2_empty (EBOOT 088A6798)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088DD7D8"
+name = "global_09a4f210_set_to_a0"
+purpose = "Stores a0 in the word at 09A4F210 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088EFF78"
+name = "global_09a5256c_set_to_a0"
+purpose = "Stores a0 in the word at 09A5256C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898370"
+name = "global_08a62d74_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D74 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898380"
+name = "global_08a62d70_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D70 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898390"
+name = "global_08a62dd4_set_to_a0"
+purpose = "Stores a0 in the word at 08A62DD4 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983A0"
+name = "global_08a62d9c_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D9C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983D8"
+name = "global_09a1ff1c_set_to_a0"
+purpose = "Stores a0 in the word at 09A1FF1C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983FC"
+name = "global_089cbd08_set_to_a0"
+purpose = "Stores a0 in the word at 089CBD08 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889840C"
+name = "global_08a632c8_set_to_a0"
+purpose = "Stores a0 in the word at 08A632C8 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889841C"
+name = "global_089cbd00_set_to_a0"
+purpose = "Stores a0 in the word at 089CBD00 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088984A8"
+name = "global_08a62d84_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D84 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898510"
+name = "global_08a62d60_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D60 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898520"
+name = "global_08a632c0_set_to_a0"
+purpose = "Stores a0 in the word at 08A632C0 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898530"
+name = "global_09a0b680_set_to_a0"
+purpose = "Stores a0 in the word at 09A0B680 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAD4"
+name = "global_09a0fec0_set_to_a0_return_0_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EC98."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC78"
+name = "sound_bank_tables_init_thunk"
+purpose = "Jumps to sound_bank_tables_init (EBOOT 088A4B5C)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC98"
+name = "global_09a0fec0_set_to_a0_return_0_thunk"
+purpose = "Jumps to EBOOT 088A6014."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088A0BEC"
+name = "sound_voice_system_init_thunk"
+purpose = "Jumps to sound_voice_system_init (EBOOT 088A1200)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0887F4F0"
+name = "class_089baca4_destructor"
+purpose = "Destructor of Class_089BACA4: sets vtable 089BACA4, runs the base vtable write, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "EBOOT"
+address = "088B9B9C"
+name = "demo_task_destructor"
+purpose = "Destructor of DemoTask: sets vtable 089BADA0, runs the base vtable write, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "EBOOT"
+address = "089BAB34"
+name = "crt_static_init_089bab34_register_destructor"
+purpose = "Constructs the global at 9A52580 and registers f_EBOOT_88EFF88 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAAC"
+name = "sound_se_change_send_1_empty_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EE58."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE58"
+name = "sound_se_change_send_1_empty_thunk"
+purpose = "Jumps to sound_se_change_send_1_empty (EBOOT 088A67D8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088A53FC"
+name = "sound_bank_chunk_tag_is_smpl"
+purpose = "True if the 4 bytes at a0 are \"Smpl\"."
+confidence = "confirmed"
+evidence = "Whole body and the string at 089B27AC read; caller sound_bank_lookup_tone."
+
+[[function]]
+module = "EBOOT"
+address = "088A5428"
+name = "sound_bank_chunk_tag_is_vagi"
+purpose = "True if the 4 bytes at a0 are \"Vagi\"."
+confidence = "confirmed"
+evidence = "Whole body and the string at 089B27B4 read; caller sound_bank_lookup_tone."
+
+[[function]]
+module = "EBOOT"
+address = "088A4BC4"
+name = "sound_spu_map_select_wrapper"
+purpose = "Calls sound_spu_map_select."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0887F464"
+name = "class_089baca4_construct"
+purpose = "Writes vtable 089BACB8, copies the member function pointer at 089A8B30 to +4 if set, writes vtable 089BACA4, zeroes +0x1C."
+confidence = "confirmed"
+evidence = "Whole body read; caller game_state_create_in_slot."
+
+[[function]]
+module = "EBOOT"
+address = "088A2404"
+name = "global_09a0d390_set_to_a0"
+purpose = "Stores a0 in the word at 09A0D390."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_track_open_streams."
+
+[[function]]
+module = "EBOOT"
+address = "088A3FF4"
+name = "global_09a0e4cc_set_to_a0_return_0"
+purpose = "Stores a0 in the word at 09A0E4CC and returns 0."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_engine_init."
+
+[[function]]
+module = "EBOOT"
+address = "088A6014"
+name = "global_09a0fec0_set_to_a0_return_0"
+purpose = "Stores a0 in the word at 09A0FEC0 and returns 0."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "088A10F0"
+name = "sound_thread_update_matching_voices_at_8"
+purpose = "Jumps to sound_update_matching_voices with a0 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_thread_update."
+
+[[function]]
+module = "EBOOT"
+address = "088A10E8"
+name = "sound_thread_apply_command_2_at_8"
+purpose = "Jumps to sound_voices_apply_command_2_to_matching with a0 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_thread_update."
+

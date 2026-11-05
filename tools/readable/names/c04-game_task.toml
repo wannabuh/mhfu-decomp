@@ -1062,3 +1062,419 @@ purpose = "Goes to state 1,0x14 how 5 and sets quest_flags bit 8."
 confidence = "confirmed"
 evidence = "Whole body read."
 
+[[function]]
+module = "game_task"
+address = "09B67258"
+name = "returns_a1_placement_new_game_task"
+purpose = "Returns its second argument. Callers pass it memory just allocated and go on to construct there: C++ placement new, so its a0 is a size or unused."
+confidence = "inferred"
+evidence = "The generated code, one line; callers read (e.g. game_sub 09C2F6A0)."
+
+[[function]]
+module = "game_task"
+address = "09B68290"
+name = "hunter_weapon_attack_volume_destructor"
+purpose = "Destructor of HunterWeaponAttackVolume: sets vtable 089BD3B0, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B854D0"
+name = "vespoid_attack_volume_clear_byte_14_set_state_fn_c038b0"
+purpose = "Clears +0x14 and, if the member function pointer at 09C038B0 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B85570"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B85590"
+name = "vespoid_attack_volume_destructor"
+purpose = "Destructor of VespoidAttackVolume: sets vtable 089BD624, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B8F988"
+name = "pelagus_attack_volume_destructor"
+purpose = "Destructor of PelagusAttackVolume: sets vtable 089BD8D4, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B90310"
+name = "pelagus_attack_volume_clear_byte_14_set_state_fn_c087a0"
+purpose = "Clears +0x14 and, if the member function pointer at 09C087A0 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B90380"
+name = "call_vtable_24_b90380"
+purpose = "Tail-calls this object's vtable +0x24."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09B903C0"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B050A8"
+name = "class_089bdcb8_spawn_for_owner_with_a1_0"
+purpose = "Calls class_089bdcb8_spawn_for_owner (game_sub 09C57CA0) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B86970"
+name = "prey_attack_volume_destructor"
+purpose = "Destructor of PreyAttackVolume: sets vtable 089BD6B4, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B86D78"
+name = "prey_attack_volume_clear_byte_14_set_state_fn_c03d48"
+purpose = "Clears +0x14 and, if the member function pointer at 09C03D48 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B86E18"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B06348"
+name = "aptonoth_apceros_popo_destructor"
+purpose = "Destructor of AptonothApcerosPopo: sets vtable 089BC680, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B15E38"
+name = "class_089bdcb8_spawn_for_owner_with_a1_0"
+purpose = "Calls class_089bdcb8_spawn_for_owner (game_sub 09C57CA0) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B889D0"
+name = "drome_attack_volume_destructor"
+purpose = "Destructor of DromeAttackVolume: sets vtable 089BD73C, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B88DE8"
+name = "drome_attack_volume_clear_byte_14_set_state_fn_c04180"
+purpose = "Clears +0x14 and, if the member function pointer at 09C04180 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B88E58"
+name = "call_vtable_24_b88e58"
+purpose = "Tail-calls this object's vtable +0x24."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09B88E98"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B97F60"
+name = "call_vtable_24_b97f60"
+purpose = "Tail-calls this object's vtable +0x24."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09B0E8E0"
+name = "prey_raptor_destructor"
+purpose = "Destructor of PreyRaptor: sets vtable 089BC77C, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B0E390"
+name = "class_089bdcb8_spawn_for_owner_with_a1_0"
+purpose = "Calls class_089bdcb8_spawn_for_owner (game_sub 09C57CA0) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B15338"
+name = "vespoid_hornetaur_destructor"
+purpose = "Destructor of VespoidHornetaur: sets vtable 089BC974, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B86DE8"
+name = "call_vtable_24_b86de8"
+purpose = "Tail-calls this object's vtable +0x24."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09B97F58"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09AC8B70"
+name = "entity_set_state_randomize_322_thunk"
+purpose = "Jumps to entity_set_state_randomize_322 (game_task 09AC8730)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B69B10"
+name = "shared_attack_volume_kirin_felyne_kelbi_destructor"
+purpose = "Destructor of SharedAttackVolumeKirinFelyneKelbi: sets vtable 089BD438, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B6A078"
+name = "shared_attack_volume_kirin_felyne_kelbi_clear_byte_14_set_state_fn_bfdd88"
+purpose = "Clears +0x14 and, if the member function pointer at 09BFDD88 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B6A128"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B168E8"
+name = "entity_reload_area_values_and_reduce_494_498_thunk"
+purpose = "Jumps to entity_reload_area_values_and_reduce_494_498 (game_task 09AD0648)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B5CED0"
+name = "class_089bdcb8_spawn_for_owner_with_a1_0"
+purpose = "Calls class_089bdcb8_spawn_for_owner (game_sub 09C57CA0) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B7E730"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09AFC160"
+name = "proximity_creature_type_0a_destructor"
+purpose = "Destructor of ProximityCreatureType0A: sets vtable 089BC584, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B44C60"
+name = "pelagus_destructor"
+purpose = "Destructor of Pelagus: sets vtable 089BCD64, runs entity_dtor_flags_nodes_owned_by_it, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B72F28"
+name = "shared_large_monster_attack_volume_destructor"
+purpose = "Destructor of SharedLargeMonsterAttackVolume: sets vtable 089BD504, runs owned_obj_base_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_task"
+address = "09B732D8"
+name = "shared_large_monster_attack_volume_clear_byte_14_set_state_fn_bff7f0"
+purpose = "Clears +0x14 and, if the member function pointer at 09BFF7F0 is set, copies it to the state function at +0x78."
+confidence = "confirmed"
+evidence = "Whole body read; compare owned_obj_base_clear_byte_14_set_state_fn_bfb7f0."
+
+[[function]]
+module = "game_task"
+address = "09B73388"
+name = "owned_obj_base_clear_state_fn_78_thunk"
+purpose = "Jumps to owned_obj_base_clear_state_fn_78 (game_task 09B673F8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09AE3DC8"
+name = "class_089bdcb8_spawn_for_owner_with_a1_0"
+purpose = "Calls class_089bdcb8_spawn_for_owner (game_sub 09C57CA0) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B0F468"
+name = "class_089bc974_reset_health_saved_point_7b0_thunk"
+purpose = "Jumps to class_089bc974_reset_health_saved_point_7b0 (game_task 09B0F288)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B1E0A8"
+name = "class_089bcc68_init_health_state_and_mask_2b8_with_a1_0"
+purpose = "Calls class_089bcc68_init_health_state_and_mask_2b8 (game_task 09B1DD38) with a1 = 0."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B16BC8"
+name = "class_089bca70_set_state_group_1_with_adjust"
+purpose = "movement_mode 0; for state 1 runs object_init_move_distance_to_target(2, 1000, 300); state 0 becomes 5 if alert_mode is 1; then entity_set_state_by_global_flag_and_mode with group 1."
+confidence = "confirmed"
+evidence = "Whole body read; caller class_089bca70_set_state_with_entry_actions_and_area_teleport."
+
+[[function]]
+module = "game_task"
+address = "09AB43F0"
+name = "skeleton_data_pointer_from_offset_8"
+purpose = "Returns a1 + word at a1 + 8."
+confidence = "confirmed"
+evidence = "The generated code; callers skeleton_init_from_data, 09AB40E8."
+
+[[function]]
+module = "game_task"
+address = "09B8F950"
+name = "pelagus_attack_volume_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD8D4."
+confidence = "confirmed"
+evidence = "Whole body read. Class name as in classes.toml."
+
+[[function]]
+module = "game_task"
+address = "09B86938"
+name = "prey_attack_volume_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD6B4."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B88998"
+name = "drome_attack_volume_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD73C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B69AD8"
+name = "shared_attack_volume_kirin_felyne_kelbi_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD438."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B72EF0"
+name = "shared_large_monster_attack_volume_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD504."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B88D30"
+name = "drome_attack_volume_end_on_owner_motion_change"
+purpose = "Owner from +0x15 through the object table at DAT_09c122b0 +0x1220. If its motion_id (+0x324) still equals +0xC2 and +0x14 is nonzero, nothing; otherwise clears +0x14 and sets the state function from 09C04170 at +0x78."
+confidence = "inferred"
+evidence = "Most of the body read; classes.toml's note on the class says the same of its ending."
+
+[[function]]
+module = "game_task"
+address = "09B188F8"
+name = "class_089bca70_state_jump_at_frame_22_volume_by_subtype"
+purpose = "State function: at frame 40 spawns attack volume 3, 9, 8 or 3 by subtype 0x4D, 0x1F, 0x1C, 0x1B; from frame 22 movement_mode 2 with rotated velocity, at least 10 upwards, turning toward the target; at the floor, motion table 0x15, and at its end the state 0,1 reset."
+confidence = "inferred"
+evidence = "Up to the floor step read; the ran-once trace has it on subtype 0x1F or others not noted. Caller class_089bca70_state_group_03_dispatch."
+
+[[function]]
+module = "game_task"
+address = "09B64D30"
+name = "owned_obj_spawn_ctor_09b88ea8_if_29a_matches_game"
+purpose = "If the object is in the current area: allocates and zeroes 0xE0 bytes from the heap at DAT_09c190d0 +0x5000, constructs 09B88EA8, sets it up with 09B88F40(owner, a1)."
+confidence = "confirmed"
+evidence = "Whole body read; the same shape as the named owned_obj_spawn_ctor_ functions."
+
+[[function]]
+module = "game_task"
+address = "09B15398"
+name = "class_089bca70_init_and_set_state_00_01"
+purpose = "class_089bca70_init_motion_health_and_script_request, then vtable +0x88 (0, 1, 0)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B5D768"
+name = "class_089bd154_init_and_set_state_00_01"
+purpose = "class_089bd154_init_health_and_save_place_790, then vtable +0x88 (0, 1, 0)."
+confidence = "confirmed"
+evidence = "Whole body read."
+

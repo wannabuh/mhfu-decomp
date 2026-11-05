@@ -1,0 +1,232 @@
+[[function]]
+module = "lobby_task"
+address = "09AF26A0"
+name = "lobby_fx_textured_strip_destructor"
+purpose = "Destructor of LobbyFxTexturedStrip: sets vtable 089BB194, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C830"
+name = "global_09b23ad0_set_to_a0"
+purpose = "Stores a0 in the word at 09B23AD0 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C840"
+name = "global_09b23ad8_set_to_a0"
+purpose = "Stores a0 in the word at 09B23AD8 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C850"
+name = "global_09b23a30_set_to_a0"
+purpose = "Stores a0 in the word at 09B23A30 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C860"
+name = "global_09b23a38_set_to_a0"
+purpose = "Stores a0 in the word at 09B23A38 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C870"
+name = "global_09b23a40_set_to_a0"
+purpose = "Stores a0 in the word at 09B23A40 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C880"
+name = "global_09b23a48_set_to_a0"
+purpose = "Stores a0 in the word at 09B23A48 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C890"
+name = "global_09b10080_set_to_a0"
+purpose = "Stores a0 in the word at 09B10080 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8A0"
+name = "global_09b10098_set_to_a0"
+purpose = "Stores a0 in the word at 09B10098 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8B0"
+name = "global_09b100a0_set_to_a0"
+purpose = "Stores a0 in the word at 09B100A0 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8C0"
+name = "global_09b23c20_set_to_a0"
+purpose = "Stores a0 in the word at 09B23C20 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8D8"
+name = "global_09b23a28_set_to_a0"
+purpose = "Stores a0 in the word at 09B23A28 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8E8"
+name = "global_09b23920_set_to_a0"
+purpose = "Stores a0 in the word at 09B23920 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8F8"
+name = "global_09b23798_set_to_a0"
+purpose = "Stores a0 in the word at 09B23798 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C908"
+name = "global_09b22e70_set_to_a0"
+purpose = "Stores a0 in the word at 09B22E70 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "lobby_task"
+address = "09B0FF18"
+name = "crt_static_init_09b0ff18_register_destructor"
+purpose = "Constructs the global at 9B23368 and registers f_lobby_task_9A7C948 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "lobby_task"
+address = "09B10018"
+name = "crt_static_init_09b10018_register_destructor"
+purpose = "Constructs the global at 9B23BB0 and registers f_lobby_task_9AEF568 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "lobby_task"
+address = "09AC05B0"
+name = "npc_state_100_talk_turn_or_hold_motion"
+purpose = "If state is 100 runs npc_talk_turn_to_hunter_wait_turn_back_resume_path, otherwise npc_state_hold_motion_variant_or_id_04_enter_state_0x64(1)."
+confidence = "confirmed"
+evidence = "Whole body read; caller npc_dispatch_state_and_step_timed_sequence."
+
+[[function]]
+module = "lobby_task"
+address = "09A9D668"
+name = "npc_handler_clear_lobby_bytes_set_3"
+purpose = "lobby_clear_bytes_20_21 on the global at 09B23798, then writes 3 to the word at a0."
+confidence = "confirmed"
+evidence = "Whole body read; caller npc_type_handler_dispatch."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBC0"
+name = "skeleton_data_pointer_from_offset_8_lobby"
+purpose = "Returns a1 + word at a1 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller skeleton_init_from_data_with_scale."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBE8"
+name = "skeleton_data_pointer_from_offset_8_lobby_b"
+purpose = "Returns a1 + word at a1 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller skeleton_init_from_data_with_scale."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBD0"
+name = "skeleton_set_word_148"
+purpose = "Stores a1 at +0x148."
+confidence = "confirmed"
+evidence = "The generated code; caller skeleton_init_from_data_with_scale."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBD8"
+name = "skeleton_set_word_14c"
+purpose = "Stores a1 at +0x14C."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBE0"
+name = "skeleton_set_word_144"
+purpose = "Stores a1 at +0x144."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "lobby_task"
+address = "09ADBBF8"
+name = "skeleton_data_past_12_byte_header"
+purpose = "Returns a1 + 0xC."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "lobby_task"
+address = "09A7C8D0"
+name = "returns_a0_lobby_09a7c8d0"
+purpose = "Returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from crt_static_init_lobby_task_09b100c0."
+
+[[function]]
+module = "lobby_task"
+address = "09AB83F0"
+name = "npc_destructor_flags_nodes_owned_by_it"
+purpose = "Destructor of Npc: vtable 089BB154, then for nodes in the node manager's list at +0x19030 whose +0xC is this object sets flag 2 at +0x48; object_dtor."
+confidence = "inferred"
+evidence = "First 20 lines of the view read; the same shape as entity_dtor_flags_nodes_owned_by_it."
+
+[[function]]
+module = "lobby_task"
+address = "09AA9318"
+name = "lobby_hunter_construct"
+purpose = "hunter_construct, then vtable 089BB05C."
+confidence = "inferred"
+evidence = "Whole body read; the vtable is hunter-derived by this; no caller found by direct call."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B8A0"
+name = "lobby_pack_section_entry_by_id_section_1"
+purpose = "Jumps to lobby_pack_section_entry_by_id with a1 = 1 and a2 the caller's a1."
+confidence = "confirmed"
+evidence = "The generated code; caller lobby_points_menu_draw_list_page."
+

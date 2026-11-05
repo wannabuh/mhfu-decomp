@@ -6,3 +6,347 @@ purpose = "Takes one from the low 4 bits of byte +0x2E of a hit record; if the h
 confidence = "confirmed"
 evidence = "Whole body read; called use_up_record in readable/hit_damage.c."
 
+[[function]]
+module = "game_sub"
+address = "09C56FC8"
+name = "returns_a1_placement_new_game_sub"
+purpose = "Returns its second argument. Callers pass it memory just allocated and go on to construct there: C++ placement new, so its a0 is a size or unused."
+confidence = "inferred"
+evidence = "The generated code, one line; callers read (e.g. game_sub 09C2F6A0)."
+
+[[function]]
+module = "game_sub"
+address = "09C752F0"
+name = "fx_randomized_element_burst_destructor"
+purpose = "Destructor of FxRandomizedElementBurst: sets vtable 089BDE98, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C5AE70"
+name = "fx_randomized_node_by_kind_destructor"
+purpose = "Destructor of FxRandomizedNodeByKind: sets vtable 089BDCE0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CCC248"
+name = "stage_drift_fade_sprite_destructor_vtable_chain"
+purpose = "Writes vtables 089BE6F0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C7F320"
+name = "fx_elements_with_kind_sound_destructor"
+purpose = "Destructor of FxElementsWithKindSound: sets vtable 089BDF10, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C60D40"
+name = "fx_bone_trail_strip_destructor"
+purpose = "Destructor of FxBoneTrailStrip: sets vtable 089BDD58, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C64C70"
+name = "fx_bone_parts_by_type_destructor"
+purpose = "Destructor of FxBonePartsByType: sets vtable 089BDD80, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C915E8"
+name = "fx_ten_element_records_destructor"
+purpose = "Destructor of FxTenElementRecords: sets vtable 089BDFB0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C58BE8"
+name = "fx_owner_floor_mark_at_bones_destructor"
+purpose = "Destructor of FxOwnerFloorMarkAtBones: sets vtable 089BDCB8, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CC4EB8"
+name = "stage_texture_counter_group_destructor_vtable_chain"
+purpose = "Writes vtables 089BE550, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CBACE8"
+name = "stage_ramped_group_destructor_vtable_chain"
+purpose = "Writes vtables 089BE310, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CC7478"
+name = "stage_frame_step_sprite_setup_mode_3_fn_cf9080"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF9080 to +0x1C if set, and stores a1 at +0x34."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C9A690"
+name = "fx_marker_above_owner_destructor"
+purpose = "Destructor of FxMarkerAboveOwner: sets vtable 089BE0A0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CC7438"
+name = "stage_frame_step_sprite_destructor_vtable_chain"
+purpose = "Writes vtables 089BE5F0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C68478"
+name = "fx_randomized_element_burst_b_destructor"
+purpose = "Destructor of FxRandomizedElementBurstB: sets vtable 089BDDD0, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C1ADB8"
+name = "global_09cfb998_set_to_a0"
+purpose = "Stores a0 in the word at 09CFB998 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "game_sub"
+address = "09CFB6A4"
+name = "crt_static_init_09cfb6a4_register_destructor"
+purpose = "Constructs the global at 9CFB8B0 and registers f_game_sub_9C1ADC8 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB6E0"
+name = "crt_static_init_09cfb6e0_register_destructor"
+purpose = "Constructs the global at 9CFB9B0 and registers f_game_sub_9C28C30 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB704"
+name = "crt_static_init_09cfb704_register_destructor"
+purpose = "Constructs the global at 9CFBCE0 and registers f_game_sub_9C28C98 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB740"
+name = "crt_static_init_09cfb740_register_destructor"
+purpose = "Constructs the global at 9CFBD08 and registers f_game_sub_9C2BC88 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB764"
+name = "crt_static_init_09cfb764_register_destructor"
+purpose = "Constructs the global at 9CFBD40 and registers f_game_sub_9C2BF28 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB7A0"
+name = "crt_static_init_09cfb7a0_register_destructor"
+purpose = "Constructs the global at 9D19880 and registers f_game_sub_9C38B58 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CFB7C4"
+name = "crt_static_init_09cfb7c4_register_destructor"
+purpose = "Constructs the global at 9D1A178 and registers f_game_sub_9C56E58 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C970C0"
+name = "fx_weighted_random_model_destructor"
+purpose = "Destructor of FxWeightedRandomModel: sets vtable 089BE028, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CB66C8"
+name = "fx_element_array_by_kind_destructor"
+purpose = "Destructor of FxElementArrayByKind: sets vtable 089BE208, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C8A4D0"
+name = "fx_node_at_owner_bone_destructor"
+purpose = "Destructor of FxNodeAtOwnerBone: sets vtable 089BDF88, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CC0C50"
+name = "stage_snow_mist_dome_setup_mode_3_fn_cf8df0"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF8DF0 to +0x1C if set, and stores a1 at +0x34."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CC22B8"
+name = "stage_snow_mist_dome_destructor_vtable_chain"
+purpose = "Writes vtables 089BE490, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C85970"
+name = "fx_update_elements_member_fns_destructor"
+purpose = "Destructor of FxUpdateElementsMemberFns: sets vtable 089BDF38, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09C89980"
+name = "fx_keyframe_elements_member_fns_destructor"
+purpose = "Destructor of FxKeyframeElementsMemberFns: sets vtable 089BDF60, runs class_089bdc58_destructor, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "game_sub"
+address = "09CBD218"
+name = "stage_camera_facing_glare_setup_mode_3_fn_cf8738"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF8738 to +0x1C if set, and stores a1 at +0x34."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CBDEB8"
+name = "stage_camera_facing_glare_destructor_vtable_chain"
+purpose = "Writes vtables 089BE3B0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CBE8B0"
+name = "stage_counted_alpha_group_destructor_vtable_chain"
+purpose = "Writes vtables 089BE3D0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CBF0E0"
+name = "stage_orbiting_model_setup_mode_3_fn_cf88c8"
+purpose = "Sets +4 to 3, zeroes +8 and +0xC, copies the member function pointer at 09CF88C8 to +0x1C if set, and stores a1 at +0x34."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CC73F8"
+name = "stage_record_point_shuttle_destructor_vtable_chain"
+purpose = "Writes vtables 089BE5D0, 089BE2F0 and 089BDC48 in turn, destructor style, with nothing else to do."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CC18B0"
+name = "stage_snow_mist_dome_queue_draw_unless_mode_1_2"
+purpose = "Unless the short at *g_game +0x3A0 is 1 or 2, and if the member function at +0x1C differs from the constant at 09CF8DD0 (member_fn_not_equal returning 0 means equal), inserts itself in depth-sorted render queue list 8."
+confidence = "inferred"
+evidence = "Whole body read; the sense of the comparison is by the name of member_fn_not_equal. Ran in 3 recordings."
+
+[[function]]
+module = "game_sub"
+address = "09C7CEA8"
+name = "fx_elements_with_kind_sound_queue_elements"
+purpose = "For each element up to the count for this kind (table 09CEC6F0 by +0x24; 80 byte stride from +0x60) with flag bit 4 clear at element +4, inserts it in depth-sorted render queue list 7."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C6F320"
+name = "fx_randomized_element_burst_spawn_for_object"
+purpose = "If the object is in the current area (object_29a_matches_game_6af0e): works out a position by kind; if effect_spawn_sub_effects_and_sound_by_code doesn't take it, allocates an FxRandomizedElementBurst at that position with scale 1 and links it in the node manager's list."
+confidence = "inferred"
+evidence = "First 20 lines of the view read; ran in 7 recordings with monsters as a0."
+
+[[function]]
+module = "game_sub"
+address = "09C7EF98"
+name = "fx_elements_with_kind_sound_free_elements"
+purpose = "Frees each element's run with entity_manager_free_element_run, up to the count for this kind, then fx_base_release_render_nodes."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C2F6A0"
+name = "node_mgr_09d19860_alloc_class_089be0a0"
+purpose = "Allocates and zeroes 0x60 bytes from the node manager's heap, constructs class 089BE0A0 (FxMarkerAboveOwner) with class_089bdc58_init, freeing on failure."
+confidence = "inferred"
+evidence = "First 20 lines of the view read; the same shape as node_mgr_09d19860_alloc_class_089bdcb8."
+
+[[function]]
+module = "game_sub"
+address = "09C2F2F8"
+name = "node_mgr_09d19860_alloc_class_089be028"
+purpose = "Allocates and zeroes 0xD0 bytes from the node manager's heap, constructs class 089BE028 (FxWeightedRandomModel)."
+confidence = "inferred"
+evidence = "First 20 lines of the view read."
+
+[[function]]
+module = "game_sub"
+address = "09C2FA18"
+name = "node_mgr_09d19860_alloc_class_089be118"
+purpose = "Allocates and zeroes 0x60 bytes from the node manager's heap, constructs class 089BE118."
+confidence = "inferred"
+evidence = "First 20 lines of the view read."
+
+[[function]]
+module = "game_sub"
+address = "09C2BA98"
+name = "clear_byte_at_a0"
+purpose = "Writes 0 to the byte at a0."
+confidence = "confirmed"
+evidence = "The generated code; caller game_sub 09C225C0."
+
