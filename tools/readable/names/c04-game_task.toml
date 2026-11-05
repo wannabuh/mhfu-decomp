@@ -657,10 +657,10 @@ evidence = "Whole body read."
 [[function]]
 module = "game_task"
 address = "09A9F5B0"
-name = "hunter_state_0_2f_motion_195_while_world_slot_active"
-purpose = "Group 0 state 0x2F: goes by the +0x5EC counter and whether g_game's player record of item_give_world_slot is active, using_item_id 0x4EC counting faster on a flag at game +0xF7A57C; then motion 0x195 from frame 0xCE."
+name = "hunter_state_0_2f_motion_19a_wait_world_slot_then_195"
+purpose = "Group 0 state 0x2F: motion 0x19A from frame 0x3C doubled by hunter_skill_c2_double_motion_speed. A local hunter on entry: for using_item_id 0x4EC with the flag at game +0xF7A57C, unless unknown_mode_byte_2e_allows_index or quest_byte_75c_mask_80_is_set, posts net_post_message_category_7, sets +0x5EC to 0x708 and item_give_world_slot from game +0x420; without the flag, 09A70168 and quest_byte_75c_set_flagged; other items hunter_use_item_9b64638_or_spawn_kind_4_and_consume. +0x5EC counts down while that slot's player record is active; then motion 0x195 from frame 0xCE, base 0,0xA at its end."
 confidence = "inferred"
-evidence = "First 40 of 100 view lines read."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
@@ -738,17 +738,17 @@ evidence = "Whole body read."
 module = "game_task"
 address = "09AA0B80"
 name = "hunter_state_0_44_motion_2f_rise_100_air_then_land_motion_30"
-purpose = "Group 0 state 0x44: hit_immune_ticks 3; at a motion's end plays 0x2F, raises place Y by 100 and adds velocity through the rotation matrix; air_step until falling at floor_y, then motion 0x30 with a camera shake."
+purpose = "Group 0 state 0x44: hit_immune_ticks 3; motion 0x2E, 75 stamina off and hunter_call_sound_dispatch_own_bank; at its end motion 0x2F, raises place Y by 100, velocity from 16 ahead through the rotation matrix and Y 3; air_step until falling at floor_y, then motion 0x30 with a camera shake; at its end 0,0x45 with +0x480 bit 0x200 unless misc_flags bit 8, otherwise 0,0x2C."
 confidence = "inferred"
-evidence = "First 34 view lines read, the rest not."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
 address = "09AA0328"
-name = "hunter_state_0_48_use_item_369_every_60_ticks"
+name = "hunter_state_0_48_use_item_369_60_ticks_then_7a"
 purpose = "Group 0 state 0x48: motion 0x19E from frame 0x42, takes one item 0x369 from the pouch and spawns owned_obj(0), then for a local hunter after 60 ticks goes to 0,0x7A if any remain, otherwise base 0,6."
 confidence = "confirmed"
-evidence = "Whole body read. What item 0x369 is isn't read."
+evidence = "Whole body read. What item 0x369 is isn't read. 0,0x7A is another state function (09AA0090), so nothing here shows it repeating."
 
 [[function]]
 module = "game_task"
@@ -761,10 +761,10 @@ evidence = "Whole body read."
 [[function]]
 module = "game_task"
 address = "09AA1C20"
-name = "hunter_state_0_motion_324_or_326_input_loop"
-purpose = "Group 0 state with an argument: motion 0x324 if the argument is 0, else 0x326, flag 0x80000; each tick runs 09AAADC0 with ticks_5f0 latched into state_scratch_b."
+name = "hunter_state_0_50_motion_326_input_loop"
+purpose = "Group 0 state 0x50, called with argument 1: motion 0x326 (0x324 with argument 0, which no direct call passes), flag 0x80000; each tick runs 09AAADC0 with ticks_5f0 latched into state_scratch_b."
 confidence = "inferred"
-evidence = "Whole body read; which state numbers pass which argument not checked."
+evidence = "Whole body read; argument from hunter_state_group0_dispatch, the only direct call in the generated C."
 
 [[function]]
 module = "game_task"
@@ -786,9 +786,9 @@ evidence = "First 34 view lines of 138 and the ends read."
 module = "game_task"
 address = "09AA2590"
 name = "hunter_state_0_55_motion_323_loop"
-purpose = "Group 0 state 0x55: motion 0x323 from a random frame under 0x40; for a local hunter unless mode byte 2E allows index 1, plays sound 0x18E9 on slot 1; goes on by counter +0x698."
+purpose = "Group 0 state 0x55: motion 0x323 from a random frame under 0x40; for a local hunter unless mode byte 2E allows index 1, plays sound 0x18E9 on slot 1; goes on by counter +0x698 and byte +0x69A; by outcome takes using_item_id from the pouch, gives items by item_give_to_hunter_with_message with HUD messages 0x2F to 0x32, and sets other states."
 confidence = "inferred"
-evidence = "First 30 view lines of 178 read: long function, only its entry understood."
+evidence = "First 30 view lines of 178 read, the rest only by its calls: a partial read."
 
 [[function]]
 module = "game_task"
@@ -817,10 +817,10 @@ evidence = "Most of the body read."
 [[function]]
 module = "game_task"
 address = "09AA3AB0"
-name = "hunter_state_0_61_motion_19d_use_item_by_amount"
-purpose = "Group 0 state 0x61: motion 0x19D, with active skill 0x26 jumping to frame 0xEE at frame 98; at frame 260 unless mode byte 2E allows index 1, takes one using_item_id from the pouch; amount 100 for item 0x363, 150 for 0xE5 and 0x99, halved with active skill 0x27."
+name = "hunter_state_0_61_motion_19d_use_item_add_sharpness"
+purpose = "Group 0 state 0x61: motion 0x19D, with active skill 0x26 jumping to frame 0xEE at frame 98; at frame 260, unless mode byte 2E allows index 1, takes one using_item_id from the pouch and runs hunter_sharpness_add_with_skills with 100 for item 0x363, 150 for 0xE5 and 0x99, halved with active skill 0x27; base 0,4 at its end."
 confidence = "inferred"
-evidence = "First 34 view lines read; what the amount goes to isn't."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
@@ -834,9 +834,9 @@ evidence = "Whole body read; what +0x5C8 means is not shown here: game_task 09A7
 module = "game_task"
 address = "09AA3F18"
 name = "hunter_state_0_68_motion_1_wait_world_slot_or_byte_5c8"
-purpose = "Group 0 state 0x68: motion 1, counts +0x5EC up to 0x708 ticks while the player record of item_give_world_slot is active and byte +0x5C8 is 0."
+purpose = "Group 0 state 0x68: motion 1, counts +0x5EC up to 0x708 ticks while the player record of item_give_world_slot is active and byte +0x5C8 is 0; then 0,0x6A if that byte is 1, else base 0,2."
 confidence = "inferred"
-evidence = "First 34 view lines read."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
@@ -946,33 +946,33 @@ evidence = "Whole body read in the generated C: subtype*29*16 is 0x1D0 bytes, re
 module = "game_task"
 address = "09A636D8"
 name = "stage_set_6c_on_stage_39_or_100"
-purpose = "Sets the word at +0x6C of the object given to 1 when g_game's stage_id is 0x39 or remaps to 0x100 through DAT_09ce5108 and DAT_09ce5320."
+purpose = "Sets the byte at +0x6C of the object given to 1 when g_game's stage_id is 0x39 or remaps to 0x100 through DAT_09ce5108 and DAT_09ce5320."
 confidence = "confirmed"
 evidence = "Whole body read; readable/hunter_tick.c passes it the stage pointer."
 
 [[function]]
 module = "game_task"
 address = "09A6CB90"
-name = "hunter_received_hit_power_with_skills"
-purpose = "Adjusts received_hit_power by active skills 0x28 to 0x2B (0x29 minus 20, 0x28 minus 10 down to a minimum of 1, 0x2A plus 10 up to 0xFF), other than on weapon class 1."
+name = "hunter_hit_power_skills_then_state_2_sharpness_stamina"
+purpose = "Adjusts byte +0x3CC by active skills other than on weapon class 1 (0x29 minus 20, 0x28 minus 10, floor 1; 0x2A plus 10, 0x2B plus 20, ceiling 0xFF). Then by power goes to state 2,0xA, 2,1 or 2,0xB how 0xC (class 0: 40 and 15; class 1: 15, no 2,1; class 4: 21, no 2,1; others: 50 and 40); class 0 also adds sharpness -10, -2 or -1 unless +0x3CA is listed; all add stamina -180 at 40 or more, -100 at 15 or more, else -75."
 confidence = "inferred"
-evidence = "First 32 view lines of 100 read. Caller: hunter_process_received_hit."
+evidence = "Whole body read in the generated C. Caller: hunter_process_received_hit."
 
 [[function]]
 module = "game_task"
 address = "09A6EB30"
 name = "hunter_draw_at_bone_e_on_screen"
-purpose = "Takes a point 1000 units along hunter bone 0xE's Z axis, to the screen by camera_world_to_screen, and if in front draws 2D on list 9."
+purpose = "Takes a point -1000 along hunter bone 0xE's Z axis, to the screen by camera_world_to_screen, and if in front sets HUD +0x534 to 9 and draws hud_draw_sprite_109_four_quadrants."
 confidence = "inferred"
-evidence = "Most of the body read; what it draws isn't."
+evidence = "Whole body read in the generated C. What the sprite shows is not read."
 
 [[function]]
 module = "game_task"
 address = "09A6EC50"
-name = "hunter_matrix_from_angles_1f4_680"
-purpose = "Starts from identity and the angles at +0x1F4 and +0x680, to sines and cosines, building a rotation matrix."
+name = "hunter_draw_sprite_1000_ahead_by_angles_1f4_680"
+purpose = "Rotates (0, 0, 1000) by the angles at +0x1F4 and minus s16 +0x680, adds place and 100 of height, to the screen by camera_world_to_screen, and if in front sets HUD +0x534 to 9 and draws hud_draw_sprite_109_four_quadrants."
 confidence = "inferred"
-evidence = "First 30 view lines read of 72."
+evidence = "Whole body read in the generated C. What the sprite shows is not read."
 
 [[function]]
 module = "game_task"
@@ -1018,9 +1018,9 @@ evidence = "Whole body read."
 module = "game_task"
 address = "09BA8BC0"
 name = "weapon4_state_motion_580_button_window_14_50"
-purpose = "Weapon class 4 state: motion 0x580 with a camera shake; between frames 14 and 50 marks button_action 1 to 3 in state_scratch_a."
+purpose = "Weapon class 4 state: motion 0x580 with a camera shake; between frames 14 and 50, with +0x614 bit 1 clear, sets state_scratch_a when button_action is 1 to 3; once set, goes to 1,0xA at frame 32; base 0,6 at the motion's end."
 confidence = "inferred"
-evidence = "First 32 view lines read."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_task"
@@ -1450,15 +1450,15 @@ evidence = "Most of the body read; classes.toml's note on the class says the sam
 module = "game_task"
 address = "09B188F8"
 name = "class_089bca70_state_jump_at_frame_22_volume_by_subtype"
-purpose = "State function: at frame 40 spawns attack volume 3, 9, 8 or 3 by subtype 0x4D, 0x1F, 0x1C, 0x1B; from frame 22 movement_mode 2 with rotated velocity, at least 10 upwards, turning toward the target; at the floor, motion table 0x15, and at its end the state 0,1 reset."
+purpose = "State function: at frame 40 spawns attack volume 3, 9, 8 or 3 by subtype 0x4D, 0x1F, 0x1C, 0x1B; from frame 22 movement_mode 2 with rotated velocity, Y from 150 and velocity[2] kept at 10 or more, turning toward the target while +0x637 is set; at the floor, motion table 0x15, and at its end the state 0,1 reset."
 confidence = "inferred"
-evidence = "Up to the floor step read; the ran-once trace has it on subtype 0x1F or others not noted. Caller class_089bca70_state_group_03_dispatch."
+evidence = "Whole body read in the generated C. Caller class_089bca70_state_group_03_dispatch."
 
 [[function]]
 module = "game_task"
 address = "09B64D30"
 name = "owned_obj_spawn_ctor_09b88ea8_if_29a_matches_game"
-purpose = "If the object is in the current area: allocates and zeroes 0xE0 bytes from the heap at DAT_09c190d0 +0x5000, constructs 09B88EA8, sets it up with 09B88F40(owner, a1)."
+purpose = "If the object a1 is in the current area: allocates and zeroes 0xE0 bytes from the heap at DAT_09c190d0 +0x5000, constructs 09B88EA8, sets it up with 09B88F40(a1, a2)."
 confidence = "confirmed"
 evidence = "Whole body read; the same shape as the named owned_obj_spawn_ctor_ functions."
 
@@ -1514,25 +1514,25 @@ evidence = "Whole body read."
 module = "game_task"
 address = "09B88F40"
 name = "class_089bd780_setup_for_owner"
-purpose = "Kind 0x15 at +0xC; +0xD a2; owner, its instance_index, +0x1E9, motion_id (+0xC2), facing and place parts; clears owner +0x33D and +0x3F8; links in the list at DAT_09c190d0 +0x502C."
+purpose = "Kind 0x15 at +0xC; +0xD a2; owner a1 at +0x10, its instance_index at +0x15, +0x1E9 at +0xF, motion_id at +0xC2, facing's low half at +0x66 and its three angles from +0x1F0 at +0x90; clears owner +0x33D and +0x3F8; links in the list at DAT_09c190d0 +0x502C."
 confidence = "inferred"
-evidence = "Most of the body read; the owned_obj setup shape."
+evidence = "Whole body read in the generated C. The owned_obj setup shape."
 
 [[function]]
 module = "game_task"
 address = "09ABE6C8"
 name = "monster_route_table_row_lookup_for_area"
-purpose = "In the route table of subtype (records at 09BB8C0C) for g_game's map_id, finds the row whose id is byte +0x5F3, then the entry for the area given, comparing with the 09CE5108/09CE5320 remap; returns +2 of the terminator entry at 0xFFFF."
+purpose = "In the route table of subtype (pointer at 09BB8C0C in 0x1D0-byte records) for g_game's map_id, takes the 8-byte row whose first word is byte +0x5F3 or -1; its word +4 points to 8-byte entries of s16 area and word +4. Returns word +4 of the entry for area a1, comparing with the 09CE5108/09CE5320 remap, or of the -1 terminator; 0 after 267 entries or with no table."
 confidence = "inferred"
-evidence = "First part read. Caller monster_script_op_1a_route_to_area."
+evidence = "Whole body read in the generated C. Caller monster_script_op_1a_route_to_area."
 
 [[function]]
 module = "game_task"
 address = "09AA9DB0"
-name = "object_slide_from_contact_normal_if_here"
-purpose = "If the object is in the current area and map_contact_bits & 0xE0000007 is set: reads its contact record (DAT_09d1a160 + instance*0x84), normalises the X,Z of the first normal."
+name = "object_set_facing_from_contact_normal_if_here"
+purpose = "If the object is in the current area and map_contact_bits & 0xE0000007 is set: walks up to 10 contact records of 12 bytes (DAT_09d1a160 + instance*0x84, ending at u16 +0 = 0); for the first with +0 bit 2, sets facing and +0x320 from the angle of X and -Z of its normal (at pointer +4), minus 0x4000, and returns 1. Otherwise 0."
 confidence = "inferred"
-evidence = "First 26 view lines of 130 read; what it does with the result isn't."
+evidence = "Whole body read in the generated C; the inline VFPU angle not decoded term by term, its scale to 16-bit units read. Nothing slides."
 
 [[function]]
 module = "game_task"
@@ -1571,6 +1571,6 @@ module = "game_task"
 address = "09A649E0"
 name = "sound_selection_set_id_volume_7f"
 purpose = "Stores a1 at +0xC as a short and 0x7F at +0x10."
-confidence = "confirmed"
+confidence = "inferred"
 evidence = "Whole body read; \"volume\" from sound_select_area_or_camera_scene_track's use isn't read: a guess."
 

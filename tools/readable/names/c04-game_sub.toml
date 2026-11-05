@@ -290,9 +290,9 @@ evidence = "Whole body read; class name as in classes.toml, as good as its evide
 module = "game_sub"
 address = "09CC18B0"
 name = "stage_snow_mist_dome_queue_draw_unless_mode_1_2"
-purpose = "Unless the short at *g_game +0x3A0 is 1 or 2, and if the member function at +0x1C differs from the constant at 09CF8DD0 (member_fn_not_equal returning 0 means equal), inserts itself in depth-sorted render queue list 8."
+purpose = "Unless the short at *g_game +0x3A0 is 1 or 2, and if the member function at +0x1C equals the constant at 09CF8DD0 (member_fn_not_equal returns 0), inserts itself in depth-sorted render queue list 8."
 confidence = "inferred"
-evidence = "Whole body read; the sense of the comparison is by the name of member_fn_not_equal. Ran in 3 recordings."
+evidence = "Whole body of it and of member_fn_not_equal read in the generated C: it is 1 when any word differs, and the insert runs on 0. Ran in 3 recordings."
 
 [[function]]
 module = "game_sub"
@@ -370,9 +370,9 @@ evidence = "Whole body read."
 module = "game_sub"
 address = "09C401D0"
 name = "collision_grid_point_inside_cell_shape"
-purpose = "If the point's X,Z is in collision grid +0x214, goes through the list of shapes at its cell, testing the point against each (three corners taken); returns outputs through a2 and a3."
+purpose = "If the point a1's X,Z is in collision grid +0x214, goes through the triangles listed at its cell (X,Z corners +4, +0x10, +0x1C), those with normal Y +0x2C negative; for the last one the point is in, stores the plane's height there at *a2 and bytes +0, +1 and u16 +2 at a3. Returns 1 if there was one; a height of 0 or -0 becomes 0."
 confidence = "inferred"
-evidence = "First 26 view lines of about 85 read: a guess at \"inside\" from the matrices set up."
+evidence = "Whole body read in the generated C."
 
 [[function]]
 module = "game_sub"
@@ -394,7 +394,7 @@ evidence = "Whole body read."
 module = "game_sub"
 address = "09C93FA8"
 name = "fx_launch_velocity_for_duration"
-purpose = "Stores at a0 +4: (f13 - f12) / f15 - f14 * 0.5 * f15: the starting speed for going from f12 to f13 in f15 under acceleration f14."
+purpose = "Stores at a1 +4: (f13 - f12) / f15 - f14 * 0.5 * f15: the starting speed for going from f12 to f13 in f15 under acceleration f14."
 confidence = "confirmed"
 evidence = "Whole body read; caller class_089be000_launch_towards_point_ahead_of_owner."
 
@@ -402,7 +402,7 @@ evidence = "Whole body read; caller class_089be000_launch_towards_point_ahead_of
 module = "game_sub"
 address = "09C7F030"
 name = "value_by_two_bits_of_arg"
-purpose = "By a0 & 6: 0 gives 0x111, 2 gives -0x110, 4 gives 0x89, 6 gives -0x88."
+purpose = "By a1 & 6: 0 gives 0x111, 2 gives -0x110, 4 gives 0x89, 6 gives -0x88."
 confidence = "confirmed"
 evidence = "Whole body read."
 
