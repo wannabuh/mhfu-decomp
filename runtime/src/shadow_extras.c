@@ -1,21 +1,25 @@
-/* What is just out of view, for the renderer's shadows - without the game knowing.
+/* What is just out of the game's view, drawn without the game knowing.
  *
- * The game draws only what passes its view test (EBOOT 088160F0), and the shadows are made from what is drawn. So that
- * the shadows of what is just out of view do not come and go as the camera turns, a model within rt_cull_margin of the
- * view is drawn too - but drawing writes the game's memory (the display list, the matrices, the random numbers effects
- * draw from, what a model keeps): the game must not see it. The test itself says what the game would say; those it
- * fails that the margin would pass are noted here, and drawn on the side:
+ * The game draws only what passes its view test (EBOOT 088160F0), against its own camera. But the picture is seen from
+ * the camera shown, further back than the game's (camera.c), and the renderer's shadows are made from what is drawn, so
+ * a model within rt_cull_margin of the game's view has to be drawn too: the game's cull would show otherwise (distant
+ * mountains gone, shadows that come and go as the camera turns). Drawing writes the game's memory, though (the display
+ * list, the matrices, what a model keeps), and being queued is read by its logic (bit 2 of an object's +4: collisions,
+ * ticks): the game must not see any of it. So the test says what the game would say; those it fails that the margin
+ * would pass are noted here, and drawn apart:
  *
- * - just before the frame's list runs, its GE state put aside (gpu.c), all the game's memory is made read-only: the
- *   first write to a page keeps a copy of it (on_fault);
- * - the game's own code then queues what was noted and runs its render pass over only that, and the chunks it links
- *   (native.c rt_list_link) go to the GE by themselves, in the order of their layers - for the shadow maps only, not
- *   the picture (render.c render_shadow_only: what is out of view is not in it, and its effects go by what is drawn when);
- * - the pages and the CPU's registers are put back, as is the GE. Nothing of it remains in the game's memory, whatever
- *   the drawing wrote, so the game runs exactly as with no shadows at all.
+ * - just before the frame's list runs, all the game's memory is made read-only: the first write to a page keeps a copy
+ *   of it (on_fault);
+ * - the game's own code queues what was noted and runs its render pass over only that (and not what that pass draws
+ *   besides the queues: the screen's tint, patches.py, whose rectangle over the picture would end the world for the
+ *   post-processing, render_post.c post_state, before the frame's own is drawn); the chunks it links (native.c
+ *   rt_list_link) are kept by their layer;
+ * - the pages written are exchanged with their copies, and the CPU's registers put back: the game's memory is as it was,
+ *   exactly, and what the drawing made of it is here;
+ * - as the frame's list runs (ge.c), at the end of each layer those chunks run in their place in the picture's order,
+ *   the pages exchanged for just that long and the GE's state put back after.
  *
- * It all happens on the game's thread between two instructions: no kernel call runs in between (hle_table.c), no other
- * PSP thread, no interrupt. */
+ * It all happens on the game's thread: no kernel call runs in the pass (hle_table.c), no other PSP thread, no interrupt. */
 #define _GNU_SOURCE
 #include "hle.h"
 #include "render_queue.h"
@@ -51,16 +55,17 @@ typedef struct {
 #define RENDER_MANAGER 0x089CC11Cu      /* (holds the address of the render manager) */
 #define INSERT 0x0884CBD8u              /* render_queue_insert_depth_sorted */
 #define QUEUES_CLEAR 0x0884BB00u
-#define LAYER_STATES 0x0884C22Cu
 #define RENDER_PASS 0x0884BB58u
 
 SAVED static Noted queued[MAX_NOTED];   /* what the logic queues would have, while the queues are kept */
 SAVED static int nqueued;
 SAVED static Noted drawn[MAX_NOTED];    /* those of the frame's render pass, and its models with instances out of view */
 SAVED static int ndrawn;
-static struct { uint32_t start, count, layer; } chunks[MAX_CHUNKS];
-static int nchunks;
+static struct { uint32_t start, end, layer; } chunks[MAX_CHUNKS];
+static int nchunks, next_chunk;
+static uint32_t chain;                  /* the frame's list: its layers' links, 8 bytes each (EBOOT 088592E4) */
 int rt_shadow_extras_running;
+int shadow_extras_due;                  /* chunks to run yet, in the frame's list being run */
 
 static unsigned long stat_frames, stat_models, stat_pages, stat_chunks, stat_us;
 static int stats_on = -1;
@@ -126,10 +131,19 @@ static void keep_memory(void) {
         mprotect(rt_mem + kept[i].start, kept[i].size, PROT_READ);
 }
 
-static void restore_memory(void) {
-    keeping = 0;
-    for (uint32_t i = 0; i < ncopied; i++)      /* (each writable already) */
+/* The pages written and their copies exchanged */
+static void exchange_pages(void) {
+    uint64_t t[PAGE / 8];
+    for (uint32_t i = 0; i < ncopied; i++) {
+        memcpy(t, rt_mem + copied[i], PAGE);
         memcpy(rt_mem + copied[i], copies + (size_t)i * PAGE, PAGE);
+        memcpy(copies + (size_t)i * PAGE, t, PAGE);
+    }
+}
+
+static void stop_keeping(void) {
+    exchange_pages();                   /* (each writable already) */
+    keeping = 0;
     for (size_t i = 0; i < NKEPT; i++)
         mprotect(rt_mem + kept[i].start, kept[i].size, PROT_READ | PROT_WRITE);
 }
@@ -177,7 +191,7 @@ int rt_view_test(Ctx *c) {
     float margin = rt_cull_margin;
     uint32_t back = c->r[31];
     int instances = back == RET_INSTANCES_A || back == RET_INSTANCES_B;
-    if (rt_shadow_extras_running) {     /* on the side: those noted are drawn; of a model's instances, those it left out */
+    if (rt_shadow_extras_running) {     /* apart: those noted are drawn; of a model's instances, those it left out */
         c->r[2] = 1;
         if (instances && LBU(c->r[4] + 0xAAAu))
             c->r[2] = in_view(c, c->r[4], c->r[5], c->f[12].f + margin, c->f[13].f) &&
@@ -214,13 +228,23 @@ void rt_render_pass_begin(void) {
     ndrawn = nqueued;
 }
 
-/* -- on the side -------------------------------------------------------------------------------------------------- */
+/* -- apart from the game ------------------------------------------------------------------------------------------- */
 
-/* native.c rt_list_link: a chunk of the pass on the side: for the GE here, not by the frame's list */
+/* A chunk: is anything drawn in it? (A pass's section for a layer may hold only state) */
+static int draws(uint32_t start, uint32_t end) {
+    for (uint32_t at = start; at < end; at += 4) {
+        uint32_t op = LW(at) >> 24;
+        if (op == 0x04 || op == 0x05 || op == 0x06 || op == 0x08 || op == 0x09 || op == 0x0A)  /* (prim, bezier, spline, jumps, call) */
+            return 1;
+    }
+    return 0;
+}
+
+/* native.c rt_list_link: a chunk of the pass apart: kept, not linked into the frame's list */
 void shadow_extras_chunk(uint32_t start, uint32_t count, uint32_t layer) {
-    if (nchunks < MAX_CHUNKS) {
-        chunks[nchunks].start = start;
-        chunks[nchunks].count = count;
+    if (nchunks < MAX_CHUNKS && count > 2) {        /* (its last two words: the link onwards, the frame's list's) */
+        chunks[nchunks].start = start & 0x0FFFFFFFu;
+        chunks[nchunks].end = (start & 0x0FFFFFFFu) + 4 * (count - 2);
         chunks[nchunks].layer = layer;
         nchunks++;
     }
@@ -253,24 +277,51 @@ static void call(Ctx *c, uint32_t fn, uint32_t a0, uint32_t a1, uint32_t a2, uin
     rt_call(c, fn);
 }
 
-/* EBOOT 08859728 (patched): the frame's list is about to run; drawn before it, on the side */
+/* ge.c: the frame's list is about to run the command at at. A link of the layers' chain (reached when the layers before
+ * it are done): the chunks of those layers run here */
+void shadow_extras_at(uint32_t at) {
+    if (at < chain || at > chain + 20 * 8 || (at - chain) % 8)
+        return;
+    uint32_t done = (at - chain) / 8;
+    if (next_chunk >= nchunks || chunks[next_chunk].layer >= done)
+        return;
+    uint64_t t0 = stats_on ? now_us() : 0;
+    shadow_extras_due = 0;              /* (not again from the chunks' own run) */
+    render_queue_sync();                /* (the renderer reads textures from the memory: not while it changes) */
+    gpu_state_put_aside();
+    exchange_pages();
+    while (next_chunk < nchunks && chunks[next_chunk].layer < done) {
+        ge_run_chunk(chunks[next_chunk].start, chunks[next_chunk].end);
+        next_chunk++;
+    }
+    render_queue_sync();
+    exchange_pages();
+    gpu_state_put_back();
+    shadow_extras_due = next_chunk < nchunks;
+    if (stats_on)
+        stat_us += now_us() - t0;
+}
+
+/* EBOOT 08859728 (patched; a0 the lists' manager): the frame's list is about to run. What was noted is made ready for it */
 void rt_shadow_extras(Ctx *c) {
     static int enabled = -1;
     if (enabled < 0) {
         enabled = !getenv("MHFU_SHADOW_EXTRAS") || atoi(getenv("MHFU_SHADOW_EXTRAS")) != 0;
         stats_on = getenv("MHFU_SHADOW_EXTRAS_STATS") != NULL;
     }
+    shadow_extras_due = 0;
     if (!ndrawn || !enabled || rt_cull_margin <= 0 || gpu_skip_draw) {
         ndrawn = 0;
         return;
     }
     uint64_t t0 = stats_on ? now_us() : 0;
+    /* (as EBOOT 08859728 finds the list it runs: the other of the two, whose chain starts 8 into its 0xA0 bytes) */
+    chain = (c->r[4] + (LW(c->r[4] + 4) ^ 1) * 0xA0u + 8) & 0x0FFFFFFFu;
     render_queue_sync();                /* (it is about to find the memory read-only) */
     Ctx saved = *c;
-    gpu_state_put_aside();
     keep_memory();
     rt_shadow_extras_running = 1;
-    nchunks = 0;
+    nchunks = next_chunk = 0;
     uint32_t mgr = LW(RENDER_MANAGER);
     call(c, QUEUES_CLEAR, mgr, 0, 0, 0, 0);
     for (int i = 0; i < ndrawn; i++) {
@@ -282,24 +333,25 @@ void rt_shadow_extras(Ctx *c) {
         else
             call(c, INSERT, n->mgr, n->layer, n->object, n->object + 0x40, 0);
     }
-    call(c, LAYER_STATES, mgr, 0, 0, 0, 0);
     call(c, RENDER_PASS, mgr, 0, 0, 0, 0);
-    qsort(chunks, (size_t)nchunks, sizeof chunks[0], cmp_layer);
-    for (int i = 0; i < nchunks; i++)
-        if (chunks[i].count > 2)        /* (its last two words: the link onwards, the frame's list's) */
-            ge_run_chunk(chunks[i].start & 0x0FFFFFFFu, (chunks[i].start & 0x0FFFFFFFu) + 4 * (chunks[i].count - 2));
-    render_queue_sync();                /* (what is queued reads the memory as it is now) */
     rt_shadow_extras_running = 0;
+    /* (what draws nothing left out: not worth the wait for the renderer) */
+    int kept_n = 0;
+    for (int i = 0; i < nchunks; i++)
+        if (draws(chunks[i].start, chunks[i].end))
+            chunks[kept_n++] = chunks[i];
+    nchunks = kept_n;
+    qsort(chunks, (size_t)nchunks, sizeof chunks[0], cmp_layer);
     if (stats_on) {
         stat_frames++;
         stat_models += (unsigned long)ndrawn;
         stat_pages += ncopied;
         stat_chunks += (unsigned long)nchunks;
     }
-    restore_memory();
-    gpu_state_put_back();
+    stop_keeping();
     *c = saved;
     ndrawn = 0;
+    shadow_extras_due = nchunks > 0;
     if (stats_on) {
         stat_us += now_us() - t0;
         if (stat_frames % 300 == 0)

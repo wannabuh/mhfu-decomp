@@ -72,6 +72,7 @@ int rt_view_test(Ctx *c);       /* (shadow_extras.c: those drawn, apart from the
 void rt_queues_cleared(void);
 void rt_render_pass_begin(void);
 void rt_shadow_extras(Ctx *c);
+extern int rt_shadow_extras_running;    /* (what the render pass draws besides the queues is left out of a pass apart) */
 void rt_menu_list(uint32_t layout, uint32_t row);   /* a list window drawn, its cursor's bar on row (menu.c) */
 void rt_menu_bar(uint32_t x, uint32_t y, uint32_t w, uint32_t h);   /* a menu cursor's bar drawn (menu.c) */
 void rt_menu_item(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int selected, uint32_t cursor);  /* a list's item drawn

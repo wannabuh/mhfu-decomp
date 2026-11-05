@@ -145,10 +145,10 @@ NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x0
 CAMERA = "the hunt's camera: its own turns away from the scenery, left out while the mouse has the camera"
 
 # The test of a model's sphere against the camera's view (EBOOT 088160F0: a0 the scene, a1 the centre, f12 the radius;
-# 1 if it is to be drawn): what is drawn casts the renderer's shadows, so that the shadows of what is just out of view
-# do not come and go as the camera turns, what is within rt_cull_margin (units) of the view is drawn too - apart from the
-# game, nothing of it left in its memory (runtime/src/shadow_extras.c): noted here; the render queues' being emptied and
-# the render pass tell for which frames; drawn just before the frame's list runs.
+# 1 if it is to be drawn): the picture is seen from further back than the game's camera, and what is drawn casts the
+# renderer's shadows, so what is within rt_cull_margin (units) of the view is drawn too - apart from the game, nothing of
+# it left in its memory (runtime/src/shadow_extras.c): noted here; the render queues' being emptied and the render pass
+# tell for which frames; made ready just before the frame's list runs, drawn in its place in it.
 CULL = "the view test of a model's sphere: what the shadows want just out of view noted (shadow_extras.c)"
 
 # The game's list windows (the menus, shops, quest lists...) are drawn by EBOOT 0882F580 (a0 the drawer, a1 the
@@ -378,4 +378,5 @@ PATCHES = {
     ("EBOOT", 0x0884BB00): ("lui $a2, 0x894", "rt_queues_cleared(); c->r[6] = 0x8940000u;", CULL),
     ("EBOOT", 0x0884BB58): ("addiu $sp, $sp, -0x70", "rt_render_pass_begin(); c->r[29] = c->r[29] + 0xFFFFFF90u;", CULL),
     ("EBOOT", 0x08859728): ("lui $v0, 0x8A6", "rt_shadow_extras(c); c->r[2] = 0x8A60000u;", CULL),
+    ("EBOOT", 0x088CACD4): ("addiu $sp, $sp, -0x10", "if (rt_shadow_extras_running) return; c->r[29] = c->r[29] + 0xFFFFFFF0u;", CULL),
 }

@@ -23,6 +23,8 @@ typedef struct {
 int native_chunk_at(uint32_t at);
 void gpu_held_chunk(int chunk);
 void gpu_held_draw(int chunk);
+extern int shadow_extras_due;       /* shadow_extras.c */
+void shadow_extras_at(uint32_t at);
 extern uint32_t gpu_cmd_at;         /* the command being run's address (gpu.c: the HUD's draws told by it) */
 
 SAVED static GeList lists[MAX_LISTS];
@@ -70,6 +72,7 @@ static void run_list_on(GeList *l);
 /* Walk a list as far as it goes; the renderer done with it before the game runs on (render_queue.c) */
 static void run_list(GeList *l) {
     run_list_on(l);
+    shadow_extras_due = 0;              /* (made ready for this list, which has run: nothing of it left for another) */
     render_queue_sync();
 }
 
@@ -77,6 +80,8 @@ static void run_list_on(GeList *l) {
     while (l->active) {
         if (l->stall && l->pc == l->stall)
             return;
+        if (shadow_extras_due && !l->alone)
+            shadow_extras_at(l->pc);        /* (at the end of a layer: what is drawn apart, in its place) */
         uint32_t cmd = LW(l->pc), op = cmd >> 24, data = cmd & 0xFFFFFF;
         uint32_t at = l->pc;
         gpu_cmd_at = at;
@@ -135,6 +140,8 @@ static void run_list_on(GeList *l) {
         default:
             break;
         }
+        if (l->alone && op == 0xEA)         /* (a block transfer writes the game's memory: not for what is drawn apart) */
+            continue;
         gpu_command(cmd, relative(l, data));
     }
 }
