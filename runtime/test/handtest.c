@@ -141,6 +141,12 @@ static const Case cases[] = {
     {"weapon0_chain_kind 09BA2E28", f_game_task_09BA2E28, 1, 0, 0x09BA2E28, NULL, inputs_weapon0, NULL},
     {"weapon0_chain_to 09BA2E68", f_game_task_09BA2E68, 0, 0, 0x09BA2E68, NULL, inputs_weapon0, &weapon0_pokes},
     {"weapon0_connected 09BA32E8", f_game_task_09BA32E8, 1, 0, 0x09BA32E8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_charge 09BA2060", f_game_task_09BA2060, 0, 0, 0x09BA2060, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_charged 09BA2608", f_game_task_09BA2608, 0, 0, 0x09BA2608, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_pick_state 09BA2D10", f_game_task_09BA2D10, 0, 0, 0x09BA2D10, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_enter_14 09BA31B0", f_game_task_09BA31B0, 0, 0, 0x09BA31B0, NULL, inputs_weapon0, NULL},
+    {"weapon0_apply_tier 09BA3200", f_game_task_09BA3200, 0, 0, 0x09BA3200, NULL, inputs_weapon0, NULL},
+    {"weapon0_tier 088D1BA8", f_EBOOT_088D1BA8, 1, 0, 0x088D1BA8, NULL, inputs_weapon0, &weapon0_pokes},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -1576,9 +1582,11 @@ static const Bias weapon0_bias[] = {
     {0x09BA2E28u, 6, {1, 2, 4, 0xFF, 0x101, 0x100}},
     {0x09BA32E8u, 4, {0, 1, 1, 0x101}},
     {0x09A8B790u, 4, {0, 1, 0x100, 0x101}},
+    {0x088D6A1Cu, 4, {0, 1, 0x100, 0x101}},
+    {0x088D1BA8u, 5, {0, 1, 2, 3, 0x103}},
     {0, 0, {0}},
 };
-POKES(weapon0_pokes, weapon0_bias, {0x1D5, 1, 0}, {0x1D6, 1, 0}, {0x1D7, 1, 0}, {0xBC, 2, 0}, {0x33D, 1, 0}, {0x558, 1, 0}, {0x410, 4, 0}, {0x614, 4, 0}, {0x1F4, 4, 0}, {0x1120, 4, 0}, {0x397, 1, 0}, {0x111C, 4, 0}, {0x299, 1, 0},
+POKES(weapon0_pokes, weapon0_bias, {0x1E6, 2, 0}, {0x28, 1, 1}, {0x60E, 1, 0}, {0x672, 2, 0}, {0x414, 4, 0}, {0x1124, 4, 0}, {0x1149, 1, 0}, {0x484, 4, 0}, {0x55A, 2, 0}, {0x1D5, 1, 0}, {0x1D6, 1, 0}, {0x1D7, 1, 0}, {0xBC, 2, 0}, {0x33D, 1, 0}, {0x558, 1, 0}, {0x410, 4, 0}, {0x614, 4, 0}, {0x1F4, 4, 0}, {0x1120, 4, 0}, {0x397, 1, 0}, {0x111C, 4, 0}, {0x299, 1, 0},
       {0x200, 4, 0}, {0x204, 4, 0}, {0x208, 4, 0}, {0x324, 2, 0}, {0x90, 4, 0});
 
 static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
@@ -1605,6 +1613,18 @@ static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     self->reaction_block_weapon_ticks = (int16_t)rnd();
     SW(hunter + 0x3F4, rnd());
     SET_FLOAT_BITS(self->motion_part0_frame, float_bits((float)(rnd() % 256) / 2.0f));
+    self->instance_index = rnd() % 8 ? ((GameState *)MEM(LW(GAME_POINTER)))->local_hunter_slot : pick_slot(c);
+    self->charge_tier = (int8_t)PICK(0, 0, 1, 2, 3, 3, 4, -1);
+    self->charge_time = (int16_t)PICK(0, 1, 29, 30, 37, 38, 59, 60, 79, 80, 100, 36, 24, 25, 71, 72, 95, 96, -1, 0x7FFF);
+    self->action_count = (int32_t)PICK(90, 2, 1, 0, -1, 72, 108, 0x10001);
+    self->button_action_hold = PICK(2, 2, 2, 0, 1, 3, 0x102);
+    self->weapon_net_flag = (int8_t)PICK(0, 1, 1, 2, -1);
+    self->buttons_pressed = PICK(0, 0, 1, 0x4000, 0x4001, 3, 0xFFFF0000);
+    self->stamina = (int16_t)PICK(74, 75, 76, 300, -1);
+    self->attack_percent_a = (uint8_t)rnd();
+    SET_FLOAT_BITS(self->motion_speed_scale, rnd());
+    for (int i = 0; i < 6; i++)     /* for the real callee */
+        SB(hunter + 0x676 + i, PICK(0, 0, 0, 0xD7, 0xD8));
     if (record_method) {        /* rotations and places that show which is used */
         for (uint32_t o = 0x10; o < 0x40; o += 4)
             SW(hunter + o, float_bits((float)(rnd() % 256) / 64.0f - 2.0f));

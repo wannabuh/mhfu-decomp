@@ -1,6 +1,5 @@
 /* The moves of weapon class 0 (the greatsword, by the recordings gs-charge and the fights): the state functions of hunter group 1. Rewritten by hand
- * from game_task 09BA0AE0 and the functions below it, the generated code still behind them (MHFU_HAND=0). Not yet: 09BA2060 (the charge, with a
- * count at 30ths) and 09BA2608, which stay generated.
+ * from game_task 09BA0AE0 and the functions below it, and EBOOT 088D1BA8, the generated code still behind them (MHFU_HAND=0).
  *
  * Each state function goes by state_step, once a tick. The first step sets the motion and marks the attack; then it waits on frames of the motion:
  * a window of frames in which a button chains to another state (chain_in_window), and the motion's end. Frames and motions are the moves' own,
@@ -33,10 +32,15 @@
 #define move_e f_game_task_09BA1FB8
 #define charge_move f_game_task_09BA2060
 #define charged_release f_game_task_09BA2608
+#define tier_applied f_game_task_09BA3200
+#define charge_tier_of f_EBOOT_088D1BA8
+#define set_state_noted f_game_task_09A67878
+#define active_skill f_EBOOT_088D6A1C
 
 /* In game_sub, not resident at link time: called as the game does */
 #define SOUND_EFFECT 0x09C5F7E0u
 #define IMPACT_EFFECT 0x09C572D0u
+#define HUNTER_EFFECT 0x09CB1D58u
 
 #define HIT_LISTS_POINTER 0x09C190D0u
 #define CAMERA_POINTER 0x089CBD04u
@@ -214,7 +218,7 @@ void hand_hunter_weapon0_connected_reaction(Ctx *c) {
 
 /* -- a flash at the point of impact: offset by the hunter's rotation, on the game's stack, which the effect reads --------------------------------- */
 
-static void impact_effect(Ctx *c, Hunter *self, uint32_t offset_at, uint32_t rotated_at, uint32_t x_bits, uint32_t z_bits) {
+static void impact_place(Ctx *c, Hunter *self, uint32_t offset_at, uint32_t rotated_at, uint32_t x_bits, uint32_t z_bits) {
     SW(offset_at, x_bits);
     SW(offset_at + 8, z_bits);
     SW(offset_at + 4, 0);
@@ -236,6 +240,10 @@ static void impact_effect(Ctx *c, Hunter *self, uint32_t offset_at, uint32_t rot
     SW(offset_at + 4, out_y.u);
     Float32Bits out_z = {.f = self->place[2] + z.f};
     SW(offset_at + 8, out_z.u);
+}
+
+static void impact_effect(Ctx *c, Hunter *self, uint32_t offset_at, uint32_t rotated_at, uint32_t x_bits, uint32_t z_bits) {
+    impact_place(c, self, offset_at, rotated_at, x_bits, z_bits);
     call4_at(c, IMPACT_EFFECT, GAME_ADDR(self), 0, offset_at, 1);
     shake(c, self, CAMERA_SHAKE);
 }
@@ -508,6 +516,383 @@ void hand_hunter_weapon0_state_motion_0583(Ctx *c) {
     } else if (motion_ended(self)) {
         back_to_base(c, self, 4);
     }
+}
+
+/* -- the charge ------------------------------------------------------------------------------------------------------------------------------- */
+
+#define CHARGE_TICKS 90             /* action_count: how long a charge can be held, in 30ths */
+#define SKILL_CHARGE_QUICKER 0xD7
+#define SKILL_CHARGE_SLOWER 0xD8
+#define CHARGE_QUICKER 0.8f         /* of the ticks; and the tier below goes by the count times 1.25 */
+#define CHARGE_SLOWER 1.2f
+#define CHARGE_MOTION_SPEED 0.5f    /* motion_speed_scale while it holds */
+#define TIER_1_FROM 30
+#define TIER_2_FROM 60
+#define TIER_3_FROM 80
+#define BUTTON_HOLD_CHARGES 2       /* button_action_hold */
+#define CHARGE_EFFECT 8
+#define TIER_3_EFFECT 0xA
+#define TIER_3_START_EFFECT 4
+
+static void hunter_effect(Ctx *c, Hunter *self, uint32_t which) {
+    c->f[12].f = 1.0f;
+    call2_at(c, HUNTER_EFFECT, GAME_ADDR(self), which);
+}
+
+/* EBOOT 088D1BA8: the tier the charge's count has come to, by skill; the local player's is noted in charge_tier. Returns it, a remote one's as noted. */
+void hand_hunter_field_672_tier(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    uint32_t self_addr = c->r[4];
+    int32_t count = self->charge_time;
+    if ((uint8_t)call2(c, active_skill, self_addr, SKILL_CHARGE_QUICKER) == 1)
+        count = (int16_t)rt_trunc_w(1.25f * (float)count);
+    else if ((uint8_t)call2(c, active_skill, self_addr, SKILL_CHARGE_SLOWER) == 1)
+        count = (int16_t)rt_trunc_w(0.8333333f * (float)count);
+    int8_t tier = count < TIER_1_FROM ? 0 : count < TIER_2_FROM ? 1 : count < TIER_3_FROM ? 2 : 3;
+    if (self->instance_index == GAME()->local_hunter_slot) {
+        self->charge_tier = tier;
+        c->r[2] = (uint32_t)(uint8_t)tier;
+    } else {
+        c->r[2] = (uint8_t)self->charge_tier;
+    }
+}
+
+/* game_task 09BA3200: what the tier does to the hit: attack_percent_a, which the hit zones go by (monster_hit_damage.c), and the attack's record */
+void hand_hunter_weapon0_apply_tier(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    switch (self->charge_tier) {
+    case 3:
+        self->attack_percent_a = 130;
+        attack(c, self, 0x5D);
+        break;
+    case 2:
+        self->attack_percent_a = 120;
+        attack(c, self, 0x5C);
+        break;
+    case 1:
+        self->attack_percent_a = 110;
+        attack(c, self, 0x5B);
+        break;
+    default:
+        self->attack_percent_a = 100;
+        attack(c, self, 3);
+        break;
+    }
+    self->quest_flags &= ~(uint32_t)QUEST_FLAG_800;
+}
+
+/* The first tick of a charge: the motion it starts with, by the way in, and how long it lasts */
+static void charge_starts(Ctx *c, Hunter *self, uint32_t way_in) {
+    self->state_step++;
+    self->state_scratch_a = 0;
+    self->state_scratch_b = 0;
+    call4(c, set_movement_and_flags, GAME_ADDR(self), 0, 1, 0);
+    self->misc_flags |= MISC_FLAG_WEAPON_OUT;
+    self->hunter_flags |= HUNTER_FLAG_ATTACKING;
+    self->charge_time = 0;
+    self->charge_tier = 0;
+    self->action_count = CHARGE_TICKS;
+    if ((uint8_t)call2(c, active_skill, GAME_ADDR(self), SKILL_CHARGE_QUICKER) == 1)
+        self->action_count = (int16_t)rt_trunc_w(CHARGE_QUICKER * (float)self->action_count);
+    else if ((uint8_t)call2(c, active_skill, GAME_ADDR(self), SKILL_CHARGE_SLOWER) == 1)
+        self->action_count = (int16_t)rt_trunc_w(CHARGE_SLOWER * (float)self->action_count);
+    self->weapon_net_flag = 0;
+    switch (way_in) {
+    case 1: motion(c, self, 0x597, 2, 0); break;
+    case 2: motion(c, self, 0x58C, 4, 0); break;
+    case 3:
+        self->state_step++;
+        motion(c, self, 0x58A, 4, 0);
+        break;
+    case 5:
+        self->state_step++;
+        turn(self, TURN);
+        motion(c, self, 0x590, 0, 0);
+        break;
+    case 6: turn(self, -TURN); motion(c, self, 0x592, 0, 0); break;
+    default:
+        self->state_step++;
+        motion(c, self, 0x579, 4, 0);
+        call2(c, state_flags_reset_motion, GAME_ADDR(self), 0);
+        break;
+    }
+}
+
+/* Waiting for the motion that leads to the charge. Letting go early, the local player's, goes straight to state 0x1D. */
+static void charge_lead_in(Ctx *c, Hunter *self, uint32_t way_in) {
+    if (way_in == 6) {
+        if (motion_ended(self)) {
+            self->state_step++;
+            motion(c, self, 0x579, 0, 0x34);
+        }
+        return;
+    }
+    if (way_in == 2) {
+        if (motion_ended(self)) {
+            self->state_step++;
+            motion(c, self, 0x579, 2, 0x32);
+        }
+        return;
+    }
+    if (motion_ended(self)) {
+        self->state_step++;
+        motion(c, self, 0x579, 0, 0x38);
+        return;
+    }
+    if (self->instance_index != GAME()->local_hunter_slot)
+        return;
+    if (self->state_scratch_a == 0 && !reached(c, self, 10.0f) && self->button_action_hold != BUTTON_HOLD_CHARGES)
+        self->state_scratch_a = 2;
+    if (self->state_scratch_a == 2 && reached(c, self, 10.0f)) {
+        self->charge_tier = 0;
+        self->motion_speed_scale = 1.0f;
+        call4(c, set_state_noted, GAME_ADDR(self), 1, 0x1D, 4);
+    }
+}
+
+/* A remote hunter's charge only shows its effect, when told to */
+static void charge_remote(Ctx *c, Hunter *self, float frame) {
+    if (reached(c, self, frame) && self->state_scratch_b == 0 && self->weapon_net_flag == 1) {
+        self->state_scratch_b++;
+        hunter_effect(c, self, CHARGE_EFFECT);
+    }
+}
+
+/* The count: while the button is held and the motion at the holding frame. The gate in it is the frame rate's: the count is at 30ths (recomp/patches.py COUNTED). */
+static void charge_holds(Ctx *c, Hunter *self) {
+    if (self->button_action_hold != BUTTON_HOLD_CHARGES)
+        self->state_scratch_a = 1;
+    if (self->state_scratch_b == 0 && self->state_scratch_a == 0) {
+        self->state_scratch_b++;
+        hunter_effect(c, self, CHARGE_EFFECT);
+        self->weapon_net_flag = 1;
+    }
+    if (self->state_scratch_a != 0) {
+        self->motion_speed_scale = 1.0f;
+        return;
+    }
+    self->motion_speed_scale = CHARGE_MOTION_SPEED;
+    self->charge_time = (int16_t)(self->charge_time + rt_tick30);
+    self->action_count -= rt_tick30;
+    if (self->action_count <= 0)
+        self->state_scratch_a = 1;
+}
+
+/* At the frame it's let go: the tier, and on to the release */
+static void charge_released(Ctx *c, Hunter *self, uint32_t way_in) {
+    self->charge_tier = (int8_t)call1(c, charge_tier_of, GAME_ADDR(self));
+    self->motion_speed_scale = 1.0f;
+    call4(c, set_state_noted, GAME_ADDR(self), 1, way_in == 5 ? 0x1C : way_in == 3 ? 0x1B : 0x1A, 4);
+}
+
+/* game_task 09BA2060: states 19 to 25. a1 the way in. */
+void hand_hunter_weapon0_state_charge(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    uint32_t way_in = c->r[5];
+    float hold_from, release_from;
+    self->reaction_block_weapon_ticks = 2;
+    if (self->state_step == 0) {
+        charge_starts(c, self, way_in);
+        return;
+    }
+    if (self->state_step == 1) {
+        charge_lead_in(c, self, way_in);
+        return;
+    }
+    if (way_in == 3) {
+        hold_from = 0.0f;
+        release_from = 24.0f;
+    } else if (way_in == 5) {
+        hold_from = 2.0f;
+        release_from = 26.0f;
+    } else {
+        hold_from = 34.0f;
+        release_from = 58.0f;
+    }
+    if (self->instance_index != GAME()->local_hunter_slot) {
+        charge_remote(c, self, hold_from);
+        return;
+    }
+    if (reached(c, self, hold_from))
+        charge_holds(c, self);
+    if (reached(c, self, release_from) && self->state_scratch_a == 1)
+        charge_released(c, self, way_in);
+}
+
+/* -- the release ------------------------------------------------------------------------------------------------------------------------------- */
+
+/* The release's own chain: it ends the tier and count with it */
+static void release_chain(Ctx *c, Hunter *self) {
+    if (within(c, self, 48.0f, 102.0f)) {
+        call2(c, chain_to_state, GAME_ADDR(self), 4);
+        self->charge_time = 0;
+        self->charge_tier = 0;
+    }
+}
+
+/* Connecting, in either of the two steps that can */
+static void release_connected(Ctx *c, Hunter *self) {
+    self->state_scratch_b = 1;
+    shake(c, self, CAMERA_SHAKE);
+    if ((uint8_t)call2(c, connected_reaction, GAME_ADDR(self), 1) == 1) {
+        self->state_step++;
+        shake(c, self, CAMERA_SHAKE_LONG);
+    }
+    self->charge_time = 0;
+    self->charge_tier = 0;
+}
+
+/* The first of those steps: tier 3 has an effect of its own at the impact */
+static void release_step_a(Ctx *c, Hunter *self, uint32_t sp) {
+    if (motion_ended(self)) {
+        back_to_base(c, self, 8);
+        return;
+    }
+    if (self->attack_connected != 0 && self->state_scratch_b == 0) {
+        release_connected(c, self);
+        return;
+    }
+    if (self->state_scratch_b == 0) {
+        c->f[12].f = 42.0f;
+        if ((uint8_t)call2(c, frame_just_reached, GAME_ADDR(self) + MOTION_PART0, 0) != 0) {
+            impact_place(c, self, sp + 0x40, sp + 0x30, 0, 0x43160000u /* 150 */);
+            if (self->charge_tier == 3)
+                hunter_effect(c, self, TIER_3_EFFECT);
+            else
+                call4_at(c, IMPACT_EFFECT, GAME_ADDR(self), 0, sp + 0x40, 1);
+            shake(c, self, CAMERA_SHAKE);
+        }
+    }
+    release_chain(c, self);
+}
+
+static void release_step_b(Ctx *c, Hunter *self, uint32_t sp) {
+    if (motion_ended(self)) {
+        back_to_base(c, self, 8);
+        return;
+    }
+    if (self->attack_connected != 0 && self->state_scratch_b == 0) {
+        release_connected(c, self);
+        return;
+    }
+    if (self->state_scratch_b == 0) {
+        c->f[12].f = 42.0f;
+        if ((uint8_t)call2(c, frame_just_reached, GAME_ADDR(self) + MOTION_PART0, 0) != 0)
+            impact_effect(c, self, sp + 0x20, sp + 0x10, 0, 0x43160000u /* 150 */);
+    }
+    release_chain(c, self);
+}
+
+/* Which way the release's turned, a little, by the stick */
+static void release_aim(Ctx *c, Hunter *self) {
+    if (self->charge_tier >= 3)
+        hunter_effect(c, self, TIER_3_START_EFFECT);
+    if (self->charge_tier <= 0)
+        return;
+    if ((uint8_t)call2(c, stick_says, GAME_ADDR(self), 0x800000) == 1)
+        self->facing_target = (uint16_t)(self->facing + 0x1000);
+    else if ((uint8_t)call2(c, stick_says, GAME_ADDR(self), 0x200000) == 1)
+        self->facing_target = (uint16_t)(self->facing - 0x1000);
+}
+
+/* game_task 09BA2608: states 26 to 29: the charged swing. a1 the way in. */
+void hand_hunter_weapon0_state_motion_0594_charged(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    uint32_t way_in = c->r[5];
+    c->r[29] -= 0x50;
+    uint32_t sp = c->r[29];
+    switch (self->state_step) {
+    case 0:
+        self->state_step++;
+        self->state_scratch_b = 0;
+        call4(c, set_movement_and_flags, GAME_ADDR(self), 0, 1, 0);
+        self->reaction_block_weapon_ticks = REACTION_BLOCK_TICKS;
+        self->hunter_flags |= HUNTER_FLAG_ATTACKING;
+        switch (way_in) {
+        case 3: motion(c, self, 0x582, 0, 0); break;
+        case 2: motion(c, self, 0x596, 0, 0); break;
+        case 1: motion(c, self, 0x595, 0, 0); break;
+        default:
+            self->state_step = 2;
+            motion(c, self, 0x594, 2, 0);
+            break;
+        }
+        call2(c, state_flags_reset_motion, GAME_ADDR(self), 0);
+        if (way_in < 1 || way_in > 3)
+            call1(c, tier_applied, GAME_ADDR(self));
+        release_aim(c, self);
+        break;
+    case 1:
+        if (motion_ended(self)) {
+            self->state_step++;
+            call2(c, state_flags_reset_motion, GAME_ADDR(self), 0);
+            if (way_in == 1)
+                motion(c, self, 0x594, 2, 8);
+            else if (way_in == 3)
+                motion(c, self, 0x594, 0, 0x20);
+            else
+                motion(c, self, 0x594, 0, 0xA);
+            call1(c, tier_applied, GAME_ADDR(self));
+        }
+        break;
+    case 2:
+        release_step_a(c, self, sp);
+        break;
+    case 4:
+        release_step_b(c, self, sp);
+        break;
+    case 3:
+    case 5:
+        until_recovered(c, self);
+        break;
+    default:
+        if (motion_ended(self))
+            back_to_base(c, self, 6);
+        else
+            release_chain(c, self);
+        break;
+    }
+    c->r[29] = sp + 0x50;
+}
+
+/* -- entering a move: reached from the hunter's common input ------------------------------------------------------------------------------------- */
+
+#define BUTTON_FIRST_MOVE_A 1       /* buttons_pressed */
+#define BUTTON_FIRST_MOVE_B 0x4000
+#define MIN_STAMINA_FOR_B 75
+
+/* game_task 09BA2D10: from standing, the first move, by the button */
+void hand_hunter_weapon0_pick_state_from_field_1120(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    uint32_t self_addr = c->r[4];
+    self->quest_flags &= ~(uint32_t)QUEST_FLAG_800;
+    call1(c, clear_chain_flags, self_addr);
+    switch ((uint8_t)call1(c, chain_kind, self_addr)) {
+    case 4:
+        set_state(c, self, 1, 0x13, 4);
+        return;
+    case 2:
+        set_state(c, self, 1, 1, 4);
+        return;
+    case 1:
+        set_state(c, self, 1, 0, 4);
+        return;
+    default:
+        break;
+    }
+    uint32_t pressed = self->buttons_pressed;
+    if (pressed & BUTTON_FIRST_MOVE_A)
+        set_state(c, self, 1, 4, 4);
+    else if ((pressed & BUTTON_FIRST_MOVE_B) && self->stamina >= MIN_STAMINA_FOR_B)
+        set_state(c, self, 0, 0x1C, 4);
+}
+
+/* game_task 09BA31B0 */
+void hand_hunter_weapon0_enter_state_14(Ctx *c) {
+    Hunter *self = OBJ(Hunter, c->r[4]);
+    self->quest_flags |= QUEST_FLAG_800;
+    call1(c, clear_chain_flags, c->r[4]);
+    set_state(c, self, 1, 0x14, 4);
 }
 
 /* -- the dispatch ------------------------------------------------------------------------------------------------------------------------------ */
