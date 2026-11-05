@@ -36,6 +36,10 @@ void state_request_save(int slot);
 void state_request_load(int slot);
 /* thread.c's scheduler, every thread waiting: a save or load asked for is done now. 1 if a state was loaded */
 int state_point(void);
+/* A capture's state (capture.c): into a file of its own at the next such point, the slots left alone. Its copy is taken
+ * there, as a save's is, and written by a thread of its own, which calls capture_state_taken at once */
+void state_request_capture(const char *path);
+void state_cancel_capture(void);
 /* Whether a slot holds a state */
 int state_slot_used(int slot);
 

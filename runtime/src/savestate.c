@@ -277,15 +277,9 @@ static void state_clear(State *s) {
 static void writer_wait(int slot);
 static void write_slot(int slot);
 
-static void save(int slot) {
-    if (!vars_init()) {
-        fprintf(stderr, "state %d not saved: the program has no symbol table\n", slot + 1);
-        return;
-    }
-    writer_wait(slot);                  /* (its copy being written: not changed under it) */
+/* The game as it is now, into a state (empty) */
+static void state_fill(State *s) {
     render_queue_sync();                /* (the renderer thread's writes to what is saved: rt_cull_margin) */
-    State *s = &states[slot];
-    state_clear(s);
     s->game = io_game_id();
     s->layout = state_layout();
     for (size_t r = 0; r < NMEM; r++)
@@ -295,6 +289,17 @@ static void save(int slot) {
     for (int i = 0; i < nvars; i++)
         chunk_add(s, vars[i].name, vars[i].size, vars[i].at);
     s->used = 1;
+}
+
+static void save(int slot) {
+    if (!vars_init()) {
+        fprintf(stderr, "state %d not saved: the program has no symbol table\n", slot + 1);
+        return;
+    }
+    writer_wait(slot);                  /* (its copy being written: not changed under it) */
+    State *s = &states[slot];
+    state_clear(s);
+    state_fill(s);
     fprintf(stderr, "state %d saved: %d variables, %zu KB of its arena\n", slot + 1, nvars, arena_top / 1024);
     if (slot < ST_SLOTS - 1)            /* (the last slot is the test's: memory only) */
         write_slot(slot);
@@ -749,9 +754,64 @@ static void state_script(void) {
     }
 }
 
+/* A capture's state (capture.c): in a file of its own, the slots left alone */
+static char capture_path[4200];
+static int want_capture;
+static unsigned long capture_asked_at;
+
+void capture_state_taken(unsigned long frame, int late);
+void capture_state_written(void);
+uint64_t wall_time_us(void);
+
+void state_request_capture(const char *path) {
+    snprintf(capture_path, sizeof capture_path, "%s", path);
+    want_capture = 1;
+    capture_asked_at = present_frame_number();
+}
+
+void state_cancel_capture(void) {
+    want_capture = 0;
+}
+
+typedef struct { State s; char path[4200]; int64_t when; uint64_t frame; } CaptureJob;
+
+static void *capture_writer(void *arg) {
+    CaptureJob *j = arg;
+    if (!write_state(&j->s, j->path, j->when, j->frame))
+        fprintf(stderr, "capture: could not write %s (%s)\n", j->path, strerror(errno));
+    state_clear(&j->s);
+    free(j);
+    capture_state_written();
+    return NULL;
+}
+
+static void take_capture(void) {
+    want_capture = 0;
+    CaptureJob *j = calloc(1, sizeof *j);
+    if (!vars_init()) {
+        fprintf(stderr, "capture: no state: the program has no symbol table\n");
+        free(j);
+        return;
+    }
+    uint64_t t0 = wall_time_us();
+    state_fill(&j->s);
+    fprintf(stderr, "capture: the state's copy took %.1f ms on the game's thread\n", (double)(wall_time_us() - t0) / 1000);
+    snprintf(j->path, sizeof j->path, "%s", capture_path);
+    j->when = (int64_t)time(NULL);
+    j->frame = present_frame_number();
+    capture_state_taken(present_frame_number(), (int)(present_frame_number() - capture_asked_at));
+    pthread_t t;
+    if (pthread_create(&t, NULL, capture_writer, j) == 0)
+        pthread_detach(t);
+    else
+        capture_writer(j);
+}
+
 int state_point(void) {
     state_test();
     state_script();
+    if (want_capture && rt_no_resume == 0)
+        take_capture();
     char note[256];
     static long deferred_from = -1;
     long f = (long)present_frame_number();
@@ -783,6 +843,7 @@ int state_point(void) {
         if (states[slot].used || read_state(&states[slot], path, &why)) {
             if (state_fits(&states[slot], unfit, sizeof unfit)) {
                 want_save = -1;         /* (one that waited: of a game no more) */
+                want_capture = 0;
                 deferred_from = -1;
                 load(slot);
                 snprintf(note, sizeof note, "state %d loaded", slot + 1);

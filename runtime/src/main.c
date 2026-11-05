@@ -10,6 +10,8 @@
  * line does not. Lines starting with # are comments. */
 #include "hle.h"
 
+extern const char *rt_settings_path;
+
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +94,7 @@ static void settings(void) {
     else
         return;
     load_settings(path);
+    rt_settings_path = strdup(path);
 }
 
 static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }

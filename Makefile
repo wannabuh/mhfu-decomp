@@ -56,6 +56,21 @@ build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.
 build/gen/mhfu_types.h: tools/readable/gen_types.py tools/readable/types.toml $(wildcard tools/readable/fields/*.toml) build/gen/.stamp
 	$(PY) tools/readable/gen_types.py --header $@
 
+# The debug tools' table of class names, and the build's commit for captures (written only when it changes)
+build/gen/class_table.h: tools/readable/gen_class_table.py tools/readable/classes.toml tools/readable/types.toml
+	@mkdir -p $(@D)
+	$(PY) tools/readable/gen_class_table.py $@
+
+build/gen/git_commit.h: FORCE
+	@mkdir -p $(@D)
+	@printf '#define MHFU_GIT_COMMIT "%s"\n' "$$(git describe --always --dirty --abbrev=12 2>/dev/null || echo unknown)" > $@.tmp
+	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
+
+build/runtime/objects.o: build/gen/class_table.h
+build/runtime/capture.o: build/gen/git_commit.h
+
+FORCE:
+
 build/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(HAND_FLAGS) -Ireadable -Wall -Wextra -c $< -o $@

@@ -12,6 +12,7 @@
 #include "savestate.h"
 #include "render.h"
 #include "perf.h"
+#include "capture.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -284,6 +285,7 @@ static void end_record(void) {
 uint64_t run_epoch_us(void);
 
 static void record_input(float mx, float my) {
+    capture_note_input(frame, ctrl_buttons, ctrl_lx, ctrl_ly, mx, my);
     static int opened;
     static uint32_t last_b = ~0u;
     static int last_x = -1, last_y = -1;
@@ -414,6 +416,10 @@ static void write_png_size(const char *path, const uint32_t *frame, int w, int h
     png_write_end(png, NULL);
     png_destroy_write_struct(&png, &info);
     fclose(f);
+}
+
+void present_write_png(const char *path, const uint32_t *pixels, int w, int h) {
+    write_png_size(path, pixels, w, h);
 }
 
 static void write_png(const char *path, const uint32_t *frame) {
@@ -547,6 +553,8 @@ uint64_t present_pump(void) {
     uint64_t flipping = wall_time_us();
     if (perf_on)
         perf_draw_ns += (flipping - drawing) * 1000;
+    if (addr && capture_wants_shot())
+        capture_take_shot(addr, NULL);
     if (addr)
         flip(addr);
     static uint64_t flip_us;
@@ -750,6 +758,7 @@ void present_frame(void) {
     }
     frame++;
     perf_game_frame(frame);
+    capture_tick(frame);
     profile_frame(frame);
     /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */
     {
@@ -813,6 +822,8 @@ void present_frame(void) {
             gpu_frame_end(display_fb_addr, time_us());
         if (dump && (!display_fps() || gpu_render_frame(1.0f)) && render_on)
             render_readback(display_fb_addr, pixels);
+        if (capture_wants_shot() && render_on && (!display_fps() || gpu_render_frame(1.0f)))
+            capture_take_shot(display_fb_addr, NULL);
         if (render_on && !display_fps())
             render_finish_frame();
     } else if (display_fps()) {
@@ -824,6 +835,8 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
         if (!gpu_skip_draw) {
             uint64_t before = wall_time_us();
+            if (capture_wants_shot())
+                capture_take_shot(display_fb_addr, NULL);
             flip(display_fb_addr);
             flip_us += wall_time_us() - before;
         } else {
@@ -843,6 +856,8 @@ void present_frame(void) {
                       clock_behind_us() > 4 * frame_us ? 2 : 1;
     } else {
         convert(pixels);
+        if (capture_wants_shot())
+            capture_take_shot(0, pixels);
         window_show(pixels);
         perf_shown();
     }
@@ -852,6 +867,8 @@ void present_frame(void) {
         if (!window_poll())
             exit(0);
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
+        if (render_on && shown && capture_wants_shot())
+            capture_take_shot(shown, NULL);
         if (render_on && shown)
             flip(shown);
         struct timespec ts = {0, 16000000};

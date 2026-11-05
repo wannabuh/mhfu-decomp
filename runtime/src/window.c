@@ -14,6 +14,7 @@
 #include "savestate.h"
 #include "controls.h"
 #include "perf.h"
+#include "capture.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -300,6 +301,8 @@ int window_poll(void) {
             else
                 perf_toggle();
         }
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F6 && !e.key.repeat)
+            capture_request();
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&
             (e.key.scancode == SDL_SCANCODE_F2 || e.key.scancode == SDL_SCANCODE_F3 || e.key.scancode == SDL_SCANCODE_F4))
             state_key(e.key.scancode);

@@ -12,7 +12,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 
 | Step | Tool | What it does | Status |
 |---|---|---|---|
-| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Not started |
+| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Verified headless (F6, `runtime/src/capture.c`, `tools/capture.py`). Not played |
 | 1 | Performance panel | FPS, frame-time graph with spikes marked, tick rate and skipped frames, time by game logic, drawing commands and GPU, draws and triangles, memory including how full the game's 32 MB is. Off by default, almost free when off | Verified headless (F5, `runtime/src/perf.c`). Memory is the kernel's blocks only: the game's allocators aren't read. Not played |
 | 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Not started |
 | 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |

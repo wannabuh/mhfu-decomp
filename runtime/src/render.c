@@ -1750,6 +1750,18 @@ void render_flip(uint32_t addr) {
         window_changed();
 }
 
+/* The size frames are shown at: the window's, or headless the internal resolution */
+void render_shown_size(int *w, int *h) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
+    if (vk.surface) {
+        *w = (int)vk.swap_extent.width;
+        *h = (int)vk.swap_extent.height;
+    } else {
+        *w = (int)scaled(480);
+        *h = (int)scaled(272);
+    }
+}
+
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */
 uint32_t *render_readback_full(uint32_t addr, int *w_out, int *h_out) {
     render_queue_sync();                /* (called from outside: the renderer's own again) */
