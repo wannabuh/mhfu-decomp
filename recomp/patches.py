@@ -320,6 +320,10 @@ HUD = "the hunt's HUD's parts (gauges, map, item bar) told apart as they are dra
 SPRITE = "a HUD sprite drawn: a PSP button's left out, the input bound shown in its place (glyphs.c)"
 
 
+# The light shafts' draw (game_sub 09CBADC8, StageRampedGroup): what it adds to the display list noted, for the renderer
+# to place it for the camera shown (gpu.c, "what the stage places by a far point"). Writes nothing of the game's
+FAR_DRAW = "a light shaft's draw: the commands it adds noted, for the renderer to place it for the camera shown (gpu.c)"
+
 # The game's main loop (EBOOT 0888FD38), as it wakes for a game frame: whether a 30th falls on it
 FRAME = "the main loop, woken for a game frame: rt_frame_start (whether a 30th falls on it, the time scale)"
 COUNT = "the main loop's count of its frames: counting 30ths (as what is gated sees the frames go by)"
@@ -525,5 +529,7 @@ PATCHES = {
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
+    ("game_sub", 0x09CBADC8): ("addiu $sp, $sp, -0x60", "rt_far_draw_begin(); c->r[29] = c->r[29] + 0xFFFFFFA0u;", FAR_DRAW),
+    ("game_sub", 0x09CBB15C): ("lw $ra, 0xC($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0xCu));", FAR_DRAW),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

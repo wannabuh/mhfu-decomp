@@ -75,6 +75,8 @@ void rt_trace_call(Ctx *c, uint32_t fn);   /* a call of fn (recomp.py's RECOMP_T
 extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
 extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
 void rt_menu_list(uint32_t layout, uint32_t row);   /* a list window drawn, its cursor's bar on row (menu.c) */
+void rt_far_draw_begin(void);      /* a light shaft's draw starts: what it adds to the display list noted (gpu.c) */
+void rt_far_draw_end(void);
 void rt_menu_bar(uint32_t x, uint32_t y, uint32_t w, uint32_t h);   /* a menu cursor's bar drawn (menu.c) */
 void rt_menu_item(uint32_t x, uint32_t y, uint32_t w, uint32_t h, int selected, uint32_t cursor);  /* a list's item drawn
                                                                                                 (menu.c) */

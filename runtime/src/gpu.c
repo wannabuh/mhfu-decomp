@@ -1396,6 +1396,8 @@ static void prim(uint32_t data);
 
 uint32_t gpu_cmd_at;                /* the command being run's address (ge.c) */
 static int draw_hud;                /* the HUD's part the draw being made is (hud_scaled): by its command, or recorded */
+static int draw_far;                /* the draw being made is placed by the stage's far point (below) */
+static int world_far;               /* the world matrix in the GE is such a draw's: by the command loading it */
 
 typedef struct {
     uint32_t reg[256];
@@ -1409,6 +1411,7 @@ typedef struct {
     int tex_w, tex_h;
     int group;                      /* its group for the GPU's vertex stage (below), or -1 */
     int hud;                        /* the HUD's part it is (draw_hud) */
+    int far;                        /* placed by the stage's far point (draw_far) */
 } Draw;
 
 /* Draws in a row the GPU's vertex stage can draw as one, replayed (MHFU_GPU_TL): the same state, matrices and texture -
@@ -1533,6 +1536,7 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
     memcpy(d->view, view, sizeof view);
     memcpy(d->proj, proj, sizeof proj);
     memcpy(d->bones, bones, sizeof bones);
+    d->far = draw_far;
     d->data = data;
     d->vaddr = vaddr;
     d->iaddr = idx ? iaddr : 0;
@@ -1825,6 +1829,60 @@ static void pick_end(uint32_t display_addr);
 static void pick_camera_recorded(void);
 static void pick_set_source(uint32_t vaddr);
 
+/* -- what the stage places by a far point ----------------------------------------------------------------------------
+ *
+ * The light shafts (StageRampedGroup, vtable 089BE310: tick game_sub 09CBB278, draw 09CBADC8) have no place in the world.
+ * Each tick the game puts one FAR_DISTANCE from its eye towards the stage's point +0x3A4, and draws it turned as its
+ * camera is, so that it is seen in that direction wherever the eye is. Taken for a thing in the world, with another
+ * camera shown than the game's (the mouse's raise and orbit, free look), it is that point 150 units from the game's
+ * eye seen from another place: near the ground in front of the camera, and moving the wrong way.
+ * So it is placed as the game places it, for the camera shown: its rotation as the game gave it (the game's matrix has
+ * its camera undone in it, so this is the camera's own, whichever camera), its place FAR_DISTANCE from the eye towards
+ * the point. It still follows the eye and is drawn over everything, as in the game. The game's memory is not touched.
+ * Told apart by the draw's code (patches.py FAR_DRAW): what it adds to the display list holds its world matrix (its
+ * primitives are the model's own, called from there). The GE runs those commands a frame later (the lists are
+ * double-buffered, see hud_command). */
+#define FAR_DISTANCE 150.0f         /* (the game's: 09CBB41C) */
+static struct { uint32_t start, end; unsigned long frame; } far_draws[16];
+static int far_next;
+static unsigned long far_last;
+static float far_point[3];
+
+void rt_far_draw_begin(void) {
+    far_draws[far_next].start = LW(0x089CC120u) & 0x0FFFFFFFu;  /* (the display list's end) */
+    far_draws[far_next].end = 0;
+    far_last = far_draws[far_next].frame = present_frame_number();
+    uint32_t stage = LW(LW(0x09A4F1A0u));
+    memcpy(far_point, PTR(stage + 0x3A4u), sizeof far_point);
+}
+
+void rt_far_draw_end(void) {
+    far_draws[far_next].end = LW(0x089CC120u) & 0x0FFFFFFFu;
+    far_next = (far_next + 1) % 16;
+}
+
+static int far_command(uint32_t at) {
+    at &= 0x0FFFFFFFu;
+    unsigned long now = present_frame_number();
+    if (far_last + 1 < now)
+        return 0;
+    for (int i = 0; i < 16; i++)
+        if (far_draws[i].frame + 1 == now && at >= far_draws[i].start && at < far_draws[i].end)
+            return 1;
+    return 0;
+}
+
+/* world (the game's rotation in it): placed for the camera cam */
+static void far_place(const float *cam) {
+    float s[3];
+    mul43(cam, far_point, s);
+    float k = sqrtf(s[0] * s[0] + s[1] * s[1] + s[2] * s[2]);
+    if (k < 1)
+        return;
+    for (int i = 0; i < 3; i++)
+        world[9 + i] = FAR_DISTANCE * s[i] / k;
+}
+
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
     /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
@@ -1838,7 +1896,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
     /* the hunter, monsters and people (lit by the GE, in the world, matched): where they were a frame shown earlier */
     float step = render_motion_step();
     earlier = 0;
-    if (step > 0 && moved && native_camera && d->proj[11] != 0 && (d->reg[0x17] & 1)) {
+    if (step > 0 && moved && native_camera && d->proj[11] != 0 && (d->reg[0x17] & 1) && !d->far) {
         int late = stale_known && stale[d - latest->draws];
         float wl[12], wp[12], we[12];
         compose43(late ? prev_inv : latest_inv, d->world, wl);
@@ -1866,6 +1924,10 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
             memcpy(bones, d->bones, sizeof(float) * 12 * (size_t)draw_bones(d));
         }
         compose43(shown_view, world, world);
+        if (d->far) {
+            memcpy(world, d->world, sizeof world);
+            far_place(shown_view);
+        }
     } else if (prev) {
         interp_model(world, &bones[0][0], prev->world, d->world, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
         lerp(view, prev->view, d->view, 12, t);
@@ -3850,6 +3912,8 @@ static void prim(uint32_t data) {
     uint32_t vt = reg[0x12];
     if (!held_drawing && !in_replay)    /* (the HUD's part: by where its command is) */
         draw_hud = (vt >> 23 & 1) && hud_scale_value() != 1.0f ? hud_command(gpu_cmd_at) : 0;
+    if (!in_replay)
+        draw_far = !held_drawing && world_far && !(vt >> 23 & 1) && proj[11] != 0;   /* (what comes after it: not) */
     if (held_chunk >= 0 && !held_drawing && !in_replay && count > 0) {
         Layout l = layout();
         record(&held, data, &l);
@@ -4393,6 +4457,8 @@ static void prim_drawn(uint32_t data) {
             memcpy(sw, world, sizeof world);
             memcpy(sb, bones, sizeof bones);
             native_place(((uint64_t)vaddr << 32 | (idx ? iaddr : 0)) ^ ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
+            if (draw_far)               /* (as the game gave it: replay places it) */
+                memcpy(world, sw, sizeof world);
         }
         record(rec, data, &l);
         tl_record(rec, (data >> 16) & 7, count, idx, &l);
@@ -4459,6 +4525,10 @@ static void prim_drawn(uint32_t data) {
                 float w[12];
                 compose43(native_game_inv, world, w);
                 compose43(native_shown_view, w, world);
+            }
+            if (draw_far && nat_view_ok()) {
+                memcpy(world, nat_world, sizeof world);
+                far_place(native_shown ? native_shown_view : nat_view_now);
             }
         }
         if (motion_log_on && !fast_forward() && !(vt >> 23 & 1) && proj[11] != 0 && ((vt >> 9) & 3))
@@ -4588,7 +4658,7 @@ void gpu_command(uint32_t cmd, uint32_t addr) {
     case 0x04: prim(data); break;
     case 0x2A: bone_i = (int)(data & 0x7F); break;
     case 0x2B: if (bone_i < 96) bones[bone_i / 12][bone_i % 12] = ge_float(data); bone_i++; break;
-    case 0x3A: world_i = (int)(data & 0xF); break;
+    case 0x3A: world_i = (int)(data & 0xF); world_far = far_command(gpu_cmd_at); break;
     case 0x3B: if (world_i < 12) world[world_i] = ge_float(data); world_i++; break;
     case 0x3C: view_i = (int)(data & 0xF); break;
     case 0x3D: if (view_i < 12) view[view_i] = ge_float(data); view_i++; break;
