@@ -13,6 +13,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Step | Tool | What it does | Status |
 |---|---|---|---|
 | 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Not started |
+| 1 | Performance panel | FPS, frame-time graph with spikes marked, tick rate and skipped frames, time by game logic, drawing commands and GPU, draws and triangles, memory including how full the game's 32 MB is. Off by default, almost free when off | Not started |
 | 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Not started |
 | 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |
 | 2 | Freeze with free camera | Game stopped, camera moves round the frozen frame. Objects the game culled aren't there, and sprites keep their angle *(check)* | Not started |
@@ -22,7 +23,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | 3 | Monster lab | Any monster in a test area without playing to it; checks at 30 and 60. Changes game state on purpose | Not started |
 | 3 | Stall recorder | Details saved when a frame takes too long | Not started |
 | 3 | Picture regression test | Key frames compared in the suite, which today checks actions, rates and RAM, not the picture *(check)* | Not started |
-| 4 | Debug overlay | Hit zones, attack volumes, monster state drawn in-game | Not started |
+| 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Not started |
 | 4 | First-difference finder | The exact frame and field where two runs part | Not started |
 | 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |
 
