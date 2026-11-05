@@ -266,6 +266,12 @@ CAMERA_HEIGHT = "the camera's height: each ease a fraction of what is left a gam
 CAMERA_LIFT = "the camera's lift over a drop: its 20 units a game frame times the time scale"
 CAMERA_SHAKE = "the camera shake's countdown: 1 less a 30th, not a game frame"
 
+# A weapon's effect ops (the row at +0x7F4 for some weapons: EBOOT 088CF2C8 the bones', 088D08D4 the materials), run as
+# it is drawn (game_task 09A95EA8 and 09A96954, in the render pass, every game frame). Flag 0x10 steps each op's state,
+# 0x20 applies it: stepped at 30ths only, applied every frame. All the steps are under 0x10 but op 0x13's count
+# (088D07DC), which goes up on 0x20 as well
+WEAPON_OPS = "a weapon's effect ops, drawn every game frame: their state stepped at 30ths only (0x10 of the flags)"
+
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
 # clear; the line of sight lost (+0x89), it swings an eighth of the way behind the hunter a frame. With the mouse
@@ -479,6 +485,9 @@ PATCHES = {
     ("EBOOT", 0x0888D24C): ("add.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f + c->f[0].f * rt_time_scale;", CAMERA_LIFT),
     ("EBOOT", 0x0888D280): ("sub.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f - c->f[0].f * rt_time_scale;", CAMERA_LIFT),
     ("EBOOT", 0x08814E44): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SHAKE),
+    ("game_task", 0x09A95EAC): ("addiu $a2, $zero, 0x30", "c->r[6] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("game_task", 0x09A96958): ("addiu $a3, $zero, 0x30", "c->r[7] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("EBOOT", 0x088D07DC): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", WEAPON_OPS),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
