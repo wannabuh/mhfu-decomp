@@ -1,14 +1,14 @@
 # What still ticks at 30
 
 The list behind goal 1 of `docs/roadmap.md`: what runs at the display's rate, what doesn't, what that looks like at 144, and the order to
-convert it in. Surveyed 2026-11-05 on `a6ca90e`; no game behaviour changed. `docs/native.md` explains gates and smoothing.
+convert it in. Surveyed 2026-11-05 on `a6ca90e`; no game behaviour changed. `docs/native.md` explains gates and smoothing. Figures elsewhere are the survey's; **section 2.1 was since fixed and measured again** on `auto/rate-fixes`.
 
 Each claim is marked **[M]** measured, **[R]** read from code, or **[I]** inferred. Runs are headless, on Vulkan, with `MHFU_FPS=0` unless
 stated. The fights are `tests/data/rec/overnight-fight1.rec` and `-fight2.rec` with the `overnight` saves.
 
 **The target changed while this was being written:** the roadmap now fixes the game at 60 ticks, shown at the display's rate by interpolation. So read this for tick 60 + `fps` 144 (the combined mode): that's the mode that matters, and native 144 figures only show the same faults more plainly.
 
-- Rate bugs count double at 60, not 4.8 times: hit-stop 2.5 30ths against 5, poison twice as fast. Still wrong, and the order below stands.
+- Rate bugs count double at 60, not 4.8 times: hit-stop 2.5 30ths against 5, poison twice as fast. Fixed since, section 2.1.
 - Pad every frame means at 60: a press acted on within about 17 ms, not 33.
 - Combined mode already holds 144 here, with 29-34% idle (section 4). Monsters are shown smoothed to 60, then interpolated to 144.
 - Everything can now count in steps of 2 at a time rather than fractions: a count in 30ths becomes "every second tick", which is simpler for every conversion left.
@@ -17,7 +17,7 @@ stated. The fights are `tests/data/rec/overnight-fight1.rec` and `-fight2.rec` w
 
 - Half the code a fight runs still runs at 30ths: 1,047 functions and 101,000 generated lines, against 891 and 119,000 every frame **[M]**.
 - At 144 almost nothing *looks* like 30. Monsters are smoothed well, and the worst things left aren't stepping. They are:
-  - **rate bugs in code already converted:** hit-stop lasts a fifth as long at 144, poison runs out 4.8 times as fast, camera easing and shake run fast;
+  - **rate bugs in code already converted:** hit-stop lasts a fifth as long at 144, poison runs out 4.8 times as fast, camera easing and shake run fast (fixed since, section 2.1);
   - **the pad, read only at 30ths:** the hunter ticks every 7 ms but hears a button up to 33 ms late;
   - **a stall of 50-80 ms** about every 30 seconds in fight 2, cause unknown.
 - So fix those first, and convert monsters after them. Monster conversion buys less lag and sharper fast arcs, not less stepping.
@@ -70,8 +70,8 @@ Size counts **own** functions and generated lines: what only that system reached
 
 | System | Rate now | At 144 | Conversion needs | Size: funcs / lines / ints / floats | Risk |
 |---|---|---|---|---|---|
-| Hunter | every frame, upkeep at 30 | fine **[M]**: action lengths match within a 30th or so, and the field scan finds only hit-stop as a counter | fix the rate bugs in section 2.1; other weapons unchecked | every frame already | low |
-| Hunter's weapon and attacks | moves every frame; attack volumes and hit tests at 30 | swing smooth; hit-stop wrong **[M]**; hits land at 30ths | hit-stop patch; keep hits at 30 | 1 line for the patch | low |
+| Hunter | every frame, upkeep at 30 | fine **[M]**: action lengths match within a 30th or so; hit-stop, drains and weapon ops fixed (section 2.1) | other weapons unchecked; phase counters left (section 2.1) | every frame already | low |
+| Hunter's weapon and attacks | moves every frame; attack volumes and hit tests at 30 | swing smooth; hit-stop right **[M]**; hits land at 30ths | keep hits at 30 | done | low |
 | Large monsters, `game_task` | 30 | smoothed well **[M]**, shown a 30th late **[R]** | base timers, then each class | base 413 / 36,752 / 350 / 171; Congalala family 211 / 29,333 / 399 / 51; Drome 95 / 7,194 / 134 / 18 | high: AI, hits, state timing |
 | Large monsters, `em*` | 30 | unknown: neither fight reaches one; `overnight-misc` ran only 42 functions of `em20` **[M]** | the same, plus recordings | 17 overlays, 299,214 lines in all; 6,253 to 51,099 each | highest: nothing can check them today |
 | Small monsters | 30 | smoothed **[M]** | base timers, then each class | Prey 106 / 7,101 / 149 / 10; Vespoid 83 / 5,889 / 188 / 75; Kelbi 65 / 5,376 / 231 / 24 | medium |
@@ -79,7 +79,7 @@ Size counts **own** functions and generated lines: what only that system reached
 | NPCs | 30, village only | smoothed **[R]** | no reason to convert yet | not measured | low value |
 | Projectiles, hit volumes | 30 | draws matched and smoothed **[M]**; not told apart from other draws | leave at 30 with hits | 48 / 7,114 / 57 / 152 | medium |
 | Particles, effects | tick at 30, drawn every frame | places smoothed; 0 to 29 draws a frame unmatched **[M]**; colours and texture scroll step at 30ths **[R]** | don't convert: smooth colour and UV in `gpu.c` | 72 / 19,407 / 89 / 859 | high to convert, low to smooth |
-| Camera | every frame | steady, but eases and shakes too fast **[M, R]** | scale its steps | about 15 functions run every frame with steps | low to medium |
+| Camera | every frame | steady; height eases and shake right **[M]**; other steps too fast **[R]** (section 2.1) | scale the rest | about 15 functions run every frame with steps | low to medium |
 | HUD | 30, smoothed | gauges fine: 48-84 draws a frame matched, 0-3 not **[M]**; changing text steps | none | 130 / 15,221 / 146 / 29 | no need |
 | Animation players | every frame for converted objects, under the gate for others | fine; patches see scale 1 under gates **[R]** | done, one function | | low |
 | Sound cues | fire from the object's tick | once each, by `08864348` **[R]**; the sound manager is at 30 | none | 84 / 3,703 / 31 / 0 | no need |
@@ -91,17 +91,34 @@ Species sizes are what a class's vtable reaches by direct calls and no other cla
 
 ### 2.1 Rate bugs in converted code
 
-Found by asking which fields step by 1 on three or more game frames in a row (`tools/ticks.py streak`). A count in 30ths can't do that above 60.
+Found by asking which fields step by 1 on three or more game frames in a row (`tools/ticks.py streak`). A count in 30ths can't do that above 60. Fixed on `auto/rate-fixes` (`recomp/patches.py`: `HIT_STOP`, `DRAIN`, `CAMERA_HEIGHT`, `CAMERA_LIFT`, `CAMERA_SHAKE`, `WEAPON_OPS`), the same runs before and after. All in 30ths, at tick 30 / 60 / 144 **[M]**; at 30 the two builds gave the same figures.
 
-| What | Evidence | 30 / 60 / 144 | What you'd see |
+| What | Before | After | What you'd notice |
 |---|---|---|---|
-| **Hit-stop**, `motion_slow_timer` `+0x558`, in `088D5C7C` (`hunter_run.c:525`) | **[M]** | 5.0 / 2.5 / 1.04 30ths | Hits lose their weight: a sword barely catches at 144. Moves shorten a little too |
-| **Poison and other drains**, `drain_status_seconds` `+0x388`, in `09A6D418` | **[M]**: 20 seconds poked in | a "second" lasts 30 / 15 / 6.25 30ths | Poison ends in about 4 s at 144. Its counters step per tick too, so health loss may speed up: **not measured** |
-| Camera height ease | **[M]** on a slope: target-to-hunter swing | 161-183 / 164-178 / about 170-173 | The camera settles too fast, so it feels stiffer on hills. Harmless, but it isn't the game's feel |
-| Camera shake countdown, `08814E18` | **[R]**, and **[M]** that it runs every frame | | Shake is over sooner and flickers faster |
-| Weapon effect ops, `088CF2C8` and `088D08D4` with flag `0x30`, from `hunter_draw_weapon_model` in the render pass | **[R]**, and **[M]** that it runs on every frame | twice / 4.8 times the steps | Weapons whose ops run pulse too fast. The test's weapon has none running (its state stays 0), so **not seen** |
-| Hunter phase counters `+0x426`, `+0x427`, `+0x43E`, in `09A6FB68` | **[R]** | | Not seen in these fights |
-| A monster base's timers on Popos: `09AC5C30`, `09AC9910`, `09AC9C08`, `09AD2698`, `09AD7850`, `09AD8378` | **[M]** every frame, **[R]** unscaled | | Popos forget or calm down too quickly; barely visible |
+| **Hit-stop**, `motion_slow_timer` `+0x558`, in `088D5C7C` (`hunter_run.c:525`, generated `088D5CB4`) | 5.0 / 2.5 / 1.04 | 5.0 / 5.0 / 5.0, hand-written and generated alike | Hits catch for 0.17 s, not 0.08, and moves last that much longer |
+| its slowed speed, 0.2 | scaled already, by the motion player's patches: 0.1 a frame at 60 | unchanged: a period advances the motion 1.0 frame at 30 and 60 | |
+| **Poison's "second"**, `drain_status_seconds` `+0x388`, by `+0x452`, in `09A6D418` | 30 / 15 / 6.25 | 30 / 30 / 30 | 20 seconds of poison last 20 seconds |
+| **Poison's health loss**, `+0x454` (the survey's open question: it did speed up) | 1 per 30 / 15, 144 not run | 1 per 30 / 30 / 30 | Half the damage at 60, as it should be |
+| **Heat's health loss**, `+0x696`, with the area's byte `+0x3C` poked to 1 | 1 per 60 / 30 | 1 per 60 / 60 | Hot places hurt half as fast at 60 |
+| **The ground's health loss**, `+0x1E1` poked to 2: "the hunt's count % 8 == 0" holds for all of a 30th's frames | 1 per 8 / two per 8 | 1 per 8 / 8 | Harmful ground, likewise |
+| Poison's effect wait `+0x11B6`; the same count tests for another hunter's effect (`09A6D7AC`), the pouch's loss (`09A6D888`) and the ground's effect (`09CB2510`) | **[R]** | the same patches, **not seen running** | |
+| **Camera height**, `08886E50`: target's y a half of what's left a 30th, eye's an eighth (`rt_ease`: `1 - (1 - f)^scale`, not `f * scale`) | target 0.50 / 0.75, eye 0.125 / 0.234 | target 0.50 / 0.50 / 0.50, eye 0.125 / 0.125 / 0.125, every frame's step within the 10th to 90th percentile | The camera settles over slopes at its old pace, softer than it was at 60 |
+| the same, target above the hunter in fight 1's opening, 1st to 99th percentile | 164.8-176.0 / 166.8-173.7 | 164.8-176.0 / 165.0-175.3 / 163.3-177.1 | |
+| Camera's eye quarter-way ease over a long drop (`08887BDC`) and lift `+0xD8` (`0888D24C`, `0888D280`: 20 units a frame, `20 * scale`) | **[R]** | patched, **not seen running**: `+0xD8` stayed still in both fights | |
+| **Camera shake**, `+0xAC2`, in `08814E18`, poked to 30 | lasted 28 / 14 | 28 / 29 / 29.6, the same offsets at the same counts as at 30 | Shakes last as long and flip as slowly: they step at 30ths, as on the PSP |
+| **Weapon effect ops**, `088CF2C8` and `088D08D4` with flag `0x30`, in the render pass: state stepped at 30ths, applied every frame; op `0x13`'s count too, which steps on `0x20` as well | `+0x7F8` (op `0x13`) 1.00 / 2.00 a 30th; `+0x7FA` (op `0x03`) 0.358 / 0.716; `+0x7FC` (op `0x00`) 0.262 / 0.539 | 1.00 / 1.00; 0.358 / 0.358; 0.262 / 0.262 | Weapons whose row steps pulse at their old pace (57 of the 98 rows at `089B08D4`, read from RAM). Checked by poking rows `0x1BE`, `0x1D2` and `0x1B3` into the test's weapon, **no real weapon with ops has been run** |
+| Hunter phase counters `+0x426`, `+0x427`, `+0x43E`, in `09A6FB68` | **[R]** | left | Not seen in these fights |
+| A monster base's timers on Popos: `09AC5C30`, `09AC9910`, `09AC9C08`, `09AD2698`, `09AD7850`, `09AD8378` | **[M]** every frame, **[R]** unscaled | left | Popos forget or calm down too quickly; barely visible |
+
+**Found while doing this, left [R]:**
+
+- The camera's other steps, all still a game frame's: its yaw's ease `>> 2` (`08887624`) and swing `>> 3` (`088875FC`), the D-pad's turn `0x47E` (`088874A0`), the field of view's ease 0.05 (`08887AB4`), the eye's ease 2/3 when blocked (`08887E9C` and two more), blends `+0x94` (`0888E46C`), the blocked timer `+0x12B` (`0888D36C`), `+0x12D`, and the latch in `0888D734`.
+- `periodic_effects` (`hunter_run.c:399`): tests a count of 30ths every game frame, so it fires on each frame of that 30th. What its call does isn't settled.
+- Op `0x10` to `0x12` draw from the random stream as they step. At 60 they now draw as often as at 30.
+
+The eye rising more than 165 above the hunter is 15 frames of fight 1's opening at 30, none at 60 before and 253 at 60 after. The fights part, so these aren't the same moments: three episodes of 20-57 30ths, longer than the ease alone takes (about 12), so I take it the ground is holding the eye up **[I]**. Not explained further.
+
+To reach these: `poke F-F hunter+388 h 20` (poison), `poke F-F hunter+1E1 b 2` held (ground), `poke F-F hunter+7F4 w ROW` (ops), and at this recording's addresses the area's byte `9D6372C` and the shake's `9999930` `b 1`, `9999931` `b 128`, `9999932` `h 30`. On the poison test's recording, whose runs are in `~/projects/mhfu-ghidra/work/scratch-rate/`.
 
 ## 3. Do the fights stay correct above 30?
 
@@ -138,10 +155,10 @@ Your settings (`settings.ini`, 2560x1440, shadows and point lights on, `gpu_tl` 
 
 ## 5. Recommended order
 
-1. **Fix the rate bugs in section 2.1.** A few lines each, on code already converted. *You'd see:* hits that catch as they do at 30, poison that lasts as long, and at 60 the same. Add `tools/ticks.py streak` to the checks. Risk low.
+1. **Done, bar what section 2.1 lists as left.** ~~Fix the rate bugs in section 2.1.~~ A few lines each, on code already converted. *You'd see:* hits that catch as they do at 30, poison that lasts as long, and at 60 the same. Add `tools/ticks.py streak` to the checks. Risk low.
 2. **Find the 50-80 ms stall.** Cheap to look into. *You'd see:* no hitch every half minute, if it is the game's.
 3. **Read the pad every frame in a hunt.** Hand each frame's new presses and releases to the hunter, keeping what gated code sees at 30ths the same. It needs care with `EDGES`, `COMBINE` and `L_HELD`, and with menus staying as they are. *You'd feel:* attacks and rolls starting up to 33 ms sooner, the largest change in response left. Risk medium.
-4. **Scale camera easing and shake.** About 15 functions, on one path. *You'd see:* the camera moving over slopes as at 30, and shakes as long. Risk low to medium.
+4. **Height and shake done; scale the camera's other steps (section 2.1).** About 15 functions, on one path. *You'd see:* the camera moving over slopes as at 30, and shakes as long. Risk low to medium.
 5. **Explain the hunter's jump at the draw attack (section 3).** It may be a real rate bug. Then decide how to compare fights: by kind, or with the random stream's order fixed. Nothing else visible, but monster work can't be proven without it.
 6. **Monsters' base timers, then small classes.** Start with those every class shares (`+0x4BE`, `+0x514`, `+0x550` were seen, and the rest of section 2.1's last row), then Drome and Prey, then Congalala. *You'd see:* monsters no longer a 30th behind the hunter, so a hit and its reaction line up, and fast lunges and turns follow their true curve. They won't stop stepping, as they already don't. Risk high; keep hits at 30ths.
 7. **`em*` monsters need recordings first.** Rathian and the rest have 299,000 lines and almost no way to check them: `overnight-misc` touches `em20`, and no recording fights one. Ask for a recording of each kind, or a poke to reach them.
@@ -188,7 +205,6 @@ Colour isn't part of this. A frame dump near a hit showed gauges moving and noth
 
 - How any of this looks in a real window: everything is from traces, logs and dumps, and you haven't played these.
 - Other weapons: both fights use weapon class 0. Attacks' timers elsewhere are unchecked.
-- Whether poison's health loss speeds up too, as its counters suggest.
 - Rate behaviour of anything in `em*`; other hunters' objects (none here); carts and the quest's end at 144.
 - Whether effects' stepping in colour is visible.
 - The stall's cause.

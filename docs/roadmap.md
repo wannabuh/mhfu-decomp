@@ -6,6 +6,27 @@ end. Results and history go in `docs/readable-report.md` and the commit log; how
 **Draft, 2026-11-05.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
 confirmed against the current build.
 
+## Tools first
+
+Built before the goals' next large jobs, as they make those cheaper. The rate fixes in progress finish first. Tools read the game's state and don't change it, except where stated. Rough is fine: they're for us.
+
+| Step | Tool | What it does | Status |
+|---|---|---|---|
+| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Not started |
+| 1 | Performance panel | FPS, frame-time graph with spikes marked, tick rate and skipped frames, time by game logic, drawing commands and GPU, draws and triangles, memory including how full the game's 32 MB is. Off by default, almost free when off | Not started |
+| 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Not started |
+| 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |
+| 2 | Freeze with free camera | Game stopped, camera moves round the frozen frame. Objects the game culled aren't there, and sprites keep their angle *(check)* | Not started |
+| 2 | Frame dump | A frame's draws, vertices, bones and textures to files I can read and measure; RenderDoc on the Vulkan side | Not started |
+| 2 | Automatic triage | From a capture, one frame with each setting off, side by side, and PPSSPP's where possible | Not started |
+| 3 | Debug console | Commands to a running game by local socket: pause, step, read and watch fields, dump. Live inspection for me, and a live panel for the user | Not started |
+| 3 | Monster lab | Any monster in a test area without playing to it; checks at 30 and 60. Changes game state on purpose | Not started |
+| 3 | Stall recorder | Details saved when a frame takes too long | Not started |
+| 3 | Picture regression test | Key frames compared in the suite, which today checks actions, rates and RAM, not the picture *(check)* | Not started |
+| 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Not started |
+| 4 | First-difference finder | The exact frame and field where two runs part | Not started |
+| 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |
+
 ## Goals, in order
 
 1. Smoother gameplay: a fixed 60 ticks a second, shown at the display's rate (144 fps and up) by interpolation
@@ -43,6 +64,7 @@ confirmed against the current build.
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
 | What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
 | Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
+| The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
 | The 53-78 ms stall about every 30 s in fight 2 | A hitch, if it's the game's | Not started | Find the cause; another process isn't ruled out |
 | The pad, read at 30ths | A press waits up to 33 ms; every tick makes it 17 | Not started | Read it every tick in a hunt. Medium risk |
 | The hunter's 45-unit jump, 0 / 2 / 6 30ths after a draw attack at 30 / 60 / 144 | Possible real rate bug; blocks comparing fights | Not started | Explain it |
@@ -63,9 +85,12 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 |---|---|---|---|
 | In-game graphics options | Many settings are env vars or `settings.ini` only | Not started | Inventory them; extend the F1 overlay (`runtime/src/overlay.c`) |
 | Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
-| Known artifacts | User-visible | Sun flare merged, not confirmed by play | Build a list from the user; snow haze edges are still open *(check)* |
+| Artifact: 2D sprite-like textures, as the sun was, that aren't static | Reported 2026-11-05 | Not started | User's save states show where; compare with the flare fix |
+| Artifact: Khezu's colour artifacts towards its tail | Reported 2026-11-05 | Not started | Save state; try with `MHFU_GPU_TL=0` and on PPSSPP, to see if it's ours |
+| Artifact: Congalala's mesh seams as it moves, such as the tail | Reported 2026-11-05 | Not started | Same tests, plus `MHFU_NATIVE_SMOOTH=0`: smoothing moves matrices apart *(check)* |
+| Artifact: snow haze edges | Older report | Not started *(check)* | Ask if still seen |
 | Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
-| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started | See below |
+| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started; starts after the artifacts (user's decision) | See below |
 | God rays | Requested | Not started | Design in the renderer, using the existing sun direction; no game code needed *(check)* |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
@@ -81,10 +106,10 @@ Most of this lives in `runtime/src/`. Where a feature needs to know what the gam
 |---|---|---|---|
 | Controls, rebinding, F1 screen | Basics | Merged; F1 live path untested *(check)* | User tries F1 |
 | Button hints in menus' text | Still shows PSP buttons | Partly done: 2 of about 15 sprite drawers | Hook the rest, then font text |
-| Native interface: menus and HUD | The main item here | Not started | Decide scope with the user: restyle, resize, or replace. Then convert the menu code it needs |
+| Native interface: menus and HUD | The main item here | Not started | Restyle everything first: art, fonts, layout, scaling, hints, mouse (user's decision). Then replace only the worst screens, chosen by the user |
 | Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)* | Inventory what's missing |
 
-Menu and HUD code would be the next hand conversion after the framerate work. It's mostly unnamed so far.
+Restyling leaves game logic alone. Replacing a screen is where menu code needs naming and perhaps hand conversion, and where saves and inventories need their own checks.
 
 ## 4. Modding
 
@@ -94,6 +119,8 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 
 | Mod type | What it needs | Status | Next step |
 |---|---|---|---|
+| Mod folders with live reload | Change a texture or value and see it at once | Not started | Start with textures and tunable values; design with the tools row below |
+| Free camera, photo mode | Inspect models and effects, check visual mods | Not started | Cheap; must leave the game's camera state untouched |
 | Textures | Packs, dumping | Works, PPSSPP-compatible. Missing: zip, DDS/KTX2, `[indexed]`, pack mipmaps | Docs and an example workflow |
 | Meshes | Model format reader and writer, skinning, a replacement hook | Not started; was deferred | Document the model format |
 | Balance: damage, hit zones, monster choices | Readable code and data tables | Code hand-written, verified, not merged | Settle what byte 1 and 2 and the five elements are, with a recording |
@@ -101,7 +128,32 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | New particles | Effect system | Names only | Find and document how effects are spawned and described |
 | New monsters | Model, motion, script, hit zones, overlay loading | Interpreter in progress | Script language docs and an assembler; then how a monster type is registered |
 | New areas *(maybe)* | Stage format, collision, routes, spawn lists | Not started | Survey only; decide later |
+| Extended game memory | Lifts the 32 MB limit on what game logic can hold | Not started | See below |
+| Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
+| Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
+| Cloth simulation | Requested 2026-11-05. The hunter first: armour and capes moving properly. Visual only | Not started; waits for mesh replacement (user's decision) | See below |
+| Visual simulation: debris, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
+| Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
+
+**Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
+
+**Cloth, in steps,** on the hunter first, then perhaps banners, fabric and NPCs. It waits for mesh replacement, as PSP models have few vertices to bend. (1) Simulate tagged parts of a replacement mesh in the renderer at the display's rate, pinned to bones, colliding with simple body shapes, writing nothing to game memory. (2) Use the same system on the world's fabric. Separately, under goal 1: check whether the game's own `hunter_spring_chains_step` is right at 60 ticks, as its steps run every frame and may not be scaled *(check)*.
+
+## Replacing PSP emulation with native code
+
+The runtime is our own code, so this isn't rewriting the game. Do each only where a goal needs it, keep an off switch while it's new, and check it as any other change.
+
+| Part | Now | Native would give | Worth it? | Next step |
+|---|---|---|---|---|
+| Files (`io.c`) | Reads the ISO's files | Mods replace any file by a folder over the ISO | **Yes, first:** cheap, and most modding needs it | Design with mod folders |
+| Drawing: GE commands (`ge.c`, `gpu.c`) | Translates the PSP's display lists; GE and render were 57% of samples, game code 2% (`docs/ticks.md`) | Direct paths for chosen objects: new meshes, effects, less work | **Yes, by object type:** replacing it all isn't needed | With mesh replacement |
+| Screen layout | Game draws for 480x272 | HUD and menus laid out for the display | Yes, for goal 3 | With the native interface decision |
+| Input | Pad state, read at 30ths in a hunt | Read every tick; true actions for mouse and keys | Yes, in goal 1 | Already listed |
+| Memory | PSP's 32 MB layout | More room | Partly: see extended memory | Measure first |
+| Audio (`audio.c`, `atrac.c`) | Plays the game's formats | New sound formats, more voices | Later, for sound mods | None yet |
+| Threads (`thread.c`) | One host thread, deterministic | Little: game code is 2% of samples, and tests rely on the fixed schedule | **No** | |
+| CPU, VFPU instructions (`vfpu.c`) | Generated C | Little, as above | **No** | |
 
 ## Status file
 
@@ -113,6 +165,4 @@ hand-written and verified (1.2% of lines), 137 once the current batch passes (1.
 
 ## Open questions for the user
 
-- Native interface: restyle the existing menus, or replace them?
 - New areas: wanted enough to survey now, or later?
-- Which artifacts bother you most right now?

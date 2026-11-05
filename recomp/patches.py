@@ -75,6 +75,19 @@ EASE = "a colour's ease: a fifth of the way a game frame, in game time"
 # game frame - through a greatsword's attacks): found by tools/ratecheck.py
 COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
 
+# Hit-stop (EBOOT 088D5C7C, a character's motion update: motion_slow_timer +0x558, set from a hit record, counts down
+# while the layers run at speed 0.2): counted in 30ths, as freeze_ticks +0x33C beside it is (COUNTDOWN33C). The speed
+# needs nothing: the motion player scales it, as any layer's (MOTION)
+HIT_STOP = "hit-stop's countdown +0x558: 1 less a 30th, not a game frame"
+
+# The hunter's drains (game_task 09A6D418, every game frame of its tick). Counted in 30ths: the divider +0x452 of its
+# poison's seconds +0x388, the wait +0x454 for each loss of health, the wait +0x11B6 for poison's effect, the wait +0x696
+# for a loss in a hot place. And what tests the hunt's count of 30ths (*0x089CC558 + 0x1C, which holds still between
+# 30ths: "count % n == 0" is true for every game frame of that 30th): the effect on another hunter (09A6D7AC), the loss
+# from what is in the pouch (09A6D888), the loss from the ground (09A6DE34) - and the ground's effect (game_sub 09CB2510)
+# - each taken as false between 30ths
+DRAIN = "the hunter's drains: their waits in 30ths, and a test of the hunt's count of 30ths made once, at a 30th"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -243,6 +256,22 @@ PLACED = {
 # to hang from one (09A9D478: 30 back, 195 down)
 NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x09A9D584)}
 
+# The camera's height over slopes (EBOOT 08886E50, view at $s4 - 0xA0): its target's y goes half way to where it is
+# going a game frame, its eye's y an eighth of the way (a quarter over a long drop) - each a fraction of what is left,
+# so f a game frame is 1 - (1 - f)^scale at the time scale, not f * scale: rt_ease, which leaves it as it is at 30. The
+# eye's lift over a drop (0888D1BC's +0xD8, 20 units up or down a game frame) is linear: 20 * scale. The shake's
+# countdown (EBOOT 08814E18: three records, +0xAC0 on while +0xAC2 lasts) counts 30ths. 08812DB8 works the shake out
+# from that count: left to count game frames it ran out and flipped its sign twice as fast
+CAMERA_HEIGHT = "the camera's height: each ease a fraction of what is left a game frame, in game time"
+CAMERA_LIFT = "the camera's lift over a drop: its 20 units a game frame times the time scale"
+CAMERA_SHAKE = "the camera shake's countdown: 1 less a 30th, not a game frame"
+
+# A weapon's effect ops (the row at +0x7F4 for some weapons: EBOOT 088CF2C8 the bones', 088D08D4 the materials), run as
+# it is drawn (game_task 09A95EA8 and 09A96954, in the render pass, every game frame). Flag 0x10 steps each op's state,
+# 0x20 applies it: stepped at 30ths only, applied every frame. All the steps are under 0x10 but op 0x13's count
+# (088D07DC), which goes up on 0x20 as well
+WEAPON_OPS = "a weapon's effect ops, drawn every game frame: their state stepped at 30ths only (0x10 of the flags)"
+
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
 # clear; the line of sight lost (+0x89), it swings an eighth of the way behind the hunter a frame. With the mouse
@@ -407,6 +436,15 @@ PATCHES = {
     ("EBOOT", 0x08860DC0): ("div.s $f1, $f1, $f3", "{ extern float rt_ease(float x, float n); c->f[1].f = rt_ease(c->f[1].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08860DC4): ("div.s $f0, $f0, $f3", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
+    ("EBOOT", 0x088D5CB4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", HIT_STOP),
+    ("game_task", 0x09A6D52C): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D558): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D6D8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D9C8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D7AC): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6D888): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6DE34): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_sub", 0x09CB2510): ("andi $v1, $v1, 0xF", "c->r[3] = rt_tick30 ? c->r[3] & 0xFu : 1u;", DRAIN),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
@@ -440,6 +478,16 @@ PATCHES = {
     ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
     ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
     ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("EBOOT", 0x08887A10): ("mul.s $f0, $f20, $f0", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, 2.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887BDC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 4.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887D1C): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887EFC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x0888D24C): ("add.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f + c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x0888D280): ("sub.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f - c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x08814E44): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SHAKE),
+    ("game_task", 0x09A95EAC): ("addiu $a2, $zero, 0x30", "c->r[6] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("game_task", 0x09A96958): ("addiu $a3, $zero, 0x30", "c->r[7] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("EBOOT", 0x088D07DC): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", WEAPON_OPS),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
