@@ -67,8 +67,9 @@ void main() {
     vec4 v = pc.to_view * vec4(centre / pc.area.z, nearest > 0.0 ? nearest : 1.0, 1.0);
     vec3 p = v.xyz / v.w;
     vec4 q;
+    vec4 own = vec4(0.0);
     if (nearest > 0.0) {
-        vec4 own = texelFetch(source2, at, 0);
+        own = texelFetch(source2, at, 0);
         if (own.a > 0.5)
             p -= vec3(dot(pc.sun.xyz, own.xyz), dot(pc.sun_color.xyz, own.xyz), dot(pc.bloom.xyz, own.xyz));
         q = pc.to_shadow * vec4(p, 1.0);
@@ -92,6 +93,21 @@ void main() {
         out_color = vec4(abs(from_ycocg(before) - now.rgb) * 4.0, now.a);
         return;
     }
+    // What moves by itself (the hunter, monsters, people) at 2 pixels a frame or more: its surface changes as it bends and
+    // turns and history resampled that far softens it, so the history is held closer and less of it kept. The rest,
+    // and all of it standing still, as above
+    float k = own.a > 0.5 ? clamp(length(then - vec2(x) - 0.5) / 2.0, 0.0, 1.0) : 0.0;
+    float gamma = mix(1.25, 0.75, k), share = mix(pc.texel.z, max(pc.texel.z, 0.4), k);
+    lo = mean - gamma * spread;
+    hi = mean + gamma * spread;
+    vec3 raw = before;
     before = clamp(before, lo, hi);
-    out_color = vec4(max(from_ycocg(mix(before, to_ycocg(now.rgb), pc.texel.z)), vec3(0.0)), now.a);
+    vec3 result = mix(before, to_ycocg(now.rgb), share);
+    if (pc.area.w == 8.0) {             // (8: red, how far the last frame's brought here is from now, x4; green: moves by itself; blue:
+                                        // how far the result is from the last frame's, x8; luma)
+        vec3 nowc = to_ycocg(now.rgb);
+        out_color = vec4(abs(raw.x - nowc.x) * 4.0, texelFetch(source2, x, 0).a, abs(result.x - raw.x) * 8.0, now.a);
+        return;
+    }
+    out_color = vec4(max(from_ycocg(result), vec3(0.0)), now.a);
 }

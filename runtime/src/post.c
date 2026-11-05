@@ -6,11 +6,15 @@
  * - Anti-aliasing, temporal: the world drawn a fraction of a pixel off each frame shown (eight places in turn), each
  *   pixel blended into what it showed the frame before, found as the motion blur finds the motion (MHFU_TAA=0: none;
  *   MHFU_TAA_BLEND: the share of the new frame, default 0.1). What it showed before is kept to the colours about the
- *   pixel now, so that what moved leaves no ghost. MHFU_POST_DEBUG=3: how far the last frame's, brought here, is from
- *   now (4: the last frame's where it is now; 5: where it was, as an offset); MHFU_TAA_JITTER=0: not drawn off.
+ *   pixel now, so that what moved leaves no ghost; on the hunter, monsters and people, moving two pixels a frame or
+ *   more, kept closer and a larger share of the new frame taken (0.4), so that their textures stay sharp and in place.
+ *   MHFU_POST_DEBUG=3: how far the last frame's, brought here, is from now (4: the last frame's where it is now; 5: where
+ *   it was, as an offset; 8: red, as 3 in luma; green, what moves by itself; blue, how far the result is from the last
+ *   frame's, brought here); MHFU_TAA_JITTER=0: not drawn off.
  * - Motion blur: each pixel smeared along the way it moved on the screen since the last frame - from the depth,
  *   through the last frame's camera; the hunter, monsters and people by their own motion too (gpu.c places their
- *   vertices a frame earlier, render_post.c draws it into an image) - as long as the shutter of a camera filming at the
+ *   vertices a frame shown earlier: replay(), or native_motion() at the game's own frames; render_post.c draws it into
+ *   an image) - as long as the shutter of a camera filming at the
  *   game's 30 frames a second stays open (MHFU_MOTION_BLUR: the share of the 30th of a second, 0 none). McGuire's
  *   reconstruction: what moves smears over what stands behind it.
  * - Bloom: the light the effects add (fire, glows - render_post.c draws those again into an image of their own, the glow)
@@ -94,11 +98,6 @@ int post_motion(void) {
 
 VkImg *post_motion_image(void) {
     return &motion_img;
-}
-
-/* the game's frames between two frames shown */
-float post_frame_step(void) {
-    return fps > 30 ? 30.0f / (float)fps : 1.0f;
 }
 
 static uint32_t tile_px(void) {             /* the motion blur's tiles: 12 PSP pixels (half its longest smear) */

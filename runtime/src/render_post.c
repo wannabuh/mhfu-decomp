@@ -41,9 +41,9 @@ void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule t
         glow_tess_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
 }
 
-/* gpu.c: the game's frames between two frames shown, for the motion blur's motion (0: none) */
-float render_motion_step(void) {
-    return glow_pipeline && post_motion() ? post_frame_step() : 0.0f;
+/* gpu.c: the motion of what moves by itself is wanted (the motion blur's, the anti-aliasing's) */
+int render_motion_wanted(void) {
+    return glow_pipeline && post_motion();
 }
 
 /* The world is drawn into t: what added light to it drawn again into the glow (against its depth), then post.c's
