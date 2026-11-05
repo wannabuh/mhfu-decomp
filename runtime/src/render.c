@@ -1659,6 +1659,7 @@ static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
 /* The button hints (glyphs.c): the keys and buttons bound, over the PSP's buttons' places in the picture - and the
  * controls screen (overlay.c) over all */
 int overlay_rects(float x0, float y0, float scale, HintRect *out, int max);
+int inspect_rects(float x0, float y0, float scale, HintRect *out, int max);
 #define MAX_HINT_RECTS 16384
 static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     static HintRect rects[MAX_HINT_RECTS];
@@ -1667,6 +1668,7 @@ static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     picture_place(w, h, &x0, &y0, &vw, &vh);
     int n = glyphs_rects(x0, y0, vw / 480.0f, rects, MAX_HINT_RECTS);
     n += perf_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);      /* (the performance panel) */
+    n += inspect_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);   /* (the click inspector) */
     n += overlay_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);    /* (the controls screen over them) */
     for (int i = 0; i < n;) {           /* (in order, each run of one colour cleared at once) */
         int c = rects[i].color;

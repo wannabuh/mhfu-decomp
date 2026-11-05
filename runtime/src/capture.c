@@ -41,6 +41,7 @@ void present_write_png(const char *path, const uint32_t *pixels, int w, int h);
 double rt_game_30ths(void);
 float rt_frame_30ths(void);
 extern uint32_t rt_local_player;
+void inspect_write(FILE *f);
 
 #define HISTORY_US 10000000u            /* what is written: the last 10 s */
 
@@ -308,6 +309,8 @@ static void write_info(FILE *f, Capture *k, unsigned long frame) {
     fprintf(f, "\nobjects (%d, from the manager's lists; class names and species as classes.toml says: inferred or guess unless confirmed):\n", n);
     for (int i = 0; i < n; i++)
         object_print(f, &objects[i]);
+    fprintf(f, "\nthe click inspector's selection:\n");
+    inspect_write(f);
     fprintf(f, "\nsettings in effect (the MHFU_ environment, the settings file's lines already in it):\n");
     write_environment(f, 0);
     write_settings_file(f);

@@ -77,6 +77,8 @@ buttons bound instead of the PSP's, or the gamepad's buttons once the gamepad is
 | F3 | the next save state slot (1-9) |
 | F5 | the performance panel on / off |
 | F6 | bug capture: writes a numbered folder (`~/.local/share/mhfu-recomp/captures/NNNN`, `MHFU_CAPTUREDIR=...` elsewhere), says its number on the screen; tell it to whoever is looking at the bug |
+| F7 | the click inspector on / off: the mouse is a pointer; click something for what it is, again for the next nearest; what is under the pointer is listed with its textures |
+| F8 | with the click inspector open: hold the game / let it run |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the

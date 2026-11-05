@@ -13,6 +13,7 @@
 #include "render.h"
 #include "perf.h"
 #include "capture.h"
+#include "inspect.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -759,6 +760,8 @@ void present_frame(void) {
     frame++;
     perf_game_frame(frame);
     capture_tick(frame);
+    inspect_tick(frame);
+    gpu_pick_frame(display_fb_addr);
     profile_frame(frame);
     /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */
     {
@@ -863,7 +866,9 @@ void present_frame(void) {
     }
     if (!window_poll())
         exit(0);
-    while (overlay_open()) {        /* the controls screen (F1): the game paused, the frame shown again under it */
+    /* the controls screen (F1), or the inspector's hold (F8): the game paused, the frame shown again under it - until a
+     * capture asked for now has what it needs (its state: the game must get to a point where every thread waits) */
+    while (overlay_open() || (inspect_paused() && !capture_state_pending())) {
         if (!window_poll())
             exit(0);
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;

@@ -13,6 +13,7 @@
 #include "shared.h"
 #include "texpack.h"
 #include "perf.h"
+#include "inspect.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -1815,6 +1816,15 @@ static uint32_t to_ge_float(float f) {
 
 static uint64_t draw_key(const Draw *d);
 
+/* The click inspector's picking (below): going over a recorded frame's draws, their vertices noted rather than drawn */
+static int pick_on, pick_pass, pick_wanted, pick_collecting;
+static float pick_view[12], pick_geview[12], pick_proj[16], pick_vp[8];
+static int pick_camera_ok;
+static void pick_begin(void);
+static void pick_end(uint32_t display_addr);
+static void pick_camera_recorded(void);
+static void pick_set_source(uint32_t vaddr);
+
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
     /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
@@ -1878,11 +1888,13 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
     iaddr = SCRATCH_INDICES;
     blend_from = prev && loose_near[d - latest->draws] ? prev : NULL;
     blend_t = t;
-    q_override(d->tex_slot, d->tex_w, d->tex_h);
+    if (!pick_pass)
+        q_override(d->tex_slot, d->tex_w, d->tex_h);
     replay_key = draw_key(d);
     draw_hud = d->hud;
     prim(d->data);
-    q_override(0xFFFFFFFEu, 0, 0);
+    if (!pick_pass)
+        q_override(0xFFFFFFFEu, 0, 0);
     blend_from = NULL;
 }
 
@@ -2465,6 +2477,8 @@ uint32_t gpu_render_frame(float t) {
     int *m = interpolate || (matched_frames && native_camera && render_motion_step() > 0) ? match(native_camera) : NULL;
     stale_known = m && native_camera;
     shadow_frame(native_camera ? shown_view : NULL);
+    if (pick_on)
+        pick_camera_recorded();
     recording = 0;
     in_replay = 1;
     for (int i = 0; i < latest->n; i++) {
@@ -2487,6 +2501,20 @@ uint32_t gpu_render_frame(float t) {
         replay(d, interpolate ? prev : NULL, prev, t);
     }
     earlier = 0;
+    if (pick_on && pick_wanted) {       /* (the inspector: each draw gone over as drawn, none drawn) */
+        pick_wanted = 0;
+        pick_begin();
+        pick_pass = 1;
+        placed_run = -1;
+        for (int i = 0; i < latest->n; i++) {
+            const Draw *prev = interpolate && m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
+            pick_set_source(latest->draws[i].vaddr);
+            replay(&latest->draws[i], prev, NULL, t);
+        }
+        pick_pass = 0;
+        placed_run = -1;
+        pick_end(latest->display_addr);
+    }
     recording = 1;
     in_replay = 0;
     q_time(-1.0);
@@ -3926,6 +3954,401 @@ static int tex_hidden(void) {
     return 0;
 }
 
+/* -- the click inspector: what the frame shown drew, by the pixel (inspect.c) --------------------------------------------
+ *
+ * While the inspector is open each draw's triangles are noted as they are placed on the screen - its registers kept, for
+ * the texture's hash and how it draws - either as the game draws them (each game frame) or, with recorded frames, going over
+ * a frame just drawn, as asked. Then for a pixel: all of the frame's triangles in the order drawn, into the framebuffer
+ * shown, tested as the GE would for that one pixel. Near clipping comes with testing them in homogeneous coordinates, where
+ * a triangle crossing the eye's plane is whole. The world matrix already has the camera shown in it, the same as what is
+ * drawn. Nothing here is written to the game or the renderer. */
+typedef struct {
+    uint32_t reg[256];
+    uint32_t target, vaddr;
+    int type, count, through;
+} PickDraw;
+typedef struct {
+    float v[3][4];                      /* x, y, depth, w: x / w, y / w, depth / w on the screen */
+    float x0, y0, x1, y1;               /* where it can be, on the screen */
+    int draw;
+} PickTri;
+typedef struct {
+    PickDraw *d;
+    PickTri *t;
+    int nd, dcap, nt, tcap;
+    uint32_t display;
+} PickSet;
+static PickSet pick_sets[2];
+static int pick_filling;
+static unsigned pick_generation;
+static uint32_t pick_source_vaddr;      /* (a recorded draw: where its vertices were) */
+
+static void pick_set_source(uint32_t v) {
+    pick_source_vaddr = v;
+}
+
+static void pick_begin(void) {
+    pick_sets[pick_filling].nd = pick_sets[pick_filling].nt = 0;
+    pick_collecting = 1;
+}
+
+static void pick_end(uint32_t display_addr) {
+    pick_collecting = 0;
+    PickSet *s = &pick_sets[pick_filling];
+    if (!s->nd)
+        return;                         /* (a frame not drawn: what there was stays) */
+    s->display = 0x04000000u | (display_addr & 0x1FFFFFu);
+    pick_filling ^= 1;
+    pick_generation++;
+}
+
+/* Where a vertex lands, up to clip space: as vertex() has it, no more */
+static void pick_vertex(uint32_t base, int n, const Layout *l, ClipVertex *out) {
+    uint32_t vt = reg[0x12];
+    int wt = (vt >> 9) & 3, nweights = ((vt >> 14) & 7) + 1, through = (vt >> 23) & 1;
+    uint32_t v = base + (uint32_t)(n * l->size);
+    float p[3];
+    read_position(v, l, vt, p);
+    if (through) {
+        out->cx = p[0];
+        out->cy = p[1];
+        out->cz = p[2];
+        out->cw = 1.0f;
+        return;
+    }
+    if (wt) {
+        static const int tsz[4] = {0, 1, 2, 4};
+        float acc[3] = {0, 0, 0};
+        for (int b = 0; b < nweights; b++) {
+            float w = read_comp(v + l->wo + (uint32_t)(b * tsz[wt]), wt, 0, 0), t[3];
+            if (wt == 1) w = LBU(v + l->wo + (uint32_t)b) / 128.0f;
+            if (wt == 2) w = LHU(v + l->wo + (uint32_t)(b * 2)) / 32768.0f;
+            mul43(bones[b], p, t);
+            for (int i = 0; i < 3; i++)
+                acc[i] += t[i] * w;
+        }
+        memcpy(p, acc, sizeof p);
+    }
+    float m[3], e[3];
+    mul43(world, p, m);
+    mul43(view, m, e);
+    out->cx = e[0] * proj[0] + e[1] * proj[4] + e[2] * proj[8] + proj[12];
+    out->cy = e[0] * proj[1] + e[1] * proj[5] + e[2] * proj[9] + proj[13];
+    out->cz = e[0] * proj[2] + e[1] * proj[6] + e[2] * proj[10] + proj[14];
+    out->cw = e[0] * proj[3] + e[1] * proj[7] + e[2] * proj[11] + proj[15];
+}
+
+/* The viewport (x, y, depth: scale and centre) and the screen's offset */
+static void pick_viewport(const uint32_t *r, float *vp) {
+    for (int i = 0; i < 6; i++)
+        vp[i] = ge_float(r[0x42 + i]);
+    vp[6] = (float)(r[0x4C] & 0xFFFF) / 16.0f;
+    vp[7] = (float)(r[0x4D] & 0xFFFF) / 16.0f;
+}
+
+static void pick_tri(PickSet *s, const ClipVertex *a, const ClipVertex *b, const ClipVertex *c, int through, const float *vp) {
+    if (s->nt == s->tcap) {
+        s->tcap = s->tcap ? s->tcap * 2 : 65536;
+        s->t = realloc(s->t, sizeof *s->t * (size_t)s->tcap);
+    }
+    PickTri *t = &s->t[s->nt];
+    const ClipVertex *in[3] = {a, b, c};
+    int front = 1;
+    t->x0 = t->y0 = 1e30f;
+    t->x1 = t->y1 = -1e30f;
+    for (int i = 0; i < 3; i++) {
+        float x = in[i]->cx, y = in[i]->cy, z = in[i]->cz, w = in[i]->cw;
+        if (!through) {
+            x = x * vp[0] + w * (vp[3] - vp[6]);
+            y = y * vp[1] + w * (vp[4] - vp[7]);
+            z = z * vp[2] + w * vp[5];
+        }
+        t->v[i][0] = x, t->v[i][1] = y, t->v[i][2] = z, t->v[i][3] = w;
+        if (w > 1e-3f) {
+            float sx = x / w, sy = y / w;
+            if (sx < t->x0) t->x0 = sx;
+            if (sx > t->x1) t->x1 = sx;
+            if (sy < t->y0) t->y0 = sy;
+            if (sy > t->y1) t->y1 = sy;
+        } else
+            front = 0;
+    }
+    if (!front) {                       /* (crossing the eye's plane: it could be anywhere) */
+        t->x0 = t->y0 = -1e30f;
+        t->x1 = t->y1 = 1e30f;
+    }
+    if (t->x1 < -64 || t->y1 < -64 || t->x0 > 1024 || t->y0 > 1024)
+        return;                         /* (off any screen) */
+    t->draw = s->nd - 1;
+    s->nt++;
+}
+
+static void pick_note(int type, int count, int idx, const Layout *l) {
+    if (type < 3 || type > 6)
+        return;
+    PickSet *s = &pick_sets[pick_filling];
+    if (s->nd == s->dcap) {
+        s->dcap = s->dcap ? s->dcap * 2 : 4096;
+        s->d = realloc(s->d, sizeof *s->d * (size_t)s->dcap);
+    }
+    PickDraw *p = &s->d[s->nd++];
+    memcpy(p->reg, reg, sizeof reg);
+    int through = (reg[0x12] >> 23) & 1;
+    p->target = fb_addr();
+    p->vaddr = pick_pass ? pick_source_vaddr : vaddr;
+    p->type = type;
+    p->count = count;
+    p->through = through;
+    static ClipVertex *cv;
+    static int cap;
+    if (count > cap) {
+        cap = count * 2;
+        cv = realloc(cv, sizeof *cv * (size_t)cap);
+    }
+    for (int i = 0; i < count; i++)
+        pick_vertex(vaddr, idx == 1 ? LBU(iaddr + (uint32_t)i) : idx == 2 ? LHU(iaddr + 2 * (uint32_t)i) : i, l, &cv[i]);
+    if (through)
+        hud_scaled(cv, count);
+    float vp[8];
+    pick_viewport(reg, vp);
+    if (type == 3) {
+        for (int i = 0; i + 2 < count; i += 3)
+            pick_tri(s, &cv[i], &cv[i + 1], &cv[i + 2], through, vp);
+    } else if (type == 4) {
+        for (int i = 0; i + 2 < count; i++)
+            if (i & 1)
+                pick_tri(s, &cv[i + 1], &cv[i], &cv[i + 2], through, vp);
+            else
+                pick_tri(s, &cv[i], &cv[i + 1], &cv[i + 2], through, vp);
+    } else if (type == 5) {
+        for (int i = 1; i + 1 < count; i++)
+            pick_tri(s, &cv[0], &cv[i], &cv[i + 1], through, vp);
+    } else {                            /* sprites: two corners, as two triangles on the screen, the second corner's depth */
+        for (int i = 0; i + 1 < count; i += 2) {
+            ClipVertex c[4];
+            float x[2], y[2], z = cv[i + 1].cz;
+            for (int k = 0; k < 2; k++) {
+                const ClipVertex *q = &cv[i + k];
+                x[k] = through ? q->cx : q->cx / q->cw * vp[0] + vp[3] - vp[6];
+                y[k] = through ? q->cy : q->cy / q->cw * vp[1] + vp[4] - vp[7];
+            }
+            if (!through)
+                z = cv[i + 1].cz / cv[i + 1].cw * vp[2] + vp[5];
+            for (int k = 0; k < 4; k++) {
+                c[k].cx = x[k == 1 || k == 2];
+                c[k].cy = y[k >= 2];
+                c[k].cz = z;
+                c[k].cw = 1;
+            }
+            pick_tri(s, &c[0], &c[1], &c[2], 1, vp);
+            pick_tri(s, &c[0], &c[2], &c[3], 1, vp);
+        }
+    }
+}
+
+void gpu_pick_enable(int on) {
+    pick_on = on;
+    pick_collecting = 0;
+    pick_camera_ok = 0;
+    if (!on)
+        for (int k = 0; k < 2; k++) {
+            free(pick_sets[k].d);
+            free(pick_sets[k].t);
+            memset(&pick_sets[k], 0, sizeof pick_sets[k]);
+        }
+}
+
+void gpu_pick_request(void) {
+    pick_wanted = 1;
+}
+
+/* present.c, each game frame: the frame as the game draws it is done, the next gone over (not with recorded frames) */
+void gpu_pick_frame(uint32_t display_addr) {
+    if (!pick_on || recording)
+        return;
+    if (pick_collecting)
+        pick_end(display_addr);
+    pick_begin();
+}
+
+unsigned gpu_pick_generation(void) {
+    return pick_generation;
+}
+
+/* The camera shown (recorded frames: as gpu_render_frame has it now): the view that is in the world matrices, and the GE's
+ * view and projection and viewport from the frame's last draw in 3D into what is shown */
+static void pick_camera_of(const float *v, const float *gv, const float *pr, const uint32_t *r) {
+    memcpy(pick_view, v, sizeof pick_view);
+    memcpy(pick_geview, gv, sizeof pick_geview);
+    memcpy(pick_proj, pr, sizeof pick_proj);
+    pick_viewport(r, pick_vp);
+    pick_camera_ok = 1;
+}
+
+static void pick_camera_recorded(void) {
+    float inv[12], target[3], game[12];
+    const float *v = native_camera ? shown_view : NULL;
+    if (!v) {
+        if (!camera_game(inv, target))
+            return;
+        camera_invert(inv, game);
+        v = game;
+    }
+    for (int i = latest->n - 1; i >= 0; i--) {
+        const Draw *d = &latest->draws[i];
+        if (d->proj[11] != 0 && !((d->reg[0x12] >> 23) & 1)) {
+            pick_camera_of(v, d->view, d->proj, d->reg);
+            return;
+        }
+    }
+}
+
+/* A point in the world, on the screen as shown */
+int gpu_pick_project(const float *p, float *x, float *y) {
+    if (!pick_camera_ok)
+        return 0;
+    float c[3], e[3];
+    mul43(pick_view, p, c);
+    mul43(pick_geview, c, e);
+    float cx = e[0] * pick_proj[0] + e[1] * pick_proj[4] + e[2] * pick_proj[8] + pick_proj[12];
+    float cy = e[0] * pick_proj[1] + e[1] * pick_proj[5] + e[2] * pick_proj[9] + pick_proj[13];
+    float cw = e[0] * pick_proj[3] + e[1] * pick_proj[7] + e[2] * pick_proj[11] + pick_proj[15];
+    if (!(cw > 1e-3f))
+        return 0;
+    *x = cx / cw * pick_vp[0] + pick_vp[3] - pick_vp[6];
+    *y = cy / cw * pick_vp[1] + pick_vp[4] - pick_vp[7];
+    return 1;
+}
+
+/* The draws that end up in a pixel of the frame gone over, the top first: its triangles tested in the order drawn */
+int gpu_pick_at(float x, float y, GpuPickHit *out, int max) {
+    const PickSet *s = &pick_sets[pick_filling ^ 1];
+    if (!s->nd || max <= 0)
+        return 0;
+    enum { STACK = 64 };
+    int stack[STACK], depths = 0, have_z = 0;
+    float stack_z[STACK], depth = 0;
+    /* (if nothing is drawn into the frame shown, as told: its framebuffer's address isn't what the display has - all of them) */
+    int any = 0;
+    for (int i = 0; i < s->nd && !any; i++)
+        any = s->d[i].target == s->display;
+    int last_draw = -1;
+    for (int i = 0; i < s->nt; i++) {
+        const PickTri *t = &s->t[i];
+        if (x < t->x0 || x > t->x1 || y < t->y0 || y > t->y1)
+            continue;
+        const PickDraw *p = &s->d[t->draw];
+        const uint32_t *r = p->reg;
+        if (any && p->target != s->display)
+            continue;
+        int sx0 = r[0xD4] & 0x3FF, sy0 = (r[0xD4] >> 10) & 0x3FF, sx1 = r[0xD5] & 0x3FF, sy1 = (r[0xD5] >> 10) & 0x3FF;
+        if (x < (float)sx0 || y < (float)sy0 || x >= (float)(sx1 + 1) || y >= (float)(sy1 + 1))
+            continue;
+        const float *a = t->v[0], *b = t->v[1], *c = t->v[2];
+        /* M = (a b c), its columns x, y, w; M l = (x, y, 1): the point's weights, all at least 0 inside */
+        float bc[3] = {b[1] * c[3] - b[3] * c[1], b[3] * c[0] - b[0] * c[3], b[0] * c[1] - b[1] * c[0]};
+        float ca[3] = {c[1] * a[3] - c[3] * a[1], c[3] * a[0] - c[0] * a[3], c[0] * a[1] - c[1] * a[0]};
+        float ab[3] = {a[1] * b[3] - a[3] * b[1], a[3] * b[0] - a[0] * b[3], a[0] * b[1] - a[1] * b[0]};
+        float det = a[0] * bc[0] + a[1] * bc[1] + a[3] * bc[2];
+        if (det == 0)
+            continue;
+        float l0 = (x * bc[0] + y * bc[1] + bc[2]) / det, l1 = (x * ca[0] + y * ca[1] + ca[2]) / det, l2 = (x * ab[0] + y * ab[1] + ab[2]) / det;
+        if (l0 < 0 || l1 < 0 || l2 < 0)
+            continue;
+        if (!p->through && (r[0x1D] & 1)) {   /* culled, as the GE would; the area's sign on the screen */
+            float area = det * a[3] * b[3] * c[3];
+            if ((area < 0) == (int)(r[0x9B] & 1))
+                continue;
+        }
+        float z = l0 * a[2] + l1 * b[2] + l2 * c[2];
+        z = z < 0 ? 0 : z > 65535 ? 65535 : z;
+        if (r[0xD3] & 1) {              /* clear mode: what it clears, gone from under it */
+            if (r[0xD3] & 0x400)
+                depth = z, have_z = 1;
+            if (r[0xD3] & 0x100)
+                depths = 0, last_draw = -1;
+            continue;
+        }
+        int testing = r[0x23] & 1;
+        if (testing && have_z) {
+            int pass;
+            switch (r[0xDE] & 7) {
+            case 0: pass = 0; break;
+            case 1: pass = 1; break;
+            case 2: pass = z == depth; break;
+            case 3: pass = z != depth; break;
+            case 4: pass = z < depth; break;
+            case 5: pass = z <= depth; break;
+            case 6: pass = z > depth; break;
+            default: pass = z >= depth; break;
+            }
+            if (!pass)
+                continue;
+        }
+        int alpha_tested = r[0x22] & 1, blending = r[0x21] & 1;
+        /* (what an alpha test may leave a hole in isn't taken as hiding what follows it) */
+        if (testing && !(r[0xE7] & 1) && !alpha_tested)
+            depth = z, have_z = 1;
+        if (!blending && !alpha_tested)
+            depths = 0, last_draw = -1;  /* (all that was under it is hidden) */
+        if (t->draw == last_draw && depths > 0) {
+            stack_z[depths - 1] = z;
+            continue;
+        }
+        if (depths == STACK) {
+            memmove(stack, stack + 1, sizeof stack[0] * (STACK - 1));
+            memmove(stack_z, stack_z + 1, sizeof stack_z[0] * (STACK - 1));
+            depths--;
+        }
+        stack[depths] = t->draw;
+        stack_z[depths++] = z;
+        last_draw = t->draw;
+    }
+    /* top first: 2D as drawn, over the 3D by how near it is - by the depth, as what an alpha test may have left holes in
+     * didn't hide what was drawn after it */
+    for (int i = 1; i < depths; i++) {
+        int d = stack[i];
+        float zi = stack_z[i];
+        const PickDraw *pi = &s->d[d];
+        int near_high = (pi->reg[0xDE] & 7) >= 6, j = i;
+        while (j > 0 && !s->d[stack[j - 1]].through && !pi->through &&
+               (near_high ? stack_z[j - 1] > zi : stack_z[j - 1] < zi)) {
+            stack[j] = stack[j - 1];
+            stack_z[j] = stack_z[j - 1];
+            j--;
+        }
+        stack[j] = d;
+        stack_z[j] = zi;
+    }
+    int n = 0;
+    for (int i = depths - 1; i >= 0 && n < max; i--, n++) {
+        const PickDraw *p = &s->d[stack[i]];
+        const uint32_t *r = p->reg;
+        GpuPickHit *h = &out[n];
+        memset(h, 0, sizeof *h);
+        h->draw = stack[i];
+        h->z = stack_z[i];
+        h->type = p->type;
+        h->count = p->count;
+        h->vaddr = p->vaddr;
+        h->through = p->through;
+        h->blend = r[0x21] & 1;
+        h->alpha_test = r[0x22] & 1;
+        h->depth_test = r[0x23] & 1;
+        h->blend_reg = r[0xDF] & 0xFFFFFF;
+        h->textured = r[0x1E] & 1;
+        if (h->textured) {
+            uint64_t key;
+            h->addr = (r[0xA0] & 0xFFFFF0) | ((r[0xA8] & 0x0F0000) << 8);
+            h->w = 1 << (r[0xB8] & 0xF);
+            h->h = 1 << ((r[0xB8] >> 8) & 0xF);
+            h->fmt = r[0xC3] & 0xF;
+            texpack_key(r, 512, &key, &h->hash);
+        }
+    }
+    return n;
+}
+
 static void prim_drawn(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
@@ -3947,6 +4370,15 @@ static void prim_drawn(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (pick_pass) {                    /* (the inspector going over a recorded frame: noted, not drawn) */
+        if (count > 0)
+            pick_note(type, count, idx, &l);
+        if (idx)
+            iaddr += (uint32_t)(count * (idx == 1 ? 1 : 2));
+        else
+            vaddr += (uint32_t)(count * l.size);
+        return;
+    }
     if (perf_on && !in_replay && count > 0) {   /* (the performance panel: as the game issues them) */
         perf_draws++;
         perf_tris += (unsigned long)(type == 3 ? count / 3 : type == 4 || type == 5 ? (count > 2 ? count - 2 : 0) : type == 6 ? count : 0);
@@ -4034,6 +4466,19 @@ static void prim_drawn(uint32_t data) {
                                                 ((uint64_t)vt << 8 ^ data) * 0x9E3779B97F4A7C15ull);
         shadow_prim();
         q_begin(reg);
+    }
+    if (pick_on && !recording && !in_replay && count > 0) {   /* (the inspector: the game's frame as drawn, the camera shown) */
+        if (pick_collecting)
+            pick_note(type, count, idx, &l);
+        if (proj[11] != 0 && !(vt >> 23 & 1)) {
+            float inv[12], target[3], game[12];
+            if (native_shown)
+                pick_camera_of(native_shown_view, view, proj, reg);
+            else if (camera_game(inv, target)) {
+                camera_invert(inv, game);
+                pick_camera_of(game, view, proj, reg);
+            }
+        }
     }
     if (count > 0 && render_on && replay_group) {
         tl_group_draw(replay_group);
