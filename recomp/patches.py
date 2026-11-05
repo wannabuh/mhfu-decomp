@@ -80,6 +80,14 @@ COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
 # needs nothing: the motion player scales it, as any layer's (MOTION)
 HIT_STOP = "hit-stop's countdown +0x558: 1 less a 30th, not a game frame"
 
+# The hunter's drains (game_task 09A6D418, every game frame of its tick). Counted in 30ths: the divider +0x452 of its
+# poison's seconds +0x388, the wait +0x454 for each loss of health, the wait +0x11B6 for poison's effect, the wait +0x696
+# for a loss in a hot place. And what tests the hunt's count of 30ths (*0x089CC558 + 0x1C, which holds still between
+# 30ths: "count % n == 0" is true for every game frame of that 30th): the effect on another hunter (09A6D7AC), the loss
+# from what is in the pouch (09A6D888), the loss from the ground (09A6DE34) - and the ground's effect (game_sub 09CB2510)
+# - each taken as false between 30ths
+DRAIN = "the hunter's drains: their waits in 30ths, and a test of the hunt's count of 30ths made once, at a 30th"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -413,6 +421,14 @@ PATCHES = {
     ("EBOOT", 0x08860DC4): ("div.s $f0, $f0, $f3", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
     ("EBOOT", 0x088D5CB4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", HIT_STOP),
+    ("game_task", 0x09A6D52C): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D558): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D6D8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D9C8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D7AC): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6D888): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6DE34): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_sub", 0x09CB2510): ("andi $v1, $v1, 0xF", "c->r[3] = rt_tick30 ? c->r[3] & 0xFu : 1u;", DRAIN),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
