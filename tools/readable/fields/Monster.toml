@@ -2113,3 +2113,39 @@ type = "u8"
 confidence = "inferred"
 note = "next write index of the 16-entry hit ring at +0x33E, as a hunter's"
 evidence = "game_sub 09C43558 at 44898-448C8; hit_manager (09C41F58) searches the ring"
+
+[[field]]
+struct = "Monster"
+offset = 0x658
+name = "distance_to_hunter0"
+type = "f32"
+confidence = "inferred"
+note = "distance from place to hunter slot 0; slots 1 to 3 follow; read by script opcode 0x7E"
+evidence = "game_task 09ACCD28 writes it from a vsub/vdot/vsqrt of +0x200 and a slot's place, at +0x658 + slot*4; 09AC4354 reads it for 0x7E"
+
+[[field]]
+struct = "Monster"
+offset = 0x65C
+name = "distance_to_hunter1"
+type = "f32"
+confidence = "inferred"
+note = "as distance_to_hunter0, slot 1"
+evidence = "game_task 09ACCD28, by the slot index"
+
+[[field]]
+struct = "Monster"
+offset = 0x660
+name = "distance_to_hunter2"
+type = "f32"
+confidence = "inferred"
+note = "as distance_to_hunter0, slot 2"
+evidence = "game_task 09ACCD28, by the slot index"
+
+[[field]]
+struct = "Monster"
+offset = 0x664
+name = "distance_to_hunter3"
+type = "f32"
+confidence = "inferred"
+note = "as distance_to_hunter0, slot 3"
+evidence = "game_task 09ACCD28, by the slot index"

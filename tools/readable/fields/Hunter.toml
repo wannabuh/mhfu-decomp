@@ -1298,7 +1298,7 @@ offset = 0x292
 name = "net_synced_word_292"
 type = "u16"
 confidence = "inferred"
-note = "sent to peers and restored; no other use seen"
+note = "sent to peers and restored; monster script opcodes 0x5A, 0x5F, 0x62 read it (game_task 09AC1FC0, 09AC2410, 09AC2980)"
 evidence = "game_task 9A70A30 packs; 9A71AB0 unpacks"
 
 [[field]]
@@ -1447,3 +1447,12 @@ type = "f32"
 confidence = "inferred"
 note = "multiplies the scale of a hit that goes by attack, and grows by 1.05 each hit, with hunt bonus 0x2D and status bit 0x2000"
 evidence = "game_sub 09C43558 at 43D28-43D38"
+
+[[field]]
+struct = "Hunter"
+offset = 0x5EC
+name = "state_counter_5ec"
+type = "s16"
+confidence = "inferred"
+note = "tick counter of several group 0 states: down from 0x708 in 0,0x7F, up to 0x708 in 0,0x68, down in 0,0x2F"
+evidence = "game_task 09AA4D00, 09AA3F18, 09A9F5B0"

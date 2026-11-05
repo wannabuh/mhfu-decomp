@@ -230,3 +230,51 @@ purpose = "Jumps to lobby_pack_section_entry_by_id with a1 = 1 and a2 the caller
 confidence = "confirmed"
 evidence = "The generated code; caller lobby_points_menu_draw_list_page."
 
+[[function]]
+module = "lobby_task"
+address = "09A7FDD0"
+name = "lobby_task_09a80540_thunk"
+purpose = "Jumps to lobby_task_09a80540 (lobby_task 09A80540)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "lobby_task"
+address = "09AB08C8"
+name = "lobby_hunter_reset_idle_4"
+purpose = "lobby_hunter_reset_and_enter_idle(4, 0)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "lobby_task"
+address = "09ABC670"
+name = "npc_phase_1d4_advance"
+purpose = "Adds 1 to byte +0x1D4."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "lobby_task"
+address = "09A7BA10"
+name = "lobby_set_word_plus_2f_call_9a78b98"
+purpose = "Stores a1 + 0x2F at a0 and runs 09A78B98 on the global at 09A0FF04."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "lobby_task"
+address = "09A7B9D8"
+name = "lobby_set_words_1_and_call_9a8e260"
+purpose = "Writes 1 at a0 +8 and a0, runs 09A8E260 on a0 + 0xA780."
+confidence = "confirmed"
+evidence = "Whole body read: the view's param_1 + 0x29E0 is in words."
+
+[[function]]
+module = "lobby_task"
+address = "09AA91F8"
+name = "shop_deco_craft_can_make_count_for_current"
+purpose = "deco_craft_can_make_count(self, +0x10 + +0x40 * 0x10, a1)."
+confidence = "confirmed"
+evidence = "Whole body read; caller shop_draw_quantity_selector."
+

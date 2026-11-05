@@ -350,3 +350,83 @@ purpose = "Writes 0 to the byte at a0."
 confidence = "confirmed"
 evidence = "The generated code; caller game_sub 09C225C0."
 
+[[function]]
+module = "game_sub"
+address = "09C92470"
+name = "fx_spawn_class_from_09c2f1c0_with_owner_hunter"
+purpose = "If the object is nonzero, allocates through 09C2F1C0, fx_base_init, +0xC owner, +0x40 owner's instance_index byte, +0x24 a1, and links it in the node manager's list. Called from hunter state 0x4F with using_item_id == 0x8B as a1."
+confidence = "inferred"
+evidence = "Whole body read to the list link."
+
+[[function]]
+module = "game_sub"
+address = "09C33778"
+name = "node_mgr_has_type_16_node_for_object"
+purpose = "True if the list at a0 +0x19030 holds a node whose word +0x20 has high byte 0x16, byte +0x24 equal to 1 and +0xC equal to a1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C401D0"
+name = "collision_grid_point_inside_cell_shape"
+purpose = "If the point's X,Z is in collision grid +0x214, goes through the list of shapes at its cell, testing the point against each (three corners taken); returns outputs through a2 and a3."
+confidence = "inferred"
+evidence = "First 26 view lines of about 85 read: a guess at \"inside\" from the matrices set up."
+
+[[function]]
+module = "game_sub"
+address = "09C79190"
+name = "fx_particle_effect_init_particle_at_position"
+purpose = "Sets a particle's position from the effect with random X and Z scatter of 5 * +0x3C, +0x32 0xFFF1, +0x34 and +0x36 from a random number, +0x38 0x5B, negative on a random bit."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09CB23E8"
+name = "class_089be208_spawn_at_position_0_0"
+purpose = "Calls class_089be208_spawn_at_position with a2 and a3 set to 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C93FA8"
+name = "fx_launch_velocity_for_duration"
+purpose = "Stores at a0 +4: (f13 - f12) / f15 - f14 * 0.5 * f15: the starting speed for going from f12 to f13 in f15 under acceleration f14."
+confidence = "confirmed"
+evidence = "Whole body read; caller class_089be000_launch_towards_point_ahead_of_owner."
+
+[[function]]
+module = "game_sub"
+address = "09C7F030"
+name = "value_by_two_bits_of_arg"
+purpose = "By a0 & 6: 0 gives 0x111, 2 gives -0x110, 4 gives 0x89, 6 gives -0x88."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_sub"
+address = "09C559C0"
+name = "object_sound_at_motion_frame"
+purpose = "When motion layer 0 reaches frame a1, plays sound a2 at the object."
+confidence = "confirmed"
+evidence = "Whole body read; caller motion_sound_cues_hunter_by_motion_id."
+
+[[function]]
+module = "game_sub"
+address = "09CB8ED0"
+name = "fx_spawn_class_from_09c31380_at_position"
+purpose = "Allocates through 09C31380, fx_base_init, copies the position from a0, +0x24 = a1, links it in the node manager's list."
+confidence = "confirmed"
+evidence = "First 22 view lines read; caller record_type_2b_dispatch_nodes_and_sound."
+
+[[function]]
+module = "game_sub"
+address = "09C75A58"
+name = "class_089bdec0_spawn_at_position_with_kind"
+purpose = "Allocates class 089BDEC0, position from a0, +0x24 kind a1, +0x3C float; for kinds under 5 a random +0x3A; kinds 0 and 0x10 spawn another of kind 9."
+confidence = "inferred"
+evidence = "First 22 view lines read of 34."
+

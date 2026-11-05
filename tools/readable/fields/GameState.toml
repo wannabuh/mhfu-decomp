@@ -2635,3 +2635,39 @@ type = "u8"
 confidence = "confirmed"
 note = "snapshot of option_byte_6ade3"
 evidence = "EBOOT 88572E8"
+
+[[field]]
+struct = "GameState"
+offset = 0x549
+name = "equip_box_entry0_type"
+type = "u8"
+confidence = "inferred"
+note = "type byte of the first of the equipment box's entries, 12 bytes each; type 6 has flags"
+evidence = "EBOOT 0885E244 (equip_box_entry_type_is_6) reads it by index * 0xC; EBOOT 088507F4 clears the entry from +0x548"
+
+[[field]]
+struct = "GameState"
+offset = 0x54C
+name = "equip_box_entry0_flags"
+type = "u16"
+confidence = "inferred"
+note = "flags of the first equipment box entry, 12-byte stride: 0x10, 0x20, 0x40, 0x80 set and cleared by 0885E3D4, 0885E528, 0885E5C0 for type 6"
+evidence = "EBOOT 0885E3D4, 0885E528, 0885E5C0"
+
+[[field]]
+struct = "GameState"
+offset = 0x43C8
+name = "pouch_saved_slot0_item"
+type = "u16"
+confidence = "inferred"
+note = "item id of the first of 0x18 saved pouch slots, 4 bytes each; 0 is empty"
+evidence = "EBOOT 0885ACA8 (item_pouch_saved_add_count) looks for 0 and writes the id here; EBOOT 0885AFF8 zeroes it for index under 0x18"
+
+[[field]]
+struct = "GameState"
+offset = 0x43CA
+name = "pouch_saved_slot0_count"
+type = "u16"
+confidence = "inferred"
+note = "count of the first saved pouch slot"
+evidence = "EBOOT 0885ACA8 writes the count here, capped by the item's limit; EBOOT 0885AFF8 zeroes it"

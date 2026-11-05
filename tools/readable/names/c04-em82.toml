@@ -1,0 +1,8 @@
+[[function]]
+module = "em82"
+address = "09D1B620"
+name = "em82_init_fields_mask_health_script_request"
+purpose = "Sets bits 3, 4, 8 in +0x572, starts motion 1, scales health from the type table and sets it and the maximum, requests a script run, and sets +0x7Bx to 0x100, 0x200, 0x100 and +0x7E0 to 0x2000."
+confidence = "inferred"
+evidence = "First 22 view lines read; caller em82_init_fields_then_set_state_00_01."
+

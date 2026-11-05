@@ -148,7 +148,7 @@ address = "09ABFAD0"
 name = "monster_script_op_2b_if_script_timer_by_index"
 purpose = "Handler for opcode 0x2B, if/else/end, bytes (index, value): indexes 1 to 4 test the fields opcode 0xC sets against value; 5 to 9 call vtable +0x98, +0xA0, +0xA8, +0xD0, +0xD8, the getters beside its setters. A nonzero result skips to the else or end."
 confidence = "inferred"
-evidence = "Whole body read; generated C shows the getters are called with a1 as left by the handler, and value isn't compared with their result here."
+evidence = "Whole body read; generated C shows nothing resets a1 after the value byte is read, so the getters get the value there."
 
 [[function]]
 module = "game_task"
@@ -410,7 +410,7 @@ evidence = "First 60 lines of the view read; the rest is more of the choosing an
 module = "game_task"
 address = "09AC2840"
 name = "monster_script_op_60_if_game_mode_flag_2"
-purpose = "Handler for opcode 0x60, if/else/end: sub-code 0 skips to the else or end when bit 2 of g_game mode_flags is clear."
+purpose = "Handler for opcode 0x60, if/else/end: sub-code 0 skips to the else or end when mask 2 of g_game mode_flags is clear."
 confidence = "confirmed"
 evidence = "Whole body read."
 
@@ -514,9 +514,9 @@ evidence = "Whole body read."
 module = "game_task"
 address = "09AC4278"
 name = "monster_script_op_7e_switch_distance_to_chosen"
-purpose = "Handler for opcode 0x7E, a multi-case block over byte ranges *100: the distance to chosen_slot's hunter comes from +0x640 + slot*4 (or for target kind 0xD from place to the object at DAT_09c122b0 +0x1220 + slot*4); enters the first range containing it, -1 with no slot skipping out."
+purpose = "Handler for opcode 0x7E, a multi-case block over byte ranges *100: the distance to chosen_slot's hunter comes from +0x658 + slot*4 (or for target kind 0xD from place to the object at DAT_09c122b0 +0x1220 + slot*4); enters the first range containing it, -1 with no slot skipping out."
 confidence = "inferred"
-evidence = "Most of the body read; the offset +0x640 is worked out from the view's anchor, not the generated C."
+evidence = "Most of the body read; offset from the generated C."
 
 [[function]]
 module = "game_task"
@@ -1477,4 +1477,100 @@ name = "class_089bd154_init_and_set_state_00_01"
 purpose = "class_089bd154_init_health_and_save_place_790, then vtable +0x88 (0, 1, 0)."
 confidence = "confirmed"
 evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B08B10"
+name = "class_089bc77c_finish_state_to_group0_state01_thunk"
+purpose = "Jumps to class_089bc77c_finish_state_to_group0_state01 (game_task 09B0DEC8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09B1D078"
+name = "monster_request_script_run_thunk"
+purpose = "Jumps to monster_request_script_run (game_task 09B1D268)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "game_task"
+address = "09AAADC0"
+name = "hunter_state_0_50_button_to_state_53_54_64"
+purpose = "For the local hunter in group 0: goes to base 0,4 if mode byte 2E allows index 1; in state 0x50 with button 0x4000 pressed, goes to 0,0x53 with ticks_5f0 positive, otherwise 0,0x64 if +0x690 is 1, else 0,0x54. Outside group 0 resets to base 0,4."
+confidence = "inferred"
+evidence = "Most of the body read; called with self from 09AA1C20."
+
+[[function]]
+module = "game_task"
+address = "09B88EA8"
+name = "class_089bd780_construct"
+purpose = "owned_obj_base_construct, then vtable 089BD780."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B88F40"
+name = "class_089bd780_setup_for_owner"
+purpose = "Kind 0x15 at +0xC; +0xD a2; owner, its instance_index, +0x1E9, motion_id (+0xC2), facing and place parts; clears owner +0x33D and +0x3F8; links in the list at DAT_09c190d0 +0x502C."
+confidence = "inferred"
+evidence = "Most of the body read; the owned_obj setup shape."
+
+[[function]]
+module = "game_task"
+address = "09ABE6C8"
+name = "monster_route_table_row_lookup_for_area"
+purpose = "In the route table of subtype (records at 09BB8C0C) for g_game's map_id, finds the row whose id is byte +0x5F3, then the entry for the area given, comparing with the 09CE5108/09CE5320 remap; returns +2 of the terminator entry at 0xFFFF."
+confidence = "inferred"
+evidence = "First part read. Caller monster_script_op_1a_route_to_area."
+
+[[function]]
+module = "game_task"
+address = "09AA9DB0"
+name = "object_slide_from_contact_normal_if_here"
+purpose = "If the object is in the current area and map_contact_bits & 0xE0000007 is set: reads its contact record (DAT_09d1a160 + instance*0x84), normalises the X,Z of the first normal."
+confidence = "inferred"
+evidence = "First 26 view lines of 130 read; what it does with the result isn't."
+
+[[function]]
+module = "game_task"
+address = "09BB0F30"
+name = "hunter_weapon_scratch_a_kind_in_group1_list"
+purpose = "For the local hunter in group 1, states 0x27, 0x24, 0x16, 7, 6, 5, 4: returns 1 if state_scratch_a is 0, else 2; other cases 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "game_task"
+address = "09B41920"
+name = "class_089bcd64_sound_at_bone_by_subtype"
+purpose = "Plays a 3D sound with the bone's place, its bank from table 089AA2E8 by subtype."
+confidence = "confirmed"
+evidence = "Whole body read; 5 callers."
+
+[[function]]
+module = "game_task"
+address = "09B629A0"
+name = "hunter_clear_word_7fc"
+purpose = "Zeroes the word at +0x7FC."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09B16C60"
+name = "entity_set_state_group_2_by_global_flag"
+purpose = "entity_set_state_by_global_flag_and_mode with group 2."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "game_task"
+address = "09A649E0"
+name = "sound_selection_set_id_volume_7f"
+purpose = "Stores a1 at +0xC as a short and 0x7F at +0x10."
+confidence = "confirmed"
+evidence = "Whole body read; \"volume\" from sound_select_area_or_camera_scene_track's use isn't read: a guess."
 
