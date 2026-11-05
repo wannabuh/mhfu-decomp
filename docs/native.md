@@ -142,7 +142,8 @@ started.
 The mouse's camera: in the hunt the game's camera is turned every frame (`camera.c`, as at 30 but each frame: at 144 a
 steady 1/144th of the turn a frame); the mouse's raise of the eye, and its orbit where the game keeps its own angles
 (the village, the camp tent), are shown as `MHFU_FPS` shows them - each frame drawn with the game's camera turned
-about its target (`camera_native_shown`), the world, the shadows and the light shafts with it. `MHFU_FPS` is left off
+about its target (`camera_native_shown`), the world and the shadows with it. The light shafts and the glare of the stages have no place in the world: the game
+puts them by its eye, so they are placed anew for the camera shown (gpu.c, "what the stage places by the camera"). `MHFU_FPS` is left off
 when the game runs as fast itself; the intros' skip goes by the game's time.
 
 **Both at once** (`tick_hz = 60` with `fps = 144`): the game at 60, each of its frames recorded and the frames shown
