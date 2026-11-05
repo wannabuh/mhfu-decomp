@@ -130,6 +130,10 @@ int64_t clock_behind_us(void) {
 
 static uint64_t slept_us;           /* for MHFU_FPS_STATS: how long the clock waited for the wall clock */
 
+static uint64_t slept_total_us;     /* (the same, never reset: perf.c) */
+
+uint64_t time_slept_total_us(void) { return slept_total_us; }
+
 uint64_t time_slept_us(void) {
     uint64_t s = slept_us;
     slept_us = 0;
@@ -178,6 +182,7 @@ static void advance_to(uint64_t until) {
             struct timespec ts = {(time_t)(ahead / 1000000), (long)(ahead % 1000000) * 1000};
             nanosleep(&ts, NULL);
             slept_us += (uint64_t)ahead;
+            slept_total_us += (uint64_t)ahead;
         }
     }
     now_us = until;

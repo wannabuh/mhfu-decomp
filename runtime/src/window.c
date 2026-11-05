@@ -13,6 +13,7 @@
 #include "render.h"
 #include "savestate.h"
 #include "controls.h"
+#include "perf.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -293,6 +294,12 @@ int window_poll(void) {
             continue;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
             ram_snapshot();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F5 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the performance panel needs the Vulkan renderer");
+            else
+                perf_toggle();
+        }
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&
             (e.key.scancode == SDL_SCANCODE_F2 || e.key.scancode == SDL_SCANCODE_F3 || e.key.scancode == SDL_SCANCODE_F4))
             state_key(e.key.scancode);

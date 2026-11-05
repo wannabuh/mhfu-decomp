@@ -75,6 +75,7 @@ buttons bound instead of the PSP's, or the gamepad's buttons once the gamepad is
 | F11 | fullscreen on / off |
 | F2 / F4 | save / load a save state |
 | F3 | the next save state slot (1-9) |
+| F5 | the performance panel on / off |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the

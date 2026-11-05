@@ -11,6 +11,7 @@
 #include "hle.h"
 #include "savestate.h"
 #include "render.h"
+#include "perf.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -419,6 +420,17 @@ static void write_png(const char *path, const uint32_t *frame) {
     write_png_size(path, frame, 480, 272);
 }
 
+/* A frame shown (timed for the performance panel, and noted: its rings) */
+static void flip(uint32_t addr) {
+    if (perf_on) {
+        uint64_t t = perf_ns(), waited = perf_sync_ns;
+        render_flip(addr);
+        perf_flip_ns += perf_ns() - t - (perf_sync_ns - waited);
+    } else
+        render_flip(addr);
+    perf_shown();
+}
+
 uint32_t *render_readback_full(uint32_t addr, int *w, int *h);
 uint32_t *render_readback_present(uint32_t addr, int w, int h);
 
@@ -483,6 +495,7 @@ uint64_t present_pump(void) {
     /* the game first: when it is running late (the frames shown taking the time it needs), a frame is not shown */
     if (clock_behind_us() > (int64_t)interval) {
         skipped++;
+        perf_skipped++;
         next_display = now + interval;
         return next_display;
     }
@@ -532,8 +545,10 @@ uint64_t present_pump(void) {
         gpu_render_frame(t);
     }
     uint64_t flipping = wall_time_us();
+    if (perf_on)
+        perf_draw_ns += (flipping - drawing) * 1000;
     if (addr)
-        render_flip(addr);
+        flip(addr);
     static uint64_t flip_us;
     flip_us += wall_time_us() - flipping;
     static uint64_t stats_at, drawn_us;
@@ -734,6 +749,7 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    perf_game_frame(frame);
     profile_frame(frame);
     /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */
     {
@@ -808,10 +824,11 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
         if (!gpu_skip_draw) {
             uint64_t before = wall_time_us();
-            render_flip(display_fb_addr);
+            flip(display_fb_addr);
             flip_us += wall_time_us() - before;
         } else {
             native_skipped++;
+            perf_skipped++;
         }
         if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
             fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
@@ -827,6 +844,7 @@ void present_frame(void) {
     } else {
         convert(pixels);
         window_show(pixels);
+        perf_shown();
     }
     if (!window_poll())
         exit(0);
@@ -835,7 +853,7 @@ void present_frame(void) {
             exit(0);
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
         if (render_on && shown)
-            render_flip(shown);
+            flip(shown);
         struct timespec ts = {0, 16000000};
         nanosleep(&ts, NULL);
     }

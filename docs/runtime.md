@@ -121,6 +121,12 @@ lit, skinned... -, their vertices, the vertex stage's time on them and how often
 `MHFU_REPLAY_SPEED=N` plays a replay at the game's speed from frame N (to measure somewhere a recording gets to);
 `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
 
+## Tools
+
+Debugging tools, in `docs/roadmap.md`'s "Tools first". They only read: no write to the game's memory, none of its random numbers, no change to what is scheduled.
+
+- **Performance panel** (`perf.c`, F5; `MHFU_TEST_PERF=1` turns it on, and `MHFU_DUMP_AT=N MHFU_FPS=60 MHFU_DUMP_PRESENT=960x544` shows it in a dumped frame): in the top right corner, FPS and frame time over the last second, a graph of the last 208 frames' times (the grey line where the usual frame is; yellow over 1.5 times it, red over 2 and marked above the graph), the worst in the last 10 s, the tick rate, frames skipped and the time asleep. The time split's labels are at the top of `perf.c`: `GE`, `DRAW`, `RT WAIT`, `GPU WAIT`, `ACQ+PRES` and `RENDER THR` are timed, `LOGIC` is the game's thread's wall clock less all those. Draws and triangles are as the game issues them a tick. `RAM` is the kernel's view, the image and the partition's blocks out of the 24 MB from `0x08800000`: the game's own allocators work inside those blocks, so it can't say how full they are. With a swapchain missing (headless) `FLIP`, `GPU WAIT` and `ACQ+PRES` read near nothing. Off, the panel's timers are each one branch, and two small rings of frame times stay filled for captures.
+
 ## Threads
 
 The game runs ten threads (`user_main`, `fakeRofsLoader` - the DATA.BIN reader -, `sha1Thread`, `transferThread`, the

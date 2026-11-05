@@ -11,6 +11,7 @@
  *
  * MHFU_RENDER_THREAD=0: all on the game's thread, as before. */
 #include "render_queue.h"
+#include "perf.h"
 
 #include <pthread.h>
 #include <sched.h>
@@ -64,7 +65,12 @@ static void *render_thread(void *arg) {
             atomic_store_explicit(&done, at + (RQ_BYTES - at % RQ_BYTES), memory_order_release);
             continue;
         }
-        run(h + 1, h->size);
+        if (perf_on) {
+            uint64_t t = perf_ns();
+            run(h + 1, h->size);
+            atomic_fetch_add_explicit(&perf_render_ns, perf_ns() - t, memory_order_relaxed);
+        } else
+            run(h + 1, h->size);
         atomic_store_explicit(&done, at + sizeof(Header) + ALIGN(h->size), memory_order_release);
     }
     return NULL;
@@ -139,7 +145,18 @@ void render_queue_commit(void) {
         publish();
 }
 
+static void queue_sync(void);
+
 void render_queue_sync(void) {
+    if (perf_on) {
+        uint64_t t = perf_ns();
+        queue_sync();
+        perf_sync_ns += perf_ns() - t;
+    } else
+        queue_sync();
+}
+
+static void queue_sync(void) {
     if (on <= 0)
         return;
     publish();

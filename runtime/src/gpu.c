@@ -12,6 +12,7 @@
 #include "render_queue.h"
 #include "shared.h"
 #include "texpack.h"
+#include "perf.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -3946,6 +3947,10 @@ static void prim_drawn(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (perf_on && !in_replay && count > 0) {   /* (the performance panel: as the game issues them) */
+        perf_draws++;
+        perf_tris += (unsigned long)(type == 3 ? count / 3 : type == 4 || type == 5 ? (count > 2 ? count - 2 : 0) : type == 6 ? count : 0);
+    }
     if (texpack_active() && !in_replay && !held_drawing && count > 0)
         seen_v(count, &l);
     if (recording && count > 0) {

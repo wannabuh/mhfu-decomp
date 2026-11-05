@@ -2,6 +2,9 @@
  * textures) and extended dynamic state 3 (blending set per draw), so the renderer needs a single pipeline.
  * MHFU_VK_VALIDATE=1 turns the validation layer on. */
 #include "vk.h"
+#include "perf.h"
+
+#include <stdatomic.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -383,7 +386,10 @@ void vk_submit(VkSemaphore wait, VkSemaphore signal) {
     CHECK(vkQueueSubmit(vk.queue, 1, &si, vk.fences[vk.frame]));
     /* on to the other frame's resources, once the GPU is done with them (the frame before this one) */
     vk.frame ^= 1;
+    uint64_t fence_at = perf_on ? perf_ns() : 0;
     CHECK(vkWaitForFences(vk.device, 1, &vk.fences[vk.frame], VK_TRUE, UINT64_MAX));
+    if (fence_at)
+        atomic_fetch_add_explicit(&perf_fence_ns, perf_ns() - fence_at, memory_order_relaxed);
     vk.cmd = vk.cmds[vk.frame];
     vk.acquired = vk.acquired_s[vk.frame];
     CHECK(vkResetCommandBuffer(vk.cmd, 0));
