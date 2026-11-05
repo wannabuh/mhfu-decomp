@@ -214,7 +214,7 @@ int perf_rects(float x0, float y0, float scale, HintRect *out, int max) {
     if (!perf_on)
         return 0;
     int dot = (int)(scale / 2) < 1 ? 1 : (int)(scale / 2);
-    int lines = 11;
+    int lines = 12;
     int height = 4 + GRAPH_H + 3 + lines * LINE + 2;
     int picture_w = (int)(480 * scale);
     Pen p = {out, 0, max, dot, (int)x0 + picture_w - (PANEL_DOTS + 3) * dot, (int)y0 + 3 * dot};
@@ -263,14 +263,14 @@ int perf_rects(float x0, float y0, float scale, HintRect *out, int max) {
     pacing_stats(&ps);
     if (ps.have) {
         if (ps.lead_ms > 0)
-            TEXT(C_WHITE, "DISPLAY %.2f HZ  SHOWN %lu  LOCK %.1f MS", ps.refresh_hz, ps.shown, ps.lead_ms);
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  LOCK %.1f MS", ps.refresh_hz, ps.lead_ms);
         else
-            TEXT(C_WHITE, "DISPLAY %.2f HZ  SHOWN %lu  TIMER", ps.refresh_hz, ps.shown);
-        TEXT(ps.repeats || ps.replaced || ps.late ? C_YELLOW : C_WHITE, "REPEAT %lu REPLACED %lu LATE %lu STEP %.1f-%.1f",
-             ps.repeats, ps.replaced, ps.late, ps.step_min_ms, ps.step_max_ms);
+            TEXT(C_WHITE, "DISPLAY %.2f HZ  TIMER", ps.refresh_hz);
+        TEXT(ps.repeats || ps.replaced || ps.late ? C_YELLOW : C_WHITE, "SHOWN %lu REPEAT %lu REPLACED %lu", ps.shown,
+             ps.repeats, ps.replaced);
+        TEXT(ps.late ? C_YELLOW : C_WHITE, "LATE %lu  STEP %.1f-%.1f MS", ps.late, ps.step_min_ms, ps.step_max_ms);
     } else {
         TEXT(C_GREY, "DISPLAY: NOT REPORTED");
-        y += LINE;
     }
 #undef TEXT
     return p.n;

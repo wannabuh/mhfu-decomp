@@ -147,8 +147,8 @@ puts them by its eye, so they are placed anew for the camera shown (gpu.c, "what
 when the game runs as fast itself; the intros' skip goes by the game's time.
 
 **Both at once** (`tick_hz = 60` with `fps = 144`): the game at 60, each of its frames recorded and the frames shown
-interpolated between the last two (`MHFU_FPS`), each drawn for when it is shown - so the display's timing (its refresh,
-VRR, a late wake-up) never shows as judder, as it does with the game's frames shown as they come. What ticks at 30 is
+interpolated between the last two (`MHFU_FPS`), each drawn for the refresh it will reach (`docs/runtime.md`, "Frames and
+the display") - so a late wake-up never shows as judder, as it does with the game's frames shown as they come. What ticks at 30 is
 recorded smoothed (the same smoothing, as the draws are recorded); where the game's camera moves only at 30ths,
 `camera.c` gives the interpolation the camera between its 30ths (`camera_between_30ths`, one 30th behind), and keeps the
 game's for taking it out of the draws. What is shown trails the game by a frame of its: a 60th, against MHFU_FPS's 30th.

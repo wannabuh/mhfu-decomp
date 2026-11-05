@@ -22,8 +22,8 @@ def load(path):
             p = line.split()
             if not p:
                 continue
-            if p[0] == "F" and len(p) >= 14:
-                frames.append([float(x) for x in p[1:14]])
+            if p[0] == "F" and len(p) >= 13:
+                frames.append(([float(x) for x in p[1:14]] + [0.0])[:13])   # (the first logs had no target)
             elif p[0] == "T" and len(p) >= 4:
                 ticks.append((float(p[1]), float(p[2]), float(p[3])))
             elif p[0] == "#" and len(p) >= 3 and p[1] == "refresh_ns":
@@ -151,6 +151,12 @@ def report(path, args):
             print(f"  issue rate {1e3 / mean_issue:.4f}/s against that: phase slides round every {beat / 1e6:.1f} s")
     steps = np.diff(n).astype(int)
     refreshes = int(n[-1]) + 1
+    # frames meant for every so many refreshes (MHFU_FPS below the refresh): those are the steps here
+    every = max(1, int(np.median(steps)))
+    if every > 1:
+        print(f"  frames for every {every} refreshes: steps below are per {every} refreshes")
+        r *= every
+        steps = np.maximum(1, np.round(steps / every)).astype(int)
     repeated = int(np.maximum(0, steps - 1).sum())
     print(f"  refreshes over the run {refreshes}: repeats (a refresh with no new frame) {repeated} "
           f"({repeated / secs * 60:.1f} a minute)")

@@ -187,6 +187,7 @@ int vk_init(void *window) {
             timing.presentTiming) {
             vk.present_timing = 1;
             vk.present_at_time = st.presentAtAbsoluteTimeSupported && timing.presentAtAbsoluteTime;
+            vk.present_stages = st.presentStageQueries;
             timing.presentAtRelativeTime = VK_FALSE;
             timing.presentAtAbsoluteTime = vk.present_at_time ? VK_TRUE : VK_FALSE;
             timing.pNext = f2.pNext;

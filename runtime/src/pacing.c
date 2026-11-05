@@ -26,7 +26,9 @@
  * the game as it will be at that refresh, less that lead (so the same step from each frame to the next, whether it
  * began on time or a tick held it up). The lead is what its drawing has been taking, a little to spare, and the wait
  * for the compositor, kept up to date; a frame that misses its refresh anyway is replaced by the next, on time (mailbox).
- * Without reports (another driver, no display), or on a variable refresh, or until they come: a timer at MHFU_FPS. */
+ * Without reports (another driver, no display), or on a variable refresh, or until they come: a timer at MHFU_FPS. A
+ * display's grid that frames don't land on (a variable refresh the driver doesn't call so: not tried, no such screen
+ * here) goes back to the timer the same way. */
 #define _GNU_SOURCE 1
 #include "pacing.h"
 #include "perf.h"
@@ -66,7 +68,8 @@ static Rec ring[RING];
 static uint64_t rec_next;       /* (the frames noted; rec_next % RING the next one's slot) */
 static uint64_t written;        /* those before this are written and counted */
 static Rec *current;            /* the frame being made, until its present */
-static uint64_t present_id, last_reported;
+static uint64_t present_id;
+static int awaited;             /* reports asked for, not yet come */
 static int ticks_since;
 
 static PFN_vkGetPastPresentationTimingEXT get_past;
@@ -81,6 +84,7 @@ static PFN_vkGetCalibratedTimestampsKHR calibrate_fn;
 static uint64_t refresh_ns;     /* the driver's */
 static int refresh_variable;    /* the driver's word for it: no grid to lock to */
 static double grid_at, grid_refresh;    /* a refresh's time (us), the time between them: 0 not known */
+static uint64_t no_grid_until;          /* frames haven't been on it (a variable refresh?): not trusted until then */
 static uint64_t last_report_at;         /* our clock, when a report last had a time in it */
 
 /* -- the second's figures, for the panel ---------------------------------------------------------------------------- */
@@ -94,6 +98,8 @@ static PacingStats last_s;
 static uint64_t last_pixel;
 static int64_t last_content;
 static uint64_t refresh_seen_us;    /* the usual interval seen, if the driver says nothing */
+
+static double lead_us;              /* (the schedule, below) */
 
 static double refresh_us(void) {
     if (refresh_ns)
@@ -150,8 +156,6 @@ static void count(const Rec *r) {
         now_s.from = at;
     }
 }
-
-static double lead_us;              /* (the schedule, below) */
 
 void pacing_stats(PacingStats *out) {
     *out = last_s;
@@ -278,6 +282,7 @@ void pacing_swapchain_created(void) {
     refresh_variable = 0;
     grid_refresh = 0;
     last_pixel = 0;
+    awaited = 0;
     took_n = 0;
     since_lead = landed = landed_late = landed_early = 0;
     lead_want = extra_us = 0;
@@ -330,7 +335,9 @@ static void read_refresh(void) {
     if (get_timing(vk.device, vk.swapchain, &p, NULL) == VK_SUCCESS && p.refreshDuration && p.refreshDuration != refresh_ns) {
         refresh_ns = p.refreshDuration;
         refresh_variable = p.refreshInterval == UINT64_MAX;
-        grid_refresh = 0;
+        grid_refresh = 0;           /* (and what was learned of frames at the rate before) */
+        lead_us = lead_want = 0;
+        took_n = 0;
         fprintf(stderr, "present timing: refresh %.3f us (%.5f Hz), interval %llu\n", (double)refresh_ns / 1000,
                 1e9 / (double)refresh_ns, (unsigned long long)p.refreshInterval);
         if (log_file)
@@ -361,7 +368,8 @@ static void read_reports(void) {
         if (r != VK_SUCCESS && r != VK_INCOMPLETE)
             return;
         for (uint32_t i = 0; i < props.presentationTimingCount; i++) {
-            last_reported = t[i].presentId;
+            if (awaited)
+                awaited--;
             /* (the frames go in order: one of those still kept in the ring) */
             for (uint64_t k = rec_next; k > written && rec_next - k < RING; k--) {
                 Rec *f = &ring[(k - 1) % RING];
@@ -406,7 +414,16 @@ static void grid_report(uint64_t pixel) {
     }
     double n = floor((p - grid_at) / grid_refresh + 0.5), error = p - (grid_at + n * grid_refresh);
     static int odd;
+    static unsigned off_grid, reports_n;
+    if (++reports_n >= 64) {        /* (a quarter of them off it, in a run: no steady refresh to lock to, as with VRR) */
+        if (off_grid > 16) {
+            no_grid_until = wall_time_us() + 5000000;
+            fprintf(stderr, "present timing: %u of 64 frames off the refresh: on a timer for a while\n", off_grid);
+        }
+        reports_n = off_grid = 0;
+    }
     if (fabs(error) > grid_refresh / 4) {
+        off_grid++;
         if (++odd >= 16) {          /* (not a stray: the grid has moved) */
             grid_at = p;
             odd = 0;
@@ -475,7 +492,8 @@ static void learn(const Rec *r) {
 }
 
 int pacing_next(int fps, uint64_t wall_now, uint64_t *due, uint64_t *target, uint64_t *shows) {
-    if (!lock_wanted || !vk.present_timing || refresh_variable || grid_refresh <= 0 || wall_now - last_report_at > 250000) {
+    if (!lock_wanted || !vk.present_timing || refresh_variable || grid_refresh <= 0 || wall_now - last_report_at > 250000 ||
+        wall_now < no_grid_until) {
         next_target = 0;
         lead_us = 0;
         return 0;
@@ -537,8 +555,14 @@ void pacing_tick(unsigned long frame) {
     ticks_since++;
     if (log_file) {
         settle(0);
-        fprintf(log_file, "T %llu %lu %llu\n", (unsigned long long)(wall_time_us() - log_start), frame,
+        uint64_t now = wall_time_us();
+        fprintf(log_file, "T %llu %lu %llu\n", (unsigned long long)(now - log_start), frame,
                 (unsigned long long)time_us());
+        static uint64_t flushed;        /* (a crash loses no more than this) */
+        if (now - flushed > 2000000) {
+            flushed = now;
+            fflush(log_file);
+        }
     }
 }
 
@@ -551,11 +575,13 @@ const void *pacing_present_chain(void) {
     static VkPresentTimingsInfoEXT infos;
     id = ++present_id;
     present = (VkPresentId2KHR){VK_STRUCTURE_TYPE_PRESENT_ID_2_KHR, NULL, 1, &id};
-    if (!pacing_watch || id - last_reported >= 60)     /* (the reports' queue, of 64, is not to fill) */
+    if (!pacing_watch || awaited >= 60)     /* (the reports' queue, of 64, is not to fill) */
         return &present;
     info = (VkPresentTimingInfoEXT){VK_STRUCTURE_TYPE_PRESENT_TIMING_INFO_EXT};
     info.timeDomainId = domain_id;
-    info.presentStageQueries = VK_PRESENT_STAGE_QUEUE_OPERATIONS_END_BIT_EXT | VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_OUT_BIT_EXT;
+    info.presentStageQueries = vk.present_stages & (VK_PRESENT_STAGE_QUEUE_OPERATIONS_END_BIT_EXT |
+                                                    VK_PRESENT_STAGE_IMAGE_FIRST_PIXEL_OUT_BIT_EXT);
+    awaited++;
     infos = (VkPresentTimingsInfoEXT){VK_STRUCTURE_TYPE_PRESENT_TIMINGS_INFO_EXT, &present, 1, &info};
     if (current)
         current->id = id;
@@ -572,7 +598,9 @@ void pacing_presented(VkResult r) {
         current = NULL;
     }
     if (reports) {
-        read_refresh();
+        static unsigned every;
+        if (!refresh_ns || ++every % 144 == 0)      /* (a window can go to another screen) */
+            read_refresh();
         read_reports();
         static uint64_t calibrated;     /* (the two clocks might not stay together) */
         uint64_t now = wall_time_us();

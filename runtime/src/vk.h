@@ -58,6 +58,7 @@ typedef struct {
     int anisotropy;                  /* anisotropic filtering can be used */
     int present_timing;              /* the driver says when frames go out, for this window (pacing.c) */
     int present_at_time;             /* and a present can name when it is to go out */
+    uint32_t present_stages;         /* what the driver can say (VkPresentStageFlagsEXT) */
 } VkContext;
 
 extern VkContext vk;
