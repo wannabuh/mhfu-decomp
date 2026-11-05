@@ -69,6 +69,7 @@ static void inputs_can_guard(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_recalc_defense(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_received_hit(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes run_pokes, upkeep_pokes, set_state_pokes, reset_pokes, tick_pokes, copy_pad_pokes, common_pokes;
+static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_mask_amounts(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_resist_skills(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]);
@@ -84,7 +85,7 @@ static void inputs_test_if_in_map(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_test_target(Ctx *c, uint32_t hunter, uint32_t args[3]);
 static void inputs_hit_manager(Ctx *c, uint32_t hunter, uint32_t args[3]);
 extern const struct Pokes add_health_pokes, can_guard_pokes, recalc_defense_pokes, received_hit_pokes;
-extern const struct Pokes recalc_resists_pokes, hit_zones_pokes;
+extern const struct Pokes recalc_resists_pokes, hit_zones_pokes, weapon0_pokes;
 extern const struct Pokes register_hit_pokes, sum_damage_pokes, apply_damage_pokes, test_if_in_map_pokes, test_target_pokes, hit_manager_pokes;
 
 static const Case cases[] = {
@@ -131,6 +132,15 @@ static const Case cases[] = {
     {"hunter_clear_received_hit_fields 09A6FB30", f_game_task_09A6FB30, 0, 0, 0x09A6FB30, NULL, inputs_clear_hit_fields, NULL},
     {"hunter_resist_skills 088D9880", f_EBOOT_088D9880, 0, 0, 0x088D9880, NULL, inputs_resist_skills, NULL},
     {"monster_hit_zones 09C43558", f_game_sub_09C43558, 0, 0, 0x09C43558, NULL, inputs_hit_zones, &hit_zones_pokes},
+    {"weapon0_dispatch 09BA0AE0", f_game_task_09BA0AE0, 0, 0, 0x09BA0AE0, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_057e 09BA0CD8", f_game_task_09BA0CD8, 0, 0, 0x09BA0CD8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_057f 09BA1108", f_game_task_09BA1108, 0, 0, 0x09BA1108, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_0594 09BA15D8", f_game_task_09BA15D8, 0, 0, 0x09BA15D8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_057c 09BA1E38", f_game_task_09BA1E38, 0, 0, 0x09BA1E38, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_0583 09BA1FB8", f_game_task_09BA1FB8, 0, 0, 0x09BA1FB8, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_chain_kind 09BA2E28", f_game_task_09BA2E28, 1, 0, 0x09BA2E28, NULL, inputs_weapon0, NULL},
+    {"weapon0_chain_to 09BA2E68", f_game_task_09BA2E68, 0, 0, 0x09BA2E68, NULL, inputs_weapon0, &weapon0_pokes},
+    {"weapon0_connected 09BA32E8", f_game_task_09BA32E8, 1, 0, 0x09BA32E8, NULL, inputs_weapon0, &weapon0_pokes},
     {"object_apply_hit_mask_28_amounts 09C45008", f_game_sub_09C45008, 0, 0, 0x09C45008, NULL, inputs_mask_amounts, NULL},
     {"hunter_register_hit 09C43000", f_game_sub_09C43000, 0, 0, 0x09C43000, NULL, inputs_register_hit, &register_hit_pokes},
     {"entity_sum_pending_damage 09AC8450", f_game_task_09AC8450, 0, 0, 0x09AC8450, NULL, inputs_sum_damage, &sum_damage_pokes},
@@ -251,6 +261,12 @@ int rt_trace_all(Ctx *c, int module, uint32_t fn) {
         }
         if (fn == NINE_ARGUMENTS || fn == OBJECT_SOUND)
             call->stack0 = LW(c->r[29]);
+        if (fn == 0x09C572D0u)      /* the place of an impact, on the stack */
+            for (uint32_t o = 0; o < 12; o += 4) {
+                uint32_t p = LW(c->r[6] + o);
+                p = (p & 0x7FFFFFFFu) > 0x7F800000u ? 0x7FC00000u : p;
+                call->stack0 = (call->stack0 ^ p) * 16777619u;
+            }
         /* The angle of a hit, from two places it is pointed at. One NaN stands for all: added to another NaN, which comes out is the host compiler's
          * choice of operand order, not the game's (seen: place 0xFFFFFFFF + 0x7FF3EBF0 came out each way, generated and hand-written). */
         if (fn == 0x09C42DA0u)
@@ -1550,6 +1566,54 @@ static void inputs_hit_zones(Ctx *c, uint32_t hunter, uint32_t args[3]) {
     args[2] = HIT_SHAPES;
     test_t0 = HIT_PARTS;
     test_t1 = HIT_CONTACT_AT;
+}
+
+/* -- weapon class 0's moves ---------------------------------------------------------------------------------------------------------------- */
+static const Bias weapon0_bias[] = {
+    {0x08864408u, 6, {0, 0, 1, 1, 0x100, 0x101}},       /* a frame reached */
+    {0x08864348u, 4, {0, 1, 1, 0x100}},
+    {0x09A8B058u, 5, {0, 1, 1, 1, 0x100}},
+    {0x09BA2E28u, 6, {1, 2, 4, 0xFF, 0x101, 0x100}},
+    {0x09BA32E8u, 4, {0, 1, 1, 0x101}},
+    {0x09A8B790u, 4, {0, 1, 0x100, 0x101}},
+    {0, 0, {0}},
+};
+POKES(weapon0_pokes, weapon0_bias, {0x1D5, 1, 0}, {0x1D6, 1, 0}, {0x1D7, 1, 0}, {0xBC, 2, 0}, {0x33D, 1, 0}, {0x558, 1, 0}, {0x410, 4, 0}, {0x614, 4, 0}, {0x1F4, 4, 0}, {0x1120, 4, 0}, {0x397, 1, 0}, {0x111C, 4, 0}, {0x299, 1, 0},
+      {0x200, 4, 0}, {0x204, 4, 0}, {0x208, 4, 0}, {0x324, 2, 0}, {0x90, 4, 0});
+
+static void inputs_weapon0(Ctx *c, uint32_t hunter, uint32_t args[3]) {
+    Hunter *self = (Hunter *)MEM(hunter);
+    compare_vfpu = !!record_method;
+    self->state = (uint8_t)(rnd() % 0x22);
+    self->state_step = (uint8_t)PICK(0, 0, 1, 1, 1, 2, 3, 3, 4, 5, 5, 6, 7, 8, 0xFF);
+    self->state_scratch_a = (uint8_t)PICK(0, 0, 1, 2);
+    self->state_scratch_b = (uint8_t)PICK(0, 0, 1, 2);
+    self->attack_connected = (uint8_t)PICK(0, 0, 1, 0x80);
+    self->motion_part0_flags = (uint16_t)PICK(0, 1, 1, 2, 3, 0x100, 0x101);
+    self->motion_slow_timer = (uint8_t)PICK(0, 0, 1, 0x80);
+    self->hunter_flags = rnd() & rnd();
+    self->misc_flags = rnd();
+    self->quest_flags = rnd();
+    self->button_action = PICK(0, 1, 1, 2, 2, 3, 3, 4, -1, 0x100, 0x101, 0x102, 0x10003);
+    self->facing = rnd();
+    self->facing_target = (uint16_t)rnd();
+    self->attack_connected_reaction = (uint8_t)PICK(0, 1, 2, 3, 4, 0x80);
+    self->motion_id = (uint16_t)rnd();
+    self->freeze_ticks = (uint8_t)rnd();
+    self->freeze_ticks_pending = (uint8_t)rnd();
+    self->sound_cue_mute_timer = (uint8_t)rnd();
+    self->reaction_block_weapon_ticks = (int16_t)rnd();
+    SW(hunter + 0x3F4, rnd());
+    SET_FLOAT_BITS(self->motion_part0_frame, float_bits((float)(rnd() % 256) / 2.0f));
+    if (record_method) {        /* rotations and places that show which is used */
+        for (uint32_t o = 0x10; o < 0x40; o += 4)
+            SW(hunter + o, float_bits((float)(rnd() % 256) / 64.0f - 2.0f));
+        for (uint32_t o = 0x200; o < 0x20C; o += 4)
+            SW(hunter + o, float_bits((float)(rnd() % 4096) / 8.0f - 256.0f));
+    }
+    args[0] = PICK(0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 6, 7, 0x100, 0x102);
+    args[2] = PICK(0, 1, 0x10000, 0xFFFF0001);      /* none of them reads a3 */
+    (void)c;
 }
 
 static void inputs_register_hit(Ctx *c, uint32_t hunter, uint32_t args[3]) {
