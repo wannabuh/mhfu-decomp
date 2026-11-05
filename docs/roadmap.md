@@ -94,6 +94,9 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 
 | Mod type | What it needs | Status | Next step |
 |---|---|---|---|
+| Debug overlay: hit zones, attack volumes, monster state, drawn in-game | Makes balance and new attacks far easier, and checks our own findings | Not started | **First modding item.** Purely visual; much of the data is already understood |
+| Mod folders with live reload | Change a texture or value and see it at once | Not started | Start with textures and tunable values; design with the tools row below |
+| Free camera, photo mode | Inspect models and effects, check visual mods | Not started | Cheap; must leave the game's camera state untouched |
 | Textures | Packs, dumping | Works, PPSSPP-compatible. Missing: zip, DDS/KTX2, `[indexed]`, pack mipmaps | Docs and an example workflow |
 | Meshes | Model format reader and writer, skinning, a replacement hook | Not started; was deferred | Document the model format |
 | Balance: damage, hit zones, monster choices | Readable code and data tables | Code hand-written, verified, not merged | Settle what byte 1 and 2 and the five elements are, with a recording |
@@ -101,7 +104,14 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | New particles | Effect system | Names only | Find and document how effects are spawned and described |
 | New monsters | Model, motion, script, hit zones, overlay loading | Interpreter in progress | Script language docs and an assembler; then how a monster type is registered |
 | New areas *(maybe)* | Stage format, collision, routes, spawn lists | Not started | Survey only; decide later |
+| Extended game memory | Lifts the 32 MB limit on what game logic can hold | Not started | See below |
+| Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
+| Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
+| Visual simulation: debris, cloth, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
+| Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
+
+**Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
 
 ## Status file
 
