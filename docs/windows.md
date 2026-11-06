@@ -103,4 +103,5 @@ places to expect trouble are `tools/setup.sh` (`rabbitizer` has no wheel for tha
 
 `runtime/win/` stands in for what Windows lacks, only in this build: PSP threads as fibers instead of `ucontext`, memory by
 `VirtualAlloc`, files opened as bytes, and settings under `%APPDATA%`. `win_compat.h` is included ahead of every file. Under
-Wine, the build's RAM hashes match the Linux build's. The test suite (`tools/suite.py`) does not run on this build yet.
+Wine, the build's RAM hashes match the Linux build's through the intro and title screen; a hunt has been played by hand
+but not compared that way. The test suite (`tools/suite.py`) does not run on this build yet.

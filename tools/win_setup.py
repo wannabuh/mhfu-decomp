@@ -4,7 +4,7 @@
     python3 tools/win_setup.py ~/mhfu-wintools
 
 llvm-mingw (the compiler, checked against the hash below) and MSYS2's clang64 packages of the libraries (each checked against
-the hash in MSYS2's package list). No root, nothing installed elsewhere: delete the folder to remove them all. About 800 MB
+the hash in MSYS2's package list). No root, nothing installed elsewhere: delete the folder to remove them all. About 275 MB
 to fetch, 2 GB unpacked."""
 import hashlib
 import io
