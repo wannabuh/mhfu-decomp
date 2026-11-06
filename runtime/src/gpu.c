@@ -1399,9 +1399,14 @@ static int draw_hud;                /* the HUD's part the draw being made is (hu
 static int draw_far;                /* the draw being made is placed for the camera shown (FAR_ below), or 0 */
 static int world_far;               /* the world matrix in the GE is such a draw's: by the command loading it */
 
+/* A draw's state: most draws share it with the draw before, so each part is kept once, in the frame's own memory, and a draw points
+ * at what it had (keeping all of it for each draw copied some 15 MB a tick). Register 0x04, the primitive command, changes with every draw
+ * and isn't kept here: prim_word */
 typedef struct {
-    uint32_t reg[256];
-    float world[12], view[12], proj[16], bones[8][12];
+    const uint32_t *reg;
+    const float *world, *view, *proj;
+    const float (*bones)[12];
+    uint32_t prim_word;
     uint32_t data;                  /* the PRIM command's */
     uint32_t vaddr, iaddr;          /* where the vertices (and indices) were, to match primitives between frames */
     uint32_t ibytes;                /* the indices' size */
@@ -1451,6 +1456,12 @@ typedef struct {
     uint32_t *tli, *tl_feet;
     uint32_t tl_nv, tl_ni, tlv_cap, tli_cap, tl_nfeet, tl_feet_cap;
     unsigned tl_gen;
+    /* (the draws' state, kept in blocks that stay where they are; the last of each part) */
+    uint8_t **state_block;
+    int state_blocks, state_at;
+    size_t state_used;
+    const uint32_t *last_reg;
+    const float *last_world, *last_view, *last_proj, *last_bones;
 } Frame;
 
 static const TlGroup *replay_group;     /* (a group being replayed as one: its first draw's replay draws it) */
@@ -1521,6 +1532,49 @@ static void close_run(Frame *f) {
     f->open = 0;
 }
 
+#define STATE_BLOCK (1u << 20)
+
+static const void *state_keep(Frame *f, const void *p, size_t n) {
+    if (f->state_at >= f->state_blocks || f->state_used + n > STATE_BLOCK) {
+        if (f->state_at < f->state_blocks && f->state_used)
+            f->state_at++;
+        if (f->state_at >= f->state_blocks) {
+            f->state_block = realloc(f->state_block, sizeof *f->state_block * (size_t)(f->state_blocks + 1));
+            f->state_block[f->state_blocks++] = malloc(STATE_BLOCK);
+        }
+        f->state_used = 0;
+    }
+    void *at = f->state_block[f->state_at] + f->state_used;
+    memcpy(at, p, n);
+    f->state_used += n;
+    return at;
+}
+
+static const float *state_floats(Frame *f, const float **last, const float *now, size_t size) {
+    if (!*last || memcmp(*last, now, size))
+        *last = state_keep(f, now, size);
+    return *last;
+}
+
+/* This draw's state, from the GE's now */
+static void state_note(Frame *f, Draw *d) {
+    if (!f->n || f->n == 1) {           /* (the frame's first: its memory used again) */
+        f->state_at = 0;
+        f->state_used = 0;
+        f->last_reg = NULL;
+        f->last_world = f->last_view = f->last_proj = f->last_bones = NULL;
+    }
+    if (!f->last_reg || memcmp(f->last_reg, reg, 4 * sizeof reg[0]) ||
+        memcmp(f->last_reg + 5, reg + 5, sizeof reg - 5 * sizeof reg[0]))
+        f->last_reg = state_keep(f, reg, sizeof reg);
+    d->reg = f->last_reg;
+    d->prim_word = reg[0x04];
+    d->world = state_floats(f, &f->last_world, world, sizeof world);
+    d->view = state_floats(f, &f->last_view, view, sizeof view);
+    d->proj = state_floats(f, &f->last_proj, proj, sizeof proj);
+    d->bones = (const float (*)[12])state_floats(f, &f->last_bones, &bones[0][0], sizeof bones);
+}
+
 static uint64_t draw_key(const Draw *d);
 static void draw_position(const Draw *d, float *p);
 
@@ -1531,11 +1585,7 @@ static void record(Frame *rec, uint32_t data, const Layout *l) {
         rec->draws = realloc(rec->draws, sizeof *rec->draws * (size_t)rec->cap);
     }
     Draw *d = &rec->draws[rec->n++];
-    memcpy(d->reg, reg, sizeof reg);
-    memcpy(d->world, world, sizeof world);
-    memcpy(d->view, view, sizeof view);
-    memcpy(d->proj, proj, sizeof proj);
-    memcpy(d->bones, bones, sizeof bones);
+    state_note(rec, d);
     d->far = draw_far;
     d->data = data;
     d->vaddr = vaddr;
@@ -2011,6 +2061,7 @@ static float shown_step;
 
 static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) {
     memcpy(reg, d->reg, sizeof reg);
+    reg[0x04] = d->prim_word;
     /* a texture scrolled (water, clouds): its offset interpolated too - unless it jumped (a frame of a sprite sheet,
      * wrapping round) */
     if (prev && !through_draw(d) && (d->reg[0x4A] != prev->reg[0x4A] || d->reg[0x4B] != prev->reg[0x4B]))
@@ -3778,12 +3829,13 @@ static void tl_prim(int type, int count, int idx, const Layout *l) {
 static int tl_same_group(const Draw *a, const Draw *b) {
     /* (all but 0x00-0x11, 0x13, 0x14, 0x2A, 0x2B, 0x3A-0x3F; by ranges, this being asked of nearly every draw) */
     static const struct { uint16_t from, to; } ranges[] = {{0x40, 0x100}, {0x12, 0x13}, {0x15, 0x2A}, {0x2C, 0x3A}};
-    for (size_t i = 0; i < sizeof ranges / sizeof ranges[0]; i++)
+    for (size_t i = 0; a->reg != b->reg && i < sizeof ranges / sizeof ranges[0]; i++)
         if (memcmp(a->reg + ranges[i].from, b->reg + ranges[i].from, sizeof a->reg[0] * (size_t)(ranges[i].to - ranges[i].from)))
             return 0;
-    return !memcmp(a->world, b->world, sizeof a->world) && !memcmp(a->view, b->view, sizeof a->view) &&
-           !memcmp(a->proj, b->proj, sizeof a->proj) &&
-           !memcmp(a->bones, b->bones, sizeof a->bones[0] * (size_t)draw_bones(a)) && a->tex_slot == b->tex_slot &&
+    return (a->world == b->world || !memcmp(a->world, b->world, sizeof world)) &&
+           (a->view == b->view || !memcmp(a->view, b->view, sizeof view)) &&
+           (a->proj == b->proj || !memcmp(a->proj, b->proj, sizeof proj)) &&
+           (a->bones == b->bones || !memcmp(a->bones, b->bones, sizeof a->bones[0] * (size_t)draw_bones(a))) && a->tex_slot == b->tex_slot &&
            a->tex_w == b->tex_w && a->tex_h == b->tex_h;
 }
 
