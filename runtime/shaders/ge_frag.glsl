@@ -54,11 +54,20 @@ float shadow() {
     if (edge >= 1.0 || in_shadow.z <= 0.0 || in_shadow.z >= 1.0)
         return 0.0;
     vec2 texel = 1.0 / vec2(textureSize(shadow_map, 0));
-    float ref = in_shadow.z - 0.0004;
+    // The surface's depth as a plane across the map (from its slopes on the screen), each tap compared with the surface
+    // where that tap is: then a surface needs a bias against itself of only a texel's worth of its slope, in world units
+    // (a fixed one, with the map's depth range, let a wide line of light in where the ground meets a wall: #25)
+    vec3 sx = dFdx(in_shadow), sy = dFdy(in_shadow);
+    float unit = length(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));    // depth per world unit
+    float det = sx.x * sy.y - sx.y * sy.x;
+    vec2 slope = abs(det) > 1e-14 ? vec2(sy.y * sx.z - sx.y * sy.z, sx.x * sy.z - sy.x * sx.z) / det * 2.0 * texel
+                                  : vec2(16.0 * unit);     // depth per texel (edge on to the sun: the most allowed)
+    slope = clamp(slope, vec2(-16.0 * unit), vec2(16.0 * unit));
+    float ref = in_shadow.z - 0.5 * unit - abs(slope.x) - abs(slope.y);
     float lit = 0.0;
     for (int y = -1; y <= 1; y++)
         for (int x = -1; x <= 1; x++)
-            lit += texture(shadow_map, vec3(uv + vec2(x, y) * texel, ref));
+            lit += texture(shadow_map, vec3(uv + vec2(x, y) * texel, ref + dot(vec2(x, y), slope)));
     return (1.0 - lit / 9.0) * clamp((1.0 - edge) * 8.0, 0.0, 1.0);
 }
 

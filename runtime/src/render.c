@@ -259,12 +259,10 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         dy.dynamicStateCount = 2;
         dy.pDynamicStates = dyn_present;
     }
-    if (ge == 2) {                      /* the shadow map's: depth only, its faces both ways, a slope-scaled bias */
+    if (ge == 2) {                      /* the shadow map's: depth only, its faces both ways (no bias: ge_frag.glsl's, what
+                                         * receives the shadow, is enough, and one here moves a wall off its ground: #25) */
         ri.colorAttachmentCount = 0;
         cb.attachmentCount = 0;
-        rs.depthBiasEnable = VK_TRUE;
-        rs.depthBiasSlopeFactor = 1.5f;
-        rs.depthBiasConstantFactor = 0.0f;
         ds.depthTestEnable = VK_TRUE;
         ds.depthWriteEnable = VK_TRUE;
         ds.depthCompareOp = VK_COMPARE_OP_LESS;
