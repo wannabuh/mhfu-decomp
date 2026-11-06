@@ -51,13 +51,14 @@ Each action has its own key; the runtime presses the PSP buttons the game wants 
 | Camera | mouse | right stick | (turns the camera) |
 | Free look (the camera turns, the hunter keeps going the same way) | Left Alt held | | - |
 | Attack / attack 2 | left / right mouse | Y / B | △ / ○ |
-| Special attack | middle mouse, E | RB | △ + ○ |
+| Special attack | Left Ctrl | RB | △ + ○ |
 | Roll / dodge | Space | A | × |
 | Sprint / guard | Shift | RT | R |
+| PSP R | middle mouse | | R |
 | Interact (talk, gather, carve, open) | F | LT | ○ - with the weapon out, it is put away first |
 | Use item | R | X | □ - with the weapon out, it is only put away (sword and shield: used drawn) |
 | Sheathe | X | D-pad down | □, only with the weapon out |
-| Next / previous item | wheel down / up, 3 / 1 | D-pad right / left | L held, then □ / ○ |
+| Next / previous item | wheel up / down | D-pad right / left | L held, then □ / ○ |
 | Reset camera | Tab | LB, L3 | L |
 | Map | M, C | Back, D-pad up | SELECT |
 | Menu | Esc | Start | START |
@@ -113,6 +114,10 @@ iso = ~/Games/psp/mhfu.iso
 fps = 144
 mouse_sens = 0.15
 ```
+
+Whatever is not set there has a default in `runtime/src/main.c` (`setting_defaults`), meant for 2560x1440 at 144 Hz: set
+`resolution` and `fps` for another screen. Headless runs and replays leave those defaults out; `MHFU_DEFAULTS=0` or `1`
+says otherwise.
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
 120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_TICK_HZ=144` (an experiment: the game

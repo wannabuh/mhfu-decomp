@@ -92,11 +92,11 @@ typedef struct { int action; const char *inputs; } Default;
 
 static const Default kb_defaults[] = {
     {A_MOVE_UP, "W"}, {A_MOVE_DOWN, "S"}, {A_MOVE_LEFT, "A"}, {A_MOVE_RIGHT, "D"},
-    {A_ATTACK, "Mouse Left"}, {A_ATTACK2, "Mouse Right"}, {A_SPECIAL, "Mouse Middle, E"},
+    {A_ATTACK, "Mouse Left"}, {A_ATTACK2, "Mouse Right"}, {A_SPECIAL, "Left Ctrl"},
     {A_ROLL, "Space"}, {A_SPRINT, "Left Shift, Right Shift"}, {A_INTERACT, "F"}, {A_USE_ITEM, "R"},
-    {A_SHEATHE, "X"}, {A_ITEM_NEXT, "Wheel Down, 3"}, {A_ITEM_PREV, "Wheel Up, 1"}, {A_CAMERA_RESET, "Tab"},
+    {A_SHEATHE, "X"}, {A_ITEM_NEXT, "Wheel Up"}, {A_ITEM_PREV, "Wheel Down"}, {A_CAMERA_RESET, "Tab"},
     {A_MAP, "M, C"}, {A_MENU, "Escape"}, {A_CONFIRM, "Return"}, {A_BACK, "Backspace"},
-    {A_UP, "Up"}, {A_DOWN, "Down"}, {A_LEFT, "Left"}, {A_RIGHT, "Right"}, {A_PSP_TRIANGLE, "Q"},
+    {A_UP, "Up"}, {A_DOWN, "Down"}, {A_LEFT, "Left"}, {A_RIGHT, "Right"}, {A_PSP_R, "Mouse Middle"},
     {A_FREE_LOOK, "Left Alt"},
 };
 

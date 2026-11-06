@@ -6,8 +6,8 @@
  *
  * Settings: lines "KEY = value" in ./mhfu.ini, then in $XDG_CONFIG_HOME/mhfu-recomp/settings.ini (~/.config/...), set
  * the environment variables MHFU_KEY (the prefix optional: "fps = 144" is MHFU_FPS=144) where they are not set
- * already - the environment first, then ./mhfu.ini, then settings.ini. "iso = path" names the game when the command
- * line does not. Lines starting with # are comments. */
+ * already - the environment first, then ./mhfu.ini, then settings.ini, then the defaults below. "iso = path" names the
+ * game when the command line does not. Lines starting with # are comments. */
 #include "hle.h"
 #include "pacing.h"
 
@@ -84,6 +84,26 @@ static void load_settings(const char *path) {
     fclose(f);
 }
 
+/* What is played with unless a file or the environment says otherwise. Headless runs and replays leave them out, which is
+ * what the tests' baselines are of; MHFU_DEFAULTS=0 leaves them out anywhere, =1 keeps them even there. */
+static const struct { const char *name, *value; } setting_defaults[] = {
+    {"MHFU_FPS", "144"}, {"MHFU_TICK_HZ", "60"}, {"MHFU_RESOLUTION", "2560x1440"}, {"MHFU_MOUSE_SENS", "0.1"},
+    {"MHFU_SHADOWS", "1"}, {"MHFU_SUN_SHADING", "1"}, {"MHFU_RELIEF", "1"}, {"MHFU_PIXEL_LIGHTING", "1"},
+    {"MHFU_POINT_LIGHTS", "1"}, {"MHFU_POINT_SHADOWS", "1"}, {"MHFU_AO", "1"}, {"MHFU_AO_STRENGTH", "1.0"},
+    {"MHFU_GRASS", "0"}, {"MHFU_GRASS_DISTANCE", "6000"}, {"MHFU_GRASS_FULL", "800"}, {"MHFU_GRASS_DENSITY", "0.5"},
+    {"MHFU_SHADOW_DISTANCE", "6000"}, {"MHFU_TESSELLATION", "0"}, {"MHFU_GPU_TL", "2"}, {"MHFU_SNOW_HAZE", "0"},
+    {"MHFU_SWAY", "0.0"}, {"MHFU_MOTION_BLUR", "0.1"}, {"MHFU_DOF", "0"}, {"MHFU_CONTRAST", "1.0"},
+    {"MHFU_HUD_SCALE", "0.75"}, {"MHFU_CAMERA_DISTANCE", "1.3"}, {"MHFU_TAA", "0"}, {"MHFU_FRAME_HISTORY", "60"},
+};
+
+static void apply_setting_defaults(void) {
+    const char *e = getenv("MHFU_DEFAULTS");
+    if (e ? atoi(e) == 0 : getenv("MHFU_HEADLESS") || getenv("MHFU_REPLAY"))
+        return;
+    for (size_t i = 0; i < sizeof setting_defaults / sizeof setting_defaults[0]; i++)
+        setenv(setting_defaults[i].name, setting_defaults[i].value, 0);
+}
+
 static void settings(void) {
     load_settings("mhfu.ini");
     char path[4096];
@@ -93,9 +113,12 @@ static void settings(void) {
     else if (home)
         snprintf(path, sizeof path, "%s/.config/mhfu-recomp/settings.ini", home);
     else
-        return;
-    load_settings(path);
-    rt_settings_path = strdup(path);
+        path[0] = 0;
+    if (path[0]) {
+        load_settings(path);
+        rt_settings_path = strdup(path);
+    }
+    apply_setting_defaults();
 }
 
 static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
