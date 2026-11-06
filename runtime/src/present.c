@@ -1014,6 +1014,13 @@ void present_frame(void) {
     }
     if (!window_poll())
         exit(0);
+    /* a capture took a tick for its state, from a frame gone back to: that frame again, now a frame further back */
+    static int view_return;
+    if (view_return && !capture_state_pending()) {
+        int gpu_view_move(int by);
+        gpu_view_move(view_return);
+        view_return = 0;
+    }
     /* the controls screen (F1), or the inspector's hold (F8): the game paused, the frame shown again under it - until a
      * capture asked for now has what it needs (its state: the game must get to a point where every thread waits) */
     while (overlay_open() || (inspect_paused() && (!capture_state_pending() || capture_wants_shot()))) {
@@ -1038,8 +1045,13 @@ void present_frame(void) {
     }
     {
         void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
+        int gpu_view_back(void);
+        int back = gpu_view_back(), taking = capture_state_pending();
         gpu_view_end();
-        camera_free_end();
+        if (taking)                     /* (only for a capture: held again after it, what was shown still shown) */
+            view_return = back ? back + 1 : view_return ? view_return + 1 : 0;
+        else
+            camera_free_end();
     }
     /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
      * taken again as the game reads them: present_input_read) */
