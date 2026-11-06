@@ -4,8 +4,12 @@ A static recompilation of **Monster Hunter Freedom Unite** (PSP, US release `ULU
 the game's MIPS (Allegrex) code translated to C and built for the PC, running on a runtime that stands in for the
 PSP - with a Vulkan renderer, graphical enhancements, a higher frame rate and native PC controls.
 
-**This repository contains no game code or data.** You need your own copy of the game (an ISO of ULUS10391); every
-tool here reads it from your disk, and nothing extracted from it is ever committed.
+**This repository contains no game files, assets or generated translation of the game's code.** You need your own copy
+of the game (an ISO of ULUS10391); every tool here reads it from your disk, and nothing extracted from it is committed.
+It does contain work based on studying the game's code: functions rewritten by hand (`readable/`), patches to the
+translation (`recomp/patches.py`), and names and notes on functions and data (`tools/readable/`).
+
+This is an unofficial fan project, not affiliated with or endorsed by Capcom. Monster Hunter is a trademark of Capcom.
 
 Status: phase 5 (the recompiled game is playable into Pokke Village: Vulkan renderer, music, PC controls). See [docs/plan.md](docs/plan.md).
 
@@ -153,4 +157,4 @@ overwritten otherwise (a new one goes to `quest.rec.1`, `.2`...).
 ## Licence
 
 GPL-2.0-or-later (see `LICENSE`): the runtime reuses code from [PPSSPP](https://github.com/hrydgard/ppsspp),
-which is under the same licence.
+which is under the same licence. The licence applies to this project's own work and grants no rights in the game itself.
