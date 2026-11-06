@@ -445,7 +445,69 @@ static void mul33(const float *a, const float *b, float *out) {
  *
  * The camera shown is the latest's, its target moved to where the target is at t, and its eye turned about it by the
  * yaw and pitch at t (as above). Across a cut (the camera jumped) it is the latest's, with what is pending. */
+/* The free camera, while the game is held (the C key): the picture seen from elsewhere, the mouse turning it and keys moving it, none of
+ * the game's memory or its camera touched. What's in the picture is what the game drew, so what it left out as out of its
+ * own view isn't there, and sprites keep the angle they were drawn at. */
+static int free_on, free_hud_off;
+static float free_eye[3], free_yaw, free_pitch;
+static float last_shown[12];
+static int have_shown;
+
+int camera_free_on(void) { return free_on; }
+int camera_free_hud_off(void) { return free_on && free_hud_off; }
+void camera_note_shown(const float *v) {
+    memcpy(last_shown, v, sizeof last_shown);
+    have_shown = 1;
+}
+
+void camera_free_hud_toggle(void) {
+    if (free_on)
+        free_hud_off = !free_hud_off;
+}
+
+void camera_free_toggle(void) {
+    if (free_on || have < 2) {
+        free_on = 0;
+        return;
+    }
+    float inv[12];
+    invert(have_shown ? last_shown : game_views[1], inv);
+    memcpy(free_eye, &inv[9], sizeof free_eye);
+    free_yaw = atan2f(inv[6], inv[8]);
+    free_pitch = asinf(inv[7] > 1 ? 1 : inv[7] < -1 ? -1 : inv[7]);
+    free_on = 1;
+    free_hud_off = 0;
+}
+
+void camera_free_end(void) {
+    free_on = 0;
+}
+
+/* The mouse's counts, and how far to go along the camera's right, the world's up and the camera's front */
+void camera_free_move(float dx, float dy, float right, float up, float front) {
+    free_yaw -= dx * 0.15f * PI / 180;
+    free_pitch += dy * 0.15f * PI / 180;
+    free_pitch = free_pitch > 1.55f ? 1.55f : free_pitch < -1.55f ? -1.55f : free_pitch;
+    float cp = cosf(free_pitch), back[3] = {cp * sinf(free_yaw), sinf(free_pitch), cp * cosf(free_yaw)};
+    float rx = cosf(free_yaw), rz = -sinf(free_yaw);
+    free_eye[0] += rx * right - back[0] * front;
+    free_eye[1] += up - back[1] * front;
+    free_eye[2] += rz * right - back[2] * front;
+}
+
+static void free_view(float *shown) {
+    float cp = cosf(free_pitch), sp = sinf(free_pitch), sy = sinf(free_yaw), cy = cosf(free_yaw);
+    float inv[12] = {cy, 0, -sy,  -sp * sy, cp, -sp * cy,  cp * sy, sp, cp * cy,  free_eye[0], free_eye[1], free_eye[2]};
+    invert(inv, shown);
+}
+
 int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv, float *shown) {
+    if (free_on && have >= 2) {
+        invert(game_views[0], prev_inv);
+        invert(game_views[1], latest_inv);
+        free_view(shown);
+        return 1;
+    }
     if ((!active && !orbiting) || have < 2 || sens < 0)
         return 0;
     invert(game_views[0], prev_inv);

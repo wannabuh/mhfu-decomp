@@ -2891,6 +2891,12 @@ uint32_t gpu_render_frame(float t) {
     }
     camera_frames_late(frames_late);
     native_camera = camera_views(t, interpolate, prev_inv, latest_inv, shown_view);
+    {
+        int camera_free_on(void);
+        void camera_note_shown(const float *v);
+        if (native_camera && !camera_free_on())
+            camera_note_shown(shown_view);
+    }
     /* (matched for the motion blur too, at the frame's end) */
     int *m = interpolate || (matched_frames && native_camera && render_motion_wanted()) ? match(native_camera) : NULL;
     stale_known = m && native_camera;
@@ -2902,6 +2908,11 @@ uint32_t gpu_render_frame(float t) {
     for (int i = 0; i < latest->n; i++) {
         const Draw *prev = m && m[i] >= 0 ? &previous->draws[m[i]] : NULL;
         const Draw *d = &latest->draws[i];
+        {
+            int camera_free_hud_off(void);
+            if (camera_free_hud_off() && d->hud)   /* (not all drawn flat: the game's clear of the screen is too) */
+                continue;
+        }
         const TlGroup *g = d->group >= 0 ? &latest->tlg[d->group] : NULL;
         if (g && g->first == i && g->n > 0 && tl_group_ok(d->group, m)) {
             /* the GPU's vertex stage's group: replayed as one */

@@ -1664,6 +1664,11 @@ int inspect_rects(float x0, float y0, float scale, HintRect *out, int max);
 int hit_view_rects(float x0, float y0, float scale, HintRect *out, int max);
 #define MAX_HINT_RECTS 16384
 static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
+    {
+        int camera_free_hud_off(void);      /* (a picture with nothing over it) */
+        if (camera_free_hud_off())
+            return;
+    }
     static HintRect rects[MAX_HINT_RECTS];
     static VkClearRect by_color[MAX_HINT_RECTS];
     float x0, y0, vw, vh;

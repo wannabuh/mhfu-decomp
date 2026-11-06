@@ -23,6 +23,11 @@
 #include <string.h>
 #include <sys/stat.h>
 #include "stall.h"
+
+int camera_free_on(void);
+void camera_free_move(float dx, float dy, float right, float up, float front);
+void camera_free_end(void);
+void window_free_keys(float *right, float *up, float *front);
 #include <time.h>
 #include <unistd.h>
 
@@ -1011,6 +1016,11 @@ void present_frame(void) {
         if (!overlay_open()) {          /* (held: the mouse moved meanwhile isn't the camera's when the game goes on) */
             float dx, dy;
             window_mouse(&dx, &dy);
+            if (camera_free_on()) {
+                float right, up, front;
+                window_free_keys(&right, &up, &front);
+                camera_free_move(dx, dy, right * 0.016f, up * 0.016f, front * 0.016f);
+            }
         }
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
         if (render_on && shown && capture_wants_shot())
@@ -1023,6 +1033,7 @@ void present_frame(void) {
     {
         void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
         gpu_view_end();
+        camera_free_end();
     }
     /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
      * taken again as the game reads them: present_input_read) */

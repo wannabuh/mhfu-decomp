@@ -148,6 +148,20 @@ int window_pointer_clicks(void) {
     return n;
 }
 
+static int enabled(void);
+
+/* The free camera's keys: how fast along each way (units a second) */
+void window_free_keys(float *right, float *up, float *front) {
+    *right = *up = *front = 0;
+    if (!enabled())
+        return;
+    const bool *k = SDL_GetKeyboardState(NULL);
+    float speed = k[SDL_SCANCODE_LSHIFT] || k[SDL_SCANCODE_RSHIFT] ? 2400.0f : 600.0f;
+    *right = speed * ((float)k[SDL_SCANCODE_D] - (float)k[SDL_SCANCODE_A]);
+    *up = speed * ((float)k[SDL_SCANCODE_E] - (float)k[SDL_SCANCODE_Q]);
+    *front = speed * ((float)k[SDL_SCANCODE_W] - (float)k[SDL_SCANCODE_S]);
+}
+
 void window_mouse_peek(float *dx, float *dy) {
     *dx = mouse_dx;
     *dy = mouse_dy;
@@ -332,6 +346,10 @@ int window_poll(void) {
             inspect_step();
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_COMMA)
             inspect_back();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_C && !e.key.repeat)
+            inspect_free_camera();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_H && !e.key.repeat)
+            inspect_free_hud();
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F12 && !e.key.repeat) {
             if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
                 window_note("the hit overlay needs the Vulkan renderer");

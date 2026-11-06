@@ -51,7 +51,13 @@ static uint64_t last_request;
 int inspect_open(void) { return open; }
 static int step_due;                /* ticks to let through while held (the . key) */
 static long test_step_every, test_steps_left, test_step_count, test_back_passes, test_back_at;
+int camera_free_hud_off(void);
 static int test_back_by;
+void inspect_free_camera(void);
+void inspect_free_hud(void);
+static float test_free[6];              /* MHFU_TEST_FREECAM=passes,right,up,front,yaw,pitch (degrees): and a capture */
+static long test_free_passes;
+void camera_free_move(float dx, float dy, float right, float up, float front);
 int gpu_view_move(int by);
 int gpu_view_back(void);
 int gpu_view_kept(void);
@@ -59,6 +65,15 @@ int gpu_view_kept(void);
 int inspect_paused(void) {
     if (test_pause_left > 0 && --test_pause_left == 0)
         paused = 0;
+    if (paused && test_free[0] && ++test_free_passes == (long)test_free[0]) {
+        inspect_free_camera();
+        camera_free_move(test_free[4] / 0.15f, test_free[5] / 0.15f, test_free[1], test_free[2], test_free[3]);
+        inspect_free_hud();
+    }
+    if (paused && test_free[0] && test_free_passes == (long)test_free[0] + 10) {
+        test_free_passes++;
+        capture_request();
+    }
     if (paused && test_back_at && ++test_back_passes == test_back_at) {
         for (int i = 0; i < test_back_by; i++)
             inspect_back();
@@ -95,6 +110,23 @@ void inspect_step(void) {
         gpu_pick_request();
     } else
         step_due = 1;
+}
+
+int camera_free_on(void);
+void camera_free_toggle(void);
+void camera_free_hud_toggle(void);
+void camera_free_move(float dx, float dy, float right, float up, float front);
+
+void inspect_free_camera(void) {
+    if (!paused)
+        return;
+    camera_free_toggle();
+    window_note(camera_free_on() ? "free camera: mouse, w a s d, q e, shift faster, h hud, c back" : "the game's camera");
+}
+
+void inspect_free_hud(void) {
+    if (paused)
+        camera_free_hud_toggle();
 }
 
 void inspect_back(void) {
@@ -234,6 +266,9 @@ void inspect_tick(unsigned long frame) {
         e = getenv("MHFU_TEST_BACK");       /* passes,by: held, that far back after so many passes, and a capture */
         if (e)
             sscanf(e, "%ld,%d", &test_back_at, &test_back_by);
+        e = getenv("MHFU_TEST_FREECAM");
+        if (e)
+            sscanf(e, "%f,%f,%f,%f,%f,%f", &test_free[0], &test_free[1], &test_free[2], &test_free[3], &test_free[4], &test_free[5]);
         e = getenv("MHFU_TEST_STEP");       /* every,count: a tick let through every that many passes, while held */
         if (e)
             sscanf(e, "%ld,%ld", &test_step_every, &test_steps_left);
@@ -329,11 +364,13 @@ int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
             return 0;
         /* (held without the inspector: only a mark that it is) */
         int d = (int)(scale / 2) < 1 ? 1 : (int)(scale / 2);
-        char line[64];
+        char line[80];
+        if (camera_free_hud_off())
+            return 0;
         if (gpu_view_back())
             snprintf(line, sizeof line, "HELD %lu, %d BACK  F8 RUN  , . MOVE  F6 CAPTURE", present_frame_number(), gpu_view_back());
         else
-            snprintf(line, sizeof line, "HELD %lu  F8 RUN  , BACK  . STEP  F6 CAPTURE", present_frame_number());
+            snprintf(line, sizeof line, "HELD %lu  F8 RUN  , BACK  . STEP  C CAMERA  F6 CAPTURE", present_frame_number());
         int w = pen_text_width(line) + 6;
         Pen m = {out, 0, max, d, (int)(x0 + 240 * scale) - w * d / 2, (int)y0 + 3 * d};
         pen_box(&m, 0, 0, w, 13, C_INK);

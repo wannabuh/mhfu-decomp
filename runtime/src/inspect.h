@@ -9,6 +9,8 @@ int inspect_open(void);
 void inspect_toggle(void);
 void inspect_toggle_pause(void);
 void inspect_step(void);                /* held: forward a frame shown, or one tick on (the . key) */
+void inspect_free_camera(void);         /* held: the free camera on or off (the C key) */
+void inspect_free_hud(void);            /* its HUD (the H key) */
 void inspect_back(void);                /* held: back a frame shown (the , key; MHFU_FRAME_HISTORY) */
 int inspect_held(void);                 /* held now, with no side effects */
 int inspect_paused(void);               /* present.c: hold the game, as the controls screen does */
