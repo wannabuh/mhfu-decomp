@@ -1838,6 +1838,8 @@ static int to_rotation(const float *m, float *q, float *s) {
     return 1;
 }
 
+static int joint_fix = 1;               /* MHFU_JOINT_FIX=0: bones turned between ticks each its own way (seam_settings) */
+
 /* Between two placements (3 x 4, by columns): turning by the shortest way, their scales and translations lerped -
  * lerped as they are, a half turn would pass through a matrix that flattens what it places. Matrices that are not
  * rotations and scales (or mirror differently) are lerped as they are. */
@@ -1883,6 +1885,21 @@ static void interp43(float *out, const float *a, const float *b, float t) {
     lerp(&out[9], &a[9], &b[9], 3, t);
 }
 
+/* A bone's place in its model, between. Lerped as it is: two bones that meet at a vertex at both ends meet there all the
+ * way (the same vertex can be given to two bones, as at a tail's joint; turned and moved apart, as interp43, they part,
+ * by up to some units). It shrinks by 1 - cos(angle / 2) at most: a turn of 45 degrees in a step, 8%; further, turned. */
+static void interp43_joined(float *out, const float *a, const float *b, float t) {
+    float most = 0, change = 0;
+    for (int i = 0; i < 9; i++) {
+        most = fmaxf(most, fabsf(a[i]));
+        change = fmaxf(change, fabsf(b[i] - a[i]));
+    }
+    if (joint_fix && change <= 0.75f * most)
+        lerp(out, a, b, 12, t);
+    else
+        interp43(out, a, b, t);
+}
+
 static void compose43(const float *a, const float *b, float *out);
 
 /* The inverse of a 3 x 4 placement; 0 if it has none */
@@ -1916,7 +1933,7 @@ static void interp_bones(float *out, const float *a, const float *b, int n, floa
         float la[12], lb[12], l[12];
         compose43(ia, a + 12 * k, la);
         compose43(ib, b + 12 * k, lb);
-        interp43(l, la, lb, t);
+        interp43_joined(l, la, lb, t);
         compose43(first, l, out + 12 * k);
     }
     memcpy(out, first, sizeof first);
@@ -1946,7 +1963,13 @@ static void seam_settings(void) {
     if (seam_fix < 0) {
         seam_fix = !getenv("MHFU_SEAM_FIX") || atoi(getenv("MHFU_SEAM_FIX")) != 0;
         seam_stats = getenv("MHFU_SEAM_STATS") != NULL;
+        joint_fix = !getenv("MHFU_JOINT_FIX") || atoi(getenv("MHFU_JOINT_FIX")) != 0;
     }
+}
+
+static int seam_on(void) {
+    seam_settings();
+    return seam_fix;
 }
 
 static uint64_t bone_hash(const float *a) {
@@ -2068,7 +2091,7 @@ static void interp_model(ModelSet *set, float *world_out, float *bones_out, cons
             float la[12], lb[12], l[12];
             compose43(mo->ia, ca + 12 * k, la);
             compose43(mo->ib, cb + 12 * k, lb);
-            interp43(l, la, lb, t);
+            interp43_joined(l, la, lb, t);
             compose43(mo->first, l, bones_out + 12 * k);
         }
     } else
@@ -3069,6 +3092,28 @@ static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const floa
     return best;
 }
 
+/* As find, for a skinned draw it can't place by its first bone (a tail's can go further than the reach in a 30th): by the
+ * place of the object it is part of, which goes less far. Of the draws with its key the nearest not taken, or -1 */
+static int find_object(Placings *r, uint8_t *taken, uint64_t key, const float *w) {
+    if (!r->nslots)
+        return -1;
+    const float reach = MATCH_DISTANCE_WORLD * MATCH_DISTANCE_WORLD;
+    const Slot *s = &r->slots[slot_of(r, key)];
+    int best = -1;
+    float best_d = reach;
+    for (int j = s->start; j < s->start + s->count && j < s->start + 256; j++) {
+        int i = r->order[j];
+        float dd = dist2(&w[9], &r->p[i].w[9]);
+        if (!taken[i] && r->p[i].nb && dd <= best_d) {
+            best_d = dd;
+            best = i;
+        }
+    }
+    if (best >= 0)
+        taken[best] = 1;
+    return best;
+}
+
 /* (the slot of a key that has one, counts or not: placings_done) */
 static int slot_of_filled(const Placings *f, uint64_t key) {
     int mask = f->nslots - 1, s = (int)((key ^ key >> 29) * 0x9E3779B97F4A7C15ull >> 40) & mask;
@@ -3161,7 +3206,11 @@ static int *b_to_a(void) {
         int next = 0;
         uint8_t *taken = calloc((size_t)(nat_a->n ? nat_a->n : 1), 1);
         for (int i = 0; i < nat_b->n; i++)
+        {
             nat_b->ba[i] = find(nat_a, &next, taken, nat_b->keys[i], nat_b->pos[i]);
+            if (nat_b->ba[i] < 0 && nat_b->p[i].nb && seam_on())
+                nat_b->ba[i] = find_object(nat_a, taken, nat_b->keys[i], nat_b->p[i].w);
+        }
         free(taken);
         nat_b->ba_known = 1;
     }
@@ -3278,6 +3327,8 @@ static void native_place(uint64_t key) {
     float t = 1;
     Placings *ref = f->is30 ? nat_p : nat_b;
     int j = ref && ref->cams ? find(ref, &ref->next, ref->taken, key, f->pos[qi]) : -1;
+    if (j < 0 && q->nb && ref && ref->cams && seam_on())
+        j = find_object(ref, ref->taken, key, q->w);
     q->match = j;
     if (j >= 0 && !f->is30) {
         q->slow = (int8_t)same_place(q, &ref->p[j]);

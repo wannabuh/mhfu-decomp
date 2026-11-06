@@ -92,6 +92,8 @@ appear ~1500 times in its code and data, 1/30 ten times: no central time step. S
 interpolation - the game's frames recorded, frames in between drawn with their matrices interpolated - and a native 60
 would mean finding and rescaling every system that counts ticks.
 
+**Monsters' joints between ticks** (`gpu.c`): a draw whose first bone goes further than the reach in a 30th (a tail swung) was left unmatched and shown at once, the rest of the model a 30th behind, up to 79 units apart: such a draw is matched by its object's place too (`find_object`; `MHFU_SEAM_FIX=0`). A vertex can be given to two bones that meet there at each tick; turned apart between ticks they part, so a bone's place in its model is lerped as it is, up to 45 degrees a step (`interp43_joined`; `MHFU_JOINT_FIX=0`). Measure in a capture: the same model position should come out at the same place in `frame-0.txt`. Still apart: draws with a key the frame before didn't have (a Velociprey's, running, for a moment).
+
 `MHFU_FPS=N` (Vulkan) shows N frames a second: each primitive of the game's frame is recorded (registers, matrices,
 texture, a copy of its vertex data) instead of drawn; in the scheduler's idle time the display replays the latest
 frame with each primitive's world, bone, view and projection matrices interpolated towards it from the previous
