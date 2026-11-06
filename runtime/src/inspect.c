@@ -61,6 +61,7 @@ void camera_free_move(float dx, float dy, float right, float up, float front);
 int gpu_view_move(int by);
 int gpu_view_back(void);
 int gpu_view_kept(void);
+#define NOT_RECORDED "no frames recorded: needs fps above tick_hz in settings.ini"
 
 int inspect_paused(void) {
     if (test_pause_left > 0 && --test_pause_left == 0)
@@ -120,6 +121,10 @@ void camera_free_move(float dx, float dy, float right, float up, float front);
 void inspect_free_camera(void) {
     if (!paused)
         return;
+    if (gpu_view_kept() < 0) {          /* (nothing recorded to draw again from elsewhere) */
+        window_note(NOT_RECORDED);
+        return;
+    }
     camera_free_toggle();
     window_note(camera_free_on() ? "free camera: mouse, w a s d, q e, shift faster, h hud, c back" : "the game's camera");
 }
@@ -136,7 +141,8 @@ void inspect_back(void) {
     }
     int was = gpu_view_back();
     if (gpu_view_move(1) == was)        /* (nothing else on the screen says why it didn't move) */
-        window_note(gpu_view_kept() ? "no earlier frame kept" : "frame_history = 0 in settings.ini: no frames kept");
+        window_note(gpu_view_kept() < 0 ? NOT_RECORDED :
+                    gpu_view_kept() ? "no earlier frame kept" : "frame_history = 0 in settings.ini: no frames kept");
     gpu_pick_request();
 }
 
@@ -370,7 +376,8 @@ int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
         if (gpu_view_back())
             snprintf(line, sizeof line, "HELD %lu, %d BACK  F8 RUN  , . MOVE  F6 CAPTURE", present_frame_number(), gpu_view_back());
         else
-            snprintf(line, sizeof line, "HELD %lu  F8 RUN  , BACK  . STEP  C CAMERA  F6 CAPTURE", present_frame_number());
+            snprintf(line, sizeof line, gpu_view_kept() < 0 ? "HELD %lu  F8 RUN  . STEP  F6 CAPTURE" :
+                     "HELD %lu  F8 RUN  , BACK  . STEP  C CAMERA  F6 CAPTURE", present_frame_number());
         int w = pen_text_width(line) + 6;
         Pen m = {out, 0, max, d, (int)(x0 + 240 * scale) - w * d / 2, (int)y0 + 3 * d};
         pen_box(&m, 0, 0, w, 13, C_INK);

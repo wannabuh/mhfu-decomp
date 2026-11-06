@@ -1735,7 +1735,8 @@ void gpu_view_end(void) {
 }
 
 int gpu_view_back(void) { return view_back; }
-int gpu_view_kept(void) { return history_cap > 0; }
+/* Frames kept to go back through; 0 with frame_history = 0; -1 with no frames recorded at all (no frame rate of its own: fps not above tick_hz) */
+int gpu_view_kept(void) { return history_cap; }
 
 /* MHFU_BONE_LOG=file,from,to: between those game frames, each tick's skinned draws: the model's vertices (the key), its first and last
  * bones' places: how poses move from tick to tick, as the renderer gets them (repeats, steps) */
