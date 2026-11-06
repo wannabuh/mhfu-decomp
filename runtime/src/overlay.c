@@ -1,6 +1,6 @@
 /* The controls screen (F1): the actions and the inputs bound to them, the keyboard and mouse's or the gamepad's, to
  * bind again - drawn by the runtime over the picture (render.c, as the button hints are: glyphs.c), the game paused
- * while it is open (present.c). What is changed applies at once; closing the screen saves it to controls.ini.
+ * while it is screen_open (present.c). What is changed applies at once; closing the screen saves it to controls.ini.
  *
  * With the keyboard: up and down (page up, page down) choose a row, Tab or left and right the set (left and right
  * change a setting's value), Enter binds the row's action to the next input pressed (in place of its inputs; + or
@@ -24,7 +24,7 @@ enum { O_SPEED, O_DEADZONE, O_INVERT };
 enum { B_DEFAULTS, B_UNDO, B_CLOSE };
 typedef struct { int kind, which; } Row;
 
-static int open, set;                   /* set: 0 the keyboard and mouse, 1 the gamepad */
+static int screen_open, set;                   /* set: 0 the keyboard and mouse, 1 the gamepad */
 static int row, top;                    /* the row chosen; the first shown */
 static int awaiting, adding;            /* an input awaited for the row (added, not in place of its inputs) */
 static uint64_t awaiting_since;
@@ -57,20 +57,20 @@ static void build_rows(void) {
         row = nrows - 1;
 }
 
-int overlay_open(void) { return open; }
+int overlay_open(void) { return screen_open; }
 
 static void close_screen(void) {
-    open = awaiting = 0;
+    screen_open = awaiting = 0;
     controls_save();
     window_overlay_mode(0);
 }
 
 void overlay_toggle(void) {
-    if (open) {
+    if (screen_open) {
         close_screen();
         return;
     }
-    open = 1;
+    screen_open = 1;
     awaiting = 0;
     set = controls_device();
     row = top = 0;
@@ -138,7 +138,7 @@ int window_point(float wx, float wy, float *x, float *y);
 
 /* An event from the window while the screen is open: 1 if taken */
 int overlay_event(const SDL_Event *e) {
-    if (!open)
+    if (!screen_open)
         return 0;
     if (awaiting) {
         if (e->type == SDL_EVENT_KEY_DOWN && !e->key.repeat) {
@@ -301,7 +301,7 @@ int overlay_rects(float x0, float y0, float scale, HintRect *out, int max) {
             scroll_to_row();
         }
     }
-    if (!open && !test)
+    if (!screen_open && !test)
         return 0;
     int dot = (int)scale < 1 ? 1 : (int)scale;
 #define PX(v) ((int)(x0 + (float)(v) * scale))

@@ -17,13 +17,37 @@ TRACE_HOOK ?=
 HAND_FLAGS ?=
 HAND_LDFLAGS ?=
 
-RUNTIME_SRC := $(filter-out runtime/src/main.c,$(wildcard runtime/src/*.c))
-RUNTIME_OBJ := $(patsubst runtime/src/%.c,build/runtime/%.o,$(RUNTIME_SRC))
+# Windows: `make WINDOWS=1` gives build/win/mhfu.exe beside the Linux build (docs/windows.md). WINROOT holds the libraries
+# when cross-compiling; WINCC is the compiler.
+O := build
+EXE :=
+PLATFORM_OUT := build/mhfu build/difftest
+RUNTIME_SKIP := runtime/src/main.c
+AR := ar
+ifdef WINDOWS
+WINCC ?= x86_64-w64-mingw32-clang
+CC := $(WINCC)
+AR := llvm-ar
+O := build/win
+EXE := .exe
+PLATFORM_OUT := $(O)/mhfu.exe
+RUNTIME_SKIP += runtime/src/stall.c
+CFLAGS += -D_FILE_OFFSET_BITS=64 -Iruntime/win -include runtime/win/win_compat.h $(if $(WINROOT),-I$(WINROOT)/include)
+GENFLAGS := $(CFLAGS) -w
+LDFLAGS := $(if $(WINROOT),-L$(WINROOT)/lib)
+LIBS := -lm -lpng -lz -lSDL3 -lvulkan-1 -lavcodec -lavutil -lwinmm -Wl,-Bstatic -lwinpthread -Wl,-Bdynamic
+endif
+
+RUNTIME_SRC := $(filter-out $(RUNTIME_SKIP),$(wildcard runtime/src/*.c))
+RUNTIME_OBJ := $(patsubst runtime/src/%.c,$(O)/runtime/%.o,$(RUNTIME_SRC))
 # Game code rewritten by hand, readably (recomp/patches.py HAND)
 HAND_SRC := $(wildcard readable/*.c)
-RUNTIME_OBJ += $(patsubst readable/%.c,build/hand/%.o,$(HAND_SRC))
+RUNTIME_OBJ += $(patsubst readable/%.c,$(O)/hand/%.o,$(HAND_SRC))
+ifdef WINDOWS
+RUNTIME_OBJ += $(O)/runtime/win_compat.o
+endif
 
-all: build/mhfu build/difftest
+all: $(PLATFORM_OUT)
 
 # Generate the C (one stamp for the whole set of files), then compile each file
 build/gen/.stamp: recomp/recomp.py recomp/patches.py tools/modules.py game/analysis/functions.json \
@@ -32,9 +56,9 @@ build/gen/.stamp: recomp/recomp.py recomp/patches.py tools/modules.py game/analy
 	touch $@
 
 GEN_C = $(wildcard build/gen/*.c)
-GEN_OBJ = $(patsubst build/gen/%.c,build/obj/%.o,$(GEN_C))
+GEN_OBJ = $(patsubst build/gen/%.c,$(O)/obj/%.o,$(GEN_C))
 
-build/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
+$(O)/obj/%.o: build/gen/%.c build/gen/.stamp runtime/include/recomp.h
 	@mkdir -p $(@D)
 	@$(CC) $(GENFLAGS) -c $< -o $@
 
@@ -47,7 +71,11 @@ build/shaders/%.inc: runtime/shaders/% $(wildcard runtime/shaders/*.glsl runtime
 	$(GLSLC) --target-env=vulkan1.3 -O -mfmt=c $< -o $@.tmp
 	printf 'static const uint32_t %s[] = \n' $(subst .,_,$*) > $@ && cat $@.tmp >> $@ && printf ';\n' >> $@ && rm $@.tmp
 
-build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.h) runtime/src/nids.inc runtime/include/recomp.h \
+$(O)/runtime/win_compat.o: runtime/win/win_compat.c $(wildcard runtime/win/*.h runtime/win/sys/*.h)
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -Wall -Wextra -c $< -o $@
+
+$(O)/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.h) runtime/src/nids.inc runtime/include/recomp.h \
                    build/gen/.stamp $(SHADERS)
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(RUNTIME_OPT) -Wall -Wextra -Wno-missing-field-initializers -c $< -o $@
@@ -66,27 +94,27 @@ build/gen/git_commit.h: FORCE
 	@printf '#define MHFU_GIT_COMMIT "%s"\n' "$$(git describe --always --dirty --abbrev=12 2>/dev/null || echo unknown)" > $@.tmp
 	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
 
-build/runtime/objects.o: build/gen/class_table.h
-build/runtime/capture.o: build/gen/git_commit.h
+$(O)/runtime/objects.o: build/gen/class_table.h
+$(O)/runtime/capture.o: build/gen/git_commit.h
 
 FORCE:
 
-build/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
+$(O)/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) $(HAND_FLAGS) -Ireadable -Wall -Wextra -c $< -o $@
 
-build/game.a: build/gen/.stamp
+$(O)/game.a: build/gen/.stamp
 	@$(MAKE) --no-print-directory $(GEN_OBJ)
-	@rm -f $@ && ar rcs $@ $(GEN_OBJ)
+	@rm -f $@ && $(AR) rcs $@ $(GEN_OBJ)
 
-build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) build/game.a
-	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(TRACE_HOOK) $(LIBS) -o $@
+build/difftest: runtime/test/difftest.c $(RUNTIME_OBJ) $(O)/game.a
+	$(CC) $(CFLAGS) $(LDFLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) $(O)/game.a $(TRACE_HOOK) $(LIBS) -o $@
 
-build/mhfu: build/runtime/main.o $(RUNTIME_OBJ) build/game.a
+$(O)/mhfu$(EXE): $(O)/runtime/main.o $(RUNTIME_OBJ) $(O)/game.a
 	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $^ $(TRACE_HOOK) $(LIBS) -o $@
 
-build/handtest: runtime/test/handtest.c $(RUNTIME_OBJ) build/game.a build/gen/mhfu_types.h
-	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $(HAND_FLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) build/game.a $(TRACE_HOOK) $(LIBS) -o $@
+build/handtest: runtime/test/handtest.c $(RUNTIME_OBJ) $(O)/game.a build/gen/mhfu_types.h
+	$(CC) $(CFLAGS) $(LDFLAGS) $(HAND_LDFLAGS) $(HAND_FLAGS) -Wall -Wextra $< $(RUNTIME_OBJ) $(O)/game.a $(TRACE_HOOK) $(LIBS) -o $@
 
 build/vfputest: runtime/test/vfputest.c build/runtime/vfpu.o build/runtime/memory.o build/runtime/dispatch.o build/runtime/cpu.o
 	$(CC) $(CFLAGS) -Wall -Wextra $^ -o $@ -Wl,--unresolved-symbols=ignore-all -lm

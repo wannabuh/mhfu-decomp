@@ -19,7 +19,9 @@
 #include "hle.h"
 #include "render_queue.h"
 
+#ifndef _WIN32
 #include <elf.h>
+#endif
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -76,6 +78,14 @@ void *st_malloc(size_t size) {
             rt_fatal(NULL, "out of the save states' arena");
         b = arena + arena_top;
         arena_top += bytes;
+#ifdef _WIN32
+        static size_t committed;
+        while (committed < arena_top) {
+            if (win_commit(arena + committed, 1u << 20))
+                rt_fatal(NULL, "out of memory");
+            committed += 1u << 20;
+        }
+#endif
     }
     *(uint32_t *)b = (uint32_t)c;
     return b + HEADER;
@@ -145,7 +155,11 @@ void st_stacks_reset(void) {
 
 /* -- the SAVED variables, by name ---------------------------------------------------------------------------------- */
 
+#ifdef _WIN32
+static uint8_t __start_mhfu_state[1], __stop_mhfu_state[1];     /* (no states yet: see vars_init) */
+#else
 extern uint8_t __start_mhfu_state[], __stop_mhfu_state[];
+#endif
 
 typedef struct {
     char name[120];                 /* "var:file.c:name"; a global, "var:name" */
@@ -157,6 +171,10 @@ static Var *vars;
 static int nvars;
 static uint8_t *section_at_boot;    /* the section's bytes in the program's file */
 
+#ifdef _WIN32
+/* The saved variables are found by the ELF symbol table, which a Windows program lacks: no states there yet */
+static int vars_init(void) { return 0; }
+#else
 /* From the program's own symbol table, once. A local symbol's file is the last FILE symbol before it. */
 static int vars_init(void) {
     static int done;
@@ -214,6 +232,7 @@ static int vars_init(void) {
     munmap(e, file_size);
     return nvars > 0;
 }
+#endif
 
 /* -- states ------------------------------------------------------------------------------------------------------- */
 

@@ -2,7 +2,7 @@
  * lets one tick through; F6 captures what is shown, the game going on to where its state can be taken, then held again;
  * MHFU_TEST_STEP="every,count" steps for a test; MHFU_TEST_INSPECT="frame,x,y;..." clicks at
  * those PSP pixels, MHFU_TEST_PAUSE="frame,n" holds the game there for n passes). The mouse is let go of, as a pointer,
- * and is not the game's while it is open: keys and the pad still are.
+ * and is not the game's while it is screen_open: keys and the pad still are.
  *
  * A click: the nearest object on the screen, by projecting each object's place (+0x200) with the camera shown (gpu.c: not
  * always the game's: camera.c) and taking the nearest to the click, then the next nearest on another click at the same
@@ -36,7 +36,7 @@ uint64_t wall_time_us(void);
 #define MAX_OBJECTS 2048
 #define MAX_HITS 6
 
-static int open, paused;
+static int screen_open, paused;
 static long test_pause_left;
 static float pointer_x = 240, pointer_y = 136, click_x = -1000, click_y = -1000;
 static uint32_t selected, selected_vtable;
@@ -48,7 +48,7 @@ static float hits_x = -1, hits_y = -1;
 static int write_due;
 static uint64_t last_request;
 
-int inspect_open(void) { return open; }
+int inspect_open(void) { return screen_open; }
 static int step_due;                /* ticks to let through while held (the . key) */
 static long test_step_every, test_steps_left, test_step_count, test_back_passes, test_back_at;
 int camera_free_hud_off(void);
@@ -154,10 +154,10 @@ void inspect_back(void) {
 }
 
 void inspect_toggle(void) {
-    open = !open;
-    gpu_pick_enable(open || hit_view_on);
-    window_inspect_mode(open);
-    if (open) {
+    screen_open = !screen_open;
+    gpu_pick_enable(screen_open || hit_view_on);
+    window_inspect_mode(screen_open);
+    if (screen_open) {
         float wx, wy, x, y;
         if (window_mouse_position(&wx, &wy) && window_point(wx, wy, &x, &y))
             pointer_x = x, pointer_y = y;
@@ -235,7 +235,7 @@ static void click(float x, float y) {
 }
 
 int inspect_event(const SDL_Event *e) {
-    if (!open)
+    if (!screen_open)
         return 0;
     float x, y;
     switch (e->type) {
@@ -291,17 +291,17 @@ void inspect_tick(unsigned long frame) {
     }
     for (int i = 0; i < ntest; i++)
         if (test[i].frame == frame) {
-            if (!open)
+            if (!screen_open)
                 inspect_toggle();
             click(test[i].x, test[i].y);
         }
     if (pause_for && frame == pause_at) {
-        if (!open && !getenv("MHFU_TEST_PAUSE_PLAIN"))
+        if (!screen_open && !getenv("MHFU_TEST_PAUSE_PLAIN"))
             inspect_toggle();
         paused = 1;
         test_pause_left = pause_for;
     }
-    if (!open)
+    if (!screen_open)
         return;
     if (click_pending)
         click(pending_x, pending_y);
@@ -372,7 +372,7 @@ void inspect_write(FILE *f) {
 #define LINE 9
 
 int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
-    if (!open) {
+    if (!screen_open) {
         if (!paused)
             return 0;
         /* (held without the inspector: only a mark that it is) */

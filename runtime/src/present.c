@@ -7,9 +7,11 @@
 #define _GNU_SOURCE 1
 #include "ticket.h"
 #include <pthread.h>
+#ifndef _WIN32
 #include <signal.h>
 #include <sys/time.h>
 #include <ucontext.h>
+#endif
 #include "hle.h"
 #include "savestate.h"
 #include "render.h"
@@ -827,6 +829,9 @@ static uint64_t flip_us;     /* (MHFU_FRAME_LOG: of the frame's time, what the r
 
 /* MHFU_PROFILE=<file>,<from>,<to>: where the time goes between two game frames, by a timer's samples of the instruction pointer
  * (of the game's own thread and any other that has the signal), written as addresses for tools/profile.py to name */
+#ifdef _WIN32
+static void profile_frame(unsigned long f) { (void)f; }    /* (MHFU_PROFILE: by a signal, which Windows lacks) */
+#else
 #define PROFILE_SAMPLES (1 << 21)
 static uint64_t *profile_at;
 static volatile int profile_n;
@@ -882,6 +887,7 @@ static void profile_frame(unsigned long f) {
         state = 0;
     }
 }
+#endif
 
 void present_frame(void) {
     glyphs_frame_end();             /* (the button hints drawn in this frame: those shown) */
