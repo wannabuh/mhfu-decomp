@@ -1610,6 +1610,8 @@ void gpu_frame_tick(void) {
 }
 
 static void tl_send(Frame *f);
+unsigned long present_frame_number(void);
+#define gpu_bone_log_frame present_frame_number
 
 /* -- going back while held -----------------------------------------------------------------------------------------------
  * MHFU_FRAME_HISTORY=n (frame_history in settings.ini; 60 by default, 0 for none): the n frames recorded before those two kept, by
@@ -1685,8 +1687,35 @@ void gpu_view_end(void) {
 int gpu_view_back(void) { return view_back; }
 int gpu_view_kept(void) { return history_cap > 0; }
 
+/* MHFU_BONE_LOG=file: each tick's skinned draws, the model's vertices (the key) and its first bones: how poses move from tick to
+ * tick, as the renderer gets them (repeats, steps) */
+static int draw_bones(const Draw *d);
+static void bone_log(const Frame *f) {
+    static FILE *log;
+    static int tried;
+    if (!tried) {
+        tried = 1;
+        if (getenv("MHFU_BONE_LOG"))
+            log = fopen(getenv("MHFU_BONE_LOG"), "w");
+    }
+    if (!log)
+        return;
+    fprintf(log, "T %lu\n", gpu_bone_log_frame());
+    for (int i = 0; i < f->n; i++) {
+        const Draw *d = &f->draws[i];
+        int nb = draw_bones(d);
+        if (!nb)
+            continue;
+        fprintf(log, "B %08X %d", d->vaddr, nb);
+        for (int k = 0; k < 12; k++)
+            fprintf(log, " %.4f", (double)d->bones[nb - 1][k]);
+        fputc('\n', log);
+    }
+}
+
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
+    bone_log(rec);
     tl_send(rec);
     Frame *old = previous;
     previous = latest;

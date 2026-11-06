@@ -55,11 +55,14 @@ double rt_game_30ths(void);         /* thread.c: the game's time in 30ths of a s
 
 /* Whether this frame lays the grass's ground (the camera's place noted at its first ask). Once a 30th of a second (a
  * frame of the game's at its own rate): the frames shown between draw the same scenery again */
+void grass_lay_some(void);
+
 int grass_laying(void) {
     static double game_30th = -1;
     static int laying;
     if (grass_frame_no != frame_no) {
         grass_frame_no = frame_no;
+        grass_lay_some();
         laying = floor(rt_game_30ths()) != game_30th;
         game_30th = floor(rt_game_30ths());
         if (laying)
@@ -86,10 +89,16 @@ void grass_scenery(const DrawState *d, const RVertex *a, const RVertex *b, const
         col[i][1] = replace ? 255 : v[i]->g;
         col[i][2] = replace ? 255 : v[i]->b;
     }
-    uint32_t slot = d->tex_slot;
+    grass_ground(p, uv, col, d->tex_slot, (d->flags & DRAW_DOUBLE) != 0);
+}
+
+/* A slot's small copy, for laying ground, as it is now */
+int grass_small_texture(uint32_t slot, const uint32_t **tex, int *w, int *h) {
     int has = slot < MAX_TEXTURES && tex_small[slot];
-    grass_ground(p, uv, col, has ? tex_small[slot] : NULL, has ? tex_small_w[slot] : 0, has ? tex_small_h[slot] : 0,
-                 (d->flags & DRAW_DOUBLE) != 0);
+    *tex = has ? tex_small[slot] : NULL;
+    *w = has ? tex_small_w[slot] : 0;
+    *h = has ? tex_small_h[slot] : 0;
+    return has;
 }
 
 /* The grass, into t (its solid world drawn, with its occlusion) */

@@ -18,6 +18,8 @@
 #include "grass.h"
 
 #include <math.h>
+#include <stdio.h>
+#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -25,6 +27,8 @@
 #define TILE_CELLS 32
 #define TILE (CELL * TILE_CELLS)
 #define BLADES_PER_CELL 8           /* tried at density 1 */
+#define LAY_BUDGET 1500              /* us of the render thread's a frame shown */
+#define LAY_CATCH_UP 16
 #define SETTLE 8                    /* frames without anything new before a tile's blades are made */
 #define SETTLE_FULL 2               /* (nearer than the full density's reach: the field there made at once - a blade
                                      * made before is not grown again when its tile is made again) */
@@ -166,7 +170,11 @@ static float noise(float x, float z, uint32_t salt) {
     return (a + (b - a) * tx) * (1 - tz) + (c + (d - c) * tx) * tz;
 }
 
+static long lay_cells;                  /* (cells gone over: MHFU_GRASS_STATS) */
+static size_t lay_head, lay_n;
+
 static void forget(void) {
+    lay_head = lay_n = 0;
     for (int i = 0; i < ntiles; i++)
         if (tiles[i].slot >= 0)
             slot_used[tiles[i].slot] = 0;
@@ -249,8 +257,33 @@ static int green(int r, int g, int b) {
     return g > 24 && g * 100 >= r * 96 && g * 100 > b * 122;
 }
 
+static void lay_queued(long budget);
+static long lay_budget = -1;
+static int lay_catch_up;                /* frames left of laying at once */
+
+/* Each frame shown: some of what is put off */
+void grass_lay_some(void) {
+    if (lay_head < lay_n)
+        lay_queued(lay_budget);
+}
+
 void grass_frame(const float camera[3], double now) {
     frame++;
+    if (lay_budget < 0) {
+        const char *e = getenv("MHFU_GRASS_LAY");
+        lay_budget = e ? atol(e) : LAY_BUDGET;
+    }
+    if (lay_catch_up)
+        lay_catch_up--;
+    {
+        static int stats = -1;
+        static unsigned long at;
+        if (stats < 0)
+            stats = getenv("MHFU_GRASS_STATS") != NULL;
+        if (stats && ++at % 30 == 0)
+            fprintf(stderr, "grass: at %.1f, eye %.0f %.0f, %ld cells gone over, %zu queued, %d tiles\n", now, camera[0], camera[2], lay_cells,
+                    lay_n - lay_head, ntiles);
+    }
     /* the frames after a gap: their ground mostly new - another zone - all is forgotten. Told by the ground of up to
      * PROBE_FRAMES frames (the first may show little of it, fading in), until enough is seen */
     if (probing) {
@@ -264,6 +297,7 @@ void grass_frame(const float camera[3], double now) {
     if (last_call >= 0 && (fabs(now - last_call) > 0.4 || jump > 1500.0f)) {
         probing = PROBE_FRAMES;
         probe_known = probe_new = 0;
+        lay_catch_up = LAY_CATCH_UP;
     }
     last_call = now;
     memcpy(eye, camera, sizeof eye);
@@ -290,6 +324,7 @@ static int lay(const Ground *G, int cx0, int cx1, int cz0, int cz1) {
     for (int cz = cz0; cz <= cz1; cz++) {
         /* the row's span: where its centre line crosses the triangle's edges */
         float z = ((float)cz + 0.5f) * CELL, lo = 1e30f, hi = -1e30f;
+        lay_cells++;                    /* (a row, even if it misses: it took a look) */
         for (int k = 0; k < 3; k++) {
             const float *a = p[k], *b = p[(k + 1) % 3];
             if ((a[2] <= z && b[2] >= z) || (b[2] <= z && a[2] >= z)) {
@@ -306,6 +341,7 @@ static int lay(const Ground *G, int cx0, int cx1, int cz0, int cz1) {
             rx0 = cx0;
         if (rx1 > cx1)
             rx1 = cx1;
+        lay_cells += 4 + (rx1 >= rx0 ? rx1 - rx0 + 1 : 0);
         for (int cx = rx0; cx <= rx1; cx++) {
                 float x = ((float)cx + 0.5f) * CELL, z = ((float)cz + 0.5f) * CELL;
                 float px = x - p[0][0], pz = z - p[0][2];
@@ -389,10 +425,88 @@ static Laid *laid_at(uint64_t key) {
     return &laid[j];
 }
 
-void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], const uint32_t *tex, int tw,
-                  int th, int doubled) {
+/* Laying is put off, a budget of time a frame shown (MHFU_GRASS_LAY, in us; 0: all at once): a camera bringing new tiles in over a cave's or a
+ * field's big triangles laid hundreds of thousands of cells at once on the render thread, and the game's next frame
+ * waited for it: 25-50 ms, in pairs, about every 30 s of a fight. All at once still while nothing is shown (a replay's
+ * fast forward) and in the frames after a gap, which fade in. A triangle's texture is looked up by its slot when
+ * it's laid, as the texture may be gone by then. */
+typedef struct {
+    float p[3][3], uv[3][2], col[3][3];
+    uint32_t tex_slot;
+    int doubled;
+    float e1[3], e2[3], d;
+    int8_t snx, snz;
+    int cx0, cx1, cz, cz1;              /* (the rows left) */
+} LayLater;
+
+static LayLater *lay_queue;
+static size_t lay_cap;
+int fast_forward(void);
+int grass_small_texture(uint32_t slot, const uint32_t **tex, int *w, int *h);
+
+static void lay_later(const Ground *G, uint32_t slot, int cx0, int cx1, int cz0, int cz1) {
+    if (lay_n == lay_cap) {
+        lay_cap = lay_cap ? lay_cap * 2 : 1024;
+        lay_queue = realloc(lay_queue, sizeof *lay_queue * lay_cap);
+    }
+    LayLater *q = &lay_queue[lay_n++];
+    memcpy(q->p, G->p, sizeof q->p);
+    memcpy(q->uv, G->uv, sizeof q->uv);
+    memcpy(q->col, G->col, sizeof q->col);
+    q->tex_slot = slot;
+    q->doubled = G->doubled;
+    memcpy(q->e1, G->e1, sizeof q->e1);
+    memcpy(q->e2, G->e2, sizeof q->e2);
+    q->d = G->d;
+    q->snx = G->snx;
+    q->snz = G->snz;
+    q->cx0 = cx0;
+    q->cx1 = cx1;
+    q->cz = cz0;
+    q->cz1 = cz1;
+}
+
+static uint64_t lay_clock_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
+}
+
+static void lay_queued(long budget) {
+    uint64_t until = lay_clock_us() + (uint64_t)budget;
+    int more = 1;
+    while (lay_head < lay_n && more) {
+        LayLater *q = &lay_queue[lay_head];
+        Ground G = {q->p, q->uv, q->col, NULL, 0, 0, q->doubled, {0}, {0}, q->d, q->snx, q->snz};
+        memcpy(G.e1, q->e1, sizeof G.e1);
+        memcpy(G.e2, q->e2, sizeof G.e2);
+        grass_small_texture(q->tex_slot, &G.tex, &G.tw, &G.th);
+        int ok = 1;
+        while (ok && q->cz <= q->cz1 && more) {
+            ok = lay(&G, q->cx0, q->cx1, q->cz, q->cz);
+            q->cz++;
+            more = lay_clock_us() < until;
+        }
+        if (!ok || q->cz > q->cz1)      /* (the tiles run out: as when laid at once, none of it more) */
+            lay_head++;
+    }
+    if (lay_head == lay_n)
+        lay_head = lay_n = 0;
+}
+
+static int lay_or_later(const Ground *G, int later, uint32_t slot, int cx0, int cx1, int cz0, int cz1) {
+    if (!later)
+        return lay(G, cx0, cx1, cz0, cz1);
+    lay_later(G, slot, cx0, cx1, cz0, cz1);
+    return 1;
+}
+
+void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][3], uint32_t slot, int doubled) {
     if (density <= 0 || !build_buf)
         return;
+    const uint32_t *tex = NULL;
+    int tw = 0, th = 0;
+    grass_small_texture(slot, &tex, &tw, &th);
     /* facing up, near */
     Ground G = {p, uv, col, tex, tw, th, doubled, {0}, {0}, 0, 0, 0};
     float *e1 = G.e1, *e2 = G.e2, n[3];
@@ -425,6 +539,7 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
         return;
     G.snx = (int8_t)lroundf(n[0] / nl * 127);
     G.snz = (int8_t)lroundf(n[2] / nl * 127);
+    int later = lay_budget > 0 && !lay_catch_up && !probing && !fast_forward();
     int whole = x0 >= eye[0] - reach && x1 <= eye[0] + reach && z0 >= eye[2] - reach && z1 <= eye[2] + reach;
     if (whole) {
         int known = seen_before(p);
@@ -432,7 +547,10 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
             known ? probe_known++ : probe_new++;
         if (known)
             return;
-        lay(&G, (int)floorf(x0 / CELL), (int)floorf(x1 / CELL), (int)floorf(z0 / CELL), (int)floorf(z1 / CELL));
+        if (later)
+            lay_later(&G, slot, (int)floorf(x0 / CELL), (int)floorf(x1 / CELL), (int)floorf(z0 / CELL), (int)floorf(z1 / CELL));
+        else
+            lay(&G, (int)floorf(x0 / CELL), (int)floorf(x1 / CELL), (int)floorf(z0 / CELL), (int)floorf(z1 / CELL));
         return;
     }
     /* one reaching beyond: laid over the tiles about the camera (as far as it reaches), but those it was laid over
@@ -459,14 +577,14 @@ void grass_ground(const float p[3][3], const float uv[3][2], const float col[3][
         int a0 = tx0, a1 = tx1;
         if (in_rows) {                      /* (the columns left of the old box, then right of it) */
             if (a0 < ox0)
-                ok = lay(&G, a0 * TILE_CELLS, (ox0 < a1 + 1 ? ox0 : a1 + 1) * TILE_CELLS - 1, tz * TILE_CELLS,
-                         tz * TILE_CELLS + TILE_CELLS - 1);
+                ok = lay_or_later(&G, later, slot, a0 * TILE_CELLS, (ox0 < a1 + 1 ? ox0 : a1 + 1) * TILE_CELLS - 1, tz * TILE_CELLS,
+                                  tz * TILE_CELLS + TILE_CELLS - 1);
             if (ok && a1 > ox1)
-                ok = lay(&G, (ox1 + 1 > a0 ? ox1 + 1 : a0) * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1,
-                         tz * TILE_CELLS, tz * TILE_CELLS + TILE_CELLS - 1);
+                ok = lay_or_later(&G, later, slot, (ox1 + 1 > a0 ? ox1 + 1 : a0) * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1,
+                                  tz * TILE_CELLS, tz * TILE_CELLS + TILE_CELLS - 1);
         } else {
-            ok = lay(&G, a0 * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1, tz * TILE_CELLS,
-                     tz * TILE_CELLS + TILE_CELLS - 1);
+            ok = lay_or_later(&G, later, slot, a0 * TILE_CELLS, a1 * TILE_CELLS + TILE_CELLS - 1, tz * TILE_CELLS,
+                              tz * TILE_CELLS + TILE_CELLS - 1);
         }
     }
     if (ok) {

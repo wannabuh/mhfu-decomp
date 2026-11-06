@@ -41,6 +41,11 @@ STAMINA = "stamina used or got back so much a game frame: at 30ths"
 # takes next): the speed times the time scale, or a sound or event at frame N comes again each game frame until the
 # frame passes it
 REACHED = "a motion frame reached: within the player's next step (its speed times the time scale)"
+# The pose at a motion's frame (EBOOT 08863198, only from 0885FA0C, which keeps the frame as a float in $f20 and passes it cut to a whole
+# number): above 60 ticks the frame moves by less than one a tick, and the cut made poses repeat, unevenly. The curves are
+# Hermite between keys and take a fractional time (088630D0, 08863668), so the true pose in between. At 60 ticks and below
+# nothing changes: rt_time_scale is 0.5 or more.
+POSE_TIME = "a pose's time above 60 ticks: the motion's frame as it is, not cut to a whole number"
 BLEND = "the motion player: a blend's weight step times the time scale, its count of frames at 30 a second"
 # The hunter in the air (game_task 09A9C530 falling, 09A905F0 and 09A99928 the other leaps and flights: its velocity
 # +0x240 gains its acceleration +0x250 a game frame, its place +0x200 the velocity turned to its facing) - both steps
@@ -399,6 +404,7 @@ def scaled_load(f, base, off):
 
 
 PATCHES = {
+    ("EBOOT", 0x08863220): ("cvt.s.w $f12, $f0", "c->f[12].f = rt_time_scale < 0.49f ? c->f[20].f : (float)c->f[0].i;", POSE_TIME),
     ("EBOOT", 0x088638C0): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),
     ("EBOOT", 0x088638D4): ("lwc1 $f0, 0x14($s1)", scaled_load(0, 17, 0x14), MOTION),
     ("EBOOT", 0x08863978): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),
