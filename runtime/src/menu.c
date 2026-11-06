@@ -24,6 +24,9 @@
  * the arrows either side of a page number or a setting (EBOOT 0882E6F0, rt_menu_arrows) presses left or right. The
  * devices' D-pad wins over the pointer.
  *
+ * The waits below are counted in frames at 60 a second; above that each is that many times longer (menu_unit), as what
+ * reads the buttons runs only every 30th of a second: two frames of cross at 144 are over before it looks.
+ *
  * MHFU_TEST_POINTER="frame,x,y[,click][;frame,x,y[,click]...]": the pointer there (PSP pixels) from the game's frame,
  * clicking if click is 1 (for testing without a window). MHFU_MENU_LOG=1 prints the groups seen. */
 #include "hle.h"
@@ -280,6 +283,13 @@ void menu_input(uint32_t *buttons) {
         fprintf(stderr, "menu: frame %lu, pressed %x\n", present_frame_number(), *buttons & ~before);
 }
 
+/* Frames of the game's that last as long as one at 60 a second, at least (1 up to 60) */
+static int menu_unit(void) {                /* (not rt_time_scale: native.c changes it round what the game reads the pad in) */
+    float rt_frame_30ths(void);
+    float f = rt_frame_30ths();
+    return f < 0.5f ? (int)ceilf(0.5f / f - 0.001f) : 1;
+}
+
 static void menu_step(uint32_t *buttons) {
     static Group menu;                  /* the group in front, as last drawn */
     static int open, absent;
@@ -294,6 +304,8 @@ static void menu_step(uint32_t *buttons) {
     static int jump_tried;              /* the jump was asked for this target (else steps are pressed) */
     static uint32_t tap;                /* an arrow clicked: left or right, pressed for tap_frames more */
     static int tap_frames;
+    static int settled;                 /* (frames the cursor has stayed where it is, a click waiting) */
+    const int unit = menu_unit();
     if (logging < 0)
         logging = getenv("MHFU_MENU_LOG") != NULL;
 
@@ -325,7 +337,7 @@ static void menu_step(uint32_t *buttons) {
             const Rect *r = &menu.item[menu.sel];
             window_pointer_mode(1, (float)r->x + (float)r->w / 2, (float)r->y + (float)r->h / 2);
         }
-    } else if (open && ++absent > 15) {     /* (a menu can go a few frames without being drawn, between screens) */
+    } else if (open && ++absent > 15 * unit) {     /* (a menu can go a few frames without being drawn, between screens) */
         open = 0;
         window_pointer_mode(0, 0, 0);
     }
@@ -341,7 +353,7 @@ static void menu_step(uint32_t *buttons) {
                 Rect r = {a->x - 3, a->y - 3, a->w + 6, a->h + 6};
                 if (inside(&r, x, y)) {
                     tap = k ? PSP_RIGHT : PSP_LEFT;
-                    tap_frames = 2;
+                    tap_frames = 2 * unit;
                     going = click = pressing = undo = 0;
                     break;
                 }
@@ -369,19 +381,20 @@ static void menu_step(uint32_t *buttons) {
     if (tap_frames > 0) {
         tap_frames--;
         *buttons |= tap;
-        rest = 1;
+        rest = unit;
         return;
     }
 
     if (confirm > 0) {                  /* cross, held for two frames once the cursor has settled (its slide done) */
-        if (confirm > 2 && have) {
+        if (confirm > 2 * unit && have) {
             const Rect *c = &menu.item[menu.sel];
             int still = c->x == settle.x && c->y == settle.y && c->w == settle.w && c->h == settle.h;
             settle = *c;
-            confirm = still ? 1 : confirm - 1;
+            settled = still ? settled + 1 : 0;  /* (above 60 a second, for a 30th: it may slide only at those) */
+            confirm = settled >= (unit > 1 ? 2 * unit : 1) ? 2 * unit - 1 : confirm - 1;
         } else
             confirm--;
-        if (confirm < 2)
+        if (confirm < 2 * unit)
             *buttons |= PSP_CROSS;
         return;
     }
@@ -391,12 +404,12 @@ static void menu_step(uint32_t *buttons) {
     if (pressing) {
         /* held until the cursor moves (or the game has had time to move it), then let go */
         int still = cur->x == press_rect.x && cur->y == press_rect.y && menu.sel == press_sel;
-        if (still && ++press_frames < 6) {
+        if (still && ++press_frames < 6 * unit) {
             *buttons |= press_button;
             return;
         }
         pressing = 0;
-        rest = 1;
+        rest = unit;
         if (going && distance(&menu, target, tx, ty) >= press_from) {
             going = click = 0;          /* no nearer: the list ends or wraps there */
             undo = !still;              /* (wrapped: back where it was) */
@@ -424,12 +437,12 @@ static void menu_step(uint32_t *buttons) {
             sound_due = menu.sound;
             moved_here = 1;
             jump.done = 1;
-            jump.wait = 3;
+            jump.wait = 3 * unit;
             return;
         }
-        if (routine.frame + 2 >= present_frame_number() && routine.rows == menu.n) {
+        if (routine.frame + 2 * unit >= present_frame_number() && routine.rows == menu.n) {
             moved_here = 1;
-            jump.wait = 2;
+            jump.wait = 2 * unit;
             return;
         }                               /* (else stepped there) */
     }
@@ -453,7 +466,8 @@ static void menu_step(uint32_t *buttons) {
         going = 0;
         if (click) {
             click = 0;
-            confirm = moved_here ? 8 : 2;
+            confirm = (moved_here ? 8 : 2) * unit;
+            settled = 0;
             settle = *cur;
         }
     }
