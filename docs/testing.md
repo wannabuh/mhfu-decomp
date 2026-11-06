@@ -9,6 +9,8 @@ the repository: the game's and the player's).
     tools/suite.py --only sprint,climb    # by name or tag
     tools/suite.py --bless      # this run's results kept as the baselines
     tools/suite.py --keep       # the traces kept (tests/data/runs/<date>/<scenario>/r30/trace ...)
+    python3 tools/suite.py --pictures-only   # the picture check alone, about 3 minutes (needs numpy and PIL: not in tools/.venv)
+    python3 tools/suite.py --pictures-only --bless-pictures    # after a change to the picture that's meant
     tools/suite.py --list
 
 It exits 1 if anything failed or changed, and writes `tests/data/runs/<date>/report.md` (and `report.json`). A full
@@ -138,3 +140,7 @@ quest keeps its large monsters' areas was not found: they are made only when the
 - **camp**: a stop after a sprint ends half a 30th apart, the next stick press on either side of it - `until`.
 - **state** (fixed in the test): after a load the renderer's scratch below the game's memory (`gpu.c`
   SCRATCH_VERTICES, `0x08000000`) differed for a few frames - not the game's state; left out.
+
+## The picture check
+
+`--pictures` adds a run per scenario as the game is played (tick 60, 144 fps, TAA off, 3 times the PSP's resolution), writing frames at 50, 70, 85 and 97% of the recording (`pictures = [...]` in a scenario for others; `MHFU_PICTURES=frame,frame,...` in the runtime), each whole and half way between ticks, against `tests/data/pictures-vulkan/<scenario>`, not in the repository (the game's). The same replay gives the same pixels: 168 of 168 exact from one run to the next, across 21 scenarios, so a difference is a change. More than 0.05% of pixels differing by over 8 fails, and before, now and what differs go side by side in the run's `<scenario>/picture-diffs`. Checked that it can fail: `MHFU_SHADOWS=0` fails every scenario tried. It catches what changes on those frames, not what would only show on others, and it can't tell a fix from a fault: look at the side-by-side, then bless. The pictures depend on the GPU's driver, so a driver update may mean blessing again.

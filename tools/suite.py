@@ -8,13 +8,16 @@ Checks, as each scenario asks:
             twice as fast or covers more ground at 60;
   baseline  the game's RAM hashed every 10 seconds of game time, and the hunter's actions in order, at 30 and at 60,
             against those kept (--bless keeps this run's): where a run first changed;
-  state     a save state at 60 saved and loaded (MHFU_STATE_TEST): every frame the same after the load.
+  state     a save state at 60 saved and loaded (MHFU_STATE_TEST): every frame the same after the load;
+  picture   (--pictures) key frames as the game is played, tick 60, 144 fps, whole and half way between ticks, against
+            those kept (tests/data/pictures-<renderer>; --bless-pictures keeps this run's). The same replay gives the
+            same pixels, so little has to differ; a side-by-side of what did goes in the run's folder.
 
 What the hunter did in all of them (the states, +0x299, by weapon class +0x1E8) is the coverage: the states seen, and
 those of the game's table never seen. The data (recordings, saves, baselines, runs) is in tests/data/, not in the
 repository (the game's and the player's).
 
-    tools/suite.py [-j 6] [--only name,tag,...] [--bless] [--keep] [--list]
+    tools/suite.py [-j 6] [--only name,tag,...] [--bless] [--pictures] [--bless-pictures] [--keep] [--list]
 
 Exits 1 if anything failed or changed. A report goes to tests/data/runs/<date>/report.md.
 """
@@ -207,6 +210,59 @@ def coverage(frames):
     return seen
 
 
+# -- pictures --------------------------------------------------------------------------------------------------------
+
+PICTURE_AT = (0.5, 0.7, 0.85, 0.97)     # of a recording's frames, unless the scenario says ("pictures")
+PIXEL_DIFFERS = 8                       # the sum over red, green and blue
+PICTURE_ALLOWS = 0.0005                 # of the pixels: a driver's rounding, not a change
+
+
+def compare_pictures(name, d, renderer, bless, out):
+    """This run's pictures (d/build/pictures) against those kept: (ok, detail)"""
+    import numpy as np
+    from PIL import Image
+    here = os.path.join(d, "build", "pictures")
+    kept = os.path.join(DATA, f"pictures-{renderer}", name)
+    now = sorted(os.listdir(here)) if os.path.isdir(here) else []
+    if not now:
+        return False, ["no pictures came out"]
+    if bless or not os.path.isdir(kept):
+        shutil.rmtree(kept, ignore_errors=True)
+        shutil.copytree(here, kept)
+        return True, [f"{len(now)} kept" + (" (--bless-pictures)" if bless else " (none before)")]
+    ok, detail, same = True, [], 0
+    was = sorted(os.listdir(kept))
+    if now != was:
+        ok = False
+        detail.append(f"{len(now)} pictures now, {len(was)} before: {sorted(set(now) ^ set(was))[:6]}")
+    for f in sorted(set(now) & set(was)):
+        a = np.asarray(Image.open(os.path.join(kept, f)).convert("RGB")).astype(np.int32)
+        b = np.asarray(Image.open(os.path.join(here, f)).convert("RGB")).astype(np.int32)
+        if a.shape != b.shape:
+            ok = False
+            detail.append(f"{f}: {b.shape[1]}x{b.shape[0]} now, {a.shape[1]}x{a.shape[0]} before")
+            continue
+        total = np.abs(a - b).sum(axis=2)
+        if not total.any():
+            same += 1
+            continue
+        changed = total > PIXEL_DIFFERS
+        share = float(changed.mean())
+        ys, xs = np.nonzero(changed)
+        where = f", within x {xs.min()}-{xs.max()}, y {ys.min()}-{ys.max()}" if len(xs) else ""
+        if share > PICTURE_ALLOWS:
+            ok = False
+            os.makedirs(out, exist_ok=True)
+            marked = np.zeros_like(a)
+            marked[changed] = (255, 60, 60)
+            Image.fromarray(np.hstack((a, b, marked)).astype(np.uint8)).save(os.path.join(out, f))
+        detail.append(f"{f}: {100 * share:.3f}% of pixels differ{where}" + ("" if share > PICTURE_ALLOWS else " (allowed)"))
+    detail.insert(0, f"{same} of {len(set(now) & set(was))} exactly the same")
+    if not ok:
+        detail.append(f"before, now and what differs, side by side: {out}")
+    return ok, detail
+
+
 # -- one scenario ----------------------------------------------------------------------------------------------------
 
 def run_scenario(s, args, stamp):
@@ -235,6 +291,13 @@ def run_scenario(s, args, stamp):
         a, b = s.get("state_frames", [e - 400, e - 100])
         state_run = start_run(work, "state", rec60, 60, s, args, trace=False,
                               extra={"MHFU_STATE_TEST": f"{a},{b}"})
+    picture_run = None
+    if args.pictures or args.bless_pictures:
+        last = end_frame(rec60)
+        at = s.get("pictures") or [int(last * x) for x in PICTURE_AT]
+        picture_run = start_run(work, "pictures", rec60, 60, s, args, trace=False,
+                                extra={"MHFU_FPS": "144", "MHFU_TAA": "0", "MHFU_SCALE": "3", "MHFU_NATIVE_SKIP": "0",
+                                       "MHFU_PICTURES": ",".join(map(str, at)), "MHFU_RAM_HASH": "0"})
     frames = {}
     for r, (p, d) in runs.items():
         ok = wait_run(p, d, args.timeout)
@@ -256,6 +319,12 @@ def run_scenario(s, args, stamp):
         lines = [ln for ln in text.splitlines() if ln.startswith("state test")]
         ok = any("RAM the same" in ln for ln in lines) and not any("first differs" in ln for ln in lines)
         res["checks"]["state"] = {"ok": ok, "detail": lines[-3:] if lines else ["no state test ran (frames?)"]}
+    if picture_run:
+        p, d = picture_run
+        if not wait_run(p, d, args.timeout, until="pictures done"):
+            res["notes"].append("the picture run didn't take all its pictures")
+        ok, detail = compare_pictures(name, d, args.renderer, args.bless_pictures, os.path.join(work, "picture-diffs"))
+        res["checks"]["picture"] = {"ok": ok, "detail": detail}
     if "rate" in checks:
         f30, f60 = frames.get(30, []), frames.get(60, [])
         if s["switch"]:
@@ -366,11 +435,11 @@ def state_table():
 def report(results, stamp, args):
     lines = [f"# Test suite, {stamp}", ""]
     failed = 0
-    lines.append("| scenario | " + " | ".join(("rate", "baseline", "state")) + " | time |")
-    lines.append("|---|---|---|---|---|")
+    lines.append("| scenario | " + " | ".join(("rate", "baseline", "state", "picture")) + " | time |")
+    lines.append("|---|---|---|---|---|---|")
     for r in results:
         cells = []
-        for c in ("rate", "baseline", "state"):
+        for c in ("rate", "baseline", "state", "picture"):
             v = r["checks"].get(c)
             cells.append("-" if v is None else ("ok" if v["ok"] else "**FAIL**"))
             if v is not None and not v["ok"]:
@@ -433,6 +502,9 @@ def main():
     ap.add_argument("--only", help="names or tags, comma-separated")
     ap.add_argument("--bless", action="store_true", help="keep this run's results as the baselines")
     ap.add_argument("--keep", action="store_true", help="keep the traces")
+    ap.add_argument("--pictures", action="store_true", help="the picture check too")
+    ap.add_argument("--bless-pictures", action="store_true", help="the picture check's pictures kept from this run")
+    ap.add_argument("--pictures-only", action="store_true", help="the picture check alone")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--no-ram", action="store_true", help="the baseline's actions only, not its RAM hashes: for code rewritten by hand, "
                     "which leaves other dead bytes (tools/readable/handdiff.py accounts for them)")
@@ -449,6 +521,10 @@ def main():
         for s in scen:
             print(f"{s['name']:24} {','.join(s['checks']):22} {','.join(s['tags'])}")
         return 0
+    if args.pictures_only:
+        args.pictures = True
+        for s in scen:
+            s["checks"] = []
     stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
     os.makedirs(os.path.join(DATA, "runs", stamp))
     results = []

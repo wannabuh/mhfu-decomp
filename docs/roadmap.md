@@ -23,7 +23,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | 3 | Debug console | Commands to a running game by local socket: pause, step, read and watch fields, dump. Live inspection for me, and a live panel for the user | Not started |
 | 3 | Monster lab | Any monster in a test area without playing to it; checks at 30 and 60. Changes game state on purpose | Not started |
 | 3 | Stall recorder | Details saved when a frame takes too long | Not started |
-| 3 | Picture regression test | Key frames compared in the suite, which today checks actions, rates and RAM, not the picture *(check)* | Not started |
+| 3 | Picture regression test | Key frames compared in the suite: whole and half way between ticks, as played (`--pictures`, `docs/testing.md`) | Verified: exact from run to run, and fails when shadows are off |
 | 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Started: the hit overlay (F12, `hitview.c`), attack and part shapes, gaps and skip reasons, on `auto/hit-overlay`. Rest not started |
 | 4 | First-difference finder | The exact frame and field where two runs part | Not started |
 | 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |

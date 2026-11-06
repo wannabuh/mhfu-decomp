@@ -657,6 +657,52 @@ static void dump_full(uint32_t addr, unsigned long at) {
     }
 }
 
+/* MHFU_PICTURES="frame,frame,...": as the window would show them at the internal resolution, to build/pictures/<frame>.png
+ * (tools/suite.py's picture check). With a display rate of its own, each frame half way from the last too, <frame>-t50.png:
+ * what interpolation makes of it, at a time that doesn't depend on the clock. */
+static long picture_frames[64];
+static int npictures = -1, pictures_taken;
+
+static void picture_write(uint32_t addr, unsigned long at, const char *suffix) {
+    int w, h;
+    uint32_t *full = render_readback_full(addr, &w, &h);
+    if (!full)
+        return;
+    char path[64];
+    snprintf(path, sizeof path, "build/pictures/%06lu%s.png", at, suffix);
+    write_png_size(path, full, w, h);
+    free(full);
+}
+
+static void pictures(unsigned long at, uint32_t addr, int interpolated) {
+    if (npictures < 0) {
+        npictures = 0;
+        const char *e = getenv("MHFU_PICTURES");
+        while (e && *e && npictures < 64) {
+            picture_frames[npictures++] = strtol(e, (char **)&e, 10);
+            if (*e == ',')
+                e++;
+        }
+        if (npictures)
+            mkdir("build/pictures", 0755);
+    }
+    for (int i = 0; i < npictures; i++) {
+        if (picture_frames[i] != (long)at)
+            continue;
+        if (interpolated) {
+            uint32_t half = gpu_render_frame(0.5f);
+            if (half)
+                picture_write(half, at, "-t50");
+            uint32_t whole = gpu_render_frame(1.0f);
+            if (whole)
+                picture_write(whole, at, "");
+        } else
+            picture_write(addr, at, "");
+        if (++pictures_taken == npictures)
+            fprintf(stderr, "pictures done\n");
+    }
+}
+
 /* MHFU_SNAPSHOT="frame,frame,...": RAM at those game frames, to build/ram-<frame>.bin (finding variables by diffing) */
 static void snapshots(void) {
     static const char *list;
@@ -908,6 +954,8 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
         if (capture_wants_shot() && render_on && (!display_fps() || gpu_render_frame(1.0f)))
             capture_take_shot(display_fb_addr, NULL);
+        if (render_on)
+            pictures(frame, display_fb_addr, display_fps() != 0);
         if (render_on && !display_fps())
             render_finish_frame();
     } else if (display_fps()) {
@@ -916,11 +964,13 @@ void present_frame(void) {
             render_readback(display_fb_addr, pixels);
             dump_full(display_fb_addr, frame);
         }
+        pictures(frame, display_fb_addr, 1);
     } else if (render_on) {
         if (dump) {
             render_readback(display_fb_addr, pixels);
             dump_full(display_fb_addr, frame);
         }
+        pictures(frame, display_fb_addr, 0);
         if (!gpu_skip_draw) {
             uint64_t before = wall_time_us();
             if (capture_wants_shot())
