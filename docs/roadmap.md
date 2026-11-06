@@ -3,7 +3,7 @@
 What we want this project to do, in order, and what's next for each goal. Read this at the start of a session and update it at the
 end. Results and history go in `docs/readable-report.md` and the commit log; how to prove a rewrite is in `docs/readable.md`.
 
-**Draft, 2026-11-05.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
+**Draft, 2026-11-06.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
 confirmed against the current build.
 
 ## Tools first
@@ -17,7 +17,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Verified headless (F7, F8, `runtime/src/inspect.c`): nearest object by projection; textures per pixel by triangles and depth, texels not read. Mouse paths not played |
 | 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |
 | 2 | Freeze with free camera | While held, `C`: mouse looks, WASD and QE move, Shift faster, `H` hides the HUD (also a first photo mode), F6 captures it. Objects the game culled aren't there, sprites keep their angle | Tested headless by a test hook, on `auto/free-camera`, pictures looked at. Keys not played |
-| 2 | Hold, step and go back | F8 holds at any time, `.` a tick on, `,` back through the last frames drawn (`frame_history`, 60 by default: about 0.5 GB), F6 captures the frame shown | Tested headless by test hooks, on `auto/frame-dump`. Keys not played; turn the default off before anything is released |
+| 2 | Hold, step and go back | F8 holds at any time, `.` a tick on, `,` back through the last frames drawn (`frame_history`, 60 by default: about 0.5 GB, gaps within noise (213 against 234 a minute over 9 ms, three pairs)), F6 captures the frame shown | Tested headless by test hooks, on `auto/frame-dump`. Keys not played; turn the default off before anything is released |
 | 2 | Frame dump | A frame's draws, vertices, bones and textures to files I can read and measure; RenderDoc on the Vulkan side | Draws, vertices, bones and triangles with a capture while held, on `auto/frame-dump`. Textures and RenderDoc not started |
 | 2 | Automatic triage | From a capture, one frame with each setting off, side by side, and PPSSPP's where possible | Not started |
 | 3 | Debug console | Commands to a running game by local socket: pause, step, read and watch fields, dump. Live inspection for me, and a live panel for the user | Not started |
@@ -41,6 +41,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - No Rust rewrite.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
+- Merged into `native-fps` at the user's word, 2026-11-06: everything up to `13ee353`. Past that, stacked and waiting: `auto/picture-test`, `auto/stall-recorder`, `auto/draw-state`, `auto/seams`, `auto/free-camera`, `auto/pad-every-tick`, `auto/first-diff`, all in the play build.
 - Merge into `native-fps` only at the user's word. "Verified" and "played" are separate states.
 - The game ticks at a fixed 60 by default (user's decision, 2026-11-05), no variable tick; display rate comes from interpolation. Ticks above 60 are to be supported as well, up to 144 (user, later the same day), starting with poses: see the table below.
 - Prefer branches; a new worktree only when two things must run at once.
@@ -96,7 +97,7 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 | Artifact: snow haze edges | Older report | Not started *(check)* | Ask if still seen |
 | Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
 | Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started; starts after the artifacts (user's decision) | See below |
-| God rays | Requested | Not started | Design in the renderer, using the existing sun direction; no game code needed *(check)* |
+| God rays | Requested | They exist: light shafts marched through the sun's shadow map (`shafts` in `settings.ini`, default 0, `post.c`). Faint in the one desert view tried, sun out of frame, even at 6 | User tries `shafts = 1` with the sun in view; then decide its strength, default and cost |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
 **Wounds, in stages, each playable:** (1) one slash at the true hit point, staying on the moving model; (2) blood running down from it under gravity; (3) drops falling; (4) pools on the ground. Purely visual: reads the game's memory, writes none of it, draws no game random numbers, has an off switch and a stated frame cost. Proposed: wounds kept in bone space and drawn in the fragment shader, as UVs may be mirrored or shared *(check)*. Size and sharpness come from `readable/monster_hit_damage.c`; first prove the hit's position and the drawn model can be linked. Cut against impact isn't settled yet (see Balance, goal 4).
