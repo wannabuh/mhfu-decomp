@@ -46,7 +46,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - No Rust rewrite.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
-- Merged into `main` at the user's word, 2026-11-06: everything up to `fc4fbbc`. `native-fps` stays at `13ee353`, behind it. Left out: `auto/shadow-random`.
+- Merged into `main` at the user's word, 2026-11-06: everything up to `3c8326b`. `native-fps` stays at `d645c09`, behind it. Left out: `auto/shadow-random`.
 - Merge into `main` only at the user's word. "Verified" and "played" are separate states.
 - The game ticks at a fixed 60 by default (user's decision, 2026-11-05), no variable tick; display rate comes from interpolation. Ticks above 60 are to be supported as well, up to 144 (user, later the same day), starting with poses: see the table below.
 - Prefer branches; a new worktree only when two things must run at once.

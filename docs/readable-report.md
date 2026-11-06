@@ -40,7 +40,7 @@ How far to trust this:
 
 ## The game is unchanged
 
-- `.text`, `.rodata` and `.data` of the built game are byte-identical to `d7d7fcd`'s.
+- `.text`, `.rodata` and `.data` of the built game are byte-identical to `cba9284`'s.
 - `tools/suite.py`: all 21 scenarios pass (rate, baseline and state checks). Run on the named build before the last fix, which changed only
   comments in the generated C; the byte comparison above was repeated after it.
 - Recordings replay the same under the tracing build: RAM hashes match the normal build's.

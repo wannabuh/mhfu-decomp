@@ -2,7 +2,7 @@
 
 The goal: long sessions in which Claude finds, fixes and verifies problems in the PC port without the user at the
 game - reaching any situation, acting in it, and telling right from wrong by itself. Written 2026-11-03, at the end
-of the session that built `tools/suite.py`; branch `native-fps` at `d7d7fcd`.
+of the session that built `tools/suite.py`; branch `native-fps` at `cba9284`.
 
 ## Ground rules (agreed with the user)
 
@@ -20,7 +20,7 @@ of the session that built `tools/suite.py`; branch `native-fps` at `d7d7fcd`.
 
 - `tools/suite.py` + `tests/scenarios.toml` (21 scenarios, recordings and saves in `tests/data/`, not in git):
   30-vs-60 comparison of the hunter (`tools/ratecheck.py`), RAM-hash baselines, a save-state round trip.
-  `docs/testing.md` explains it. All pass at `d7d7fcd`.
+  `docs/testing.md` explains it. All pass at `cba9284`.
 - Replays take `poke` lines (game memory written at a frame; `hunter+<off>` for the hunter) - also recorded when
   the runtime writes memory for an input (`present_poke_hunter`, the item bar's chord).
 - Save states (`runtime/src/savestate.c`, F2/F4, `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` dumps
@@ -46,7 +46,7 @@ its wait record and its post-wait step, and resumed by PSP return address: `reco
 and adds an entry check to each generated function, and on load a loop enters the function holding `pc` and continues
 at `c->r[31]`.
 
-Agreed with the readable-code session (branch `auto/readable-code`, also from `d7d7fcd`, not merged):
+Agreed with the readable-code session (branch `auto/readable-code`, also from `cba9284`, not merged):
 
 - `build/gen` stays what ships. `readable/*.c` hand functions are reached through their generated function
   (`if (rt_hand) ...`); symbols and `tables.c` do not change, so every PSP address still resolves.
@@ -91,7 +91,7 @@ recent input as a recording, the game call chain, and the log, into `crashes/<da
 headless with one command, and becomes a test case.
 
 Also audit the 215 unresolved `jr`s in `game/analysis/functions.json` (`tools/funcs.py`): each one that is really a
-jump table is a future crash like `09BABA40`'s (fixed in `2f3d56d`). Classify them (vtable calls vs tables) with
+jump table is a future crash like `09BABA40`'s (fixed in `de20a9d`). Classify them (vtable calls vs tables) with
 stricter checks; resolve the tables.
 
 ## Phase 3 - a script interface

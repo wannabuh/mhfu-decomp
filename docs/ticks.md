@@ -1,7 +1,7 @@
 # What still ticks at 30
 
 The list behind goal 1 of `docs/roadmap.md`: what runs at the display's rate, what doesn't, what that looks like at 144, and the order to
-convert it in. Surveyed 2026-11-05 on `a6ca90e`; no game behaviour changed. `docs/native.md` explains gates and smoothing. Figures elsewhere are the survey's; **section 2.1 was since fixed and measured again** on `auto/rate-fixes`.
+convert it in. Surveyed 2026-11-05 on `7179818`; no game behaviour changed. `docs/native.md` explains gates and smoothing. Figures elsewhere are the survey's; **section 2.1 was since fixed and measured again** on `auto/rate-fixes`.
 
 Each claim is marked **[M]** measured, **[R]** read from code, or **[I]** inferred. Runs are headless, on Vulkan, with `MHFU_FPS=0` unless
 stated. The fights are `tests/data/rec/overnight-fight1.rec` and `-fight2.rec` with the `overnight` saves.
@@ -221,4 +221,4 @@ Colour isn't part of this. A frame dump near a hit showed gauges moving and noth
     tools/ticks.py systems FILE...                              # a hook's files, by system
     tools/ticks.py ran FILE                                     # a hook's file: every frame against 30ths
 
-`tools/readable/ticks_hook.c` is linked into a `RECOMP_TRACE_ALL=1` build, with `MHFU_TICKS_OUT`, `MHFU_TICKS_FROM` and `MHFU_TICKS_TO`. The measuring here was done with a variant for the older hook signature, linked against the `tracebuild` worktree at `9a0ca2d`, whose gates match today's; the version in the repository has the current signature and hasn't been run. The runs and logs are in `~/projects/mhfu-ghidra/work/scratch-ticks/`.
+`tools/readable/ticks_hook.c` is linked into a `RECOMP_TRACE_ALL=1` build, with `MHFU_TICKS_OUT`, `MHFU_TICKS_FROM` and `MHFU_TICKS_TO`. The measuring here was done with a variant for the older hook signature, linked against the `tracebuild` worktree at `d60e3ae`, whose gates match today's; the version in the repository has the current signature and hasn't been run. The runs and logs are in `~/projects/mhfu-ghidra/work/scratch-ticks/`.

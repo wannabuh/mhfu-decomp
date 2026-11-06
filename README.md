@@ -11,6 +11,8 @@ translation (`recomp/patches.py`), and names and notes on functions and data (`t
 
 This is an unofficial fan project, not affiliated with or endorsed by Capcom. Monster Hunter is a trademark of Capcom.
 
+It runs on Linux only for now; a Windows port is in progress.
+
 Status: phase 5 (the recompiled game is playable into Pokke Village: Vulkan renderer, music, PC controls). See [docs/plan.md](docs/plan.md).
 
 ## Layout

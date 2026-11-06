@@ -8,7 +8,7 @@
     tools/tickets.py new "Title" [--type bug] [--priority normal] [--status open] [--note "what was seen"]
                                                 # priority high, normal or later (later is the status)
     tools/tickets.py note 12 "what was found"   # added to its findings, dated
-    tools/tickets.py set 12 status=fix-ready commit=fc4fbbc check="fight something with a long tail"
+    tools/tickets.py set 12 status=fix-ready commit=3c8326b check="fight something with a long tail"
     tools/tickets.py attach 12 0010 hits.log    # a capture by number is moved in; a file is copied in
     tools/tickets.py close 12                   # only at the user's word
 
