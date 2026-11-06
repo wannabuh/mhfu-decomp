@@ -1,6 +1,7 @@
 /* The stick and the dash button, read for moving. Rewritten by hand from game_task 09AA5FB0 and 09A8B578, the generated code still behind
  * them (MHFU_HAND=0). */
 #include "hand.h"
+#include "savestate.h"
 #include "names.h"
 
 #define CAMERA_POINTER 0x089CBD04u
@@ -70,17 +71,45 @@ void hand_hunter_face_stick_direction(Ctx *c) {
 #define HUD_FLAG_NO_SELECT 0x20
 #define OVERLAY_KEEPS_L 1           /* what ui_is_overlay_active says for an overlay that L still works in */
 
+int rt_pad_early;                       /* MHFU_PAD_EARLY=1, off by default: see docs/roadmap.md (thread.c set_tick_hz) */
+SAVED static uint32_t pad_shadow, pad_early_pressed, pad_early_released;
+SAVED static unsigned long pad_early_frame;
+unsigned long present_frame_number(void);
+uint32_t present_pad_now(void);
+
 /* Native frame rate: the pad is read at 30ths, so what was pressed or released is seen at a 30th and not again on the frames between, and
  * L's hold is counted in 30ths. */
 void hand_hunter_copy_pad(Ctx *c) {
     HunterBase *self = OBJ(HunterBase, c->r[4]);
     uint32_t pressed = rt_tick30 ? LW(PAD_PRESSED) : 0, released = rt_tick30 ? LW(PAD_RELEASED) : 0;
-    self->buttons_held = LW(PAD_HELD);
+    uint32_t held = LW(PAD_HELD);
+    if (rt_pad_early) {
+        /* What's pressed or released between the game's reads of the pad reaches the hunter at once, not up to a 30th later, and isn't
+         * taken again at the read that follows. Only the hunter's copy: all else still sees the pad at 30ths */
+        unsigned long at = present_frame_number();
+        if (at != pad_early_frame + 1 || rt_tick30)
+            pad_shadow = held & 0xFFFF;         /* (the game's read, or back after not being copied) */
+        if (rt_tick30) {
+            pressed &= ~pad_early_pressed;
+            released &= ~pad_early_released;
+            pad_early_pressed = pad_early_released = 0;
+        } else if (at == pad_early_frame + 1) {
+            uint32_t now = present_pad_now();
+            pressed = now & ~pad_shadow;
+            released = pad_shadow & ~now;
+            pad_early_pressed = (pad_early_pressed | pressed) & ~released;
+            pad_early_released = (pad_early_released | released) & ~pressed;
+            pad_shadow = now;
+            held = (held & ~(uint32_t)0xFFFF) | now;
+        }
+        pad_early_frame = at;
+    }
+    self->buttons_held = held;
     self->buttons_pressed = pressed;
     self->buttons_released = released;
     self->stick_angle = LHU(PAD_STICK_ANGLE);
     self->stick_magnitude = LHU(PAD_STICK_MAGNITUDE);
-    self->buttons_held_unnarrowed = LW(PAD_HELD);
+    self->buttons_held_unnarrowed = held;
     self->buttons_pressed_unnarrowed = pressed;
     self->buttons_released_raw = released;
     if ((uint8_t)call1(c, ui_is_overlay_active, LW(HUD_POINTER)) != 0 || (self->hunter_flags & (HUNTER_FLAG_INPUT_OFF_A | HUNTER_FLAG_INPUT_OFF_B))) {

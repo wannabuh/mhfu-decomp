@@ -294,6 +294,10 @@ void set_tick_hz(int hz) {
     vblank_den = (unsigned)(2 * hz);
     tick_scale = 30.0f / (float)hz;
     rt_fine_poses = !getenv("MHFU_FINE_POSES") || atoi(getenv("MHFU_FINE_POSES")) != 0;
+    {
+        extern int rt_pad_early;
+        rt_pad_early = hz > 30 && getenv("MHFU_PAD_EARLY") && atoi(getenv("MHFU_PAD_EARLY")) != 0;
+    }
     tick30_phase = 1 - tick_scale;      /* the next frame a 30th's (as the frame before took it to be) */
 }
 

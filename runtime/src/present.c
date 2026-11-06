@@ -813,6 +813,12 @@ void present_input_read(void) {
     record_input(0, 0);
 }
 
+/* readable/hunter_input.c: the buttons now, on a tick between the game's reads, by the same way (recorded, or from a replay) */
+uint32_t present_pad_now(void) {
+    present_input_read();
+    return ctrl_buttons & 0xFFFF;
+}
+
 void glyphs_frame_end(void);
 int overlay_open(void);
 
