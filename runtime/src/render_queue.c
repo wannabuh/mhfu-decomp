@@ -11,6 +11,7 @@
  *
  * MHFU_RENDER_THREAD=0: all on the game's thread, as before. */
 #include "render_queue.h"
+#include "stall.h"
 #include "perf.h"
 
 #include <pthread.h>
@@ -44,6 +45,7 @@ static int on = -1;
 
 static void *render_thread(void *arg) {
     (void)arg;
+    stall_thread_named(1);
     for (;;) {
         size_t at = atomic_load_explicit(&done, memory_order_relaxed);
         for (int spins = 0; spins < 200 && at == atomic_load_explicit(&written, memory_order_acquire); spins++)

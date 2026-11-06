@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "stall.h"
 #include <time.h>
 #include <unistd.h>
 
@@ -440,6 +441,7 @@ static void flip(uint32_t addr) {
     } else
         render_flip(addr);
     perf_shown();
+    stall_beat(present_frame_number());
 }
 
 uint32_t *render_readback_full(uint32_t addr, int *w, int *h);
