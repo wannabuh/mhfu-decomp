@@ -76,8 +76,12 @@ static uint32_t bits(const uint8_t *p, size_t size, size_t pos, int n) {
 static uint32_t rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
 
 static const char *font_dir(void) {
+#ifdef _WIN32
+    static const char *dirs[] = {"game/fonts"};     /* (copied from PPSSPP: docs/windows.md) */
+#else
     static const char *dirs[] = {"/usr/share/ppsspp/assets/flash0/font", "/usr/local/share/ppsspp/assets/flash0/font",
                                  "/usr/share/games/ppsspp/assets/flash0/font"};
+#endif
     const char *e = getenv("MHFU_FONTS");
     if (e)
         return e;
@@ -98,7 +102,8 @@ static Pgf *pgf_load(int index) {
         return loaded[index];
     const char *dir = font_dir();
     if (!dir) {
-        HLE_WARN("no PSP fonts (install PPSSPP, or set MHFU_FONTS to a directory of .pgf files)");
+        HLE_WARN("no PSP fonts (install PPSSPP, or set MHFU_FONTS to a directory of .pgf files; on Windows: game/fonts, "
+                 "docs/windows.md)");
         return NULL;
     }
     char path[512];

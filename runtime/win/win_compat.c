@@ -11,10 +11,29 @@
 
 #undef fclose
 
-/* Before main: files are bytes as on Linux, not text with its line ends changed; sleeps as fine as Windows gives them; and
+/* The game's files are found from the repository's top (game/...). Started anywhere else, as by a double click on the
+ * program, go there: the program is at build\win\mhfu.exe. */
+static void go_to_repository(void) {
+    if (GetFileAttributesA("game\\decrypted\\EBOOT.elf") != INVALID_FILE_ATTRIBUTES)
+        return;
+    char path[MAX_PATH];
+    DWORD n = GetModuleFileNameA(NULL, path, sizeof path);
+    if (n == 0 || n >= sizeof path)
+        return;
+    for (int up = 0; up < 3; up++) {
+        char *slash = strrchr(path, '\\');
+        if (!slash)
+            return;
+        *slash = 0;
+    }
+    SetCurrentDirectoryA(path);
+}
+
+/* Before main: files are bytes as on Linux, not text with its line ends changed; sleeps as fine as Windows gives them;
  * what is kept under XDG_CONFIG_HOME and XDG_DATA_HOME (settings, saves, states) goes to %APPDATA%\mhfu-recomp. */
 __attribute__((constructor)) static void win_start(void) {
     _set_fmode(_O_BINARY);
+    go_to_repository();
     timeBeginPeriod(1);
     const char *profile = getenv("USERPROFILE"), *appdata = getenv("APPDATA");
     if (!getenv("HOME") && profile)
