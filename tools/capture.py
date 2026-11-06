@@ -32,6 +32,8 @@ def find(which):
         data = os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
         base = os.path.join(data, "mhfu-recomp", "captures")
     path = os.path.join(base, f"{int(which):04d}")
+    if os.path.isfile(path):            # (moved into a ticket: tools/tickets.py attach)
+        path = open(path).read().strip()
     if not os.path.isdir(path):
         sys.exit(f"no capture at {path}")
     return path

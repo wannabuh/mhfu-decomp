@@ -6,6 +6,10 @@ end. Results and history go in `docs/readable-report.md` and the commit log; how
 **Draft, 2026-11-06.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
 confirmed against the current build.
 
+## Tickets
+
+Bugs, ideas and impressions are tickets, not rows here: `tools/tickets.py`, `docs/tickets.md`. This file keeps the goals, their order and the larger work. Only the user closes a ticket; `tools/tickets.py check` is what's waiting for them.
+
 ## Tools first
 
 Built before the goals' next large jobs, as they make those cheaper. The rate fixes in progress finish first. Tools read the game's state and don't change it, except where stated. Rough is fine: they're for us.
@@ -26,6 +30,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | 3 | Picture regression test | Key frames compared in the suite: whole and half way between ticks, as played (`--pictures`, `docs/testing.md`) | Verified: exact from run to run, and fails when shadows are off |
 | 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Started: the hit overlay (F12, `hitview.c`), attack and part shapes, gaps and skip reasons, on `auto/hit-overlay`. Rest not started |
 | 4 | First-difference finder | The exact tick and words where two runs part, hunter fields located, and the `watch.py` command for what wrote them (`tools/firstdiff.py`) | Verified on `pad_early`: parts at tick 3578, four hunter words, R's release a tick sooner. Names only what `fields/Hunter.toml` knows |
+| 4 | Tickets | One folder a ticket with its evidence (`tools/tickets.py`, `docs/tickets.md`). Next: F6 files one from the game, frame data on any capture, a rolling save state to look back from | Files and script done |
 | 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |
 
 ## Goals, in order
@@ -41,8 +46,8 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - No Rust rewrite.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
-- Merged into `native-fps` at the user's word, 2026-11-06: everything up to `13ee353`. Past that, stacked and waiting: `auto/picture-test`, `auto/stall-recorder`, `auto/draw-state`, `auto/seams`, `auto/free-camera`, `auto/pad-every-tick`, `auto/first-diff`, all in the play build.
-- Merge into `native-fps` only at the user's word. "Verified" and "played" are separate states.
+- Merged into `main` at the user's word, 2026-11-06: everything up to `fc4fbbc`. `native-fps` stays at `13ee353`, behind it. Left out: `auto/shadow-random`.
+- Merge into `main` only at the user's word. "Verified" and "played" are separate states.
 - The game ticks at a fixed 60 by default (user's decision, 2026-11-05), no variable tick; display rate comes from interpolation. Ticks above 60 are to be supported as well, up to 144 (user, later the same day), starting with poses: see the table below.
 - Prefer branches; a new worktree only when two things must run at once.
 - One set of baselines (user's decision, 2026-11-05): once the shadows fix merges, `tools/suite.py` on Vulkan compares against
@@ -54,7 +59,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - **Not started**, **In progress**
 - **Verified:** passes the checks in `docs/readable.md` or `docs/testing.md`
 - **Played:** the user has tried it
-- **Merged:** in `native-fps`
+- **Merged:** in `main`
 
 ## 1. Smoother gameplay
 
@@ -65,19 +70,12 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Hunter at native rate | Controls and motion feel | Merged; played | Keep checking per weapon |
 | Tick 60 + 144 fps combined mode | Current best mode | Merged; played | |
 | What still ticks at 30 | Tells us what's left | Done: `docs/ticks.md`, reviewed in part | |
-| Rate bugs: hit-stop, poison and other drains, camera ease and shake, weapon effect ops | Hits lose weight, poison ends early, by measurement | In progress on `auto/rate-fixes` | Fix, then play |
-| Ticks above 60: poses | Wanted by the user (2026-11-05). The sampler cut a motion's frame to a whole number and motions hold 60 poses a second, so at 120 and 144 ticks poses repeated, unevenly at 144: seen on attacks, items and sheathing | Verified headless, on `auto/stall-recorder`: the motion curves (Hermite between keys) now get the frame as it is above 60 ticks (`MHFU_FINE_POSES=0` as before), no blending needed, so no rotation goes the long way round. Between two bones in a run of attacks: pose the same as the tick before while moving, at 144 from 38.5% to 2.4% of ticks, at 120 from 28.5% to 2.2%; step-to-step jerk at 144 from 1.60 to 0.25. 30 and 60 ticks untouched. Not played | Play at 120 and 144. Hit shapes come from these bones, so they use the in-between poses too. Above 60 also costs more: a tick is about 5.3 ms against 6.94 ms a frame at 144 |
-| The hunter's spring chains at 60 ticks | Hair and loose armour may move wrongly, if their steps aren't scaled *(check)* | Not started | Compare at 30 and 60 after the rate fixes |
-| The 25-50 ms stalls in fight 2 (seen as 53-78 ms before), in pairs | Found by the stall recorder: the render thread laying the grass's ground (`grass.c` `lay`) with the game's thread waiting. Most are in fade-ins after an area change; some weren't | Fixed on `auto/stall-recorder` outside fades: laying has a budget of 1.5 ms a frame shown (`MHFU_GRASS_LAY`). In the 16 frames after a gap it still lays at once, as the screen is fading in | Play |
 | Consistent smoothness: a steady 144 fps as felt | The main goal. The user reports the locked build "running much smoother" (2026-11-05, fullscreen) | In progress | Fewer ticks holding frames up: see below |
-| The pad, read at 30ths | A press waits up to 33 ms; every tick makes it 17 | Off by default on `auto/pad-every-tick`: `pad_early = 1` in `settings.ini`. The hunter's copy of the buttons sees the live ones between the game's reads, and isn't told twice. Headless: at 60 ticks a press between reads starts the action a tick (16.7 ms) sooner, and a press on a read is unchanged. But with it on, 10 scenarios' states at 60 change, as expected for presses arriving sooner, and `sprint` and `cliff-south` fail the rate check on the countdown +0x630 with one more state: not explained. Code that only runs at 30ths may miss a press that's only there for a tick. The stick still reads at 30ths | Play it; explain those two before it's the default |
-| The hunter's 45-unit jump, 0 / 2 / 6 30ths after a draw attack at 30 / 60 / 144 | Possible real rate bug; blocks comparing fights | Not started | Explain it |
 | Inventory of everything that ticks | Conversion goes class by class (`MHFU_NATIVE_VT`): today only the hunter and Popos | Partly done: 107 classes named of 519 vtables; 17 monster overlays, 11 weapon classes | Table: each monster, NPC, weapon class, attack volume, effect and stage object, its class, and how it's tested |
 | A way to test each one without playing | Only `em20` has run in a recording | Not started | Force a monster or weapon by quest swap and save edits; compare ticks at 30 and 60 automatically |
 | Monsters at 60 ticks | Less lag, hits line up, sharper arcs; smoothing already handles stepping (`docs/ticks.md`) | Not started | Decide after the fixes below are played. High risk; `em*` overlays need recordings first |
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
-| Frame time at 144 in the worst scenes | Must stay smooth | Area 9 fix merged, not confirmed by play | Measure stage by stage with `MHFU_PROFILE`; log the worst |
 
 **Frame pacing, in order.** (1) Measure: done (`MHFU_PRESENT_LOG`, `tools/pacing.py`, the panel's `DISPLAY` lines, `pacing.c`). (2) Lock pacing to the display: done, on `auto/pacing`. Measured on the real display: frames on their own timer ran at 144.009 (1000000 / 144 in whole us) against a 143.97 Hz monitor, their phase sliding round every 27 s, with bursts of frames replaced and refreshes repeated for about half of each; locked, those are gone. What's left, 9 to 14 a minute at 60 ticks, is ticks holding a frame up past its refresh. (3) Ticks let go early, between frames: done, on `auto/tick-phase` (`MHFU_TICK_PHASE`), with the game's clock and interpolation unchanged. (4) Reduce the cost of a tick and the frame after it: first pass done on `auto/tick-phase`, in a field state with about 10,000 draws a tick. Headless, 45 s runs: gaps over 9 ms between frames 1487 a minute to 301-472; frames held over 4 ms 468 to 13-60; a frame on the game's thread 1.7 ms to 1.3. Not yet measured on the display. A tick is still about 5.3 ms against a 6.94 ms frame. Draw state is now kept once and shared between draws (`auto/draw-state`): memory with 60 frames kept 2.8 GB to 1.85 GB, gaps over 9 ms a further 272 to 204 a minute, over 10 ms 78 to 50, pictures the same. Left, largest first: decoding vertices (11%); the render thread's wait (about 1.1 ms: each draw's texture lookup syncs). (5) Draw display frames off the game's thread, only if ticks still collide with frames due.
 
@@ -91,13 +89,6 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 |---|---|---|---|
 | In-game graphics options | Many settings are env vars or `settings.ini` only | Not started | Inventory them; extend the F1 overlay (`runtime/src/overlay.c`) |
 | Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
-| Artifact: 2D sprite-like textures, as the sun was, that aren't static | Reported 2026-11-05 | Not started | User's save states show where; compare with the flare fix |
-| Artifact: Khezu's colour artifacts towards its tail | Reported 2026-11-05 | Not started | Save state; try with `MHFU_GPU_TL=0` and on PPSSPP, to see if it's ours |
-| Artifact: mesh seams on monsters as they move (Congalala, Gypceros tails) | Reported 2026-11-05 | Cause found and fixed on `auto/seams`, seen in before and after pictures, not played: each draw placed its bones from its own first bone when between ticks, so a joint two draws share came out in two places (up to 179 units apart in a fight; now exactly 0). It never showed at a whole tick, so not while held (F8). `MHFU_SEAM_FIX=0` as before, `MHFU_SEAM_STATS=1` measures it | Play. Separately, a thin line and specks at the Congalala's tail joint remain at whole ticks, in every renderer setting tried and at 1x: looks like the game's own model and texture. Compare on PPSSPP |
-| Artifact: snow haze edges | Older report | Not started *(check)* | Ask if still seen |
-| Shadows don't affect gameplay | Makes shadows purely visual | Verified on `auto/shadow-random` | Play; check frozen shadows; merge, with the baselines decision above |
-| Wounds: slashes that bleed, run down the model, drip and pool | Requested 2026-11-05: big sharp hits leave a mark that starts to bleed. The game's own blood stays | Not started; starts after the artifacts (user's decision) | See below |
-| God rays | Requested | They exist: light shafts marched through the sun's shadow map (`shafts` in `settings.ini`, default 0, `post.c`). Faint in the one desert view tried, sun out of frame, even at 6 | User tries `shafts = 1` with the sun in view; then decide its strength, default and cost |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
 **Wounds, in stages, each playable:** (1) one slash at the true hit point, staying on the moving model; (2) blood running down from it under gravity; (3) drops falling; (4) pools on the ground. Purely visual: reads the game's memory, writes none of it, draws no game random numbers, has an off switch and a stated frame cost. Proposed: wounds kept in bone space and drawn in the fragment shader, as UVs may be mirrored or shared *(check)*. Size and sharpness come from `readable/monster_hit_damage.c`; first prove the hit's position and the drawn model can be linked. Cut against impact isn't settled yet (see Balance, goal 4).
@@ -137,7 +128,6 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | Extended game memory | Lifts the 32 MB limit on what game logic can hold | Not started | See below |
 | Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
 | Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
-| Cloth simulation | Requested 2026-11-05. The hunter first: armour and capes moving properly. Visual only | Not started; waits for mesh replacement (user's decision) | See below |
 | Visual simulation: debris, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
 | Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
