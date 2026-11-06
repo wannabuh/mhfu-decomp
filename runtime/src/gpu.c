@@ -1612,7 +1612,7 @@ void gpu_frame_tick(void) {
 static void tl_send(Frame *f);
 
 /* -- going back while held -----------------------------------------------------------------------------------------------
- * MHFU_FRAME_HISTORY=n (frame_history in settings.ini; 0 by default): the n frames recorded before those two kept, by
+ * MHFU_FRAME_HISTORY=n (frame_history in settings.ini; 60 by default, 0 for none): the n frames recorded before those two kept, by
  * handing them round rather than copying them. Held (F8), the "," key shows them, "." comes forward: what is drawn, not
  * the game's memory, which stays at the tick held. Each frame's memory stays taken: tens of MB in a busy scene. */
 static Frame **history;
@@ -1623,7 +1623,7 @@ static Frame *live_latest, *live_previous;
 static void history_keep(Frame **next_rec) {
     if (history_cap < 0) {
         const char *e = getenv("MHFU_FRAME_HISTORY");
-        history_cap = e ? atoi(e) : 0;
+        history_cap = e ? atoi(e) : 60;
         if (history_cap < 0)
             history_cap = 0;
         if (history_cap) {
@@ -1683,6 +1683,7 @@ void gpu_view_end(void) {
 }
 
 int gpu_view_back(void) { return view_back; }
+int gpu_view_kept(void) { return history_cap > 0; }
 
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);

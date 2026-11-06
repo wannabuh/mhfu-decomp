@@ -54,12 +54,14 @@ static long test_step_every, test_steps_left, test_step_count, test_back_passes,
 static int test_back_by;
 int gpu_view_move(int by);
 int gpu_view_back(void);
+int gpu_view_kept(void);
 
 int inspect_paused(void) {
     if (test_pause_left > 0 && --test_pause_left == 0)
         paused = 0;
     if (paused && test_back_at && ++test_back_passes == test_back_at) {
-        gpu_view_move(test_back_by);
+        for (int i = 0; i < test_back_by; i++)
+            inspect_back();
         capture_request();
     }
     if (paused && test_steps_left > 0 && ++test_step_count >= test_step_every) {
@@ -81,7 +83,7 @@ void inspect_toggle_pause(void) {
     paused = !paused;
     step_due = 0;
     gpu_pick_request();
-    window_note(paused ? "game held: f8 lets go, . a tick on, f6 captures" : "game running");
+    window_note(paused ? "game held: f8 lets go, , back, . forward, f6 captures" : "game running");
 }
 
 /* Back a frame shown, while held (the , key), and forward: "." comes forward first, then lets a tick through */
@@ -96,10 +98,14 @@ void inspect_step(void) {
 }
 
 void inspect_back(void) {
-    if (paused) {
-        gpu_view_move(1);
-        gpu_pick_request();
+    if (!paused) {
+        window_note("f8 holds the game first: , goes back while held");
+        return;
     }
+    int was = gpu_view_back();
+    if (gpu_view_move(1) == was)        /* (nothing else on the screen says why it didn't move) */
+        window_note(gpu_view_kept() ? "no earlier frame kept" : "frame_history = 0 in settings.ini: no frames kept");
+    gpu_pick_request();
 }
 
 void inspect_toggle(void) {
