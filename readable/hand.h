@@ -65,3 +65,31 @@ static inline uint32_t call_method3(Ctx *c, uint32_t self, uint32_t slot, uint32
     rt_call(c, LW(LW(self) + slot));
     return c->r[2];
 }
+
+/* A generated function in an overlay not resident at link time, called by its address as the game does */
+static inline uint32_t call1_at(Ctx *c, uint32_t addr, uint32_t a0) {
+    c->r[4] = a0;
+    rt_call(c, addr);
+    return c->r[2];
+}
+static inline uint32_t call2_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1) {
+    c->r[4] = a0;
+    c->r[5] = a1;
+    rt_call(c, addr);
+    return c->r[2];
+}
+static inline uint32_t call3_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1, uint32_t a2) {
+    c->r[4] = a0;
+    c->r[5] = a1;
+    c->r[6] = a2;
+    rt_call(c, addr);
+    return c->r[2];
+}
+static inline uint32_t call4_at(Ctx *c, uint32_t addr, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3) {
+    c->r[4] = a0;
+    c->r[5] = a1;
+    c->r[6] = a2;
+    c->r[7] = a3;
+    rt_call(c, addr);
+    return c->r[2];
+}

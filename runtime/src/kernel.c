@@ -50,6 +50,21 @@ typedef struct Block { uint32_t addr, size; int used; char name[32]; struct Bloc
 SAVED static Block *blocks;
 #define USER_END 0x0A000000u
 
+/* What a state's arena depends on (savestate.c) */
+uint64_t kernel_layout(void) {
+    return (uint64_t)sizeof(Block) << 16;
+}
+
+/* How much of the game's 24 MB (from 0x08800000) is taken: the EBOOT's image and the partition's allocated blocks */
+void kmem_usage(uint32_t *used, uint32_t *total) {
+    uint32_t free_bytes = 0;
+    for (Block *b = blocks; b; b = b->next)
+        if (!b->used)
+            free_bytes += b->size;
+    *total = USER_END - 0x08800000u;
+    *used = *total - free_bytes;
+}
+
 void kmem_init(uint32_t used_end) {
     blocks = st_calloc(1, sizeof *blocks);
     blocks->addr = (used_end + 0xFF) & ~0xFFu;

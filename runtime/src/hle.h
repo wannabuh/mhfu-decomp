@@ -79,7 +79,10 @@ void hle_after_call(Ctx *c);                    /* after every HLE call: due int
 void interrupt_call(uint32_t handler, uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t t0, uint32_t t1,
                     uint32_t t2);
 uint32_t kernel_gp(void);
-void thread_delay_until(uint64_t us);
+void thread_delay_until(uint64_t us, uint64_t audio_length);
+void audio_output_finish(Ctx *c, uint64_t length);
+void rt_resume_run(Ctx *c, uint32_t end);
+uint64_t io_game_id(void);
 void callback_notify(uint32_t uid, uint32_t arg);  /* a kernel callback, to run on its thread''s next ...CB wait */           /* block the current thread until then */
 
 /* Interrupts other modules raise (ge.c, display) */

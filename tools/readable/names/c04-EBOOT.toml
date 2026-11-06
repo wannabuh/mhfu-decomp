@@ -1,0 +1,992 @@
+[[function]]
+module = "EBOOT"
+address = "088C7424"
+name = "stage_nearest_volume_to_point"
+purpose = "From the stage volumes of a0's +0x284 (records of 0x34 bytes), returns the u16 id at +0 of the one nearest the point's X,Z: signed distance past circle radius +0x10 at (+4, +0xC), or when s16 +2 is nonzero, from 088C75D4, a box from (+4, +0xC) to (+0x18, +0x20) with half width +0x10; with no volumes, the first u16 of the list at DAT_09ce480c + map*8."
+confidence = "inferred"
+evidence = "Whole body read in the generated C; the box from the first 70 of 94 lines of 088C75D4. Result used in hunter_state_function."
+
+[[function]]
+module = "EBOOT"
+address = "088DE6EC"
+name = "asset_slots_start_load_for_id"
+purpose = "Starts loading asset slots 0x15 and 0x29 (id + 0x16B0, id + 0x15A6), calls 088711C0(g_quest, id), and slots 0x26, 0x27, 0x28 from the tables at 09CE4948, 089A9590 and 089A9592 by id."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08813188"
+name = "camera_request_yaw_from_local_hunter"
+purpose = "Sets yaw_from_hunter_request to 1 if the hunter at a1 is the local one."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088DD3E4"
+name = "motion_update_layers_thunk"
+purpose = "Jumps to motion_update_layers (EBOOT 08865648)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECA8"
+name = "sound_bank_get_wave_data_size_thunk"
+purpose = "Jumps to sound_bank_get_wave_data_size (EBOOT 088A59C4)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAB4"
+name = "sound_se_change_send_1_with_slot_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EE68."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE68"
+name = "sound_se_change_send_1_with_slot_thunk"
+purpose = "Jumps to sound_se_change_send_1_with_slot (EBOOT 088A6868)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE88"
+name = "sound_se_change_send_1_with_ids_thunk"
+purpose = "Jumps to sound_se_change_send_1_with_ids (EBOOT 088A69DC)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "08897290"
+name = "returns_a1_placement_new_eboot"
+purpose = "Returns its second argument. Callers pass it memory just allocated and go on to construct there: C++ placement new, so its a0 is a size or unused."
+confidence = "inferred"
+evidence = "The generated code, one line; callers read (e.g. game_state_create_in_slot, EBOOT 088956DC onward)."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC80"
+name = "sound_spu_map_select_wrapper_thunk"
+purpose = "Jumps to EBOOT 088A4BC4."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC88"
+name = "sound_spu_map_get_slot_offset_thunk_thunk"
+purpose = "Jumps to sound_spu_map_get_slot_offset_thunk (EBOOT 088A4BE8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC90"
+name = "sound_bank_slot_set_thunk"
+purpose = "Jumps to sound_bank_slot_set (EBOOT 088A4BF0)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889ECA0"
+name = "sound_entry_table_set_thunk"
+purpose = "Jumps to sound_entry_table_set (EBOOT 088A6024)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE48"
+name = "sound_rpc_send_channel_ramp_thunk"
+purpose = "Jumps to sound_rpc_send_channel_ramp (EBOOT 088A6628)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE50"
+name = "sound_se_change_send_2_empty_thunk"
+purpose = "Jumps to sound_se_change_send_2_empty (EBOOT 088A6798)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088DD7D8"
+name = "global_09a4f210_set_to_a0"
+purpose = "Stores a0 in the word at 09A4F210 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088EFF78"
+name = "global_09a5256c_set_to_a0"
+purpose = "Stores a0 in the word at 09A5256C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898370"
+name = "global_08a62d74_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D74 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898380"
+name = "global_08a62d70_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D70 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898390"
+name = "global_08a62dd4_set_to_a0"
+purpose = "Stores a0 in the word at 08A62DD4 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983A0"
+name = "global_08a62d9c_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D9C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983D8"
+name = "global_09a1ff1c_set_to_a0"
+purpose = "Stores a0 in the word at 09A1FF1C and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088983FC"
+name = "global_089cbd08_set_to_a0"
+purpose = "Stores a0 in the word at 089CBD08 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889840C"
+name = "global_08a632c8_set_to_a0"
+purpose = "Stores a0 in the word at 08A632C8 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889841C"
+name = "global_089cbd00_set_to_a0"
+purpose = "Stores a0 in the word at 089CBD00 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "088984A8"
+name = "global_08a62d84_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D84 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898510"
+name = "global_08a62d60_set_to_a0"
+purpose = "Stores a0 in the word at 08A62D60 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898520"
+name = "global_08a632c0_set_to_a0"
+purpose = "Stores a0 in the word at 08A632C0 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "08898530"
+name = "global_09a0b680_set_to_a0"
+purpose = "Stores a0 in the word at 09A0B680 and returns a0."
+confidence = "confirmed"
+evidence = "The generated code; called from a static initialiser."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAD4"
+name = "global_09a0fec0_set_to_a0_return_0_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EC98."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC78"
+name = "sound_bank_tables_init_thunk"
+purpose = "Jumps to sound_bank_tables_init (EBOOT 088A4B5C)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EC98"
+name = "global_09a0fec0_set_to_a0_return_0_thunk"
+purpose = "Jumps to EBOOT 088A6014."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088A0BEC"
+name = "sound_voice_system_init_thunk"
+purpose = "Jumps to sound_voice_system_init (EBOOT 088A1200)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0887F4F0"
+name = "class_089baca4_destructor"
+purpose = "Destructor of Class_089BACA4: sets vtable 089BACA4, runs the base vtable write, and calls the delete stub if a1 is positive."
+confidence = "confirmed"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "EBOOT"
+address = "088B9B9C"
+name = "demo_task_destructor"
+purpose = "Destructor of DemoTask: sets vtable 089BADA0, runs the base vtable write, and calls the delete stub if a1 is positive."
+confidence = "inferred"
+evidence = "Whole body read; class name as in classes.toml, as good as its evidence there."
+
+[[function]]
+module = "EBOOT"
+address = "089BAB34"
+name = "crt_static_init_089bab34_register_destructor"
+purpose = "Constructs the global at 9A52580 and registers f_EBOOT_88EFF88 as its destructor."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0889EAAC"
+name = "sound_se_change_send_1_empty_thunk_thunk"
+purpose = "Jumps to EBOOT 0889EE58."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE58"
+name = "sound_se_change_send_1_empty_thunk"
+purpose = "Jumps to sound_se_change_send_1_empty (EBOOT 088A67D8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088A53FC"
+name = "sound_bank_chunk_tag_is_smpl"
+purpose = "True if the 4 bytes at a0 are \"Smpl\"."
+confidence = "confirmed"
+evidence = "Whole body and the string at 089B27AC read; caller sound_bank_lookup_tone."
+
+[[function]]
+module = "EBOOT"
+address = "088A5428"
+name = "sound_bank_chunk_tag_is_vagi"
+purpose = "True if the 4 bytes at a0 are \"Vagi\"."
+confidence = "confirmed"
+evidence = "Whole body and the string at 089B27B4 read; caller sound_bank_lookup_tone."
+
+[[function]]
+module = "EBOOT"
+address = "088A4BC4"
+name = "sound_spu_map_select_wrapper"
+purpose = "Calls sound_spu_map_select."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0887F464"
+name = "class_089baca4_construct"
+purpose = "Writes vtable 089BACB8, copies the member function pointer at 089A8B30 to +4 if set, writes vtable 089BACA4, zeroes +0x1C."
+confidence = "confirmed"
+evidence = "Whole body read; caller game_state_create_in_slot."
+
+[[function]]
+module = "EBOOT"
+address = "088A2404"
+name = "global_09a0d390_set_to_a0"
+purpose = "Stores a0 in the word at 09A0D390."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_track_open_streams."
+
+[[function]]
+module = "EBOOT"
+address = "088A3FF4"
+name = "global_09a0e4cc_set_to_a0_return_0"
+purpose = "Stores a0 in the word at 09A0E4CC and returns 0."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_engine_init."
+
+[[function]]
+module = "EBOOT"
+address = "088A6014"
+name = "global_09a0fec0_set_to_a0_return_0"
+purpose = "Stores a0 in the word at 09A0FEC0 and returns 0."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "088A10F0"
+name = "sound_thread_update_matching_voices_at_8"
+purpose = "Jumps to sound_update_matching_voices with a0 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_thread_update."
+
+[[function]]
+module = "EBOOT"
+address = "088A10E8"
+name = "sound_thread_apply_command_2_at_8"
+purpose = "Jumps to sound_voices_apply_command_2_to_matching with a0 + 8."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_thread_update."
+
+[[function]]
+module = "EBOOT"
+address = "0889EA9C"
+name = "eboot_0889ee60_thunk"
+purpose = "Jumps to eboot_0889ee60 (EBOOT 0889EE60)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0889EE80"
+name = "eboot_088a6940_thunk"
+purpose = "Jumps to eboot_088a6940 (EBOOT 088A6940)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088A0BF4"
+name = "sound_voice_system_init_thunk"
+purpose = "Jumps to sound_voice_system_init (EBOOT 088A1200)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088B099C"
+name = "eboot_088ae598_thunk"
+purpose = "Jumps to eboot_088ae598 (EBOOT 088AE598)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "0890DF2C"
+name = "eboot_0890c3a8_thunk"
+purpose = "Jumps to eboot_0890c3a8 (EBOOT 0890C3A8)."
+confidence = "confirmed"
+evidence = "The generated code, one jump."
+
+[[function]]
+module = "EBOOT"
+address = "088131B8"
+name = "camera_set_yaw_goal_from_local_hunter_plus_2000"
+purpose = "For the local hunter: hunt_scenery_turn_pending 0, hunt_yaw_goal the hunter's +0x1F4 + 0x2000, hunt_height_preset 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08872AAC"
+name = "quest_start_18000_tick_event_post_message_13"
+purpose = "Sets g_game timed_event_pending to 1 and event_timer_ticks to 18000; for the local hunter runs EBOOT 08813D40(g_camera) and posts message category 10 kind 6 with first byte 0x13."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088711C0"
+name = "quest_start_load_slots_by_queues_and_id"
+purpose = "Counts the active quest queues as the next slot, then loads groups by asset_slots_start_load_three_by_table: table 0x12 if the id is game_lookup_id_from_6af0e_or_table's result; 0xA for a list of ids (0x29, 0xC2, 0x36, ...) unless quest_flags has bits 0x1000010; 0x4A for a list (0x15, 0x8C, ...) with quest_flags bit 0x10; and up to four from the record of quest_file_find_set_record_by_key."
+confidence = "inferred"
+evidence = "Whole body read in the generated C, the id lists in part. Caller asset_slots_start_load_for_id."
+
+[[function]]
+module = "EBOOT"
+address = "088FD28C"
+name = "field_98_byte_get"
+purpose = "Returns the byte at +0x98."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "08852A44"
+name = "game_local_spawned_limit_two_under_2"
+purpose = "True if local_spawned_limit_two_count is under 2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088A9CDC"
+name = "net_global_09a1d72c_get"
+purpose = "Returns the word at 09A1D72C."
+confidence = "confirmed"
+evidence = "The generated code; callers are net_conn_pump_ functions."
+
+[[function]]
+module = "EBOOT"
+address = "08848620"
+name = "global_08a62dd4_clear_word_20"
+purpose = "Zeroes the word at +0x20 of the object at 08A62DD4."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "08872B40"
+name = "quest_queues_total_entry_0_byte_4"
+purpose = "Sums the signed byte at +4 of each of the 2 queues' first entry (pointer +0x768, length +0x786, queues 0x2C apart), for those of positive length."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08879158"
+name = "game_quest_item_pairs_total_count"
+purpose = "Sums the count of the 0x20 pairs in quest_item_pairs whose id is nonzero."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088DA168"
+name = "hunter_local_has_item_2b"
+purpose = "True for the local hunter if the pouch holds item 0x2B."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08896C58"
+name = "notice_text_from_tables_89b1750_89b1090"
+purpose = "Takes byte id = table 089B1750[a1] at a2*2, looks it up in u16 table 089B1090 and calls game_task 09A63288 on the global at 09A44D9C with it."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0885AFF8"
+name = "pouch_saved_clear_slot_43c8"
+purpose = "For index a1 under 0x18, zeroes count +0x43CA and item id +0x43C8 of that 4-byte slot in the game state; returns 1 if the id was nonzero, 0 if it was zero, 2 if the index is out of range."
+confidence = "inferred"
+evidence = "Whole body read; the list as saved pouch from item_pouch_saved_add_count and pouch_copy_stored_43c8_to_active."
+
+[[function]]
+module = "EBOOT"
+address = "08869504"
+name = "game_stage_is_not_lookup_and_flags_1000_clear"
+purpose = "False if stage_id equals game_lookup_id_from_6af0e_or_table's result; otherwise true if bit 0x1000 of a0 +0x28 is clear."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08851E54"
+name = "equip_table_byte_13_if_part_has_id"
+purpose = "If local_equip_part_has_id for the type's slot, returns byte +0x13 of table_8978594_entry_0x28(type, id), else 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08823AE4"
+name = "hunter_queue_e43_contains_byte"
+purpose = "Walks the circular queue of 0x14 entries at +0xE43 (0x24 stride), count +0x10F8, start +0x10F9, for byte a1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0889942C"
+name = "net_copy_local_mac_to_buffer"
+purpose = "Zeroes 0x20 bytes at a1 and copies the 8 bytes of net_get_local_mac_buffer there."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08821CA8"
+name = "hunter_equip_clear_pieces_not_fitting"
+purpose = "For 5 equipment slots listed at 0893AFD8: clears a piece's +0x4F6 if equip_fits_hunter_kind_and_4e9 says it doesn't fit."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088CDDAC"
+name = "camera_scene_reassign_track_slots_12"
+purpose = "Sets sound layout slots 0x12 to 0x14 from the loader's size, unassigns and reassigns track buffers, and copies file entry into slot 0x2A's asset before freeing it; clears +0x9B."
+confidence = "inferred"
+evidence = "Whole body read for the sequence; callers are camera_scene_run_step and _finish."
+
+[[function]]
+module = "EBOOT"
+address = "08832884"
+name = "text_format_with_mode_section_string"
+purpose = "Formats a1 + 1 and more with 08938808, then \"%s %s\" with pack_entry_section_0 of a table entry by mode_flags 4 and 8 and the result, into a2."
+confidence = "confirmed"
+evidence = "Whole body read; the second format string's contents shown by its label s__s__s."
+
+[[function]]
+module = "EBOOT"
+address = "088EF348"
+name = "block_list_09a4f214_alloc"
+purpose = "Calls block_list_alloc on the list at 09A4F214."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0885156C"
+name = "pack_entry_section_5"
+purpose = "pack_entry_ptr(self, 5, a1)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "0885168C"
+name = "pack_entry_section_15"
+purpose = "pack_entry_ptr(self, 0x15, a1)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "08851698"
+name = "pack_entry_section_16"
+purpose = "pack_entry_ptr(self, 0x16, a1)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "088188A8"
+name = "hud_call_881aaa4_with_530_57f"
+purpose = "Calls 0881AAA4(self, +0x530, byte +0x57F)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08808150"
+name = "libc_copysignf"
+purpose = "Returns the absolute value of the first float with the second's sign."
+confidence = "inferred"
+evidence = "Whole body read; called from libc_scalbnf."
+
+[[function]]
+module = "EBOOT"
+address = "08873980"
+name = "quest_mark_monster_type_seen_7cc"
+purpose = "If object byte +0x1E9 is 1, sets the byte at quest +0x7CC + its +0x1E8."
+confidence = "inferred"
+evidence = "Whole body read. \"Seen\" is a guess; the mechanics aren't."
+
+[[function]]
+module = "EBOOT"
+address = "088D27CC"
+name = "hunter_kind_6_flag_40"
+purpose = "True if byte +0x4E9 is 6 and bit 0x40 of +0x4EC is set."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088ACD38"
+name = "net_state_bytes_09a1dca0_reset"
+purpose = "Writes 2, 0, 0, 0 to the four bytes at 09A1DCA0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08896C2C"
+name = "notice_flag_test_by_group_and_index"
+purpose = "gamedata_bitflag_508_test with index + table 089B164C[group]."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08896CF8"
+name = "notice_table_byte_1_by_group_and_index"
+purpose = "Returns the second byte of the entry at table 089B1750[group][index]."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088CF1B0"
+name = "model_effect_table_word_89af394"
+purpose = "Word [a1] of the 12-byte record [a2] of table 089AF394."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088CF1E0"
+name = "model_effect_table_word_89af3dc"
+purpose = "Word [a1] of the 12-byte record [a2] of table 089AF3DC."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0885C0F0"
+name = "game_set_bit_446c_from_record_byte_6"
+purpose = "Sets bit (byte at a1 +6) in the bitset at g_game +0x446C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08813C8C"
+name = "camera_sequence_id_is_3_4_5"
+purpose = "True if sequence_id is 3, 4 or 5."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088DE520"
+name = "asset_volatile_mem_unlock_and_clear"
+purpose = "sceKernelVolatileMemUnlock, then clears +0x204, +0x208, +0x20C, +0x210."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088AB028"
+name = "net_pdp_delete_socket"
+purpose = "If the word at a0 isn't negative, sceNetAdhocPdpDelete and sets it to -1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08854EB0"
+name = "quest_id_lists_0_1_all_flagged"
+purpose = "True if quest_id_list_89b1fb0_all_flagged for lists 0 and 1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0885C718"
+name = "table_89a5c78_band_of_value"
+purpose = "The first index under 6 with table byte at 089A5C78 at most the value; 6 if none."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088C0420"
+name = "save_data_checksum_ok"
+purpose = "Sums 0x1C3FC words at +0x950's buffer and compares with word 0x1C3FD of it."
+confidence = "confirmed"
+evidence = "Whole body read: word 0x1C3FC isn't summed or compared. Callers save_boot_check_tick and 088C1828."
+
+[[function]]
+module = "EBOOT"
+address = "08908ACC"
+name = "gu_update_stall_if_list_running"
+purpose = "Unless 09A5E8FC or context +0x10 is set, calls sceGeListUpdateStallAddr with the list's address; returns its error if negative."
+confidence = "confirmed"
+evidence = "Whole body read; caller gu_draw_array."
+
+[[function]]
+module = "EBOOT"
+address = "08854EFC"
+name = "quest_id_lists_2_3_4_all_flagged"
+purpose = "True if quest_id_list_89b1fb0_all_flagged for lists 2, 3 and 4."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08854F64"
+name = "quest_id_lists_5_6_7_all_flagged"
+purpose = "True if quest_id_list_89b1fb0_all_flagged for lists 5, 6 and 7."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0886C8AC"
+name = "quest_post_message_9_and_hud_message_8"
+purpose = "Posts message category 10 kind 6 with first byte 9, a1 and hunter_kv_542_get_by_selector(self, a1, 1), then hud_message_queue_push(1, 8, a1)."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088F0020"
+name = "lobby_records_rebuild_summaries_and_clear"
+purpose = "Zeroes +0xD and +0x10, game_build_record_summary, record70_rebuild_summaries_682e8_from_69bec, zeroes bytes +0xA72B to +0xA72D."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088B7F5C"
+name = "angle_wrap_0_to_2pi"
+purpose = "Adds or takes 2*pi until the float is within 0 to 2*pi."
+confidence = "confirmed"
+evidence = "Whole body read; caller angle_warp_piecewise_60_120_210_330."
+
+[[function]]
+module = "EBOOT"
+address = "0881C1C8"
+name = "menu_pouch_cursor_move_and_item_refresh"
+purpose = "menu_cursor_move_paged_by_8 over 0x18 entries, takes the pouch slot's item id, stores id + 0x18 at +0x5FC, and runs 0881C240 with it and bit 0x8000 of a2."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088507F4"
+name = "equip_box_clear_entry_if_not_equipped"
+purpose = "Unless equip_is_box_index_equipped, zeroes the 12-byte entry at GameState +0x548 + index*0xC."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "0880B494"
+name = "libc_call_8804098_store_errno_on_failure"
+purpose = "Zeroes 09A5F2E0, calls 08804098; if that's -1 with 09A5F2E0 set, stores it at a0 and returns -1."
+confidence = "inferred"
+evidence = "Whole body read; libc_swrite is a caller and a0 looks like its reent pointer: newlib's _write_r shape."
+
+[[function]]
+module = "EBOOT"
+address = "0886D450"
+name = "quest_spawn_list_set_offset_for_id"
+purpose = "In the list at a1[spawn_group] from file_base, finds the 16-byte entry for id a2 and stores (a3 - file_base) in its word a4+2 unless that's 0 or -1. Nothing with quest_id 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088F0088"
+name = "lobby_dispatch_by_mode_0_to_3"
+purpose = "By a2: 3 runs 088F012C, 2 runs 088F2224, 1 and 0 088F1664 and 088F368C with g_game +0x67758, others 088F2B0C."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088B3328"
+name = "net_peer_set_byte_by_mac"
+purpose = "Finds of 4 peer records (200-byte stride at 09A2865C) the one whose MAC at +0xE48 equals a0; sets its byte 09A29569 + i*200 to a1."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08854D88"
+name = "quest_id_lists_89b1fdc_all_flagged"
+purpose = "True if quest_id_list_89b1fdc_all_flagged for lists 0 and up, in order."
+confidence = "inferred"
+evidence = "First 22 lines read of a run of the same test."
+
+[[function]]
+module = "EBOOT"
+address = "0885E528"
+name = "equip_box_set_flag_40_by_arg"
+purpose = "For entry a1 of type 6, sets flag 0x40 of +0x54C if a2 is 0, otherwise clears it."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088B0C8C"
+name = "net_copy_0x29_halfwords_pairs_to_two_records"
+purpose = "Copies 0x29 pairs of shorts from a0 to 09A289DC and to 09A20350, then calls 088AFA2C(09A20330, a0) and 088B158C(stack, a0); returns 0."
+confidence = "inferred"
+evidence = "Whole body read in the generated C. The two callees not read."
+
+[[function]]
+module = "EBOOT"
+address = "088041C8"
+name = "libc_exit_thread_or_stop_module"
+purpose = "If called from another thread than main prints a message and exits the thread. Otherwise runs 0880E19C, 0880C7E0, and stops and unloads the module."
+confidence = "inferred"
+evidence = "Whole body read; caller libc_exit."
+
+[[function]]
+module = "EBOOT"
+address = "0885D134"
+name = "item_extra_skill_points_for_skill"
+purpose = "Sums the signed points of the 4 (skill, points) byte pairs at +8 to +0xF of item_data_extra_entry's record for skill a2."
+confidence = "inferred"
+evidence = "Whole body read in the generated C. Caller equip_skill_points_for_skill."
+
+[[function]]
+module = "EBOOT"
+address = "0885E3D4"
+name = "equip_box_set_flag_10_clear_20_by_arg"
+purpose = "For entry a1 of type 6, with a2 0 sets flag 0x10 of +0x54C and clears 0x20; otherwise clears 0x10."
+confidence = "inferred"
+evidence = "Whole body read in the generated C."
+
+[[function]]
+module = "EBOOT"
+address = "0885E5C0"
+name = "equip_box_set_flag_80_clear_20_by_arg"
+purpose = "For entry a1 of type 6, with a2 0 sets flag 0x80 of +0x54C and clears 0x20; otherwise clears 0x80."
+confidence = "inferred"
+evidence = "Whole body read in the generated C."
+
+[[function]]
+module = "EBOOT"
+address = "0885E664"
+name = "equip_value_tenth_price_by_table"
+purpose = "For type a1 6 and a3 from 0 to 3: equip_get_price/10 times word a3 of 089A5CA0; otherwise 0."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "08858008"
+name = "game_record70_stat_1c_with_a2_0"
+purpose = "record70_compute_stat_1c(self, a1, 0)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "08890F68"
+name = "str_len_wrapper"
+purpose = "Calls str_len."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "088EF360"
+name = "block_list_09a4f214_alloc_large"
+purpose = "Calls block_list_alloc on the list at 09A4F214."
+confidence = "confirmed"
+evidence = "Whole body read; caller jpeg_alloc_large."
+
+[[function]]
+module = "EBOOT"
+address = "088803E4"
+name = "sound_global_089b25f8_set"
+purpose = "Stores a1 in the word at 089B25F8."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_driver_set_mode."
+
+[[function]]
+module = "EBOOT"
+address = "088803F0"
+name = "sound_global_09a0dbcc_set"
+purpose = "Stores a1 in the word at 09A0DBCC."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_driver_set_mode."
+
+[[function]]
+module = "EBOOT"
+address = "088868A0"
+name = "sound_global_089b2508_set"
+purpose = "Stores a1 in the word at 089B2508."
+confidence = "confirmed"
+evidence = "The generated code; caller sound_driver_set_mode."
+
+[[function]]
+module = "EBOOT"
+address = "08872E90"
+name = "quest_id_slot_value_low_7_bits"
+purpose = "id_slot_0[a1] & 0x7F."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088A11F0"
+name = "sound_call_88a14b8_on_8_and_24"
+purpose = "Calls 088A14B8(a0 + 8, a0 + 0x24)."
+confidence = "confirmed"
+evidence = "Whole body read; caller sound_thread_update."
+
+[[function]]
+module = "EBOOT"
+address = "0880F384"
+name = "str_chr_wrapper"
+purpose = "Calls str_chr."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "08872B2C"
+name = "quest_removed_count_for_type"
+purpose = "removed_count_by_type[a1]."
+confidence = "confirmed"
+evidence = "Whole body read."
+
+[[function]]
+module = "EBOOT"
+address = "088DC1C8"
+name = "asset_slot_8_start_load_1517"
+purpose = "asset_slot_start_load(global, 8, 0x1517, 0)."
+confidence = "confirmed"
+evidence = "The generated code."
+
+[[function]]
+module = "EBOOT"
+address = "0885C124"
+name = "table_89a5c70_byte_for_record_byte_5"
+purpose = "Table byte at 089A5C70 for the record's byte +5."
+confidence = "confirmed"
+evidence = "Whole body read; caller item_combo_room_state."
+
+[[function]]
+module = "EBOOT"
+address = "089098AC"
+name = "image_call_89098c8_with_ffff"
+purpose = "Calls 089098C8(a0, 0xFFFF)."
+confidence = "confirmed"
+evidence = "Whole body read; caller image_release_refcounted_buffers."
+

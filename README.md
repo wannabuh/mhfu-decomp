@@ -75,6 +75,10 @@ buttons bound instead of the PSP's, or the gamepad's buttons once the gamepad is
 | F11 | fullscreen on / off |
 | F2 / F4 | save / load a save state |
 | F3 | the next save state slot (1-9) |
+| F5 | the performance panel on / off |
+| F6 | bug capture: writes a numbered folder (`~/.local/share/mhfu-recomp/captures/NNNN`, `MHFU_CAPTUREDIR=...` elsewhere), says its number on the screen; tell it to whoever is looking at the bug |
+| F7 | the click inspector on / off: the mouse is a pointer; click something for what it is, again for the next nearest; what is under the pointer is listed with its textures |
+| F8 | with the click inspector open: hold the game / let it run |
 
 The mouse turns and tilts the camera (it is captured from the start; clicking the window takes it back). In a hunt it
 turns the game's own camera; where the game fixes the camera (the village, the camp tent) it orbits the view about the
@@ -89,8 +93,8 @@ turns the page or changes the setting. Menus drawn some other way still go by th
 
 Save states keep the whole game as it is - anywhere, in a hunt or a menu - and load it again at once, as PPSSPP's do:
 F2 saves into the slot, F4 loads it, F3 moves on to the next slot (the window's title says which, and what was done).
-They are kept in `~/.local/share/mhfu-recomp/states` (`MHFU_STATEDIR=...` elsewhere) and load in later runs of the same
-build; one made by another build (after `make`) does not load. The game's own saves are apart from them: loading a
+They are kept in `~/.local/share/mhfu-recomp/states` (`MHFU_STATEDIR=...` elsewhere) and load in later runs and later
+builds, unless the runtime's own structures have changed (the window's title then says what). The game's own saves are apart from them: loading a
 state does not undo a save made since.
 
 ## Settings
@@ -118,7 +122,7 @@ game turns the camera away from walls itself, as on the PSP: otherwise it stays 
 relief in the sun from its textures, lighting by the pixel, lights
 from the game's fires and their shadows, ambient occlusion: all on otherwise), `MHFU_POINT_GAIN=1` (the fires' lights'
 strength), `MHFU_AO_STRENGTH=2`, `MHFU_AO_RADIUS=120` (the ambient occlusion's strength, and how far it looks, in the
-game's units), `MHFU_HAZE=1` (the air's haze: far hills and the sky's foot fading into the world's fog colour, more where it lies low, lit towards the sun - none in rooms; 0 none, up to 4), `MHFU_WATER=0` (lakes and rivers as the game draws them: otherwise drawn as water - what is under them seen through
+game's units), `MHFU_HAZE=1` (the air's haze: far hills and the sky's foot fading into the world's fog colour, more where it lies low, lit towards the sun - none in rooms; up to 4; by default 0, none: at 1 it hides the village's distant mountains and clouds), `MHFU_WATER=0` (lakes and rivers as the game draws them: otherwise drawn as water - what is under them seen through
 them, bent by ripples and darker the deeper it is, the banks and sky reflected, the sun glinting), `MHFU_BLOB_SHADOWS=1` (the game's round shadows under the hunter's and monsters' feet kept: left out otherwise, while the sun's shadows are drawn), `MHFU_MIPMAPS=0` (the game's textures without mipmaps - smaller copies for the distance, sampled trilinear and anisotropic, which keep far ground and grass from shimmering; on otherwise), `MHFU_GRASS=0` (no ground grass: blades of our own wherever the ground is grass, swaying in the wind and bending away from feet, as bright as the ground and shaded by the sun's shadows; on by default), `MHFU_GRASS_DENSITY=1` (how dense: blades over the same ground, e.g. 0.5 or 2; up to 4), `MHFU_GRASS_FULL=700` (how far it is at its full density, in the game's units: about centimetres - all of it made first, there), `MHFU_GRASS_DISTANCE=3000` (how far it reaches: between the two thinner the farther, each blade growing in over a stretch rather than popping up, the last quarter shrinking away; grass on ground just seen grows in over half a second), `MHFU_SHADOW_DISTANCE=3000` (how far the sun's shadows reach each way from what the camera looks at), `MHFU_SHADOW_RESOLUTION=4096` (their map's size: with the distance, how sharp they are), `MHFU_TESSELLATION=0` (the hunter, monsters and people drawn
 rounder: their triangles cut finer up close and curved by their normals; on otherwise), `MHFU_SWAY=1` (how far grass, bushes and leaves sway in the wind - and bend away from the hunter and
 monsters walking through them; 0 none), `MHFU_POST=0` (none of the

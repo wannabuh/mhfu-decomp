@@ -27,6 +27,8 @@
 #include "hle.h"
 #include "post.h"
 #include "glyphs.h"
+#include "perf.h"
+#include "pacing.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -1658,13 +1660,19 @@ static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
 /* The button hints (glyphs.c): the keys and buttons bound, over the PSP's buttons' places in the picture - and the
  * controls screen (overlay.c) over all */
 int overlay_rects(float x0, float y0, float scale, HintRect *out, int max);
+int inspect_rects(float x0, float y0, float scale, HintRect *out, int max);
+int hit_view_rects(float x0, float y0, float scale, HintRect *out, int max);
+#define MAX_HINT_RECTS 16384
 static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
-    static HintRect rects[8192];
-    static VkClearRect by_color[8192];
+    static HintRect rects[MAX_HINT_RECTS];
+    static VkClearRect by_color[MAX_HINT_RECTS];
     float x0, y0, vw, vh;
     picture_place(w, h, &x0, &y0, &vw, &vh);
-    int n = glyphs_rects(x0, y0, vw / 480.0f, rects, 8192);
-    n += overlay_rects(x0, y0, vw / 480.0f, rects + n, 8192 - n);    /* (the controls screen over them) */
+    int n = glyphs_rects(x0, y0, vw / 480.0f, rects, MAX_HINT_RECTS);
+    n += perf_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);      /* (the performance panel) */
+    n += inspect_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);   /* (the click inspector) */
+    n += hit_view_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);  /* (the hit overlay) */
+    n += overlay_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);    /* (the controls screen over them) */
     for (int i = 0; i < n;) {           /* (in order, each run of one colour cleared at once) */
         int c = rects[i].color;
         uint32_t k = 0;
@@ -1705,7 +1713,10 @@ void render_flip(uint32_t addr) {
         return;
     }
     uint32_t index;
+    uint64_t present_at = perf_on ? perf_ns() : 0;
     VkResult r = vkAcquireNextImageKHR(vk.device, vk.swapchain, UINT64_MAX, vk.acquired, VK_NULL_HANDLE, &index);
+    if (present_at)
+        perf_present_ns += perf_ns() - present_at;
     if (r == VK_ERROR_OUT_OF_DATE_KHR) {
         vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
         end_frame();
@@ -1734,11 +1745,28 @@ void render_flip(uint32_t addr) {
     vkCmdEndRendering(cmd);
     vk_transition(&swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     vk_submit(vk.acquired, vk.rendered);
-    VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, NULL, 1, &vk.rendered, 1, &vk.swapchain, &index, NULL};
+    VkPresentInfoKHR pi = {VK_STRUCTURE_TYPE_PRESENT_INFO_KHR, pacing_present_chain(), 1, &vk.rendered, 1, &vk.swapchain,
+                           &index, NULL};
+    present_at = perf_on ? perf_ns() : 0;
     r = vkQueuePresentKHR(vk.queue, &pi);
+    if (present_at)
+        perf_present_ns += perf_ns() - present_at;
+    pacing_presented(r);
     end_frame();
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || window_resized)
         window_changed();
+}
+
+/* The size frames are shown at: the window's, or headless the internal resolution */
+void render_shown_size(int *w, int *h) {
+    render_queue_sync();                /* (called from outside: the renderer's own again) */
+    if (vk.surface) {
+        *w = (int)vk.swap_extent.width;
+        *h = (int)vk.swap_extent.height;
+    } else {
+        *w = (int)scaled(480);
+        *h = (int)scaled(272);
+    }
 }
 
 /* The displayed part of a framebuffer at the internal resolution (MHFU_DUMP_FULL): malloc'd, *w by *h */

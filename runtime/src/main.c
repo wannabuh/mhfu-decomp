@@ -9,6 +9,9 @@
  * already - the environment first, then ./mhfu.ini, then settings.ini. "iso = path" names the game when the command
  * line does not. Lines starting with # are comments. */
 #include "hle.h"
+#include "pacing.h"
+
+extern const char *rt_settings_path;
 
 #include <signal.h>
 #include <stdlib.h>
@@ -92,6 +95,7 @@ static void settings(void) {
     else
         return;
     load_settings(path);
+    rt_settings_path = strdup(path);
 }
 
 static uint32_t u32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
@@ -162,6 +166,7 @@ int main(int argc, char **argv) {
     threads_init();
     io_init(iso);
     ge_init();
+    pacing_init();
     window_init();
     hle_enabled = 1;
 

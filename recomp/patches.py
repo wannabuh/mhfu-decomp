@@ -75,6 +75,19 @@ EASE = "a colour's ease: a fifth of the way a game frame, in game time"
 # game frame - through a greatsword's attacks): found by tools/ratecheck.py
 COUNTDOWN33C = "a character's countdown +0x33C: 1 less a 30th, not a game frame"
 
+# Hit-stop (EBOOT 088D5C7C, a character's motion update: motion_slow_timer +0x558, set from a hit record, counts down
+# while the layers run at speed 0.2): counted in 30ths, as freeze_ticks +0x33C beside it is (COUNTDOWN33C). The speed
+# needs nothing: the motion player scales it, as any layer's (MOTION)
+HIT_STOP = "hit-stop's countdown +0x558: 1 less a 30th, not a game frame"
+
+# The hunter's drains (game_task 09A6D418, every game frame of its tick). Counted in 30ths: the divider +0x452 of its
+# poison's seconds +0x388, the wait +0x454 for each loss of health, the wait +0x11B6 for poison's effect, the wait +0x696
+# for a loss in a hot place. And what tests the hunt's count of 30ths (*0x089CC558 + 0x1C, which holds still between
+# 30ths: "count % n == 0" is true for every game frame of that 30th): the effect on another hunter (09A6D7AC), the loss
+# from what is in the pouch (09A6D888), the loss from the ground (09A6DE34) - and the ground's effect (game_sub 09CB2510)
+# - each taken as false between 30ths
+DRAIN = "the hunter's drains: their waits in 30ths, and a test of the hunt's count of 30ths made once, at a 30th"
+
 # Counts of game frames in a module's objects (recomp.py count_step): every "addiu $x, $x, 1" (or -1) stored back to one
 # of these fields counts a 30th (rt_tick30), not a game frame. In the hunt's code (game_task): an action's count
 # (+0x414, some 580 places: a ledge's hang, a greatsword's charge running out...) and a charge's time (+0x672).
@@ -120,6 +133,111 @@ HAND = {
     ("game_task", 0x09A6A598): "hand_hunter_stamina_add_scaled",
     ("EBOOT", 0x088D5C7C): "hand_hunter_motion_update",
     ("game_task", 0x09A665F0): "hand_hunter_state_run",
+    ("EBOOT", 0x088D6594): "hand_hunter_add_health",
+    ("game_task", 0x09A6C968): "hand_hunter_can_guard_received_hit",
+    ("EBOOT", 0x088D92F8): "hand_hunter_recalc_defense_value",
+    ("game_task", 0x09A6B130): "hand_hunter_process_received_hit",
+    ("game_task", 0x09AC8450): "hand_entity_sum_pending_damage_and_add_buildups",
+    ("game_task", 0x09AC7A08): "hand_entity_apply_pending_damage_and_choose_result_code",
+    ("EBOOT", 0x088D96BC): "hand_hunter_recalc_resist_values",
+    ("EBOOT", 0x088D9880): "hand_hunter_resist_values_add_skill_bonuses",
+    ("EBOOT", 0x088D9EB8): "hand_hunter_add_resist_value_by_id",
+    ("EBOOT", 0x088D9F3C): "hand_hunter_resist_values_add_game_bytes_6993d",
+    ("game_task", 0x09AC9318): "hand_entity_pending_damage_scale_from_quest_table",
+    ("game_task", 0x09A6FB30): "hand_hunter_clear_received_hit_fields",
+    ("game_task", 0x09BA0AE0): "hand_hunter_weapon0_state_dispatch",
+    ("game_task", 0x09BA0CD8): "hand_hunter_weapon0_state_motion_057e",
+    ("game_task", 0x09BA1108): "hand_hunter_weapon0_state_motion_057f",
+    ("game_task", 0x09BA15D8): "hand_hunter_weapon0_state_motion_0594",
+    ("game_task", 0x09BA1E38): "hand_hunter_weapon0_state_motion_057c",
+    ("game_task", 0x09BA1FB8): "hand_hunter_weapon0_state_motion_0583",
+    ("game_task", 0x09BA2E28): "hand_hunter_weapon0_chain_kind",
+    ("game_task", 0x09BA2E68): "hand_hunter_weapon0_chain_to_state",
+    ("game_task", 0x09BA32E8): "hand_hunter_weapon0_connected_reaction",
+    ("game_task", 0x09BA2060): "hand_hunter_weapon0_state_charge",
+    ("game_task", 0x09BA2608): "hand_hunter_weapon0_state_motion_0594_charged",
+    ("game_task", 0x09BA2D10): "hand_hunter_weapon0_pick_state_from_field_1120",
+    ("game_task", 0x09BA31B0): "hand_hunter_weapon0_enter_state_14",
+    ("game_task", 0x09BA3200): "hand_hunter_weapon0_apply_tier",
+    ("EBOOT", 0x088D1BA8): "hand_hunter_field_672_tier",
+    ("game_task", 0x09BA7EF0): "hand_hunter_weapon4_state_dispatch",
+    ("game_task", 0x09BA7FF8): "hand_hunter_weapon4_state_motion_0579",
+    ("game_task", 0x09BA8450): "hand_hunter_weapon4_state_motion_057c",
+    ("game_task", 0x09BA8700): "hand_hunter_weapon4_state_motion_057d",
+    ("game_task", 0x09BA8818): "hand_hunter_weapon4_state_motion_0588",
+    ("game_task", 0x09BA88D8): "hand_hunter_weapon4_state_motion_057e",
+    ("game_task", 0x09BA8BC0): "hand_hunter_weapon4_state_motion_0580",
+    ("game_task", 0x09BA8D40): "hand_hunter_weapon4_pick_state_from_field_1120",
+    ("game_task", 0x09BA8E30): "hand_hunter_weapon4_try_evade_clear_111c_mask_800",
+    ("game_task", 0x09BA8E80): "hand_hunter_weapon4_enter_state_09",
+    ("game_task", 0x09BA8F40): "hand_hunter_weapon4_state_0c_or_button_4",
+    ("game_task", 0x09AB4C68): "hand_monster_script_run",
+    ("game_task", 0x09ABCC40): "hand_monster_script_op_42_if_target_angle_off_field_1f4_at_least",
+    ("game_task", 0x09ABEA38): "hand_monster_script_op_14_if_hunter_target_angle_off_field_1f4_at_least",
+    ("game_task", 0x09AC1458): "hand_monster_script_op_4d_compute_position_into_5d0",
+    ("game_task", 0x09AC3550): "hand_monster_script_op_7c_if_game_6af10_remapped_is_09_0a_or_16",
+    ("game_task", 0x09AC3CA8): "hand_monster_script_op_77_if_global_a4f1a0_id_has_remap_entry",
+    ("game_task", 0x09AC3970): "hand_monster_script_op_76_switch_with_selector_0",
+    ("game_task", 0x09ABB7B8): "hand_monster_script_op_3b_if_field_5c4_nonzero",
+    ("game_task", 0x09AC2B78): "hand_monster_script_op_63_if_field_4ae_has_operand_mask",
+    ("game_task", 0x09AC1578): "hand_monster_script_op_51_if_byte_280_is_4",
+    ("game_task", 0x09AC03D8): "hand_monster_script_op_38_if_cond_9ac04f0",
+    ("game_task", 0x09ABF3B0): "hand_monster_script_op_21_if_field_498_at_most_30pct_of_field_4a0",
+    ("game_task", 0x09ABD7C0): "hand_monster_script_op_17_set_id_sequence",
+    ("game_task", 0x09ABD818): "hand_monster_script_op_18_enter_next_sequence_id_differing_from_field_29a",
+    ("game_task", 0x09AC02D0): "hand_monster_script_op_35_if_field_638_mask_20",
+    ("game_task", 0x09ABBB10): "hand_monster_script_op_28_if_any_hunter_active_same_field_29a",
+    ("game_task", 0x09ABFCF0): "hand_monster_script_op_70_switch_on_field_1e8_sorted",
+    ("game_task", 0x09ABD008): "hand_monster_script_op_08_if_field_280_zero",
+    ("game_task", 0x09ABB788): "hand_monster_script_op_2e_set_field_644_record",
+    ("game_task", 0x09ABF9D0): "hand_monster_script_op_2a_if_field_550_not_positive",
+    ("game_task", 0x09ABF8D0): "hand_monster_script_op_29_if_field_54e_not_positive",
+    ("game_task", 0x09AC07C8): "hand_monster_script_op_3e_switch_on_field_53e_remapped",
+    ("game_task", 0x09ABBC90): "hand_monster_script_op_5e_if_field_292_equals",
+    ("game_task", 0x09ABD630): "hand_monster_script_op_0f_begin_block_over_point_table",
+    ("game_task", 0x09ABB428): "hand_monster_script_op_43_if_global_08a62d9c_mask_20000000",
+    ("game_task", 0x09ABBA08): "hand_monster_script_op_71_if_field_4bc_at_least",
+    ("game_task", 0x09ABA858): "hand_monster_script_op_13_target_chosen_slot_511",
+    ("game_task", 0x09AB8E48): "hand_monster_script_op_06_set_target_spec",
+    ("game_task", 0x09ABA4B0): "hand_monster_script_op_53_choose_hunter_slot_by_field_554_tiers",
+    ("game_task", 0x09ABB040): "hand_monster_script_op_2c_switch_on_field_1e8_group",
+    ("game_task", 0x09ABB8B8): "hand_monster_script_op_54_if_chosen_hunter_active_same_field_29a",
+    ("game_task", 0x09ABB188): "hand_monster_script_op_27_switch_on_field_4ae_sorted",
+    ("game_task", 0x09AC3798): "hand_monster_script_op_79_switch_on_vfunc_dc",
+    ("game_task", 0x09ABED10): "hand_monster_script_op_1b_if_field_544_equals",
+    ("game_task", 0x09ABA888): "hand_monster_script_op_40_set_mode_4b9_zero_or_one",
+    ("game_task", 0x09ABA8F8): "hand_monster_script_op_83_switch_on_distance_to_chosen_slot",
+    ("game_task", 0x09ABD778): "hand_monster_script_op_16_enter_table_24_entry",
+    ("game_task", 0x09ABC600): "hand_monster_script_op_15_switch_on_field_29a_remapped",
+    ("game_task", 0x09ABAAF8): "hand_monster_script_op_81_enter_table_04_entry",
+    ("game_task", 0x09ABA340): "hand_monster_script_op_02_if_slot_mask_503_nonzero",
+    ("game_task", 0x09ABA440): "hand_monster_script_op_12_target_highest_slot_in_mask_503",
+    ("game_task", 0x09ABAB38): "hand_monster_script_op_82_enter_table_3c_entry",
+    ("game_task", 0x09ABCC10): "hand_monster_script_op_19_target_kind_3_from_field_540",
+    ("game_task", 0x09ABC9B8): "hand_monster_script_op_10_target_point_index_534",
+    ("game_task", 0x09ABB670): "hand_monster_script_op_34_if_bytes_298_299_equal",
+    ("game_task", 0x09AB7858): "hand_monster_script_next_instruction",
+    ("game_task", 0x09AB6788): "hand_monster_script_op_ff_end_block",
+    ("game_task", 0x09AB7230): "hand_monster_script_take_pending_entry",
+    ("game_task", 0x09AB7490): "hand_monster_script_get_saved_position",
+    ("game_task", 0x09AB74D0): "hand_monster_script_set_saved_position",
+    ("game_task", 0x09AB7510): "hand_monster_script_op_07_jump_main_entry",
+    ("game_task", 0x09ABAB90): "hand_monster_script_main_entry_clear_nest_level",
+    ("game_task", 0x09AC8B78): "hand_entity_script_restart_if_flagged",
+    ("game_task", 0x09ABAFF0): "hand_monster_script_restart_from_main_entry",
+    ("game_task", 0x09AC9BC8): "hand_entity_set_script_restart_sync",
+    ("game_task", 0x09AB7728): "hand_monster_script_skip_to_opcode_subcode",
+    ("game_task", 0x09AB8A38): "hand_monster_script_skip_past_block_end",
+    ("game_task", 0x09AB7620): "hand_monster_script_op_0b_if_field_4b9_equals",
+    ("game_task", 0x09AB7520): "hand_monster_script_op_39_if_field_4c4_nonzero",
+    ("game_task", 0x09ABA218): "hand_monster_script_op_01_if_field_6d8_low_bits_any",
+    ("game_task", 0x09AB8AE0): "hand_monster_script_op_80_weighted_branch",
+    ("game_sub", 0x09C43558): "hand_entity_apply_hit_hitzone_damage_and_attacker_sharpness",
+    ("game_sub", 0x09C45008): "hand_object_apply_hit_mask_28_amounts",
+    ("game_sub", 0x09C43000): "hand_hunter_register_hit_add_defense_scaled_damage",
+    ("game_sub", 0x09C426E0): "hand_hit_node_test_target_if_in_current_map_and_state_2",
+    ("game_sub", 0x09C41F58): "hand_hit_manager_test_nodes_against_targets",
+    ("game_sub", 0x09C42750): "hand_hit_node_test_target_and_apply",
 }
 
 # A character's place stepped in its state functions (recomp.py place_step): "place += step" stored straight back to
@@ -137,6 +255,22 @@ PLACED = {
 # so the ground below was not the ledge's - he fell off at once and grabbed it again, round and round) and his drop
 # to hang from one (09A9D478: 30 back, 195 down)
 NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x09A9D584)}
+
+# The camera's height over slopes (EBOOT 08886E50, view at $s4 - 0xA0): its target's y goes half way to where it is
+# going a game frame, its eye's y an eighth of the way (a quarter over a long drop) - each a fraction of what is left,
+# so f a game frame is 1 - (1 - f)^scale at the time scale, not f * scale: rt_ease, which leaves it as it is at 30. The
+# eye's lift over a drop (0888D1BC's +0xD8, 20 units up or down a game frame) is linear: 20 * scale. The shake's
+# countdown (EBOOT 08814E18: three records, +0xAC0 on while +0xAC2 lasts) counts 30ths. 08812DB8 works the shake out
+# from that count: left to count game frames it ran out and flipped its sign twice as fast
+CAMERA_HEIGHT = "the camera's height: each ease a fraction of what is left a game frame, in game time"
+CAMERA_LIFT = "the camera's lift over a drop: its 20 units a game frame times the time scale"
+CAMERA_SHAKE = "the camera shake's countdown: 1 less a 30th, not a game frame"
+
+# A weapon's effect ops (the row at +0x7F4 for some weapons: EBOOT 088CF2C8 the bones', 088D08D4 the materials), run as
+# it is drawn (game_task 09A95EA8 and 09A96954, in the render pass, every game frame). Flag 0x10 steps each op's state,
+# 0x20 applies it: stepped at 30ths only, applied every frame. All the steps are under 0x10 but op 0x13's count
+# (088D07DC), which goes up on 0x20 as well
+WEAPON_OPS = "a weapon's effect ops, drawn every game frame: their state stepped at 30ths only (0x10 of the flags)"
 
 # The hunt's camera (EBOOT 08886E50, view at $s4 - 0xA0, its yaw to turn to at +0x80) turns itself where the scenery is
 # in the way: it casts rays between the eye and the hunter; one hit, it turns 0x400 a frame (5.6 degrees) until it is
@@ -185,6 +319,11 @@ HUD = "the hunt's HUD's parts (gauges, map, item bar) told apart as they are dra
 # the keys or gamepad buttons bound instead (glyphs.c)
 SPRITE = "a HUD sprite drawn: a PSP button's left out, the input bound shown in its place (glyphs.c)"
 
+
+# The light shafts' draw (game_sub 09CBADC8, StageRampedGroup) and the glare's (09CBD2A8, StageCameraFacingGlare): what
+# each adds to the display list noted, for the renderer to place it for the camera shown (gpu.c, "what the stage places
+# by the camera"). Writes nothing of the game's
+FAR_DRAW = "a light shaft's or glare's draw: the commands it adds noted, for the renderer to place it for the camera shown (gpu.c)"
 
 # The game's main loop (EBOOT 0888FD38), as it wakes for a game frame: whether a 30th falls on it
 FRAME = "the main loop, woken for a game frame: rt_frame_start (whether a 30th falls on it, the time scale)"
@@ -302,6 +441,15 @@ PATCHES = {
     ("EBOOT", 0x08860DC0): ("div.s $f1, $f1, $f3", "{ extern float rt_ease(float x, float n); c->f[1].f = rt_ease(c->f[1].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08860DC4): ("div.s $f0, $f0, $f3", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, c->f[3].f); }", EASE),
     ("EBOOT", 0x08865A54): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN33C),
+    ("EBOOT", 0x088D5CB4): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", HIT_STOP),
+    ("game_task", 0x09A6D52C): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D558): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D6D8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D9C8): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", DRAIN),
+    ("game_task", 0x09A6D7AC): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6D888): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_task", 0x09A6DE34): ("mfhi $v1", "c->r[3] = rt_tick30 ? c->hi : 1u;", DRAIN),
+    ("game_sub", 0x09CB2510): ("andi $v1, $v1, 0xF", "c->r[3] = rt_tick30 ? c->r[3] & 0xFu : 1u;", DRAIN),
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
@@ -335,6 +483,16 @@ PATCHES = {
     ("game_task", 0x09A9C718): ("lwc1 $f2, 0x10($sp)", scaled_load(2, 29, 0x10), AIR),
     ("game_task", 0x09A9C71C): ("lwc1 $f1, 0x14($sp)", scaled_load(1, 29, 0x14), AIR),
     ("game_task", 0x09A9C720): ("lwc1 $f0, 0x18($sp)", scaled_load(0, 29, 0x18), AIR),
+    ("EBOOT", 0x08887A10): ("mul.s $f0, $f20, $f0", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[0].f, 2.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887BDC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 4.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887D1C): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x08887EFC): ("mul.s $f0, $f0, $f1", "{ extern float rt_ease(float x, float n); c->f[0].f = rt_ease(c->f[1].f, 8.0f); }", CAMERA_HEIGHT),
+    ("EBOOT", 0x0888D24C): ("add.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f + c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x0888D280): ("sub.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f - c->f[0].f * rt_time_scale;", CAMERA_LIFT),
+    ("EBOOT", 0x08814E44): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SHAKE),
+    ("game_task", 0x09A95EAC): ("addiu $a2, $zero, 0x30", "c->r[6] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("game_task", 0x09A96958): ("addiu $a3, $zero, 0x30", "c->r[7] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
+    ("EBOOT", 0x088D07DC): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", WEAPON_OPS),
     ("EBOOT", 0x08887608): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x08887C58): ("sh $v0, 0x80($s4)", "if (!rt_camera_free) SH((c->r[20] + 0x80u), c->r[2]);", CAMERA),
     ("EBOOT", 0x0888FD58): ("lui $v0, 0x8A6", "rt_frame_start(); c->r[2] = 0x8A60000u;", FRAME),
@@ -372,5 +530,9 @@ PATCHES = {
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
+    ("game_sub", 0x09CBADC8): ("addiu $sp, $sp, -0x60", "rt_far_draw_begin(1); c->r[29] = c->r[29] + 0xFFFFFFA0u;", FAR_DRAW),
+    ("game_sub", 0x09CBB15C): ("lw $ra, 0xC($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0xCu));", FAR_DRAW),
+    ("game_sub", 0x09CBD2A8): ("addiu $sp, $sp, -0xD0", "rt_far_draw_begin(2); c->r[29] = c->r[29] + 0xFFFFFF30u;", FAR_DRAW),
+    ("game_sub", 0x09CBDA18): ("lw $ra, 0x2C($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0x2Cu));", FAR_DRAW),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

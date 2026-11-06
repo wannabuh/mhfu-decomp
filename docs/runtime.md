@@ -115,11 +115,34 @@ copied whole, that was 70 MB a frame, and the game ran at 20-24 at 144).
 `MHFU_PROFILE=<file>,<from>,<to>` samples where the time goes between two frames, named by `tools/profile.py BINARY FILE`. Measure with `MHFU_FPS=0`: a recording
 doesn't stay in step at a display's rate.
 
+**Frames and the display** (`pacing.c`, on a window, where the driver has `VK_EXT_present_timing`). The driver's reports give the time each frame's first pixel really went out, and so the refresh grid to some tens of us. Each frame shown is made for one refresh: it begins a lead before it, and shows the game as it will be at that refresh less the lead, so the game's time moves by the same step at every refresh, however late a tick lets the frame begin. The lead is what frames have been taking from their due time to the end of their queue operations (all but about 1 in 1000), 0.7 ms to spare, and a refresh for the compositor. A frame that misses its refresh anyway is replaced by the next (mailbox), which is on time: no queue builds up. `MHFU_FPS` above the refresh gets one frame a refresh; below it, every `round(refresh / MHFU_FPS)` refreshes (60 on a 144 Hz screen: 72). Without reports (no such driver, a hidden window's nothing, the driver calling the refresh variable, the first frames), a timer at `MHFU_FPS`, and no `MHFU_FPS=0` or headless run is touched: this has nothing to do with the game's clock, its ticks or its memory. `MHFU_PRESENT_MODE=old` (`present_mode = old` in `settings.ini`) goes back to before: a timer at `1000000 / MHFU_FPS` whole us, mailbox. `MHFU_PRESENT_SWAP=fifo|latest|immediate` picks the swapchain's mode, to compare; `MHFU_PRESENT_TIMING=0` asks for no reports.
+
+**The hit overlay** (`hitview.c`, F12; Vulkan only). What the game's hit test tested, told by `readable/hit_detect.c` as it goes: red an attack's shapes over its last ticks, green a monster's parts that could take it in the last test, grey those that couldn't, yellow the pair that touched, held for two seconds. A panel gives the attack, parts tested, the nearest part's gap and why a target was skipped. F12 also logs every test to `hits.log` in the captures' folder (`MHFU_HIT_LOG=<file>`; `MHFU_TEST_HITVIEW=1` from the start): the gap there, negative when overlapping, tells "the shapes miss" from "they overlap and nothing lands". It agreed with the game's own answer on all 2,684 shape tests of the two recorded fights at tick 30. It reads only, and shows nothing with `MHFU_HAND=0`, or of a monster's shapes while no attack is being tested against it. Shapes are where the game has them at its tick: the picture shows the game slightly behind.
+
+**Ticks between frames** (`thread.c`). The game's thread draws the display's frames too, so a frame due during a tick waits for it. The game's clock is its own, so a vblank whose work would run into the next frame is let go that much early on the wall clock (at most 8 ms), at the same time on the game's clock: the tick is done when the frame is due, and the game's schedule and what the frames interpolate between don't change. What a vblank's work takes is reckoned near the most of late, odd and even vblanks apart (the game wakes on every second one). Only with a display frame rate of its own; `MHFU_TICK_PHASE=0`: each at its own time. `MHFU_FPS_STATS` says how many, how early and what a tick's reckoned at, and with `MHFU_TEST_PERF=1` a tick's GE and its wait for the render thread. `tools/profile.py --threads` separates the game's work, the display's frames and other threads.
+
+`MHFU_PRESENT_LOG=<file>` logs each frame shown (when it began and was due, the refresh it was for, when its present returned, the driver's time for its queue operations' end and its first pixel or that it was never shown, the game time it shows, whether a tick came before it) and `tools/pacing.py <file>` sums it up: intervals, repeats, frames replaced, the game's time from each refresh to the next (what the eye sees), periods. About 0.7 MB a minute. The file's head says what its columns are (`pacing.c`).
+
 `MHFU_FPS_STATS=1` reports, by the wall clock, the frames shown and left out, the game's rate, its longest frame, the
 time idle, and the matching (with `MHFU_PRIM_STATS=1`, also the primitives a frame drawn by class - 2D, scenery,
 lit, skinned... -, their vertices, the vertex stage's time on them and how often their matrices change);
 `MHFU_REPLAY_SPEED=N` plays a replay at the game's speed from frame N (to measure somewhere a recording gets to);
 `MHFU_DUMP_AT=N` writes game frame N at five steps between frames.
+
+## Tools
+
+Debugging tools, in `docs/roadmap.md`'s "Tools first". They only read: no write to the game's memory, none of its random numbers, no change to what is scheduled, and no `SAVED` variable added. Checked by `MHFU_RAM_HASH=1` frame by frame against a build without them, with the panel, the inspector open and held, and captures, at `MHFU_HAND=0`: `popo.rec` with recorded frames, and `overnight-fight1.rec` (with a Giadrome) without.
+
+- **Performance panel** (`perf.c`, F5; `MHFU_TEST_PERF=1` turns it on, and `MHFU_DUMP_AT=N MHFU_FPS=60 MHFU_DUMP_PRESENT=960x544` shows it in a dumped frame): in the top right corner, FPS and frame time over the last second, a graph of the last 208 frames' times (the grey line where the usual frame is; yellow over 1.5 times it, red over 2 and marked above the graph), the worst in the last 10 s, the tick rate, frames skipped and the time asleep. The time split's labels are at the top of `perf.c`: `GE`, `DRAW`, `RT WAIT`, `GPU WAIT`, `ACQ+PRES` and `RENDER THR` are timed, `LOGIC` is the game's thread's wall clock less all those. Draws and triangles are as the game issues them a tick. `DISPLAY` and the line under it are the driver's reports over a second (`pacing.c`), where it gives them: the refresh, frames that reached the screen, `LOCK` the lead or `TIMER`; `REPEAT` refreshes showing a frame again, `REPLACED` frames that never reached it, `LATE` those after the refresh they were for, `STEP` the least and most game time from one refresh to the next, in ms. The frame times above are between frames handed over, and can look even while the screen isn't. `RAM` is the kernel's view, the image and the partition's blocks out of the 24 MB from `0x08800000`: the game's own allocators work inside those blocks, so it can't say how full they are. With a swapchain missing (headless) `FLIP`, `GPU WAIT` and `ACQ+PRES` read near nothing. Off, the panel's timers are each one branch, and two small rings of frame times stay filled for captures.
+
+- **Bug capture** (`capture.c`, F6; `MHFU_TEST_CAPTURE=frame,...` at those game frames): one press makes the next numbered folder under `~/.local/share/mhfu-recomp/captures/` (`MHFU_CAPTUREDIR` elsewhere), the number shown on the screen, with: `state1.bin` (a save state in the slots' format, taken at the next point every thread waits, the 9 slots untouched), `screenshot.png` (as shown, at the shown resolution, panels included), `info.txt` (time, commit, frame, rates, stage and quest, the hunter, every object with vtable, class and confidence, type, place, state, motion, health; the settings in effect; which frame the state has), `inputs.txt` (recording lines), `frame-times.txt`, `events.txt` (state and motion changes of hunters and monsters, objects coming and going, the stage changing) for the last 10 s, and `env.txt`. On the game's thread: a copy of the state, as F2 takes, and the frame read back; the files are written by threads of their own. The rings behind the last 10 s are always kept, a few words a game frame, and aren't in what a state saves. `objects.c` reads the objects (the manager at `*0x08A62D7C`, 15 lists); `build/gen/class_table.h` is made from `classes.toml` and `types.toml`, names only, and species are read from the player's copy at run time (the game's name list by the type byte, inferred). To load one:
+
+      tools/capture.py 12 --frames 30           # by number or folder: headless, its env.txt's settings, frames in <folder>/frames
+      MHFU_STATEDIR=<folder> MHFU_STATE_LOAD=30,1 build/mhfu    # with a window; MHFU_SAVEDIR at a copy if the game may save
+
+- **Click inspector** (`inspect.c`, picking in `gpu.c`; F7; F8 holds the game at any time, inspector open or not, `.` lets one tick through and F6 captures what's shown; `,` goes back through the last n frames drawn (`frame_history = n` in `settings.ini`, `MHFU_FRAME_HISTORY`; 60 by default, 0 for none; tens of MB a frame in a busy scene) and `.` comes forward, the picture only: the game's memory and a capture's state stay at the tick held; a capture while held also writes `frame-0.txt` and its neighbours (`frame--1.txt`, older; `frame-1.txt`, newer, when gone back), each draw's state, vertices, bones and triangles (`gpu.c` `dump_frame`), about 6 MB each; `MHFU_TEST_INSPECT="frame,x,y;..."` clicks at PSP pixels, `MHFU_TEST_PAUSE="frame,n"` holds for n passes): the mouse is let go of and isn't the game's while it is open; keys and the pad still are. A click picks the object nearest it on the screen: each object's place (+0x200) and a point 90 units up (times its scale) projected with the camera shown, which isn't always the game's (`camera.c`; the turned or farther camera is included, checked by the marker on the hunter's feet at `MHFU_FPS=144`, `MHFU_TICK_HZ=60` and `MHFU_FPS=0`). Another click at the same spot takes the next nearest. A panel shows it live (class and confidence, vtable, kind, type, species by the type byte, inferred, place, state, motion, ticks, health), a yellow marker its feet. Fields read past the base class can mean something else on another class: health is read only for lists 2 and 3, kinds 0 and 1, and even there `health_max` has been seen below health on a small creature.
+  - **Under the pointer** the panel lists the draws covering that pixel in the frame shown, nearest first after the 2D (up to 6; `inspect.txt` the same), each with its texture's hash, as `MHFU_TEX_HIDE` and texture packs name it (checked: hiding a hash listed for the hunter's legs takes the legs out and the list then gives the ground), size and address. How exact: each draw's triangles as placed, including skinning, near clipped, culled, scissored and depth tested in draw order for that one pixel, into the framebuffer shown. Not the texels: what an alpha test leaves a hole in, and colour masks, are not seen, so a leaf's quad can head the list over what shows through it; alpha tested draws aren't taken to hide what comes after. Most of the game's draws are alpha tested or blended, so several are listed. With recorded frames (`MHFU_FPS`) the frame is gone over at 5 Hz, and on each click; between those the list can be up to 200 ms old unless the game is held. Without them each game frame's draws are noted as drawn, while the inspector is open. A texture written over since it was drawn would hash as it is now.
+  - The selection goes to `inspect.txt` in the captures' folder, and into a capture's `info.txt`. Its cost is only while it is open: the triangles kept (64 bytes each) and, for recorded frames, a pass over the draws 5 times a second. The pass writes only the renderer's scratch below `0x08800000`, as drawing a recorded frame does.
 
 ## Threads
 
@@ -146,23 +169,39 @@ and sleeps; the vblank interrupt handler (`0x08859188`) wakes it.
   `MHFU_RECORD` too, the recording carries on). A replay ends where the recording did, byte for byte - as long as the
   saves it loads and the way the runtime runs the game are unchanged.
 - **Save states** (`savestate.c`): the game's whole state copied where every thread waits - the scheduler's idle loop
-  (`state_point`) - and copied back there. The threads are coroutines: a waiting thread is its registers (its
-  ucontext) and its host stack's used part, so with those the game's memory (34 MB) and the runtime's own state of the
-  game, a load resumes each thread where it waited. That state is kept where a copy takes it whole: the runtime's
-  variables of the game marked `SAVED` (one linker section, `mhfu_state`), what it allocates (threads, semaphores,
-  kernel objects, memory blocks) from an arena (`st_malloc`), the host stacks from a slab - all at fixed places in the
-  address space, as is the game's memory, and the program is built without PIE and without the stack protector
-  (whose canary differs from run to run), so that a state on disk loads in another run of the same build (a hash of
-  the program in the file). What is the host's is kept apart and made again after a load: the ISO's file, the sound
-  streams (emptied), the ATRAC decoders (made again and brought to their place by decoding the two frames before), the
-  renderer (textures follow the memory by their hashes; the frames shown between are taken as a cut). A slot is kept
-  in memory and written compressed (zlib, about 11 MB) by a thread of its own. Checked by replays: a save, the replay
-  on, a load, the same input again - every frame's RAM the same as the first time, from the menus into a hunt (loading,
-  music), in the field with the mouse's camera, at 60 with `MHFU_FPS`, and loaded by a new process at boot.
-  `MHFU_STATE_TEST=A,B` (save at A, load at B, compare each frame), `MHFU_STATE_SAVE=frame,slot`,
-  `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` (RAM to a file) script it. A state loaded stops an input
-  recording (`MHFU_RECORD`). A new variable of the runtime that the game's run depends on must be `SAVED` (or made
-  again after a load): the test finds what is missed, as the first frame and memory that differ.
+  (`state_point`) - and copied back there. On disk they load in later builds, so a state holds nothing of the program
+  itself: no host stacks (their return addresses are the build's), no function pointers.
+  - **Threads.** A waiting thread is in a kernel call, with every game register in its `Ctx`, and generated code keeps
+    nothing else across a call. So it is kept as its `Ctx`, its wait and what the call has left to do (`Thread.after`:
+    a wait's result, a delay's, the rest of `sceAudioOutputPannedBlocking`; `after_callbacks`). After a load each gets
+    a new host stack (`thread_resume_main`): it finishes the call, then `rt_resume_run` enters the function holding the
+    return address, and each function it returns from at `r31`, until the thread's entry returns. For this `recomp.py`
+    labels every call's return point (`R_<addr>`), gives each function with calls a check at its top (`rt_resume_pc`),
+    and lists the return points in `RecompModule.returns`.
+  - **Frames with C state.** A gate running code as at 30 (`run_as_30`, `run_native`), a callback (`run_callbacks`) and
+    a hand-written function (`readable/`: generated code brackets the call) hold state in C locals, so a thread blocked
+    beneath one cannot be kept. `rt_no_resume`
+    counts them, and a save waits for a state point with none (logged; after 300 frames the window says so). A new
+    runtime frame that calls game code and does anything after it must count itself too.
+  - **The file** (`states/stateN.bin`, about 11 MB): a header (`MHFUPST1`, the format, a hash of the ISO's size and
+    first megabyte, the arena's layout, the time, the frame), then compressed named chunks: `mem:scratchpad`,
+    `mem:vram`, `mem:ram`, `arena`, and `var:<file>:<name>` for each `SAVED` variable (a global: `var:<name>`; a static
+    in a function: `<function>.<name>`). The names come from the program's own symbol table, so it must not be stripped.
+  - **What a later build does with it.** A variable the state lacks takes its value at boot, one the build lacks is
+    left out (each logged). A variable of another size refuses the load, and is named. The arena is copied raw, so what
+    is allocated from it (threads, semaphores, event flags, callbacks, vtimers, memory blocks) must keep its layout:
+    their sizes are checked, and a field changed for another of the same size needs `ST_LAYOUT` bumped. Renaming a
+    variable or its function counts as one lost and one added. A load only says the state fits: if the build changed
+    what the game does (`patches.py`, the camera), the run goes on differently from there, as it should.
+  - **What is the host's** is made again after a load: the ISO's file, the sound streams (emptied), the ATRAC decoders
+    (brought to their place by decoding the two frames before), the renderer (textures follow the memory by their
+    hashes; the frames shown between are taken as a cut). A slot is kept in memory and written by a thread of its own.
+  - `MHFU_STATE_TEST=A,B` (save at A, load at B, compare each frame), `MHFU_STATE_SAVE=frame,slot`,
+    `MHFU_STATE_LOAD=frame,slot`, `MHFU_STATE_NOTE=frame,file` (RAM to a file) script it; `docs/testing.md` has the test
+    across builds. A state loaded stops an input recording (`MHFU_RECORD`). A new variable of the runtime that the
+    game's run depends on must be `SAVED` (or made again after a load) and hold no address in the program, including
+    what the renderer decides for the game (`rt_cull_margin`, the sun it goes by). `MHFU_STATE_TEST` finds what is missed
+    only if a load in the same process would lose it; a load in a new process finds the rest.
 - **Finding code**: `tools/watch.py ADDR --frame N [--read|--access] -- MHFU_REPLAY=...` runs the game under gdb and,
   from game frame N, prints each write (or read) of the PSP address: the value and the game functions on the stack with
   the instruction (`EBOOT_08886E50@08887814`: the camera reading its preset). `tools/ramdiff.py` finds variables from

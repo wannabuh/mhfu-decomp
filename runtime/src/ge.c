@@ -3,6 +3,7 @@
 #include "hle.h"
 #include "savestate.h"
 #include "render_queue.h"
+#include "perf.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -68,8 +69,11 @@ static void run_list_on(GeList *l);
 
 /* Walk a list as far as it goes; the renderer done with it before the game runs on (render_queue.c) */
 static void run_list(GeList *l) {
+    uint64_t at = perf_on ? perf_ns() : 0, waited = perf_sync_ns;
     run_list_on(l);
     render_queue_sync();
+    if (at)
+        perf_ge_ns += perf_ns() - at - (perf_sync_ns - waited);     /* (what it waited for the render thread: apart) */
 }
 
 static void run_list_on(GeList *l) {

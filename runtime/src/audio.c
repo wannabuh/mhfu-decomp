@@ -138,6 +138,16 @@ void hle_sceAudioChangeChannelVolume(Ctx *c) {
     RET(0);
 }
 
+/* The call below, once there is room (its arguments still in c; d: its buffer's length as it was when called - the game
+ * may change the channel's while it waits. Also from thread.c, a save state's thread that waited) */
+void audio_output_finish(Ctx *c, uint64_t d) {
+    uint32_t ch = ARG0;
+    uint64_t now = time_us();
+    chan[ch].queued_until = (chan[ch].queued_until > now ? chan[ch].queued_until : now) + d;
+    play((int)ch, ARG3, ARG1, ARG2);
+    RET(0);
+}
+
 /* (channel, left volume, right volume, buffer) */
 void hle_sceAudioOutputPannedBlocking(Ctx *c) {
     uint32_t ch = ARG0;
@@ -148,11 +158,8 @@ void hle_sceAudioOutputPannedBlocking(Ctx *c) {
     uint64_t d = duration_us(chan[ch].samples);
     /* one buffer can be queued behind the one playing: wait until there is room */
     if (chan[ch].queued_until > time_us() + d)
-        thread_delay_until(chan[ch].queued_until - d);
-    uint64_t now = time_us();
-    chan[ch].queued_until = (chan[ch].queued_until > now ? chan[ch].queued_until : now) + d;
-    play((int)ch, ARG3, ARG1, ARG2);
-    RET(0);
+        thread_delay_until(chan[ch].queued_until - d, d);
+    audio_output_finish(c, d);
 }
 
 void hle_sceAudioGetChannelRestLength(Ctx *c) {

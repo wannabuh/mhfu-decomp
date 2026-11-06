@@ -13,6 +13,10 @@
 #include "render.h"
 #include "savestate.h"
 #include "controls.h"
+#include "perf.h"
+#include "capture.h"
+#include "inspect.h"
+#include "hitview.h"
 
 #include <SDL3/SDL.h>
 #include <stdlib.h>
@@ -39,6 +43,7 @@ static float mouse_dx, mouse_dy;         /* motion since the game last took it *
 static int want_capture = 1;             /* the player's choice: captured unless F10 or the focus lost let it go */
 static int pointer_mode;                 /* a menu is open: the mouse is a pointer (menu.c) */
 static int overlay_mode;                 /* the controls screen is open (overlay.c): the mouse a pointer */
+static int inspect_mode;                 /* the click inspector is open (inspect.c): the mouse its pointer */
 static float pointer_x, pointer_y;       /* where it is, in the window's points */
 static int pointer_moved, pointer_clicks;
 
@@ -47,7 +52,7 @@ static int pointer_moved, pointer_clicks;
 static void apply_capture(void) {
     if (!window)
         return;
-    mouse_captured = want_capture && !pointer_mode && !overlay_mode;
+    mouse_captured = want_capture && !pointer_mode && !overlay_mode && !inspect_mode;
     SDL_SetWindowRelativeMouseMode(window, mouse_captured);
 }
 
@@ -91,6 +96,20 @@ void window_pointer_mode(int on, float at_x, float at_y) {
 void window_overlay_mode(int on) {
     overlay_mode = on;
     apply_capture();
+}
+
+/* The click inspector opened or closed (inspect.c) */
+void window_inspect_mode(int on) {
+    inspect_mode = on;
+    apply_capture();
+}
+
+/* Where the mouse is in the window (its points); 0 if there is no window */
+int window_mouse_position(float *x, float *y) {
+    if (!window)
+        return 0;
+    SDL_GetMouseState(x, y);
+    return 1;
 }
 
 /* A point in the window (its points) on the PSP's screen; 0 if there is no window */
@@ -293,6 +312,34 @@ int window_poll(void) {
             continue;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F9 && !e.key.repeat)
             ram_snapshot();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F5 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the performance panel needs the Vulkan renderer");
+            else
+                perf_toggle();
+        }
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F6 && !e.key.repeat)
+            capture_request();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F7 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the click inspector needs the Vulkan renderer");
+            else
+                inspect_toggle();
+        }
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F8 && !e.key.repeat)
+            inspect_toggle_pause();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_PERIOD)
+            inspect_step();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_COMMA)
+            inspect_back();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F12 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
+                window_note("the hit overlay needs the Vulkan renderer");
+            else
+                hit_view_toggle();
+        }
+        if (inspect_event(&e))          /* (the inspector open: the mouse's) */
+            continue;
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat &&
             (e.key.scancode == SDL_SCANCODE_F2 || e.key.scancode == SDL_SCANCODE_F3 || e.key.scancode == SDL_SCANCODE_F4))
             state_key(e.key.scancode);
@@ -345,7 +392,8 @@ int window_poll(void) {
     }
     pad_camera();
     uint8_t lx = 128, ly = 128;
-    SDL_MouseButtonFlags m = mouse_captured || pointer_mode ? SDL_GetMouseState(NULL, NULL) : 0;
+    /* (the inspector open: the mouse's buttons are its own, not the game's) */
+    SDL_MouseButtonFlags m = (mouse_captured || pointer_mode) && !inspect_mode ? SDL_GetMouseState(NULL, NULL) : 0;
     /* (in a menu the left button is the pointer's, and the right goes back: circle - menu.c) */
     uint32_t b = controls_buttons(SDL_GetKeyboardState(NULL), pointer_mode ? 0 : m, pad, pointer_mode, &lx, &ly);
     if (pointer_mode && (m & SDL_BUTTON_RMASK))

@@ -7,6 +7,7 @@
 #define _GNU_SOURCE
 #include "hle.h"
 #include "savestate.h"
+#include "pacing.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -17,6 +18,8 @@
 
 enum { TS_RUNNING = 1, TS_READY = 2, TS_WAITING = 4, TS_SUSPEND = 8, TS_DORMANT = 16, TS_DEAD = 32 };
 enum { WAIT_NONE, WAIT_SLEEP, WAIT_DELAY, WAIT_SEMA, WAIT_EVENTFLAG, WAIT_THREADEND };
+
+enum { AFTER_WAIT = 1, AFTER_DELAY, AFTER_AUDIO };
 
 #define HOST_STACK_SIZE ST_STACK_SIZE
 #define THREAD_RETURN 0x08000000u      /* ra for a thread's entry: returning from it ends the thread */
@@ -33,6 +36,9 @@ typedef struct Thread {
     uint32_t wait_result;
     int wakeup_count;
     uint32_t exit_status;
+    int after;                         /* a save state's thread: what its kernel call has left to do after the wait */
+    int after_callbacks;               /* ... and if it runs its callbacks then */
+    uint64_t after_length;             /* ... and AFTER_AUDIO: the buffer's length */
     Ctx ctx;
     ucontext_t uc;
     void *host_stack;
@@ -118,12 +124,20 @@ static uint64_t wall_us(void) {
 
 uint64_t wall_time_us(void) { return wall_us(); }
 
+/* The wall clock's time for a time of the game's clock, as it now runs */
+uint64_t game_to_wall_us(uint64_t game_us) { return wall_base + game_us; }
+uint64_t wall_to_game_us(uint64_t wall) { return wall > wall_base ? wall - wall_base : 0; }
+
 /* How far the game's clock is behind the wall clock (us; negative: ahead) - the game running slower than it should */
 int64_t clock_behind_us(void) {
     return fast_forward() ? 0 : (int64_t)wall_us() - (int64_t)(wall_base + now_us);
 }
 
 static uint64_t slept_us;           /* for MHFU_FPS_STATS: how long the clock waited for the wall clock */
+
+static uint64_t slept_total_us;     /* (the same, never reset: perf.c) */
+
+uint64_t time_slept_total_us(void) { return slept_total_us; }
 
 uint64_t time_slept_us(void) {
     uint64_t s = slept_us;
@@ -157,6 +171,8 @@ uint64_t run_epoch_us(void) {
     return epoch_now_us() - now_us;
 }
 
+static uint64_t idle_end_us;        /* (only for pacing_watch) */
+
 /* Every thread waits: move the clock to `until`, once the wall clock is there (unless fast-forwarding). Ahead or behind
  * by more than a quarter of a second - after fast-forwarding, or a stall - the pacing starts again from now. */
 static void advance_to(uint64_t until) {
@@ -173,9 +189,94 @@ static void advance_to(uint64_t until) {
             struct timespec ts = {(time_t)(ahead / 1000000), (long)(ahead % 1000000) * 1000};
             nanosleep(&ts, NULL);
             slept_us += (uint64_t)ahead;
+            slept_total_us += (uint64_t)ahead;
         }
+        if (pacing_watch)
+            idle_end_us = wall_us();
     }
     now_us = until;
+}
+
+/* -- ticks between the display's frames --------------------------------------------------------------------------------
+ *
+ * The game's thread is the display's too (present_pump), so a frame due in the middle of a tick waits for the tick. The
+ * game's clock is its own, though: nothing in the game can tell when in wall time a vblank came. So a vblank whose work
+ * would run into the next frame is let go that much early, straight after the frame before, to be done when the frame is
+ * due. Its time on the game's clock is unchanged, and so are the game's schedule and what the frames interpolate between.
+ * MHFU_TICK_PHASE=0: each at its own time. */
+
+#define TICK_MARGIN_US 500          /* the frame's turn begins this long after the tick is reckoned done */
+#define TICK_EARLY_MAX_US 8000      /* never by more, whatever the display's frame rate */
+
+static uint64_t work_began, work_us;    /* the game's thread at work since the last vblank, on the wall clock */
+static uint64_t work_vblank;            /* that vblank */
+static uint64_t work_cost[2];           /* what each of odd and even vblanks' work takes: near the most of late */
+static unsigned long early_n, phased_n;
+static uint64_t early_us;
+
+static void tick_work_began(void) {
+    work_began = wall_us();
+}
+
+static void tick_work_ended(void) {
+    uint64_t span = work_began ? wall_us() - work_began : 0;
+    work_began = 0;
+    if (work_vblank != vblank_count) {
+        uint64_t *cost = &work_cost[work_vblank & 1];
+        if (work_us >= *cost)
+            *cost = work_us;
+        else
+            *cost -= (*cost - work_us) / 64;    /* (a second or so to come down, at once to go up) */
+        work_us = 0;
+        work_vblank = vblank_count;
+    }
+    work_us += span;
+}
+
+/* When to let vblank go, on the game's clock, with the display's next frame due at `display` */
+static uint64_t tick_begins(uint64_t vblank, uint64_t display) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_TICK_PHASE") || atoi(getenv("MHFU_TICK_PHASE")) != 0;
+    if (!on || display == ~(uint64_t)0 || fast_forward())
+        return vblank;
+    uint64_t need = work_cost[(vblank_count + 1) & 1] + TICK_MARGIN_US;
+    phased_n++;
+    if (vblank + need <= display)
+        return vblank;
+    uint64_t begins = display > need ? display - need : 0;
+    if (vblank > TICK_EARLY_MAX_US && begins < vblank - TICK_EARLY_MAX_US)
+        begins = vblank - TICK_EARLY_MAX_US;
+    return begins;
+}
+
+/* The clock moved to `until` once the wall clock is at `begins`, no later than it */
+static void advance_early(uint64_t until, uint64_t begins) {
+    if (begins >= until || until <= now_us || fast_forward()) {
+        advance_to(until);
+        return;
+    }
+    if (begins > now_us)
+        advance_to(begins);
+    uint64_t at = wall_us();
+    if (pacing_watch)
+        idle_end_us = at;
+    early_n++;
+    early_us += wall_base + until > at ? wall_base + until - at : 0;
+    now_us = until;
+}
+
+void tick_phase_stats(unsigned long *early, double *early_ms, double *cost_ms) {
+    *early = early_n;
+    *early_ms = early_n ? (double)early_us / 1000 / (double)early_n : 0;
+    *cost_ms = (double)(work_cost[0] > work_cost[1] ? work_cost[0] : work_cost[1]) / 1000;
+    early_n = phased_n = 0;
+    early_us = 0;
+}
+
+/* pacing.c: how long the game's thread has been at work since it last slept (a tick in a frame's way) */
+uint64_t wall_since_idle_us(void) {
+    return idle_end_us ? wall_us() - idle_end_us : 0;
 }
 
 #define VBLANK_US_NUM 1001000u        /* 59.94 Hz: a vblank every 1001000 / 60 us */
@@ -342,6 +443,15 @@ static void reschedule(void) {
     swapcontext(&t->uc, &sched_uc);
 }
 
+/* A wait over: the timeout's time left written back, and its result */
+static uint32_t wait_over(Thread *t) {
+    if (t->wait_timeout_ptr) {
+        uint64_t now = time_us();
+        SW(t->wait_timeout_ptr, t->wait_until > now ? (uint32_t)(t->wait_until - now) : 0);
+    }
+    return t->wait_result;
+}
+
 /* Block the current thread; returns the wait's result (0, or an error such as a timeout) once woken. */
 static uint32_t wait_current(int type, uint32_t uid, uint32_t timeout_ptr) {
     Thread *t = current;
@@ -351,12 +461,9 @@ static uint32_t wait_current(int type, uint32_t uid, uint32_t timeout_ptr) {
     t->wait_result = 0;
     t->wait_timeout_ptr = timeout_ptr;
     t->wait_until = timeout_ptr ? time_us() + LW(timeout_ptr) : 0;
+    t->after = AFTER_WAIT;
     reschedule();
-    if (timeout_ptr) {
-        uint64_t now = time_us();
-        SW(timeout_ptr, t->wait_until > now ? (uint32_t)(t->wait_until - now) : 0);
-    }
-    return t->wait_result;
+    return wait_over(t);
 }
 
 static void wake(Thread *t, uint32_t result) {
@@ -399,7 +506,7 @@ static void thread_main(void) {
     setcontext(&sched_uc);
 }
 
-static void make_coroutine(Thread *t) {
+static void make_coroutine(Thread *t, void (*entry)(void)) {
     if (!t->host_stack) {
         t->host_stack = st_stack_alloc();
     }
@@ -407,23 +514,55 @@ static void make_coroutine(Thread *t) {
     t->uc.uc_stack.ss_sp = t->host_stack;
     t->uc.uc_stack.ss_size = HOST_STACK_SIZE;
     t->uc.uc_link = &sched_uc;
-    makecontext(&t->uc, thread_main, 0);
+    makecontext(&t->uc, entry, 0);
     t->has_coroutine = 1;
 }
 
-/* The used part of each thread's host stack (savestate.c): from its stack pointer as it waits (less the 128 bytes
- * below it a function may use) to its top */
-void thread_stack_spans(void (*f)(void *lo, size_t size)) {
-    for (Thread *t = threads; t; t = t->next) {
-        if (!t->has_coroutine || !t->host_stack || t == current)
-            continue;
-        uint8_t *top = (uint8_t *)t->host_stack + HOST_STACK_SIZE;
-        uint8_t *lo = (uint8_t *)t->uc.uc_mcontext.gregs[REG_RSP] - 128;
-        if (lo < (uint8_t *)t->host_stack)
-            lo = t->host_stack;
-        if (lo < top)
-            f(lo, (size_t)(top - lo));
+/* A thread of a save state, woken: what its kernel call had left to do, and the game's code from where the call returns
+ * to. A state holds no host stack: a thread that waits is its registers, its wait and t->after. */
+static void thread_resume_main(void) {
+    Thread *t = current;
+    Ctx *c = &t->ctx;
+    switch (t->after) {
+    case AFTER_WAIT:
+        RET(wait_over(t));
+        break;
+    case AFTER_DELAY:
+        RET(0);
+        break;
+    case AFTER_AUDIO:
+        audio_output_finish(c, t->after_length);
+        break;
+    default:
+        rt_fatal(c, "a save state's thread %s: what it waited in is not known", t->name);
     }
+    if (t->after_callbacks) {
+        t->after_callbacks = 0;
+        run_callbacks();
+    }
+    hle_after_call(c);
+    rt_resume_run(c, THREAD_RETURN);
+    thread_end(t, c->r[2]);
+    setcontext(&sched_uc);
+}
+
+/* A state loaded: no thread has a host stack now; each that waits gets one, to go on from its wait */
+void threads_state_loaded(void) {
+    st_stacks_reset();
+    intr_ctx.mem = rt_mem;
+    for (Thread *t = threads; t; t = t->next) {
+        t->ctx.mem = rt_mem;
+        t->host_stack = NULL;
+        t->has_coroutine = 0;
+        if (t->status == TS_WAITING)
+            make_coroutine(t, thread_resume_main);
+    }
+}
+
+/* What a state's arena depends on (savestate.c) */
+uint64_t thread_layout(void) {
+    return ((uint64_t)sizeof(Thread) << 32) ^ ((uint64_t)sizeof(Sema) << 24) ^ ((uint64_t)sizeof(EventFlag) << 16) ^
+           ((uint64_t)sizeof(Callback) << 8) ^ sizeof(VTimer);
 }
 
 void scheduler_run(void) {
@@ -433,14 +572,19 @@ void scheduler_run(void) {
         if (!t) {
             if (state_point())              /* (every thread waits: a save state saved or loaded here) */
                 continue;
+            tick_work_ended();
             uint64_t next = next_event(), display = present_pump();
-            advance_to(display < next ? display : next);
+            if (next < display && next == next_vblank)
+                advance_early(next, tick_begins(next, display));
+            else
+                advance_to(display < next ? display : next);
+            tick_work_began();
             continue;
         }
         current = t;
         t->status = TS_RUNNING;
         if (!t->has_coroutine)
-            make_coroutine(t);
+            make_coroutine(t, thread_main);
         swapcontext(&sched_uc, &t->uc);
         if (current && current->status == TS_RUNNING)
             current->status = TS_READY;
@@ -677,23 +821,32 @@ void hle_sceKernelDelayThread(Ctx *c) {
     current->wait_type = WAIT_DELAY;
     current->wait_until = time_us() + us;
     current->wait_timeout_ptr = 0;
+    current->after = AFTER_DELAY;
     reschedule();
     RET(0);
 }
 
-void hle_sceKernelDelayThreadCB(Ctx *c) {
+/* A kernel call that runs the thread's callbacks before and after its wait */
+static void with_callbacks(Ctx *c, void (*call)(Ctx *c)) {
+    Thread *t = current;
     run_callbacks();
-    hle_sceKernelDelayThread(c);
+    t->after_callbacks = 1;
+    call(c);
+    t->after_callbacks = 0;
     run_callbacks();
 }
 
-void thread_delay_until(uint64_t us) {
+void hle_sceKernelDelayThreadCB(Ctx *c) { with_callbacks(c, hle_sceKernelDelayThread); }
+
+void thread_delay_until(uint64_t us, uint64_t audio_length) {
     if (in_interrupt || !current || us <= time_us())
         return;
     current->status = TS_WAITING;
     current->wait_type = WAIT_DELAY;
     current->wait_until = us;
     current->wait_timeout_ptr = 0;
+    current->after = AFTER_AUDIO;       /* (audio.c's the only caller: a state's thread goes on with what it does next) */
+    current->after_length = audio_length;
     reschedule();
 }
 
@@ -706,11 +859,7 @@ void hle_sceKernelSleepThread(Ctx *c) {
     RET(wait_current(WAIT_SLEEP, 0, 0));
 }
 
-void hle_sceKernelSleepThreadCB(Ctx *c) {
-    run_callbacks();
-    hle_sceKernelSleepThread(c);
-    run_callbacks();
-}
+void hle_sceKernelSleepThreadCB(Ctx *c) { with_callbacks(c, hle_sceKernelSleepThread); }
 
 void hle_sceKernelWakeupThread(Ctx *c) {
     Thread *t = find_thread(ARG0);
@@ -852,11 +1001,7 @@ static void wait_sema(Ctx *c) {
 }
 
 void hle_sceKernelWaitSema(Ctx *c) { wait_sema(c); }
-void hle_sceKernelWaitSemaCB(Ctx *c) {
-    run_callbacks();
-    wait_sema(c);
-    run_callbacks();
-}
+void hle_sceKernelWaitSemaCB(Ctx *c) { with_callbacks(c, wait_sema); }
 
 void hle_sceKernelPollSema(Ctx *c) {
     Sema *s = kobj_get(ARG0, OBJ_SEMA);
@@ -961,11 +1106,7 @@ static void wait_evf(Ctx *c) {
 }
 
 void hle_sceKernelWaitEventFlag(Ctx *c) { wait_evf(c); }
-void hle_sceKernelWaitEventFlagCB(Ctx *c) {
-    run_callbacks();
-    wait_evf(c);
-    run_callbacks();
-}
+void hle_sceKernelWaitEventFlagCB(Ctx *c) { with_callbacks(c, wait_evf); }
 
 void hle_sceKernelPollEventFlag(Ctx *c) {
     EventFlag *e = kobj_get(ARG0, OBJ_EVENTFLAG);
@@ -1024,7 +1165,9 @@ static void run_callbacks(void) {
         c->r[6] = cb->arg;
         c->r[29] -= 0x40;
         c->r[31] = THREAD_RETURN;
+        rt_no_resume++;
         rt_call(c, cb->func);
+        rt_no_resume--;
         *c = saved;
     }
 }

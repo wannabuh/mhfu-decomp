@@ -2,8 +2,6 @@
 # needs game/analysis/functions.json first (tools/funcs.py).
 PY      := tools/.venv/bin/python
 CC      := clang
-# (no stack protector, and the program at a fixed address: a save state holds the threads' host stacks - return
-# addresses, and no canary of another run's - so that the same build loads it in another run: runtime/src/savestate.c)
 CFLAGS  := -O2 -g -fno-stack-protector -Iruntime/include -Iruntime/src -Iruntime/shaders -Ibuild/gen -Ibuild/shaders
 LDFLAGS := -no-pie
 LIBS    := -lm -lpng -lz -lSDL3 -lvulkan -lavcodec -lavutil
@@ -57,6 +55,21 @@ build/runtime/%.o: runtime/src/%.c $(wildcard runtime/src/*.h runtime/shaders/*.
 # The game's structures, offsets checked at compile time: from tools/readable/types.toml and fields/
 build/gen/mhfu_types.h: tools/readable/gen_types.py tools/readable/types.toml $(wildcard tools/readable/fields/*.toml) build/gen/.stamp
 	$(PY) tools/readable/gen_types.py --header $@
+
+# The debug tools' table of class names, and the build's commit for captures (written only when it changes)
+build/gen/class_table.h: tools/readable/gen_class_table.py tools/readable/classes.toml tools/readable/types.toml
+	@mkdir -p $(@D)
+	$(PY) tools/readable/gen_class_table.py $@
+
+build/gen/git_commit.h: FORCE
+	@mkdir -p $(@D)
+	@printf '#define MHFU_GIT_COMMIT "%s"\n' "$$(git describe --always --dirty --abbrev=12 2>/dev/null || echo unknown)" > $@.tmp
+	@cmp -s $@.tmp $@ && rm -f $@.tmp || mv $@.tmp $@
+
+build/runtime/objects.o: build/gen/class_table.h
+build/runtime/capture.o: build/gen/git_commit.h
+
+FORCE:
 
 build/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
 	@mkdir -p $(@D)

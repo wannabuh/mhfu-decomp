@@ -21,6 +21,21 @@ static int read_sectors(uint32_t lba, uint32_t offset, void *buf, uint32_t size)
 
 SAVED static Entry root;
 
+/* Which game this is, for a save state: a hash of the ISO's size and its first megabyte */
+uint64_t io_game_id(void) {
+    static uint64_t id;
+    if (id || !iso)
+        return id;
+    static uint8_t buf[1 << 20];
+    fseeko(iso, 0, SEEK_END);
+    id = 0xCBF29CE484222325ull ^ (uint64_t)ftello(iso);
+    fseeko(iso, 0, SEEK_SET);
+    size_t n = fread(buf, 1, sizeof buf, iso);
+    for (size_t i = 0; i < n; i++)
+        id = (id ^ buf[i]) * 0x100000001B3ull;
+    return id;
+}
+
 void io_init(const char *iso_path) {
     iso = fopen(iso_path, "rb");
     if (!iso) {

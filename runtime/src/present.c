@@ -5,12 +5,18 @@
  * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
  * idle time (present_pump). */
 #define _GNU_SOURCE 1
+#include <pthread.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <ucontext.h>
 #include "hle.h"
 #include "savestate.h"
 #include "render.h"
+#include "perf.h"
+#include "pacing.h"
+#include "capture.h"
+#include "inspect.h"
+#include "hitview.h"
 
 #include <png.h>
 #include <stdlib.h>
@@ -283,6 +289,7 @@ static void end_record(void) {
 uint64_t run_epoch_us(void);
 
 static void record_input(float mx, float my) {
+    capture_note_input(frame, ctrl_buttons, ctrl_lx, ctrl_ly, mx, my);
     static int opened;
     static uint32_t last_b = ~0u;
     static int last_x = -1, last_y = -1;
@@ -324,6 +331,7 @@ static void record_input(float mx, float my) {
 }
 
 static uint64_t next_display;
+static double next_display_fraction;
 
 /* A state loaded (savestate.c): a recording of this run's input ends - its frames would go back -, and the frames
  * shown are due again from now (by the game's clock, which went back with it: else none until it got to where it was) */
@@ -415,8 +423,23 @@ static void write_png_size(const char *path, const uint32_t *frame, int w, int h
     fclose(f);
 }
 
+void present_write_png(const char *path, const uint32_t *pixels, int w, int h) {
+    write_png_size(path, pixels, w, h);
+}
+
 static void write_png(const char *path, const uint32_t *frame) {
     write_png_size(path, frame, 480, 272);
+}
+
+/* A frame shown (timed for the performance panel, and noted: its rings) */
+static void flip(uint32_t addr) {
+    if (perf_on) {
+        uint64_t t = perf_ns(), waited = perf_sync_ns;
+        render_flip(addr);
+        perf_flip_ns += perf_ns() - t - (perf_sync_ns - waited);
+    } else
+        render_flip(addr);
+    perf_shown();
 }
 
 uint32_t *render_readback_full(uint32_t addr, int *w, int *h);
@@ -446,7 +469,7 @@ static void watch(void) {
     }
 }
 
-uint64_t wall_time_us(void), time_slept_us(void);
+uint64_t wall_time_us(void), time_slept_us(void), game_to_wall_us(uint64_t game_us), wall_to_game_us(uint64_t wall);
 int64_t clock_behind_us(void);
 static unsigned long skipped;        /* frames not shown, the game running late (for MHFU_FPS_STATS) */
 static uint64_t longest_frame_us;    /* the longest a game frame took, on the wall clock (for MHFU_FPS_STATS) */
@@ -474,27 +497,60 @@ static int display_fps(void) {
 }
 
 /* Draw and show a frame if one is due; returns when the next is (or ~0 with no frame rate of its own) */
+static uint64_t pump(void);
+volatile int present_pumping;    /* (for MHFU_PROFILE: the game's thread at the display's work, not the game's) */
+
 uint64_t present_pump(void) {
+    present_pumping = 1;
+    uint64_t next = pump();
+    present_pumping = 0;
+    return next;
+}
+
+static uint64_t pump(void) {
     if (!display_fps() || fast_forward())
         return ~(uint64_t)0;
-    uint64_t now = time_us(), interval = 1000000u / (uint64_t)fps;
+    uint64_t now = time_us();
+    /* when the next frame begins: for its refresh, if the display's are known (pacing.c); else on a timer at MHFU_FPS */
+    uint64_t due_wall = 0, target_wall = 0, shows_wall = 0, wall_now = wall_time_us();
+    int locked = pacing_next(fps, wall_now, &due_wall, &target_wall, &shows_wall);
+    uint64_t interval = 1000000u / (uint64_t)fps, shows = now;
+    if (locked) {
+        next_display = wall_to_game_us(due_wall);
+        shows = wall_to_game_us(shows_wall);
+    } else if (!pacing_old() && next_display_fraction >= 1) {   /* (the whole frame: 1000000 / 144 is not a whole us) */
+        next_display++;
+        next_display_fraction -= 1;
+    }
     if (now < next_display)
         return next_display;
     /* the game first: when it is running late (the frames shown taking the time it needs), a frame is not shown */
     if (clock_behind_us() > (int64_t)interval) {
         skipped++;
-        next_display = now + interval;
+        perf_skipped++;
+        if (locked)
+            pacing_issued(fps, wall_now);
+        else
+            next_display = now + interval;
         return next_display;
     }
     /* the input first, so that the frame shows the mouse as it is now (as the game's frames do) */
     if (!window_poll())
         exit(0);
     /* the moment shown trails the game by one frame: t runs from 0, as a frame lands, towards 1 */
-    uint64_t since = now - gpu_last_frame_time(), period = gpu_frame_period();
+    int64_t since = (int64_t)shows - (int64_t)gpu_last_frame_time();
+    uint64_t period = gpu_frame_period();
     float t = period ? (float)since / (float)period : 1.0f;
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     uint64_t drawing = wall_time_us();
+    if (pacing_watch)
+        pacing_frame(game_to_wall_us(next_display), target_wall, drawing,
+                     (int64_t)gpu_last_frame_time() - (int64_t)((1.0f - t) * (float)period), frame, t);
+    if (locked)
+        pacing_issued(fps, wall_now);
     uint32_t addr = gpu_render_frame(t);
+    if (pacing_watch)
+        pacing_drawn(wall_time_us());
     static long dump_at = -1;
     if (dump_at < 0)
         dump_at = getenv("MHFU_DUMP_AT") ? atol(getenv("MHFU_DUMP_AT")) : 0;
@@ -532,8 +588,12 @@ uint64_t present_pump(void) {
         gpu_render_frame(t);
     }
     uint64_t flipping = wall_time_us();
+    if (perf_on)
+        perf_draw_ns += (flipping - drawing) * 1000;
+    if (addr && capture_wants_shot())
+        capture_take_shot(addr, NULL);
     if (addr)
-        render_flip(addr);
+        flip(addr);
     static uint64_t flip_us;
     flip_us += wall_time_us() - flipping;
     static uint64_t stats_at, drawn_us;
@@ -554,6 +614,20 @@ uint64_t present_pump(void) {
                     (double)longest_frame_us / 1000, (double)time_slept_us() / 1e4 / secs,
                     m + u ? 100.0 * (double)m / (double)(m + u) : 0.0, (double)drawn_us / 1000 / (double)(shown ? shown : 1),
                     (double)flip_us / 1000 / (double)(shown ? shown : 1));
+            {
+                void tick_phase_stats(unsigned long *early, double *early_ms, double *cost_ms);
+                unsigned long early;
+                double early_ms, cost_ms;
+                tick_phase_stats(&early, &early_ms, &cost_ms);
+                static uint64_t was_sync, was_ge;   /* (with the panel's counters on: MHFU_TEST_PERF) */
+                unsigned long ticks = frame >= stats_frame ? frame - stats_frame : 0;
+                fprintf(stderr, "display: %lu ticks begun early, by %.2f ms on average; a tick reckoned at %.2f ms; "
+                        "a tick's GE %.2f ms, waiting for the render thread %.2f ms\n", early, early_ms, cost_ms,
+                        (double)(perf_ge_ns - was_ge) / 1e6 / (double)(ticks ? ticks : 1),
+                        (double)(perf_sync_ns - was_sync) / 1e6 / (double)(ticks ? ticks : 1));
+                was_sync = perf_sync_ns;
+                was_ge = perf_ge_ns;
+            }
             drawn_us = flip_us = 0;
             skipped = 0;
             stats_at = wall;
@@ -562,10 +636,25 @@ uint64_t present_pump(void) {
             shown = 0;
         }
     }
+    if (locked)
+        return now + 1;     /* (pacing_next says when: asked again at once) */
     next_display += interval;
+    next_display_fraction += 1000000.0 / fps - (double)interval;
     if (next_display < now)
         next_display = now + interval;
     return next_display;
+}
+
+/* MHFU_DUMP with MHFU_DUMP_FULL: the frame at the internal resolution too */
+static void dump_full(uint32_t addr, unsigned long at) {
+    int w, h;
+    uint32_t *full = getenv("MHFU_DUMP_FULL") ? render_readback_full(addr, &w, &h) : NULL;
+    if (full) {
+        char path[64];
+        snprintf(path, sizeof path, "build/frames/%06lu-full.png", at);
+        write_png_size(path, full, w, h);
+        free(full);
+    }
 }
 
 /* MHFU_SNAPSHOT="frame,frame,...": RAM at those game frames, to build/ram-<frame>.bin (finding variables by diffing) */
@@ -681,11 +770,13 @@ static uint64_t flip_us;     /* (MHFU_FRAME_LOG: of the frame's time, what the r
 #define PROFILE_SAMPLES (1 << 21)
 static uint64_t *profile_at;
 static volatile int profile_n;
+static pthread_t profile_thread;
 static void profile_signal(int sig, siginfo_t *info, void *context) {
     (void)sig;
     (void)info;
     if (profile_n < PROFILE_SAMPLES)
-        profile_at[profile_n++] = (uint64_t)((ucontext_t *)context)->uc_mcontext.gregs[REG_RIP];
+        profile_at[profile_n++] = (uint64_t)((ucontext_t *)context)->uc_mcontext.gregs[REG_RIP] |
+                                  (uint64_t)(pthread_equal(pthread_self(), profile_thread) ? (present_pumping ? 2 : 1) : 0) << 56;
 }
 static void profile_frame(unsigned long f) {
     static int state = -1;
@@ -701,6 +792,7 @@ static void profile_frame(unsigned long f) {
     }
     if (state == 1 && (long)f >= from) {
         struct sigaction sa = {0};
+        profile_thread = pthread_self();
         sa.sa_sigaction = profile_signal;
         sa.sa_flags = SA_SIGINFO | SA_RESTART;
         sigaction(SIGPROF, &sa, NULL);
@@ -716,6 +808,17 @@ static void profile_frame(unsigned long f) {
             fclose(o);
         }
         fprintf(stderr, "profile: %d samples, frames %ld to %ld\n", profile_n, from, to);
+        {
+            char maps[1040], line[1024];    /* (libraries' places, to name them) */
+            snprintf(maps, sizeof maps, "%s.maps", path);
+            FILE *in = fopen("/proc/self/maps", "r"), *out = fopen(maps, "w");
+            while (in && out && fgets(line, sizeof line, in))
+                fputs(line, out);
+            if (in)
+                fclose(in);
+            if (out)
+                fclose(out);
+        }
         state = 0;
     }
 }
@@ -734,6 +837,12 @@ void present_frame(void) {
             mkdir("build/frames", 0755);
     }
     frame++;
+    perf_game_frame(frame);
+    pacing_tick(frame);
+    capture_tick(frame);
+    inspect_tick(frame);
+    hit_view_tick(frame);
+    gpu_pick_frame(display_fb_addr);
     profile_frame(frame);
     /* MHFU_FRAME_LOG=<file>: a frame's wall time and which area the game is in, to see where it slows */
     {
@@ -797,21 +906,30 @@ void present_frame(void) {
             gpu_frame_end(display_fb_addr, time_us());
         if (dump && (!display_fps() || gpu_render_frame(1.0f)) && render_on)
             render_readback(display_fb_addr, pixels);
+        if (capture_wants_shot() && render_on && (!display_fps() || gpu_render_frame(1.0f)))
+            capture_take_shot(display_fb_addr, NULL);
         if (render_on && !display_fps())
             render_finish_frame();
     } else if (display_fps()) {
         gpu_frame_end(display_fb_addr, time_us());
-        if (dump && gpu_render_frame(1.0f))
+        if (dump && gpu_render_frame(1.0f)) {
             render_readback(display_fb_addr, pixels);
+            dump_full(display_fb_addr, frame);
+        }
     } else if (render_on) {
-        if (dump)
+        if (dump) {
             render_readback(display_fb_addr, pixels);
+            dump_full(display_fb_addr, frame);
+        }
         if (!gpu_skip_draw) {
             uint64_t before = wall_time_us();
-            render_flip(display_fb_addr);
+            if (capture_wants_shot())
+                capture_take_shot(display_fb_addr, NULL);
+            flip(display_fb_addr);
             flip_us += wall_time_us() - before;
         } else {
             native_skipped++;
+            perf_skipped++;
         }
         if (!gpu_skip_draw && getenv("MHFU_NATIVE_DEBUG"))
             fprintf(stderr, "flip: %.3f\n", rt_game_30ths());
@@ -826,18 +944,33 @@ void present_frame(void) {
                       clock_behind_us() > 4 * frame_us ? 2 : 1;
     } else {
         convert(pixels);
+        if (capture_wants_shot())
+            capture_take_shot(0, pixels);
         window_show(pixels);
+        perf_shown();
     }
     if (!window_poll())
         exit(0);
-    while (overlay_open()) {        /* the controls screen (F1): the game paused, the frame shown again under it */
+    /* the controls screen (F1), or the inspector's hold (F8): the game paused, the frame shown again under it - until a
+     * capture asked for now has what it needs (its state: the game must get to a point where every thread waits) */
+    while (overlay_open() || (inspect_paused() && (!capture_state_pending() || capture_wants_shot()))) {
         if (!window_poll())
             exit(0);
+        if (!overlay_open()) {          /* (held: the mouse moved meanwhile isn't the camera's when the game goes on) */
+            float dx, dy;
+            window_mouse(&dx, &dy);
+        }
         uint32_t shown = display_fps() ? gpu_render_frame(1.0f) : display_fb_addr;
+        if (render_on && shown && capture_wants_shot())
+            capture_take_shot(shown, NULL);
         if (render_on && shown)
-            render_flip(shown);
+            flip(shown);
         struct timespec ts = {0, 16000000};
         nanosleep(&ts, NULL);
+    }
+    {
+        void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
+        gpu_view_end();
     }
     /* the input the game sees this frame: the devices', a script's, the intro's answer, or the replay's (the buttons
      * taken again as the game reads them: present_input_read) */
