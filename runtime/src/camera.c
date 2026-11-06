@@ -45,10 +45,16 @@
  * motion meanwhile (recorded so). In the frames shown: with MHFU_FPS or at the native frame rate.
  *
  * MHFU_CAMERA_DISTANCE: how far the eye is from what it looks at, times the game's (default 1; e.g. 1.3 farther,
- * 0.8 closer) - in the frames shown, as the pitch is: the game's camera left as it is, so farther can go into walls.
+ * 0.8 closer) - in the frames shown, as the pitch is: the game's camera left as it is.
+ *
+ * The eye shown stays inside the area: raised, lowered, turned or moved back it isn't where the game's camera checked,
+ * so each game frame it is cast for as the game's own camera does (ground and walls, between the target and the eye),
+ * the game's memory and registers put back after, and the frames shown bring it in to what it hit - at once, easing
+ * back out as the way clears.
  *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
 #include "hle.h"
+#include "runtime.h"
 #include "savestate.h"
 
 #include <math.h>
@@ -265,14 +271,156 @@ static int camera_between_30ths(const float *view, const float *e, const float *
     return 1;
 }
 
+/* -- staying inside the area ---------------------------------------------------------------------------------------- */
+
+#define STAGE_MANAGER 0x09A4F1A0u       /* its byte +0xA3E8: the stage is loaded (stage_mgr_is_loaded) */
+#define STAGE_LOADED 0xA3E8u
+#define COLLISION_MANAGER 0x09D1A160u   /* what the casts are given (in the hunt's overlay: nothing else has it) */
+#define CAST_GROUND 0x09C3DF10u         /* collision_segment_cast_grid_214: ground, all that is under the eye */
+#define CAST_WALLS 0x09C3E3D0u          /* collision_segment_cast_grid_210_ignore_mask: walls */
+#define WALLS_MASK 0x8009u              /* what the game's camera leaves out of them */
+#define EYE_MARGIN 30.0f                /* how far from what it hits the eye stays (the game's scripts: 30 over ground) */
+#define EYE_NEAREST 100.0f              /* never closer to the target than this */
+#define EYE_NO_LIMIT 1e9f
+#define EYE_EASE_OUT 900.0f             /* units a second it moves back out */
+#define CAST_STACK 0x1000u              /* of the guest's stack, put back after (they use under 0x200) */
+
+/* The most the eye shown may be from the target, this game frame's and the one's before (between them the frames shown
+ * ease out; in, they take it at once). The picture's alone: not saved, made again in a frame */
+static float eye_limit = EYE_NO_LIMIT, eye_limit_before = EYE_NO_LIMIT;
+
+/* What the casts write: the manager's scratch (the cell range, the triangles' list), the guest's stack and registers */
+#define MANAGER_SCRATCH_A 0x200u
+#define MANAGER_SCRATCH_A_END 0x260u
+#define MANAGER_SCRATCH_B 0x8C0u
+#define MANAGER_SCRATCH_B_END 0x8E0u
+
+/* How far along the way from target towards dir (a unit vector) the eye can be, up to want: casts the game's own way,
+ * nothing of the game changed by it. EYE_NO_LIMIT without collision (the hunt's overlay not there, none yet) */
+static float clear_distance(const float *target, const float *dir, float want) {
+    Ctx *c = thread_ctx();
+    if (!c || rt_resume_pc)
+        return EYE_NO_LIMIT;
+    const RecompModule *m1, *m2;
+    RecompFunc ground = rt_lookup(CAST_GROUND, &m1), walls = rt_lookup(CAST_WALLS, &m2);
+    if (!ground || !walls || strcmp(m1->name, "game_sub") || strcmp(m2->name, "game_sub"))
+        return EYE_NO_LIMIT;
+    /* (changing area, the grids' pointers stay while their memory is reused: they count once the stage is loaded) */
+    uint32_t stage = *(uint32_t *)MEM(STAGE_MANAGER);
+    if (!in_ram(stage) || !*MEM(stage + STAGE_LOADED))
+        return EYE_NO_LIMIT;
+    uint32_t mgr = *(uint32_t *)MEM(COLLISION_MANAGER);
+    uint32_t sp = c->r[29];
+    if (!in_ram(mgr) || !in_ram(mgr + MANAGER_SCRATCH_B_END) || !in_ram(*(uint32_t *)MEM(mgr + 0x214)) ||
+        !in_ram(*(uint32_t *)MEM(mgr + 0x210)) || !in_ram(sp - CAST_STACK) || !in_ram(sp))
+        return EYE_NO_LIMIT;
+    static Ctx saved;
+    static uint8_t saved_stack[CAST_STACK], saved_a[MANAGER_SCRATCH_A_END - MANAGER_SCRATCH_A],
+        saved_b[MANAGER_SCRATCH_B_END - MANAGER_SCRATCH_B];
+    saved = *c;
+    memcpy(saved_stack, MEM(sp - CAST_STACK), CAST_STACK);
+    memcpy(saved_a, MEM(mgr + MANAGER_SCRATCH_A), sizeof saved_a);
+    memcpy(saved_b, MEM(mgr + MANAGER_SCRATCH_B), sizeof saved_b);
+
+    uint32_t from = (sp - 0x40) & ~15u, to = from + 16 - 0x40, hit = to - 16;
+    float limit = EYE_NO_LIMIT;
+    for (int walls_now = 0; walls_now < 2; walls_now++) {
+        /* to the ground: an end lower than the eye, its share of the way kept (at a low angle, it stays over the ground
+         * by about the margin); walls: an end beyond it */
+        float end[4], reach = want + EYE_MARGIN;
+        for (int i = 0; i < 3; i++)
+            end[i] = target[i] + dir[i] * (walls_now ? reach : want);
+        if (!walls_now)
+            end[1] -= EYE_MARGIN;
+        end[3] = 1;
+        float start[4] = {target[0], target[1], target[2], 1};
+        memcpy(MEM(from), start, 16);
+        memcpy(MEM(to), end, 16);
+        memcpy(MEM(hit), end, 16);
+        c->r[4] = mgr;
+        c->r[5] = from;
+        c->r[6] = to;
+        c->r[7] = hit;
+        c->r[8] = WALLS_MASK;
+        c->r[29] = (hit - 0x20) & ~15u;
+        (walls_now ? walls : ground)(c);
+        if (!(c->r[2] & 0xFF))
+            continue;
+        float at[3], len = 0, full = 0;
+        memcpy(at, MEM(hit), sizeof at);
+        for (int i = 0; i < 3; i++) {
+            len += (at[i] - target[i]) * (at[i] - target[i]);
+            full += (end[i] - target[i]) * (end[i] - target[i]);
+        }
+        len = sqrtf(len);
+        full = sqrtf(full);
+        /* (the wall cast's answer when an end is out of the grid: that end. The target out: no use) */
+        if (len < 1 || !(len < full))
+            continue;
+        float allowed = walls_now ? len - EYE_MARGIN : want * len / full;
+        if (allowed < limit)
+            limit = allowed;
+    }
+    *c = saved;
+    memcpy(MEM(sp - CAST_STACK), saved_stack, CAST_STACK);
+    memcpy(MEM(mgr + MANAGER_SCRATCH_A), saved_a, sizeof saved_a);
+    memcpy(MEM(mgr + MANAGER_SCRATCH_B), saved_b, sizeof saved_b);
+    return limit < EYE_NEAREST ? EYE_NEAREST : limit;
+}
+
+static float distance_factor(void);
+static void view_distance(float *view, const float *c, float k);
+
+/* This game frame's limit on the eye shown, for the way the eye is now going to be turned (the game's angles and the
+ * mouse's: what comes between this game frame and the next stays within the margin) */
+static void eye_limit_update(float yaw, float elev) {
+    eye_limit_before = eye_limit;
+    float d = 0;
+    for (int i = 0; i < 3; i++)
+        d += (eyes[1][i] - targets[1][i]) * (eyes[1][i] - targets[1][i]);
+    float want = sqrtf(d) * distance_factor();
+    float dir[3] = {cosf(elev) * sinf(yaw), sinf(elev), cosf(elev) * cosf(yaw)};
+    float clear = want > EYE_NEAREST ? clear_distance(targets[1], dir, want) : EYE_NO_LIMIT;
+    if (clear < eye_limit)
+        eye_limit = clear;
+    else {
+        static float hz;                /* (the game's frames a second) */
+        if (!hz)
+            hz = getenv("MHFU_TICK_HZ") && atof(getenv("MHFU_TICK_HZ")) > 30 ? (float)atof(getenv("MHFU_TICK_HZ")) : 30;
+        float step = EYE_EASE_OUT / hz;
+        /* (no more to ease out to than what is wanted) */
+        if (eye_limit > want && clear > want)
+            eye_limit = clear;
+        else
+            eye_limit = eye_limit + step < clear ? eye_limit + step : clear;
+    }
+}
+
+/* A view (4x3, as gpu.c's) looking at the point c brought within the limit, t of the way from the last game frame's */
+static void eye_limit_apply(float *view, const float *c, float t) {
+    float lim = eye_limit > eye_limit_before ? eye_limit_before + (eye_limit - eye_limit_before) * t : eye_limit;
+    if (lim >= EYE_NO_LIMIT)
+        return;
+    float d = 0;
+    for (int i = 0; i < 3; i++) {
+        float tv = view[i] * c[0] + view[3 + i] * c[1] + view[6 + i] * c[2] + view[9 + i];
+        d += tv * tv;
+    }
+    d = sqrtf(d);
+    if (d > lim)
+        view_distance(view, c, lim / d);
+}
+
 void camera_update(float dx, float dy) {
     camera_sens();
     tick++;
     active = 0;
     uint32_t scene = *(uint32_t *)MEM(SCENE_PTR);
     uint8_t view_no = in_ram(scene) ? *MEM(scene + 0xA8D) : 0xFF;
+    eye_limit_before = eye_limit;
     if (view_no >= 6) {
         yaw_axis.written = pitch_axis.written = 0;
+        eye_limit = eye_limit_before = EYE_NO_LIMIT;
         return;
     }
     uint32_t view = scene + 0xB0 + view_no * 0x1A0u;
@@ -310,6 +458,7 @@ void camera_update(float dx, float dy) {
         orbiting = 0;
         left = 0;
         yaw_axis.written = pitch_axis.written = 0;
+        eye_limit = eye_limit_before = EYE_NO_LIMIT;
         return;
     }
     /* the hunt's camera turns with the yaw; the others keep their own angles, and the mouse orbits the picture */
@@ -344,12 +493,18 @@ void camera_update(float dx, float dy) {
         if (!elevation_set || *MEM(view + 0x12E))
             elevation = 0, elevation_set = 1;
         elevation = clamp_raise(elevation + dy * sens * PI / 180, pitch_axis.angle[1]);
+        eye_limit_update(yaw_axis.angle[1] + (float)turn * 2 * PI / 65536 + look_yaw,
+                         clamp_elevation(pitch_axis.angle[1] + elevation + look_pitch));
         return;
     }
     elevation_set = 0;
     uint32_t preset = *(uint32_t *)MEM(view + 0x110);
     if (active && dy != 0 && in_ram(preset))
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
+    if (active)
+        eye_limit_update(yaw_axis.angle[1] + look_yaw, pitch_axis.angle[1] + look_pitch);
+    else
+        eye_limit_update(yaw_axis.angle[1] + orbit_yaw, pitch_axis.angle[1] + orbit_pitch);
 }
 
 /* The eye's distance shown, times the game's (MHFU_CAMERA_DISTANCE) */
@@ -588,6 +743,7 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     }
     if (distance_factor() != 1.0f)
         view_distance(shown, c, distance_factor());
+    eye_limit_apply(shown, c, interpolating ? t : 1);
     if (log) {
         float ex[3];
         for (int i = 0; i < 3; i++)     /* the eye shown: -R^T t */
@@ -630,7 +786,7 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
         b = elevation_set ? clamp_elevation(elev + elevation + look_b + (looking ? 0 : dy) * sens * PI / 180.0f) - elev
                           : look_b;
     }
-    if (a == 0 && b == 0 && distance_factor() == 1.0f)
+    if (a == 0 && b == 0 && distance_factor() == 1.0f && sqrtf(ox * ox + oy * oy + oz * oz) <= eye_limit)
         return 0;
     const float up[3] = {0, 1, 0};
     float yaw_m[9], pitch_m[9], m[9];
@@ -648,6 +804,7 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
     compose(view, q, shown);
     if (distance_factor() != 1.0f)
         view_distance(shown, c, distance_factor());
+    eye_limit_apply(shown, c, 1);
     return 1;
 }
 
