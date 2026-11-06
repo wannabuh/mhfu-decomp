@@ -106,6 +106,7 @@ SAVED static VTimer *vtimers[MAX_VTIMERS];
  * timeout), when the wall clock gets there; fast-forwarding, at once. A slow host slows the game rather than making it
  * skip. Reading it from the game moves it a microsecond, so that waiting by reading the clock still ends. */
 SAVED float rt_time_scale = 1;
+int rt_fine_poses = 1;
 SAVED int rt_tick30 = 1;
 SAVED int rt_ticks60 = 2;
 SAVED int rt_frame30 = 1;
@@ -292,6 +293,7 @@ void set_tick_hz(int hz) {
     vblank_base_count = vblank_count;
     vblank_den = (unsigned)(2 * hz);
     tick_scale = 30.0f / (float)hz;
+    rt_fine_poses = !getenv("MHFU_FINE_POSES") || atoi(getenv("MHFU_FINE_POSES")) != 0;
     tick30_phase = 1 - tick_scale;      /* the next frame a 30th's (as the frame before took it to be) */
 }
 

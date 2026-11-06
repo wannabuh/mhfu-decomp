@@ -1687,29 +1687,36 @@ void gpu_view_end(void) {
 int gpu_view_back(void) { return view_back; }
 int gpu_view_kept(void) { return history_cap > 0; }
 
-/* MHFU_BONE_LOG=file: each tick's skinned draws, the model's vertices (the key) and its first bones: how poses move from tick to
- * tick, as the renderer gets them (repeats, steps) */
+/* MHFU_BONE_LOG=file,from,to: between those game frames, each tick's skinned draws: the model's vertices (the key), its first and last
+ * bones' places: how poses move from tick to tick, as the renderer gets them (repeats, steps) */
 static int draw_bones(const Draw *d);
 static void bone_log(const Frame *f) {
     static FILE *log;
     static int tried;
+    static unsigned long from, to;
     if (!tried) {
         tried = 1;
-        if (getenv("MHFU_BONE_LOG"))
-            log = fopen(getenv("MHFU_BONE_LOG"), "w");
+        const char *e = getenv("MHFU_BONE_LOG");
+        char path[1024];
+        if (e && sscanf(e, "%1023[^,],%lu,%lu", path, &from, &to) == 3)
+            log = fopen(path, "w");
     }
-    if (!log)
+    unsigned long at = gpu_bone_log_frame();
+    if (!log || at < from)
         return;
-    fprintf(log, "T %lu\n", gpu_bone_log_frame());
+    if (at > to) {
+        fclose(log);
+        log = NULL;
+        return;
+    }
+    fprintf(log, "T %lu\n", at);
     for (int i = 0; i < f->n; i++) {
         const Draw *d = &f->draws[i];
         int nb = draw_bones(d);
-        if (!nb)
+        if (nb < 2)
             continue;
-        fprintf(log, "B %08X %d", d->vaddr, nb);
-        for (int k = 0; k < 12; k++)
-            fprintf(log, " %.4f", (double)d->bones[nb - 1][k]);
-        fputc('\n', log);
+        fprintf(log, "B %08X %d %.4f %.4f %.4f %.4f %.4f %.4f\n", d->vaddr, nb, (double)d->bones[0][9], (double)d->bones[0][10],
+                (double)d->bones[0][11], (double)d->bones[nb - 1][9], (double)d->bones[nb - 1][10], (double)d->bones[nb - 1][11]);
     }
 }
 

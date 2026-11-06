@@ -404,7 +404,7 @@ def scaled_load(f, base, off):
 
 
 PATCHES = {
-    ("EBOOT", 0x08863220): ("cvt.s.w $f12, $f0", "c->f[12].f = rt_time_scale < 0.49f ? c->f[20].f : (float)c->f[0].i;", POSE_TIME),
+    ("EBOOT", 0x08863220): ("cvt.s.w $f12, $f0", "c->f[12].f = rt_fine_poses && rt_time_scale < 0.49f ? c->f[20].f : (float)c->f[0].i;", POSE_TIME),
     ("EBOOT", 0x088638C0): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),
     ("EBOOT", 0x088638D4): ("lwc1 $f0, 0x14($s1)", scaled_load(0, 17, 0x14), MOTION),
     ("EBOOT", 0x08863978): ("lwc1 $f1, 0x14($s1)", scaled_load(1, 17, 0x14), MOTION),

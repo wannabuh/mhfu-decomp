@@ -57,6 +57,7 @@ void rt_unreachable(Ctx *c, uint32_t at);
 /* The native frame rate (recomp/patches.py): 30 / the game's frames a second (MHFU_TICK_HZ), 1 at its own rate; and
  * whether this game frame is one where a frame at 30 a second falls (always, at the game's own rate) */
 extern float rt_time_scale;
+extern int rt_fine_poses;             /* above 60 ticks, poses between a motion's frames (MHFU_FINE_POSES=0: not) */
 extern int rt_tick30;
 extern int rt_ticks60;          /* the 60ths of a second this game frame takes up (2 at 30 a second; 2 within gated code) */
 extern int rt_frame30;          /* this game frame is one a 30th falls on (rt_tick30 is 1 within gated code) */
