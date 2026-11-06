@@ -11,9 +11,12 @@
 #include "ao.frag.inc"
 #include "ao_blur.frag.inc"
 #include "ao_apply.frag.inc"
+#include "ao_water.frag.inc"
 
 #define AO_FADE 6000.0f                 /* gone by this far */
 #define AO_PER_FRAME 8                  /* times a frame (the frame dumps draw it again) */
+#define MAX_WATER_DRAWS 512
+#define MAX_WATER_SEGMENTS 2048
 static int ao_on = -1;
 static float ao_strength = 2.0f, ao_radius = 120.0f;
 static VkImg ao_img[2];
@@ -27,6 +30,15 @@ static Target *ao_target;               /* the solid world was drawn into it, wi
 static Target *ao_applied;              /* it has its occlusion (until it is cleared) */
 static int ao_used;                     /* times this frame */
 static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
+/* What shows of the water and the foam on it (light added by flat planes, also writing depth): their depth is no
+ * surface, so the passes need telling which pixels they are. Their draws are kept and drawn again against the finished
+ * depth, in front of them what came later (kept: first, count its vertices; tl: its segments in water_segs) */
+static VkImg ao_water;
+static VkPipeline water_pipeline, water_tl_pipeline;
+static struct { DrawState s; DrawPush pc; uint32_t first, count; int tl; } water_draws[MAX_WATER_DRAWS];
+static int nwater;
+static TlSegment water_segs[MAX_WATER_SEGMENTS];
+static int nwater_segs;
 
 /* Its images, at half the internal resolution (again when that changes: render_rescale, the GPU idle) */
 void ao_rescale(void) {
@@ -37,6 +49,9 @@ void ao_rescale(void) {
         ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     }
+    vk_image_free(&ao_water);
+    ao_water = vk_image(scaled(480), scaled(272), VK_FORMAT_R8_UNORM,
+                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     ao_fresh = 0;
 }
 
@@ -54,14 +69,16 @@ void ao_init(void) {
     if (!ao_on)
         return;
     ao_rescale();
-    VkDescriptorSetLayoutBinding b[2] = {
+    VkDescriptorSetLayoutBinding b[4] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 2, b};
+    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 4, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &ao_set_layout);
     enum { SETS = 2 * AO_PER_FRAME * 4 };
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2 * SETS};
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * SETS};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL, 0, SETS, 1, &ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &ao_pool);
     VkDescriptorSetLayout layouts[SETS];
@@ -85,6 +102,108 @@ void ao_init(void) {
     vkCreateSampler(vk.device, &sci, NULL, &depth_sampler);
 }
 
+/* The pipelines drawing the water again (the GE's vertex shader vs; tl_vs: the GPU's vertex stage's, or none) */
+void ao_water_setup(VkShaderModule vs, VkShaderModule tl_vs) {
+    if (ao_on <= 0)
+        return;
+    VkShaderModule fs = vk_shader(ao_water_frag, sizeof ao_water_frag);
+    water_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
+    if (tl_vs)
+        water_tl_pipeline = make_pipeline(tl_vs, fs, ge_layout, VK_FORMAT_R8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
+}
+
+/* A batch drawn into t: kept if it is water or foam writing depth, to be marked before the occlusion (seg: the GPU's
+ * vertex stage's segments, or NULL and its vertices first, n) */
+void ao_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, const TlSegment *seg) {
+    int adds = (s->flags & DRAW_WORLD) && s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
+               s->eq.colorBlendOp == VK_BLEND_OP_ADD;
+    if (t != ao_target || !((s->flags & DRAW_WATER) || adds) || !s->depth_write || nwater == MAX_WATER_DRAWS)
+        return;
+    if (seg) {
+        if (nwater_segs + (int)n > MAX_WATER_SEGMENTS)
+            return;
+        memcpy(&water_segs[nwater_segs], seg, sizeof *seg * n);
+        first = (uint32_t)nwater_segs;
+        nwater_segs += (int)n;
+    }
+    water_draws[nwater].s = *s;
+    water_draws[nwater].pc = *pc;
+    water_draws[nwater].first = first;
+    water_draws[nwater].count = n;
+    water_draws[nwater++].tl = seg != NULL;
+}
+
+/* The water kept drawn again into the mask, where it is what shows */
+static void water_mask(Target *t) {
+    uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
+    VkCommandBuffer cmd = vk_cmd();
+    vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+    vk_transition(&ao_water, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, ao_water.view,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
+        VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0, {{0, 0}, {fw, fh}}, 1, 0, 1, &ca, &da, NULL};
+    vkCmdBeginRendering(cmd, &ri);
+    if (nwater && water_pipeline) {
+        VkPipeline bound = water_pipeline;
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_layout, 0, 1, &ge_set, 0, NULL);
+        VkDeviceSize zero = 0;
+        vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
+        VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
+        vkCmdSetViewport(cmd, 0, 1, &vp);
+        vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
+        VkBool32 off = VK_FALSE;
+        vk.SetColorBlendEnable(cmd, 0, 1, &off);
+        VkColorComponentFlags all = 0xF;
+        vk.SetColorWriteMask(cmd, 0, 1, &all);
+        for (int i = 0; i < nwater; i++) {
+            const DrawState *d = &water_draws[i].s;
+            VkPipeline p = water_draws[i].tl ? water_tl_pipeline : water_pipeline;
+            VkRect2D sc = d->scissor;
+            if (!p || sc.offset.x >= (int32_t)fw || sc.offset.y >= (int32_t)fh)
+                continue;
+            if (p != bound)
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, bound = p);
+            if (sc.offset.x + sc.extent.width > fw)
+                sc.extent.width = fw - (uint32_t)sc.offset.x;
+            if (sc.offset.y + sc.extent.height > fh)
+                sc.extent.height = fh - (uint32_t)sc.offset.y;
+            vkCmdSetScissor(cmd, 0, 1, &sc);
+            vkCmdSetDepthTestEnable(cmd, d->depth_test);
+            VkCompareOp op = d->depth_op;       /* (its own depth: drawn again, it passes) */
+            if (op == VK_COMPARE_OP_GREATER)
+                op = VK_COMPARE_OP_GREATER_OR_EQUAL;
+            if (op == VK_COMPARE_OP_LESS)
+                op = VK_COMPARE_OP_LESS_OR_EQUAL;
+            vkCmdSetDepthCompareOp(cmd, op);
+            vk.SetColorBlendEquation(cmd, 0, 1, &d->eq);
+            vkCmdSetBlendConstants(cmd, d->blend_const);
+            vkCmdSetCullMode(cmd, d->cull);
+            vkCmdSetFrontFace(cmd, d->front);
+            DrawPush dp = water_draws[i].pc;
+            if (!water_under(t))                /* (nothing to see under foam: as water) */
+                dp.flags |= DRAW_WATER;
+            vkCmdPushConstants(cmd, ge_layout, pc_stages, 0, sizeof dp, &dp);
+            if (water_draws[i].tl) {
+                vkCmdBindVertexBuffers(cmd, 1, 1, &tl_vertices.buffer, &zero);
+                vkCmdBindIndexBuffer(cmd, tl_indices.buffer, 0, VK_INDEX_TYPE_UINT32);
+                for (uint32_t k = water_draws[i].first; k < water_draws[i].first + water_draws[i].count; k++)
+                    vkCmdDrawIndexed(cmd, water_segs[k].count, 1, water_segs[k].first, 0, water_segs[k].rec);
+            } else {
+                vkCmdDraw(cmd, water_draws[i].count, 1, water_draws[i].first, 0);
+            }
+        }
+    }
+    vkCmdEndRendering(cmd);
+    vk_transition(&ao_water, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    nwater = nwater_segs = 0;
+    ge_lost();
+}
+
 int ao_ready(void) {
     return ao_fresh;
 }
@@ -93,15 +212,22 @@ VkImageView ao_image(void) {
     return ao_on > 0 ? ao_img[0].view : VK_NULL_HANDLE;
 }
 
-static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth) {
-    VkDescriptorImageInfo ii[2] = {{sampler, source, layout},
-                                   {depth_sampler, depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
-    VkWriteDescriptorSet w[2] = {
+static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth,
+                   VkImageView under) {
+    VkDescriptorImageInfo ii[4] = {{sampler, source, layout},
+                                   {depth_sampler, depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL},
+                                   {depth_sampler, ao_water.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+                                   {depth_sampler, under, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
+    VkWriteDescriptorSet w[4] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 0, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[0],
          NULL, NULL},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 1, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[1],
+         NULL, NULL},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 2, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[2],
+         NULL, NULL},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 3, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[3],
          NULL, NULL}};
-    vkUpdateDescriptorSets(vk.device, 2, w, 0, NULL);
+    vkUpdateDescriptorSets(vk.device, 4, w, 0, NULL);
 }
 
 /* One of its passes: a triangle over w x h of an image */
@@ -144,6 +270,7 @@ static void ao_occlude(Target *t) {
     if (!invert4(scene.view, pc.to_view))
         return;
     end_rendering();
+    water_mask(t);
     uint32_t fw = scaled(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
     float focal = fabsf(scene.view[0]) * (float)render_scale;
     memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)render_scale, focal}, sizeof pc.params);
@@ -167,10 +294,11 @@ static void ao_occlude(Target *t) {
         }
     VkDescriptorSet *sets = ao_sets[vk.frame][ao_used++];
     VkImageLayout ro = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    ao_set(sets[0], t->depth.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, depth_sampler, t->depth.view);
-    ao_set(sets[1], ao_img[0].view, ro, depth_sampler, t->depth.view);
-    ao_set(sets[2], ao_img[1].view, ro, depth_sampler, t->depth.view);
-    ao_set(sets[3], ao_img[0].view, ro, depth_sampler, t->depth.view);
+    VkImageView under = water_under(t) ? water_under(t) : t->depth.view;
+    ao_set(sets[0], t->depth.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL, depth_sampler, t->depth.view, under);
+    ao_set(sets[1], ao_img[0].view, ro, depth_sampler, t->depth.view, under);
+    ao_set(sets[2], ao_img[1].view, ro, depth_sampler, t->depth.view, under);
+    ao_set(sets[3], ao_img[0].view, ro, depth_sampler, t->depth.view, under);
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
     vk_transition(&ao_img[0], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     ao_draw(ao_img[0].view, hw, hh, ao_pipeline, sets[0], &pc, 0);
@@ -198,6 +326,8 @@ void ao_state(Target *t, int solid, int clear) {
     }
     if (clear && t == ao_applied)
         ao_applied = NULL;
+    if (clear && t == ao_target)
+        nwater = nwater_segs = 0;
     if (solid && t != ao_applied) {
         ao_target = t;
         memcpy(scene.view, prim_view, sizeof scene.view);
@@ -214,4 +344,5 @@ void ao_finish(void) {
 void ao_end_frame(void) {
     ao_target = ao_applied = NULL;
     ao_used = 0;
+    nwater = nwater_segs = 0;
 }

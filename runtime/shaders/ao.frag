@@ -8,13 +8,19 @@ layout(location = 0) out vec4 out_ao;
 // One way across the surface at a pixel, from its neighbour on the side that goes straight on: a plane's depth is linear
 // on the screen, so that side's next pixel lies in line (no smearing across edges, however small the step: the ground's
 // pieces meet with a step of about a unit, smaller than the slope from one pixel to the next at a low angle, and the
-// side with the smaller difference was the wrong one when the step went back the other way)
+// side with the smaller difference was the wrong one when the step went back the other way). Water is no side to take,
+// if there is another.
 vec3 along(ivec2 pix, ivec2 way, vec3 p, ivec2 last) {
     ivec2 a1 = pix + way, a2 = pix + 2 * way, b1 = pix - way, b2 = pix - 2 * way;
-    float c = texelFetch(depth, pix, 0).r;
-    bool has_a = all(lessThanEqual(a2, last)), has_b = all(greaterThanEqual(b2, ivec2(0)));
-    float a = has_a ? abs(2.0 * texelFetch(depth, a1, 0).r - texelFetch(depth, a2, 0).r - c) : 1e9;
-    float b = has_b ? abs(2.0 * texelFetch(depth, b1, 0).r - texelFetch(depth, b2, 0).r - c) : 1e9;
+    float c = depth_at(pix);
+    bool in_a = all(lessThanEqual(a2, last)), in_b = all(greaterThanEqual(b2, ivec2(0)));
+    bool has_a = in_a && !is_water(a1) && !is_water(a2), has_b = in_b && !is_water(b1) && !is_water(b2);
+    if (!has_a && !has_b) {
+        has_a = in_a;
+        has_b = in_b;
+    }
+    float a = has_a ? abs(2.0 * depth_at(a1) - depth_at(a2) - c) : 1e9;
+    float b = has_b ? abs(2.0 * depth_at(b1) - depth_at(b2) - c) : 1e9;
     return a < b ? view_pos(a1) - p : p - view_pos(b1);
 }
 
@@ -23,7 +29,7 @@ void main() {
     ivec2 last = ivec2(pc.area.xy) - 1;
     vec3 p = view_pos(pix);
     float dist = length(p);
-    if (!(dist < pc.params2.x)) {               // the sky, or too far to matter
+    if (!(dist < pc.params2.x) || is_water(pix)) {  // the sky, too far to matter, or water (and so not mixed in by the blur)
         out_ao = vec4(1.0, 1e6, 0.0, 0.0);
         return;
     }
@@ -46,14 +52,10 @@ void main() {
             ivec2 q = clamp(ivec2(vec2(pix) + dir * (t * pix_radius + 1.0)), ivec2(0), last);
             vec3 v = view_pos(q) - p;
             float len2 = dot(v, v);
-            if (len2 < 1e-6)
+            if (len2 < 1e-6 || is_water(q))
                 continue;
-            // (what rises less than about a seventh of the radius above the surface hides nothing: the water's planes,
-            // stacked up to 13 units apart, write depth and their edges are no surfaces: #24. What rises more counts in full)
-            float height = dot(n, v);
-            float cosine = height * inversesqrt(len2);
-            occlusion += clamp(cosine - 0.15, 0.0, 1.0) * clamp(1.0 - len2 / (radius * radius), 0.0, 1.0) *
-                         smoothstep(0.12 * radius, 0.17 * radius, height);
+            float cosine = dot(n, v) * inversesqrt(len2);
+            occlusion += clamp(cosine - 0.15, 0.0, 1.0) * clamp(1.0 - len2 / (radius * radius), 0.0, 1.0);
         }
     }
     float ao = clamp(1.0 - 2.0 * pc.params.y * occlusion / float(DIRS * STEPS), 0.0, 1.0);

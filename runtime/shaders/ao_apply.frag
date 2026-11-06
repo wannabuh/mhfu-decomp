@@ -6,6 +6,10 @@ layout(location = 0) out vec4 out_color;
 
 void main() {
     ivec2 pix = ivec2(gl_FragCoord.xy), last = ivec2(pc.area.zw) - 1;
+    if (is_water(pix)) {
+        out_color = vec4(1.0);
+        return;
+    }
     vec3 p = view_pos(pix);
     float dist = length(p);
     vec2 h = (gl_FragCoord.xy - 0.5) / 2.0 - 0.25;  // texel i stands for full-resolution pixel 2i

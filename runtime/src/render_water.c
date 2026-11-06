@@ -109,6 +109,11 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
     return 1;
 }
 
+/* The depth under the water in t, as it was before the first water drawn into it this frame (none: not copied) */
+VkImageView water_under(Target *t) {
+    return copied_frame == frame_no && copied == t ? copy_depth.view : VK_NULL_HANDLE;
+}
+
 /* The water's two light sets (ge.frag): the world to the clip space (dir) and back (color); then the eye (w: 1 if
  * nearer is a greater depth), the sun's colour, the time (seconds), the visible part of the picture (x, y of 0..1) */
 uint32_t water_light_set(void) {

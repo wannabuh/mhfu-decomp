@@ -425,6 +425,7 @@ int render_init(void *sdl_window) {
     shadow_init();
     lights_init();
     ao_init();
+    ao_water_setup(vs, tvs);
     post_setup(vs, fs, tess_pipeline != VK_NULL_HANDLE, tvs);
     grass_init();
     vk.frame_reused = frame_reused;
@@ -916,6 +917,7 @@ static void flush_tl(VkCommandBuffer cmd, const DrawState *s, DrawPush *pc) {
         scene_lit_batch(tl_nfeet);
     tl_nfeet = 0;
     post_keep_tl(rendering, s, pc, tl_seg, tl_nseg);
+    ao_keep(rendering, s, pc, 0, (uint32_t)tl_nseg, tl_seg);
     shadow_draw_tl(s, *pc, tl_seg, tl_nseg);
     tl_nseg = 0;
 }
@@ -1001,6 +1003,7 @@ void flush(void) {
     }
     uint32_t first = (uint32_t)(batch_start / sizeof(GpuVertex));
     post_keep(rendering, s, &pc, first, (uint32_t)n, cam != ~0u);
+    ao_keep(rendering, s, &pc, first, (uint32_t)n, NULL);
     shadow_draw(s, pc, first, (uint32_t)n);
     last = *s;
     last_valid = 1;

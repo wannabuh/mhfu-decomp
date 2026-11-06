@@ -198,6 +198,8 @@ void ao_finish(void);               /* the frame shown or read: any occlusion st
 int ao_ready(void);                 /* its image holds the occlusion of the picture being drawn (for the grass) */
 VkImageView ao_image(void);
 void ao_end_frame(void);
+void ao_water_setup(VkShaderModule vs, VkShaderModule tl_vs);   /* the pipelines marking the water */
+void ao_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, const TlSegment *seg);
 
 /* -- render_grass.c ----------------------------------------------------------------------------------------------- */
 extern int grass_on;
@@ -211,6 +213,7 @@ void grass_draw(Target *t);
 extern int water_on;                /* MHFU_WATER */
 void water_init(void);
 int water_prim(const uint32_t *reg, const DrawState *s);   /* the primitive is water (its picture copied if first) */
+VkImageView water_under(Target *t);
 uint32_t water_light_set(void);     /* the water's light sets (two), ~0: none */
 
 /* -- render_post.c ------------------------------------------------------------------------------------------------ */
