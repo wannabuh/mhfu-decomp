@@ -280,7 +280,9 @@ static int camera_between_30ths(const float *view, const float *e, const float *
 #define CAST_WALLS 0x09C3E3D0u          /* collision_segment_cast_grid_210_ignore_mask: walls */
 #define WALLS_MASK 0x8009u              /* what the game's camera leaves out of them */
 #define EYE_MARGIN 30.0f                /* how far from what it hits the eye stays (the game's scripts: 30 over ground) */
-#define EYE_NEAREST 100.0f              /* never closer to the target than this */
+#define EYE_NEAREST 150.0f              /* never closer to the target than this (nearer, it is in the hunter) */
+#define EYE_OWN_FROM (2 * PI / 180)     /* turned this little from the game's eye, the game's distance is as good as checked */
+#define EYE_OWN_TO (12 * PI / 180)      /* (and from this much, not at all) */
 #define EYE_NO_LIMIT 1e9f
 #define EYE_EASE_OUT 900.0f             /* units a second it moves back out */
 #define CAST_STACK 0x1000u              /* of the guest's stack, put back after (they use under 0x200) */
@@ -372,15 +374,21 @@ static float distance_factor(void);
 static void view_distance(float *view, const float *c, float k);
 
 /* This game frame's limit on the eye shown, for the way the eye is now going to be turned (the game's angles and the
- * mouse's: what comes between this game frame and the next stays within the margin) */
-static void eye_limit_update(float yaw, float elev) {
+ * mouse's: what comes between this game frame and the next stays within the margin). turned: how far that way is from
+ * the game's own. The game has placed its eye: along its own way the limit takes in only what is beyond it */
+static void eye_limit_update(float yaw, float elev, float turned) {
     eye_limit_before = eye_limit;
     float d = 0;
     for (int i = 0; i < 3; i++)
         d += (eyes[1][i] - targets[1][i]) * (eyes[1][i] - targets[1][i]);
-    float want = sqrtf(d) * distance_factor();
+    float own = sqrtf(d), want = own * distance_factor();
     float dir[3] = {cosf(elev) * sinf(yaw), sinf(elev), cosf(elev) * cosf(yaw)};
     float clear = want > EYE_NEAREST ? clear_distance(targets[1], dir, want) : EYE_NO_LIMIT;
+    float away = (turned - EYE_OWN_FROM) / (EYE_OWN_TO - EYE_OWN_FROM);
+    away = away < 0 ? 0 : away > 1 ? 1 : away;
+    float least = EYE_NEAREST + (own - EYE_NEAREST) * (1 - away * away * (3 - 2 * away));
+    if (clear < least)
+        clear = least;
     if (clear < eye_limit)
         eye_limit = clear;
     else {
@@ -493,8 +501,9 @@ void camera_update(float dx, float dy) {
         if (!elevation_set || *MEM(view + 0x12E))
             elevation = 0, elevation_set = 1;
         elevation = clamp_raise(elevation + dy * sens * PI / 180, pitch_axis.angle[1]);
-        eye_limit_update(yaw_axis.angle[1] + (float)turn * 2 * PI / 65536 + look_yaw,
-                         clamp_elevation(pitch_axis.angle[1] + elevation + look_pitch));
+        float shown_elev = clamp_elevation(pitch_axis.angle[1] + elevation + look_pitch);
+        eye_limit_update(yaw_axis.angle[1] + (float)turn * 2 * PI / 65536 + look_yaw, shown_elev,
+                         fabsf(shown_elev - pitch_axis.angle[1]) + fabsf(look_yaw));
         return;
     }
     elevation_set = 0;
@@ -502,9 +511,10 @@ void camera_update(float dx, float dy) {
     if (active && dy != 0 && in_ram(preset))
         pitch_axis.written = pitch(preset, dy * sens * PI / 180.0f);
     if (active)
-        eye_limit_update(yaw_axis.angle[1] + look_yaw, pitch_axis.angle[1] + look_pitch);
+        eye_limit_update(yaw_axis.angle[1] + look_yaw, pitch_axis.angle[1] + look_pitch, fabsf(look_yaw) + fabsf(look_pitch));
     else
-        eye_limit_update(yaw_axis.angle[1] + orbit_yaw, pitch_axis.angle[1] + orbit_pitch);
+        eye_limit_update(yaw_axis.angle[1] + orbit_yaw, pitch_axis.angle[1] + orbit_pitch,
+                         fabsf(orbit_yaw) + fabsf(orbit_pitch));
 }
 
 /* The eye's distance shown, times the game's (MHFU_CAMERA_DISTANCE) */
