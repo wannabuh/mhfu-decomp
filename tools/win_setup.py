@@ -82,8 +82,9 @@ def main():
         name = fields["FILENAME"][0]
         path = os.path.join(downloads, name)
         fetched(path, MSYS2 + name, fields["SHA256SUM"][0])
-        subprocess.run(["tar", "xf", path, "-C", sysroot, "--strip-components=1", "clang64/"], check=True,
-                       stderr=subprocess.DEVNULL)
+        listing = subprocess.run(["tar", "tf", path], check=True, capture_output=True, text=True).stdout
+        if any(line.startswith("clang64/") for line in listing.splitlines()):   # (some only name other packages)
+            subprocess.run(["tar", "xf", path, "-C", sysroot, "--strip-components=1", "clang64/"], check=True)
     print(f"ready: PATH={root}/llvm-mingw/bin:$PATH make WINDOWS=1 WINROOT={sysroot}")
 
 
