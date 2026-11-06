@@ -296,7 +296,7 @@ def run_scenario(s, args, stamp):
         last = end_frame(rec60)
         at = s.get("pictures") or [int(last * x) for x in PICTURE_AT]
         picture_run = start_run(work, "pictures", rec60, 60, s, args, trace=False,
-                                extra={"MHFU_FPS": "144", "MHFU_TAA": "0", "MHFU_SCALE": "3", "MHFU_NATIVE_SKIP": "0",
+                                extra={"MHFU_FPS": "144", "MHFU_TAA": "0", "MHFU_MOTION_BLUR": "0", "MHFU_SCALE": "3", "MHFU_NATIVE_SKIP": "0",
                                        "MHFU_PICTURES": ",".join(map(str, at)), "MHFU_RAM_HASH": "0"})
     frames = {}
     for r, (p, d) in runs.items():

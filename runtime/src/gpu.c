@@ -1924,7 +1924,111 @@ static void interp_bones(float *out, const float *a, const float *b, int n, floa
 /* Between two frames' world matrix and bones (n, 0: not skinned): the bones as placed in the world (the world matrix
  * times each) by interp_bones - a turn the game puts in the world matrix and takes back in the bones (as a model turns
  * about) then cancels as it does in the frames - and back through the world matrix lerped by interp43 */
-static void interp_model(float *world_out, float *bones_out, const float *wa, const float *wb, const float *ba,
+/* A model is drawn in many draws, each with up to 8 of its bones, and interp_bones places them from the draw's first: so a joint
+ * two draws shared came out in two places, which showed as seams while it moved (and not on a frame shown at t = 1,
+ * as when held). The draws that share a bone are taken as one model, worked out over a whole frame before any of it is
+ * placed (or a draw's bones link two parts already placed apart), with one bone to place them all from: the same bone comes out the
+ * same in each. Told by the bones' own values. MHFU_SEAM_FIX=0: each draw's own. */
+#define MODEL_BONES 16384
+#define MODELS 4096
+typedef struct {
+    struct { uint64_t hash; unsigned gen; int model; } at[MODEL_BONES];
+    int parent[MODELS];
+    struct { float ra[12], rb[12], ia[12], ib[12], first[12]; float t; unsigned pass; int bad; } model[MODELS];
+    int n;
+    unsigned gen, pass;
+} ModelSet;
+static ModelSet replay_models, native_models;
+static int seam_fix = -1, seam_stats;
+
+static void seam_settings(void) {
+    if (seam_fix < 0) {
+        seam_fix = !getenv("MHFU_SEAM_FIX") || atoi(getenv("MHFU_SEAM_FIX")) != 0;
+        seam_stats = getenv("MHFU_SEAM_STATS") != NULL;
+    }
+}
+
+static uint64_t bone_hash(const float *a) {
+    uint64_t h = 0x9E3779B97F4A7C15ull;
+    const uint32_t *u = (const uint32_t *)a;
+    for (int i = 0; i < 12; i++)
+        h = (h ^ u[i]) * 0x100000001B3ull;
+    return h ^ h >> 29;
+}
+
+static int model_root(ModelSet *m, int i) {
+    while (m->parent[i] != i)
+        i = m->parent[i] = m->parent[m->parent[i]];
+    return i;
+}
+
+static void models_begin(ModelSet *m) {
+    m->gen++;
+    m->n = 0;
+}
+
+/* A bone's model, or -1 (make: one is made for it) */
+static int model_of_bone(ModelSet *m, const float *bone, int make) {
+    uint64_t h = bone_hash(bone);
+    for (uint32_t i = (uint32_t)h & (MODEL_BONES - 1), tries = 0; tries < 32; i = (i + 1) & (MODEL_BONES - 1), tries++) {
+        if (m->at[i].gen != m->gen) {
+            if (!make || m->n == MODELS)
+                return -1;
+            m->at[i].gen = m->gen;
+            m->at[i].hash = h;
+            m->parent[m->n] = m->n;
+            m->model[m->n].pass = 0;
+            return m->at[i].model = m->n++;
+        }
+        if (m->at[i].hash == h)
+            return model_root(m, m->at[i].model);
+    }
+    return -1;
+}
+
+/* A draw's bones, of the frame to be placed: they are one model */
+static void models_add(ModelSet *m, const float *bones_of, int n) {
+    int first = -1;
+    for (int k = 0; k < n; k++) {
+        int mo = model_of_bone(m, bones_of + 12 * k, 1);
+        if (mo < 0)
+            continue;
+        if (first < 0)
+            first = mo;
+        else if (mo != first)
+            m->parent[mo] = first;
+    }
+}
+
+/* (MHFU_SEAM_STATS) how far apart the same bone comes out of two draws, in a pass */
+#define SEAM_SEEN 16384
+static struct { uint64_t hash; unsigned pass; float at[3]; } seam_seen[SEAM_SEEN];
+static unsigned seam_pass;
+static double seam_sum, seam_max;
+static unsigned long seam_pairs, seam_apart;
+
+static void seam_note(const float *ca, const float *cb, const float *out) {
+    uint64_t h = bone_hash(ca) ^ bone_hash(cb) * 31;
+    for (uint32_t i = (uint32_t)h & (SEAM_SEEN - 1), tries = 0; tries < 16; i = (i + 1) & (SEAM_SEEN - 1), tries++) {
+        if (seam_seen[i].pass != seam_pass) {
+            seam_seen[i].pass = seam_pass;
+            seam_seen[i].hash = h;
+            memcpy(seam_seen[i].at, &out[9], sizeof seam_seen[i].at);
+            return;
+        }
+        if (seam_seen[i].hash == h) {
+            float dx = seam_seen[i].at[0] - out[9], dy = seam_seen[i].at[1] - out[10], dz = seam_seen[i].at[2] - out[11];
+            double d = sqrt((double)(dx * dx + dy * dy + dz * dz));
+            seam_pairs++;
+            seam_sum += d;
+            seam_apart += d > 0.05;
+            seam_max = d > seam_max ? d : seam_max;
+            return;
+        }
+    }
+}
+
+static void interp_model(ModelSet *set, float *world_out, float *bones_out, const float *wa, const float *wb, const float *ba,
                          const float *bb, int n, float t) {
     interp43(world_out, wa, wb, t);
     float inv[12];
@@ -1939,7 +2043,38 @@ static void interp_model(float *world_out, float *bones_out, const float *wa, co
         compose43(wa, ba + 12 * k, ca + 12 * k);
         compose43(wb, bb + 12 * k, cb + 12 * k);
     }
-    interp_bones(bones_out, ca, cb, n, t);
+    seam_settings();
+    int model = set && seam_fix ? model_of_bone(set, bb, 0) : -1;
+    if (model >= 0) {
+        typeof(set->model[0]) *mo = &set->model[model];
+        if (mo->pass != set->pass) {    /* (the first of it this pass: its bone to place from) */
+            mo->pass = set->pass;
+            memcpy(mo->ra, ca, sizeof mo->ra);
+            memcpy(mo->rb, cb, sizeof mo->rb);
+            mo->bad = !invert43(ca, mo->ia) || !invert43(cb, mo->ib);
+            mo->t = -1;
+        }
+        if (mo->bad)
+            model = -1;
+        else if (mo->t != t) {
+            interp43(mo->first, mo->ra, mo->rb, t);
+            mo->t = t;
+        }
+    }
+    if (model >= 0) {
+        typeof(set->model[0]) *mo = &set->model[model];
+        for (int k = 0; k < n; k++) {
+            float la[12], lb[12], l[12];
+            compose43(mo->ia, ca + 12 * k, la);
+            compose43(mo->ib, cb + 12 * k, lb);
+            interp43(l, la, lb, t);
+            compose43(mo->first, l, bones_out + 12 * k);
+        }
+    } else
+        interp_bones(bones_out, ca, cb, n, t);
+    if (seam_stats && set)
+        for (int k = 0; k < n; k++)
+            seam_note(ca + 12 * k, cb + 12 * k, bones_out + 12 * k);
     for (int k = 0; k < n; k++)
         compose43(inv, bones_out + 12 * k, bones_out + 12 * k);
 }
@@ -2078,7 +2213,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         float wl[12], wp[12], we[12];
         compose43(late ? prev_inv : latest_inv, d->world, wl);
         compose43(late ? before_inv : prev_inv, moved->world, wp);
-        interp_model(we, &earlier_bones[0][0], wp, wl, &moved->bones[0][0], &d->bones[0][0], draw_bones(d), t - step);
+        interp_model(NULL, we, &earlier_bones[0][0], wp, wl, &moved->bones[0][0], &d->bones[0][0], draw_bones(d), t - step);
         compose43(shown_view, we, earlier_world);
         earlier = 1;
     }
@@ -2091,7 +2226,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
         if (prev) {
             float wp[12];
             compose43(late ? before_inv : prev_inv, prev->world, wp);
-            interp_model(world, &bones[0][0], wp, wl, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
+            interp_model(&replay_models, world, &bones[0][0], wp, wl, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
             lerp(view, prev->view, d->view, 12, t);
             lerp(proj, prev->proj, d->proj, 16, t);
         } else {
@@ -2106,7 +2241,7 @@ static void replay(const Draw *d, const Draw *prev, const Draw *moved, float t) 
             far_place(d->far, shown_view);
         }
     } else if (prev) {
-        interp_model(world, &bones[0][0], prev->world, d->world, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
+        interp_model(&replay_models, world, &bones[0][0], prev->world, d->world, &prev->bones[0][0], &d->bones[0][0], draw_bones(d), t);
         lerp(view, prev->view, d->view, 12, t);
         lerp(proj, prev->proj, d->proj, 16, t);
     } else {
@@ -2720,6 +2855,29 @@ uint32_t gpu_render_frame(float t) {
     shown_frames++;
     ps_frames++;
     placed_run = -1;
+    replay_models.pass++;
+    seam_pass++;
+    {   /* (a new frame: which draws are one model, over all of it) */
+        static unsigned models_of;
+        if (models_of != frame_generation) {
+            models_of = frame_generation;
+            models_begin(&replay_models);
+            const void *last = NULL;
+            for (int i = 0; i < latest->n; i++) {
+                const Draw *d = &latest->draws[i];
+                int nb = draw_bones(d);
+                if (nb && d->bones != last)
+                    models_add(&replay_models, &d->bones[0][0], nb);
+                last = d->bones;
+            }
+        }
+    }
+    if (seam_stats && seam_pairs > 200000) {
+        fprintf(stderr, "seams: a bone in two draws, %lu times: on average %.3f apart, at most %.2f, %.1f%% over 0.05\n", seam_pairs,
+                seam_sum / (double)seam_pairs, seam_max, 100.0 * (double)seam_apart / (double)seam_pairs);
+        seam_pairs = seam_apart = 0;
+        seam_sum = seam_max = 0;
+    }
     q_time((rt_game_30ths() - (1.0 - t) * rt_frame_30ths()) / 30.0);
     int matched_frames = previous->n && !camera_cut(previous, latest);
     int interpolate = matched_frames && t < 1.0f;
@@ -2949,12 +3107,23 @@ static void ready_to_match(Placings *r) {
 /* The first draw of a frame: the one before is done, and this one's camera and 30th known (the game's camera now;
  * native.c: whether a 30th fell on the game frame, the one whose drawing this is) */
 static void native_frame(void) {
+    native_models.pass++;
+    seam_pass++;
     if (nat_c) {
         placings_done(nat_c);
         nat_p = nat_c;
         if (nat_c->is30) {
             nat_a = nat_b;
             nat_b = nat_c;
+            /* (what's drawn between is placed towards this one: which of its draws are one model) */
+            models_begin(&native_models);
+            uint64_t last = 0;
+            for (int i = 0; i < nat_b->n; i++) {
+                const Placing *q = &nat_b->p[i];
+                if (q->nb && q->bones_hash != last)
+                    models_add(&native_models, &nat_b->bones[i][0][0], q->nb);
+                last = q->bones_hash;
+            }
         }
     }
     nat_c = NULL;
@@ -3121,7 +3290,7 @@ static void native_place(uint64_t key) {
     /* as it is, if it moves every frame or not at all - unless drawn again from the last 30th (its camera that one's) */
     if (same_place(from, to) && !held_drawing)
         return;
-    interp_model(world, &bones[0][0], from->w, to->w, from_bones, to_bones, q->nb, t);
+    interp_model(&native_models, world, &bones[0][0], from->w, to->w, from_bones, to_bones, q->nb, t);
     compose43(f->cam, world, world);
     nat_slow += from != to;
 }
