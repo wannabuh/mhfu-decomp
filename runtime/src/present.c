@@ -5,6 +5,7 @@
  * recorded (gpu.c), and the display draws its own from them - interpolated between the last two - in the scheduler's
  * idle time (present_pump). */
 #define _GNU_SOURCE 1
+#include "ticket.h"
 #include <pthread.h>
 #include <signal.h>
 #include <sys/time.h>
@@ -1026,6 +1027,7 @@ void present_frame(void) {
     while (overlay_open() || (inspect_paused() && (!capture_state_pending() || capture_wants_shot()))) {
         if (!window_poll())
             exit(0);
+        ticket_poll();
         if (!overlay_open()) {          /* (held: the mouse moved meanwhile isn't the camera's when the game goes on) */
             float dx, dy;
             window_mouse(&dx, &dy);
@@ -1043,6 +1045,7 @@ void present_frame(void) {
         struct timespec ts = {0, 16000000};
         nanosleep(&ts, NULL);
     }
+    ticket_poll();
     {
         void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
         int gpu_view_back(void);

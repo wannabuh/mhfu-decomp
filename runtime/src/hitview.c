@@ -128,6 +128,15 @@ static void keep(const Shape *s, int role) {
     kept[nkept++] = (Kept){*s, role, tick_now};
 }
 
+static char log_path[1024];
+
+/* (capture.c) the log, if it's on */
+const char *hit_view_log_path(void) { return log_path[0] ? log_path : NULL; }
+void hit_view_log_flush(void) {
+    if (log_file)
+        fflush(log_file);
+}
+
 static void log_open(void) {
     if (log_tried)
         return;
@@ -139,6 +148,8 @@ static void log_open(void) {
     else
         snprintf(path, sizeof path, "%s/hits.log", capture_dir());
     log_file = fopen(path, "a");
+    if (log_file)
+        snprintf(log_path, sizeof log_path, "%s", path);
     if (log_file)
         fprintf(log_file, "# tick record kind hit_id: A(ttack shape) ends radius | S(kipped) target why | P(art) target part_id bone_kind can_take "
                           "touched gap ends radius\n");

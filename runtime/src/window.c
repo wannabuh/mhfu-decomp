@@ -9,6 +9,7 @@
  * wheel goes through the items. While a menu is open (menu.c) the mouse is a pointer instead: over a row it moves the
  * game's cursor there, a left click picks it (cross), a right click goes back (circle). F1 opens the controls screen
  * (overlay.c), the game paused while it is open. */
+#include "ticket.h"
 #include "hle.h"
 #include "render.h"
 #include "savestate.h"
@@ -44,6 +45,7 @@ static int want_capture = 1;             /* the player's choice: captured unless
 static int pointer_mode;                 /* a menu is open: the mouse is a pointer (menu.c) */
 static int overlay_mode;                 /* the controls screen is open (overlay.c): the mouse a pointer */
 static int inspect_mode;                 /* the click inspector is open (inspect.c): the mouse its pointer */
+static int ticket_mode;                  /* the ticket's note box is open (ticket.c): the keys type, the mouse is let go */
 static float pointer_x, pointer_y;       /* where it is, in the window's points */
 static int pointer_moved, pointer_clicks;
 
@@ -52,7 +54,7 @@ static int pointer_moved, pointer_clicks;
 static void apply_capture(void) {
     if (!window)
         return;
-    mouse_captured = want_capture && !pointer_mode && !overlay_mode && !inspect_mode;
+    mouse_captured = want_capture && !pointer_mode && !overlay_mode && !inspect_mode && !ticket_mode;
     SDL_SetWindowRelativeMouseMode(window, mouse_captured);
 }
 
@@ -102,6 +104,18 @@ void window_overlay_mode(int on) {
 void window_inspect_mode(int on) {
     inspect_mode = on;
     apply_capture();
+}
+
+/* The ticket's note box opened or closed (ticket.c) */
+void window_ticket_mode(int on) {
+    ticket_mode = on;
+    apply_capture();
+    if (window) {
+        if (on)
+            SDL_StartTextInput(window);
+        else
+            SDL_StopTextInput(window);
+    }
 }
 
 /* Where the mouse is in the window (its points); 0 if there is no window */
@@ -178,6 +192,8 @@ void window_init(void) {
     const char *r = getenv("MHFU_RENDERER");
     int want_vulkan = !(r && !strcmp(r, "soft"));
     disabled = headless;
+    if (!headless || (getenv("MHFU_CONSOLE") && atoi(getenv("MHFU_CONSOLE"))))
+        console_start();
     controls_init(!headless);
     if (!headless && !SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         fprintf(stderr, "no window: %s\n", SDL_GetError());
@@ -315,6 +331,8 @@ int window_poll(void) {
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_EVENT_QUIT)
             return 0;
+        if (ticket_event(&e))           /* (the note box open: the keys are its) */
+            continue;
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F1 && !e.key.repeat && !overlay_open()) {
             if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
                 window_note("the controls screen needs the Vulkan renderer: controls.ini");
@@ -332,8 +350,12 @@ int window_poll(void) {
             else
                 perf_toggle();
         }
-        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F6 && !e.key.repeat)
-            capture_request();
+        if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F6 && !e.key.repeat) {
+            if (renderer)               /* (the software renderer's picture: no box over it) */
+                capture_request();
+            else
+                ticket_key();
+        }
         if (e.type == SDL_EVENT_KEY_DOWN && e.key.scancode == SDL_SCANCODE_F7 && !e.key.repeat) {
             if (renderer)               /* (the software renderer's picture: nothing drawn over it) */
                 window_note("the click inspector needs the Vulkan renderer");

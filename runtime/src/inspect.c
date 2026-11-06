@@ -95,11 +95,18 @@ int inspect_paused(void) {
 
 int inspect_held(void) { return paused; }
 
+/* The ticket key (ticket.c) */
+void inspect_hold(int on) {
+    paused = on;
+    step_due = 0;
+    gpu_pick_request();
+}
+
 void inspect_toggle_pause(void) {
     paused = !paused;
     step_due = 0;
     gpu_pick_request();
-    window_note(paused ? "game held: f8 lets go, , back, . forward, f6 captures" : "game running");
+    window_note(paused ? "game held: f8 lets go, , back, . forward, f6 ticket" : "game running");
 }
 
 /* Back a frame shown, while held (the , key), and forward: "." comes forward first, then lets a tick through */
@@ -374,10 +381,10 @@ int inspect_rects(float x0, float y0, float scale, HintRect *out, int max) {
         if (camera_free_hud_off())
             return 0;
         if (gpu_view_back())
-            snprintf(line, sizeof line, "HELD %lu, %d BACK  F8 RUN  , . MOVE  F6 CAPTURE", present_frame_number(), gpu_view_back());
+            snprintf(line, sizeof line, "HELD %lu, %d BACK  F8 RUN  , . MOVE  F6 TICKET", present_frame_number(), gpu_view_back());
         else
-            snprintf(line, sizeof line, gpu_view_kept() < 0 ? "HELD %lu  F8 RUN  . STEP  F6 CAPTURE" :
-                     "HELD %lu  F8 RUN  , BACK  . STEP  C CAMERA  F6 CAPTURE", present_frame_number());
+            snprintf(line, sizeof line, gpu_view_kept() < 0 ? "HELD %lu  F8 RUN  . STEP  F6 TICKET" :
+                     "HELD %lu  F8 RUN  , BACK  . STEP  C CAMERA  F6 TICKET", present_frame_number());
         int w = pen_text_width(line) + 6;
         Pen m = {out, 0, max, d, (int)(x0 + 240 * scale) - w * d / 2, (int)y0 + 3 * d};
         pen_box(&m, 0, 0, w, 13, C_INK);

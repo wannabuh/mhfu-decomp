@@ -1,4 +1,4 @@
-/* The bug capture key (F6; MHFU_TEST_CAPTURE=frame,... at those game frames): one press writes a numbered folder under
+/* The bug capture (F6, by way of ticket.c; MHFU_TEST_CAPTURE=frame,... at those game frames): one writes a numbered folder under
  * ~/.local/share/mhfu-recomp/captures (MHFU_CAPTUREDIR elsewhere):
  *   state1.bin      a save state, not in the 9 slots (savestate.c state_request_capture), the same file format
  *   screenshot.png  the frame as shown, at the shown resolution, the panels on it
@@ -6,6 +6,8 @@
  *   inputs.txt, frame-times.txt, events.txt  the last 10 s
  *   env.txt         MHFU_ environment, for tools/capture.py to run it again
  *   frame-*.txt     held (F8) only: the draws, vertices and bones of the frame shown and either side (gpu.c dump_frame)
+ *   console.txt     what the run printed, the last of it, with a window (ticket.c console_start)
+ *   hits.log, stalls.log  the last of the hit overlay's and the stall recorder's logs, if they're on
  *
  * It must not change the game. Everything it touches is the host's: rings kept apart from what a state saves, reads of the
  * game's memory, files. On the game's thread it takes the state's copy (as F2 does) and the frame's read back; the files
@@ -14,6 +16,11 @@
  *
  * To load one: MHFU_STATEDIR=<the folder> MHFU_STATE_LOAD=30,1 build/mhfu, or tools/capture.py (docs/runtime.md). */
 #include "capture.h"
+#include "ticket.h"
+
+const char *hit_view_log_path(void);
+const char *stall_log_path(void);
+void hit_view_log_flush(void);
 #include "inspect.h"
 #include "objects.h"
 #include "perf.h"
@@ -194,6 +201,8 @@ typedef struct {
 
 static Capture *current;                /* the one being gathered (at most one at a time) */
 static int want_shot;
+static char last_folder[4200];
+static int last_number;
 static unsigned long current_since;
 static _Atomic int writers;
 
@@ -210,6 +219,24 @@ static void write_text(const char *folder, const char *name, const char *text, s
     fclose(f);
 }
 
+/* The last of a log, into the capture */
+static void copy_tail(const char *from, const char *folder, const char *name) {
+    enum { KEEP = 4 * 1024 * 1024 };
+    FILE *f = from ? fopen(from, "r") : NULL;
+    if (!f)
+        return;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f), n = size > KEEP ? KEEP : size;
+    fseek(f, size - n, SEEK_SET);
+    char *text = malloc(n > 0 ? (size_t)n : 1);
+    if (text) {
+        size_t got = fread(text, 1, (size_t)n, f);
+        write_text(folder, name, text, got);
+        free(text);
+    }
+    fclose(f);
+}
+
 static void *writer(void *arg) {
     Capture *k = arg;
     char path[4200];
@@ -222,6 +249,16 @@ static void *writer(void *arg) {
     write_text(k->folder, "frame-times.txt", k->times, k->times_n);
     write_text(k->folder, "events.txt", k->events, k->events_n);
     write_text(k->folder, "env.txt", k->env, k->env_n);
+    {
+        size_t n;
+        char *console_text = console_copy(&n);
+        if (console_text) {
+            write_text(k->folder, "console.txt", console_text, n);
+            free(console_text);
+        }
+        copy_tail(hit_view_log_path(), k->folder, "hits.log");
+        copy_tail(stall_log_path(), k->folder, "stalls.log");
+    }
     fprintf(stderr, "capture %d written: %s\n", k->number, k->folder);
     free(k->shot);
     free(k->info);
@@ -382,6 +419,8 @@ void capture_request(void) {
     atomic_fetch_add(&writers, 1);      /* (the state's writer: one more, or none if it never gets taken) */
     state_request_capture(path);
     current = k;
+    snprintf(last_folder, sizeof last_folder, "%s", k->folder);
+    last_number = k->number;
     want_shot = 1;
     current_since = present_frame_number();
     snprintf(note, sizeof note, "capture %d", k->number);
@@ -389,6 +428,12 @@ void capture_request(void) {
 }
 
 int capture_wants_shot(void) { return want_shot; }
+
+/* (ticket.c) nothing being taken or written */
+int capture_idle(void) { return !current && atomic_load(&writers) == 0; }
+void capture_wait(void) { wait_for_writers(); }
+const char *capture_last_folder(void) { return last_folder; }
+int capture_last_number(void) { return last_number; }
 
 int capture_state_pending(void) { return current && !current->state_taken; }
 
@@ -408,6 +453,7 @@ void capture_state_taken(unsigned long frame, int late) {
 static void finish(void) {
     Capture *k = current;
     current = NULL;
+    hit_view_log_flush();
     FILE *f = open_memstream(&k->inputs, &k->inputs_n);
     uint64_t now = wall_time_us();
     write_inputs(f, now);
@@ -441,9 +487,10 @@ static void finish(void) {
 
 void capture_take_shot(uint32_t addr, const uint32_t *soft_pixels) {
     Capture *k = current;
-    want_shot = 0;
-    if (!k)
+    if (!k) {
+        want_shot = 0;
         return;
+    }
     uint64_t t0 = wall_time_us();
     if (soft_pixels) {
         k->shot = malloc(480 * 272 * 4);
@@ -453,7 +500,9 @@ void capture_take_shot(uint32_t addr, const uint32_t *soft_pixels) {
         render_shown_size(&k->shot_w, &k->shot_h);
         k->shot = render_readback_present(addr, k->shot_w, k->shot_h);
     }
-    if (!soft_pixels && inspect_held()) {   /* (held: time doesn't matter, and it's for looking closely) */
+    want_shot = 0;                      /* (only now: the note box stays out of what was just drawn) */
+    int gpu_view_kept(void);
+    if (!soft_pixels && inspect_held() && gpu_view_kept() >= 0) {   /* (held: for looking closely; none, if no frames are recorded) */
         void gpu_dump_frames(const char *folder);
         gpu_dump_frames(k->folder);
     }
@@ -479,6 +528,7 @@ void capture_tick(unsigned long frame) {
     for (int i = 0; i < test_n; i++)
         if (test_frames[i] == frame)
             capture_request();
+    ticket_test(frame);
     track_events(frame);
     if (current && !want_shot) {
         /* (the shot taken and its state too; or not to come: the state given up on) */

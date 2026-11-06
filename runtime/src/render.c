@@ -1662,6 +1662,7 @@ static void draw_note(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
 int overlay_rects(float x0, float y0, float scale, HintRect *out, int max);
 int inspect_rects(float x0, float y0, float scale, HintRect *out, int max);
 int hit_view_rects(float x0, float y0, float scale, HintRect *out, int max);
+int ticket_rects(float x0, float y0, float scale, HintRect *out, int max);
 #define MAX_HINT_RECTS 16384
 static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     {
@@ -1677,6 +1678,7 @@ static void draw_hints(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
     n += perf_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);      /* (the performance panel) */
     n += inspect_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);   /* (the click inspector) */
     n += hit_view_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);  /* (the hit overlay) */
+    n += ticket_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);    /* (the ticket's note box) */
     n += overlay_rects(x0, y0, vw / 480.0f, rects + n, MAX_HINT_RECTS - n);    /* (the controls screen over them) */
     for (int i = 0; i < n;) {           /* (in order, each run of one colour cleared at once) */
         int c = rects[i].color;

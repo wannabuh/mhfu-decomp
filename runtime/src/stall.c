@@ -25,6 +25,11 @@
 #include <time.h>
 #include <unistd.h>
 
+static char log_path[1024];
+
+/* (capture.c) the log, if it's on */
+const char *stall_log_path(void) { return log_path[0] ? log_path : NULL; }
+
 #define STALL_DEPTH 32
 #define STALL_SAMPLES 512
 #define STALL_THREADS 2
@@ -139,8 +144,10 @@ static void start(void) {
         snprintf(path, sizeof path, "%s", getenv("MHFU_STALL_LOG"));
     else
         snprintf(path, sizeof path, "%s/stalls.log", capture_dir());
+    snprintf(log_path, sizeof log_path, "%s", path);
     FILE *f = fopen(path, "a");
     if (!f) {
+        log_path[0] = 0;
         fprintf(stderr, "stalls: can't write %s\n", path);
         limit_us = 0;
         return;
