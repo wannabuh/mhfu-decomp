@@ -4933,6 +4933,51 @@ int gpu_pick_at(float x, float y, GpuPickHit *out, int max) {
     return n;
 }
 
+/* -- what scrolls and is not water ------------------------------------------------------------------------------------
+ *
+ * Water is told by its texture scrolling (render_water.c) - and so were two things that are not: a dark layer drifting
+ * over a hillside, whose vertices' colours are all black (the jungle, #33: drawn with the water's own texture, among
+ * its draws), and the mist drifting over a cave's floor (#41: grey, see-through at its edges, as water is - told by
+ * its texture alone). The draw about to be made is given NOT_WATER_REG (a command the game does not use: bit 0, not
+ * water; recorded and replayed with the draw's state).
+ * (That water lies in one plane does not tell them: rivers run downhill, and the layer is one model with the stream.) */
+#define NOT_WATER_REG 0xFE
+static const uint32_t not_water_textures[] = {0x317FDA83u};     /* (texpack's hashes) the cave's mist */
+
+static void water_draw(int count, int idx, const Layout *l) {
+    uint32_t vt = reg[0x12];
+    reg[NOT_WATER_REG] = 0;
+    if ((vt >> 23 & 1) || proj[11] == 0 || !(reg[0x21] & 1) || (reg[0xDF] & 0xFFF) != 0x32 ||
+        !((reg[0x4A] | reg[0x4B]) & 0xFFFFFF) || count <= 0)
+        return;
+    /* its texture: looked up when it changes */
+    static uint32_t last_tex = ~0u, last_w;
+    static int last_not;
+    uint32_t tex = (reg[0xA0] & 0xFFFFFF) | (reg[0xA8] & 0x0F0000) << 8;
+    if ((reg[0x1E] & 1) && (tex != last_tex || reg[0xB8] != last_w)) {
+        uint64_t key;
+        uint32_t hash;
+        texpack_key(reg, 512, &key, &hash);
+        last_tex = tex;
+        last_w = reg[0xB8];
+        last_not = 0;
+        for (size_t i = 0; i < sizeof not_water_textures / sizeof *not_water_textures; i++)
+            last_not |= not_water_textures[i] == hash;
+    }
+    if ((reg[0x1E] & 1) && last_not) {
+        reg[NOT_WATER_REG] = 1;
+        return;
+    }
+    if (!((vt >> 2) & 7))
+        return;
+    for (int k = 0; k < count; k++) {
+        int n = idx == 1 ? (int)LBU(iaddr + (uint32_t)k) : idx == 2 ? (int)LHU(iaddr + 2 * (uint32_t)k) : k;
+        if (read_color(vaddr + (uint32_t)(n * l->size), l, vt, reg) & 0xE0E0E0u)
+            return;                     /* (a vertex with colour: not the dark layer) */
+    }
+    reg[NOT_WATER_REG] = 1;
+}
+
 static void prim_drawn(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
@@ -4954,6 +4999,8 @@ static void prim_drawn(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (!in_replay && !held_drawing && !pick_pass)
+        water_draw(count, idx, &l);
     if (pick_pass) {                    /* (the inspector going over a recorded frame: noted, not drawn) */
         if (count > 0)
             pick_note(type, count, idx, &l);

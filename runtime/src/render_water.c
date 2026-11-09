@@ -99,6 +99,9 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
     }
     if (!moved_at[slot] || frame_no - moved_at[slot] > STILL_FRAMES)
         return 0;
+    /* (and gpu.c's water_draw has not said otherwise: a dark layer drifting over a hillside, a cave's mist - #33, #41) */
+    if (reg[0xFE] & 1)
+        return 0;
     /* (sand flowing - the desert's sand sea, scrolled and blended as water is - told by its colour: red over green
      * over blue, as sand and earth are; water is blue, green or grey) */
     const float *c = tex_average[slot];

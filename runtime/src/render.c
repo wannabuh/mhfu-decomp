@@ -156,10 +156,15 @@ static int finds_feet(const DrawState *d) {
  * 8, 9, 10, 11 as 1, 2, 3, 6 with the GE's vertex stage on the GPU (ge_tl.vert: the vertices as the game gave them) */
 VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
                          int ge) {
-    /* (the sun's shadow map clamps too: what is beyond its range towards the sun still casts - a jungle's canopy, further
-     * up than the range, was cut off where the range ended, and its shade drew in as the hunter walked, #28 - and what
-     * is beyond it the other way lands on the cleared depth, shading nothing) */
-    int tl = ge >= 8, clamp_depth = ge == 8 || ((ge == 2 || ge == 9) && vk.depth_clamp);
+    /* MHFU_SHADOW_CLAMP=1: the sun's shadow map clamps too, so that what is beyond its range towards the sun still casts
+     * - a jungle's rings of trees, further up than the range, are cut off where the range ends, and their shade draws
+     * in as the hunter walks (#28). Off by default: in open country the far scenery then casts as well, in great
+     * hard-edged shapes over the hills (the jungle's area 2). What is beyond the range the other way lands on the
+     * cleared depth, shading nothing */
+    static int shadow_clamp = -1;
+    if (shadow_clamp < 0)
+        shadow_clamp = getenv("MHFU_SHADOW_CLAMP") && atoi(getenv("MHFU_SHADOW_CLAMP")) != 0;
+    int tl = ge >= 8, clamp_depth = ge == 8 || ((ge == 2 || ge == 9) && vk.depth_clamp && shadow_clamp);
     ge = ge == 8 ? 1 : ge == 9 ? 2 : ge == 10 ? 3 : ge == 11 ? 6 : ge;
     VkPipelineShaderStageCreateInfo stages[4] = {
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_VERTEX_BIT, vs, "main", NULL},
