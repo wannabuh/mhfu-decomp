@@ -542,6 +542,15 @@ void end_rendering(void) {
     rendering = NULL;
 }
 
+/* The rendering ended, what is batched not drawn: drawn later, once rendering again (render_post.c: a draw held back
+ * until the post-processing is done) */
+void end_rendering_kept(void) {
+    if (!rendering)
+        return;
+    vkCmdEndRendering(vk_cmd());
+    rendering = NULL;
+}
+
 void begin_rendering(Target *t) {
     if (rendering == t)
         return;
@@ -851,9 +860,9 @@ void render_prim_begin(const uint32_t *reg) {
         scene.fog[2] = (s.flags & DRAW_FOG) ? 1.0f : 0.0f;
         scene.fog_color = s.fog_color;
     }
-    post_state(s.target, s.flags, solid, clear);
     if (!clear && water_prim(reg, &s))
         s.flags |= DRAW_WATER;
+    post_state(s.target, s.flags, solid, clear, !memcmp(&s, &cur, sizeof s));
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;

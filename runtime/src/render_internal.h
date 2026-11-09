@@ -92,6 +92,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
 void flush(void);                   /* draw what has been batched */
 void begin_rendering(Target *t);
 void end_rendering(void);
+void end_rendering_kept(void);         /* ended with what is batched left for later */
 Target *rendering_target(void);     /* the target being rendered into, or NULL */
 Target *target_at(uint32_t addr, int create);  /* the render target at a VRAM address (made if create) */
 void ge_rebind(void);               /* after drawing something else in the GE's pass: its pipeline and vertices again */
@@ -218,7 +219,7 @@ uint32_t water_light_set(void);     /* the water's light sets (two), ~0: none */
 
 /* -- render_post.c ------------------------------------------------------------------------------------------------ */
 void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule tl_vs);
-void post_state(Target *t, uint32_t flags, int solid, int clear);  /* a primitive drawn into t */
+void post_state(Target *t, uint32_t flags, int solid, int clear, int same);  /* a primitive drawn into t (same: batched with the last) */
 void post_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, int tessellated);
 void post_keep_tl(Target *t, const DrawState *s, const DrawPush *pc, const TlSegment *seg, int nseg);
 void post_finish(void);

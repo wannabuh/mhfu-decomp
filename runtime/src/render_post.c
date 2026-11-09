@@ -14,6 +14,7 @@
 #define MAX_GLOW_SEGMENTS 16384
 static VkPipeline glow_pipeline, glow_tess_pipeline, glow_tl_pipeline;
 static Target *post_target, *post_done;     /* the world is being drawn into it; it has been post-processed */
+static Target *post_held;                   /* the first thing over its world not in it is batched, not yet drawn */
 static float post_view[16], post_world_view[12];    /* the world's camera (its last solid draw's) */
 /* A draw adding light to the world, kept to be drawn again into the glow (kind 0); and the hunter's, monsters' and
  * people's, into the motion blur's image - their motion (1 flat, 2 tessellated, 3 the GPU's vertex stage's: first,
@@ -188,12 +189,30 @@ static void post_run(Target *t) {
     post_apply(&t->color, &t->depth, &f);
 }
 
-/* A primitive drawn into t, with these flags (solid: of the solid world): once the world is drawn, at the first thing
- * over it not in it, the post-processing (once, until cleared) */
-void post_state(Target *t, uint32_t flags, int solid, int clear) {
-    if (post_target && t == post_target && !(flags & DRAW_WORLD) && !clear) {
+/* The post-processing of t, then what is batched (the draw held) drawn over it */
+static void post_run_held(Target *t) {
+    end_rendering_kept();
+    post_run(t);
+    begin_rendering(t);
+    flush();
+}
+
+/* A primitive drawn into t, with these flags (solid: of the solid world; same: batched with the last): once the world
+ * is drawn, at the first thing over it not in it, the post-processing (once, until cleared). That first thing is held
+ * in its batch until what follows it shows whether the world was done: the game draws some over the world part way
+ * through (the village's haze over the sky, every other frame: #37), and the world drawn after it was left out */
+void post_state(Target *t, uint32_t flags, int solid, int clear, int same) {
+    if (post_held && !(t == post_held && !clear && same)) {
+        Target *h = post_held;
+        post_held = NULL;
+        if (t == h && (flags & DRAW_WORLD) && !clear)
+            flush();                    /* the world goes on: it was in it */
+        else
+            post_run_held(h);
+    }
+    if (post_target && t == post_target && !(flags & DRAW_WORLD) && !clear && !post_held) {
         flush();
-        post_run(post_target);
+        post_held = t;
     }
     if (clear && t == post_done)
         post_done = NULL;
@@ -249,12 +268,16 @@ void post_keep_tl(Target *t, const DrawState *s, const DrawPush *pc, const TlSeg
 
 /* The frame shown or read: the post-processing still to do */
 void post_finish(void) {
-    if (post_target)
+    if (post_held) {
+        Target *h = post_held;
+        post_held = NULL;
+        post_run_held(h);
+    } else if (post_target)
         post_run(post_target);
 }
 
 void post_frame_done(void) {
-    post_target = post_done = NULL;
+    post_target = post_done = post_held = NULL;
     nglow = nglow_segs = 0;
     post_end_frame();
 }
