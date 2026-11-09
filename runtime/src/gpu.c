@@ -4933,20 +4933,137 @@ int gpu_pick_at(float x, float y, GpuPickHit *out, int max) {
     return n;
 }
 
+/* -- the far scenery casts no shadows ------------------------------------------------------------------------------
+ *
+ * Round an area the stage has rings of trees and hills, clouds and far mountains: scenery to look at, drawn like the
+ * ground (the same blend, alpha test, depth and fog), which cast into the sun's shadow map like it. The map reaches so
+ * far towards the sun, from the camera, and cut them off there: their shade on the ground drew in as the hunter
+ * walked (#28) - and reaching further, they cast great hard shapes over open country. They are told by where they are:
+ * a model - the draws in a row with one world matrix and texture - spread wide (BACKDROP_WIDE) that hangs over the
+ * ground (its lowest point BACKDROP_OVER above the camera's target), or one far wider than any area (BACKDROP_VAST:
+ * the far hills that stand on the ground). The ground and what stands on it are neither - nor a
+ * cave's walls and roof, which tower over the hunter as the far hills do but stand on the ground: by height alone
+ * they were taken for far scenery, and the ice caves were sunlit.
+ * Each model's vertices are gone over as it is drawn, and what it is is kept by draw (where its vertices and indices
+ * are: in the game's display lists, which it fills by turns) for the frames after, when the draw is given it in
+ * DRAW_REG's bit 1 (render.c: DRAW_NO_CAST). Once far scenery, always: where the hunter stands later does not change
+ * it. A draw not seen before casts. MHFU_BACKDROP_SHADOWS=1: they cast, as before. */
+#define DRAW_REG 0xFE               /* (a command the game does not use, recorded and replayed with the draw's state:
+                                     * bit 0 not water, below; bit 1 far scenery) */
+#define BACKDROP_WIDE 8000.0f
+#define BACKDROP_OVER 400.0f
+#define BACKDROP_VAST 30000.0f       /* (wider than any area: the ground's models are some 20000 across) */
+#define BACKDROP_SLOTS 16384
+#define BACKDROP_DRAWS 2048
+static struct { uint32_t v, i; uint8_t used, far; } backdrop_tab[BACKDROP_SLOTS];
+static int backdrop_filled;
+static struct {
+    float world[12];
+    uint32_t tex;
+    int open, n;
+    float lo[3], hi[3], y[2];
+    uint32_t keys[BACKDROP_DRAWS][2];
+} backdrop_group;
+static unsigned long backdrop_frame;
+static float backdrop_inv[12], backdrop_target[3];
+static int backdrop_have;
+
+static int backdrop_slot(uint32_t v, uint32_t i) {
+    uint32_t h = (v * 0x9E3779B1u ^ i * 0x85EBCA6Bu) >> 18 & (BACKDROP_SLOTS - 1);
+    while (backdrop_tab[h].used && (backdrop_tab[h].v != v || backdrop_tab[h].i != i))
+        h = (h + 1) & (BACKDROP_SLOTS - 1);
+    return (int)h;
+}
+
+static void backdrop_close(void) {
+    if (!backdrop_group.open)
+        return;
+    backdrop_group.open = 0;
+    float d = 0;
+    for (int k = 0; k < 3; k++)
+        d += (backdrop_group.hi[k] - backdrop_group.lo[k]) * (backdrop_group.hi[k] - backdrop_group.lo[k]);
+    int far = sqrtf(d) > BACKDROP_VAST || (sqrtf(d) > BACKDROP_WIDE && backdrop_group.y[0] - backdrop_target[1] > BACKDROP_OVER);
+    if (backdrop_filled + backdrop_group.n > BACKDROP_SLOTS / 2) {  /* (another stage's, by now: begun again) */
+        memset(backdrop_tab, 0, sizeof backdrop_tab);
+        backdrop_filled = 0;
+    }
+    for (int k = 0; k < backdrop_group.n; k++) {
+        int h = backdrop_slot(backdrop_group.keys[k][0], backdrop_group.keys[k][1]);
+        if (!backdrop_tab[h].used) {
+            backdrop_filled++;
+            backdrop_tab[h].v = backdrop_group.keys[k][0];
+            backdrop_tab[h].i = backdrop_group.keys[k][1];
+            backdrop_tab[h].used = 1;
+            backdrop_tab[h].far = 0;
+        }
+        backdrop_tab[h].far |= (uint8_t)far;
+    }
+}
+
+/* The draw about to be made: DRAW_REG's bit 1 set for it, and its vertices gone over */
+static void backdrop_draw(int count, int idx, const Layout *l) {
+    static int off = -1;
+    if (off < 0)
+        off = getenv("MHFU_BACKDROP_SHADOWS") && atoi(getenv("MHFU_BACKDROP_SHADOWS")) != 0;
+    uint32_t vt = reg[0x12];
+    if (off || (vt >> 23 & 1) || proj[11] == 0 || (reg[0xE7] & 1) || ((vt >> 9) & 3) || count <= 0)
+        return;
+    unsigned long now = present_frame_number();
+    if (now != backdrop_frame) {
+        backdrop_close();
+        backdrop_frame = now;
+        backdrop_have = camera_game(backdrop_inv, backdrop_target);
+    }
+    if (!backdrop_have)
+        return;
+    uint32_t ki = idx ? iaddr : 0, tex = (reg[0xA0] & 0xFFFFFF) | (reg[0xA8] & 0x0F0000) << 8;
+    int h = backdrop_slot(vaddr, ki);
+    if (backdrop_tab[h].used && backdrop_tab[h].far)
+        reg[DRAW_REG] |= 2;
+    if (backdrop_group.open && (tex != backdrop_group.tex || memcmp(world, backdrop_group.world, sizeof world)))
+        backdrop_close();
+    if (!backdrop_group.open) {
+        backdrop_group.open = 1;
+        backdrop_group.n = 0;
+        backdrop_group.tex = tex;
+        memcpy(backdrop_group.world, world, sizeof world);
+        for (int k = 0; k < 3; k++)
+            backdrop_group.lo[k] = 1e30f, backdrop_group.hi[k] = -1e30f;
+        backdrop_group.y[0] = 1e30f;
+        backdrop_group.y[1] = -1e30f;
+    }
+    if (backdrop_group.n < BACKDROP_DRAWS) {
+        backdrop_group.keys[backdrop_group.n][0] = vaddr;
+        backdrop_group.keys[backdrop_group.n++][1] = ki;
+    }
+    int pos = (vt >> 7) & 3;
+    for (int k = 0; k < count; k++) {
+        int n = idx == 1 ? (int)LBU(iaddr + (uint32_t)k) : idx == 2 ? (int)LHU(iaddr + 2 * (uint32_t)k) : k;
+        float p[3], q[3];
+        tl_read3(vaddr + (uint32_t)(n * l->size) + (uint32_t)l->po, pos, p);
+        for (int i = 0; i < 3; i++) {
+            q[i] = world[i] * p[0] + world[3 + i] * p[1] + world[6 + i] * p[2] + world[9 + i];
+            backdrop_group.lo[i] = fminf(backdrop_group.lo[i], q[i]);
+            backdrop_group.hi[i] = fmaxf(backdrop_group.hi[i], q[i]);
+        }
+        float y = backdrop_inv[1] * q[0] + backdrop_inv[4] * q[1] + backdrop_inv[7] * q[2] + backdrop_inv[10];
+        backdrop_group.y[0] = fminf(backdrop_group.y[0], y);
+        backdrop_group.y[1] = fmaxf(backdrop_group.y[1], y);
+    }
+}
+
 /* -- what scrolls and is not water ------------------------------------------------------------------------------------
  *
  * Water is told by its texture scrolling (render_water.c) - and so were two things that are not: a dark layer drifting
  * over a hillside, whose vertices' colours are all black (the jungle, #33: drawn with the water's own texture, among
  * its draws), and the mist drifting over a cave's floor (#41: grey, see-through at its edges, as water is - told by
- * its texture alone). The draw about to be made is given NOT_WATER_REG (a command the game does not use: bit 0, not
- * water; recorded and replayed with the draw's state).
+ * its texture alone). The draw about to be made is given DRAW_REG's bit 0 (above): not water.
  * (That water lies in one plane does not tell them: rivers run downhill, and the layer is one model with the stream.) */
-#define NOT_WATER_REG 0xFE
 static const uint32_t not_water_textures[] = {0x317FDA83u};     /* (texpack's hashes) the cave's mist */
 
 static void water_draw(int count, int idx, const Layout *l) {
     uint32_t vt = reg[0x12];
-    reg[NOT_WATER_REG] = 0;
+    reg[DRAW_REG] = 0;
     if ((vt >> 23 & 1) || proj[11] == 0 || !(reg[0x21] & 1) || (reg[0xDF] & 0xFFF) != 0x32 ||
         !((reg[0x4A] | reg[0x4B]) & 0xFFFFFF) || count <= 0)
         return;
@@ -4965,7 +5082,7 @@ static void water_draw(int count, int idx, const Layout *l) {
             last_not |= not_water_textures[i] == hash;
     }
     if ((reg[0x1E] & 1) && last_not) {
-        reg[NOT_WATER_REG] = 1;
+        reg[DRAW_REG] = 1;
         return;
     }
     if (!((vt >> 2) & 7))
@@ -4975,7 +5092,7 @@ static void water_draw(int count, int idx, const Layout *l) {
         if (read_color(vaddr + (uint32_t)(n * l->size), l, vt, reg) & 0xE0E0E0u)
             return;                     /* (a vertex with colour: not the dark layer) */
     }
-    reg[NOT_WATER_REG] = 1;
+    reg[DRAW_REG] = 1;
 }
 
 static void prim_drawn(uint32_t data) {
@@ -5000,7 +5117,7 @@ static void prim_drawn(uint32_t data) {
     int idx = (vt >> 11) & 3;
     Layout l = layout();
     if (!in_replay && !held_drawing && !pick_pass)
-        water_draw(count, idx, &l);
+        water_draw(count, idx, &l), backdrop_draw(count, idx, &l);
     if (pick_pass) {                    /* (the inspector going over a recorded frame: noted, not drawn) */
         if (count > 0)
             pick_note(type, count, idx, &l);

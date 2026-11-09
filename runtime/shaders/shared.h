@@ -57,6 +57,7 @@
 #define DRAW_SWAY 65536u        /* (the GPU's vertex stage) moved by the wind: DrawPush.camera its TL_WIND */
 #define DRAW_FACES 131072u      /* (the GPU's vertex stage) shaded: the normals summed where corners meet, each
                                  * triangle's own where they bend more than 60 degrees from it (ge.frag) */
+#define DRAW_NO_CAST 262144u    /* far scenery (gpu.c backdrop_draw): it casts no shadows */
 
 /* -- push constants ----------------------------------------------------------------------------------------------- */
 /* The GE's draws (ge.*, shadow.*, pshadow.*): the texture's size (texels) and index (~0u: none), the flags, the alpha

@@ -259,7 +259,7 @@ void render_shadow_frame(const float *m, int on) {
 void shadow_draw(const DrawState *s, DrawPush pc, uint32_t first, uint32_t n) {
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                       s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend)) {
+    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST)) {
         if (alpha_blend)
             pc.flags |= DRAW_BLENDED;
         shadow_begin();
@@ -311,7 +311,7 @@ static void tl_segments(VkCommandBuffer cmd, VkPipeline pipeline, VkPipeline aft
 void shadow_draw_tl(const DrawState *s, DrawPush pc, const TlSegment *seg, int nseg) {
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                       s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    int casts = s->depth_write && (!s->blend || alpha_blend);
+    int casts = s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST);
     if (alpha_blend)
         pc.flags |= DRAW_BLENDED;
     if (!shadow_on || !(s->flags & DRAW_WORLD))

@@ -787,6 +787,8 @@ void render_prim_begin(const uint32_t *reg) {
     if (prim_world && !clear) {
         s.flags |= DRAW_WORLD | ((reg[0x17] & 1) ? (prim_light_set() != ~0u ? DRAW_LIT_PIXEL : DRAW_LIT_GE) : 0u);
         s.lights = prim_light_set();
+        if (reg[0xFE] & 2)              /* (gpu.c: far scenery) */
+            s.flags |= DRAW_NO_CAST;
         if (reg[0x1D] & 1) {            /* the culling gpu.c leaves to the GPU (the same faces as it would drop) */
             s.cull = VK_CULL_MODE_BACK_BIT;
             s.front = (reg[0x9B] & 1) ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
