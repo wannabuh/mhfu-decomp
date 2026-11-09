@@ -43,7 +43,7 @@ def convert(src, dst, factor, after=0):
         if f <= after:
             return f
         return (f + 1) // 2 if factor < 1 else after + 2 * (f - after) - 1
-    head, inputs, pointers, end, camera = [], {}, [], None, None
+    head, inputs, pointers, end, camera, follows = [], {}, [], None, None, None
     for line in open(src):
         p = line.split()
         if p and p[0].isdigit() and len(p) >= 6:
@@ -66,6 +66,8 @@ def convert(src, dst, factor, after=0):
             end = at(int(p[1]))
         elif p and p[0] == "camera":
             camera = at(int(p[1])) if int(p[1]) else 0
+        elif p and p[0] == "follows":
+            follows = at(int(p[1])) if int(p[1]) else 0
         elif line.strip():
             head.append(line.rstrip("\n"))
     with open(dst, "w") as o:
@@ -73,6 +75,8 @@ def convert(src, dst, factor, after=0):
             print(line, file=o)
         if camera is not None:
             print(f"camera {camera}", file=o)
+        if follows is not None:
+            print(f"follows {follows}", file=o)
         for f in sorted(inputs):
             b, sx, sy, mx, my = inputs[f]
             print(f"{f} {b} {sx} {sy} {mx:g} {my:g}", file=o)

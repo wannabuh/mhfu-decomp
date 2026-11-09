@@ -369,8 +369,8 @@ def convert(src, dst, rate, after, zero_mouse=False):
             b = b or a
             last = at(int(b) + 1) - 1 if int(b) > after else at(int(b))
             out.append(f"poke {at(int(a))}-{last} {' '.join(p[2:])}")
-        elif p and p[0] == "camera":
-            out.append(f"camera {at(int(p[1])) if int(p[1]) else 0}")
+        elif p and p[0] in ("camera", "follows"):
+            out.append(f"{p[0]} {at(int(p[1])) if int(p[1]) else 0}")
         else:
             out.append(line.rstrip("\n"))
     with open(dst, "w") as f:

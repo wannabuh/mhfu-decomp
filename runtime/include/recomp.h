@@ -74,6 +74,7 @@ void rt_gate_object(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    
 void rt_gate_native(Ctx *c, void (*fn)(Ctx *c), uint32_t addr, uint32_t at);    /* converted, under a gate */
 void rt_trace_call(Ctx *c, uint32_t fn);   /* a call of fn (recomp.py's RECOMP_TRACE): logged with MHFU_CALL_LOG */
 extern int rt_camera_free;      /* the mouse has the camera: the game's own turns of it (away from walls) are off */
+extern int rt_camera_follows;   /* blocked by the scenery, the camera follows the mouse (camera.c; not in recordings made before) */
 extern float rt_cull_margin;    /* models within this of the camera's view are drawn too (for the renderer's shadows) */
 void rt_menu_list(uint32_t layout, uint32_t row);   /* a list window drawn, its cursor's bar on row (menu.c) */
 void rt_far_draw_begin(int kind);  /* a light shaft's or glare's draw starts: what it adds to the display list noted (gpu.c) */

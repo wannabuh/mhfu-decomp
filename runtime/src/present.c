@@ -77,7 +77,8 @@ static int skip_intro(void) {
  * the game back to where it ended, and play carries on from there (recorded too, with MHFU_RECORD: a recording can be
  * extended). A file: "mhfu-replay 1", "epoch <us>" (the date and time the run started), "sens <degrees>" (the mouse's
  * sensitivity, MHFU_MOUSE_SENS, as the mouse turns the camera in the game), "camera <frame>" (the frame from which the
- * mouse had the camera: the game's own turns of it left out - none in recordings made before), then a line for each frame whose
+ * mouse had the camera: the game's own turns of it left out - none in recordings made before), "follows <frame>" (from
+ * which the camera follows the mouse up against the scenery, camera.c: in those made before, held there), then a line for each frame whose
  * input differs from the one before or moves the mouse: "<frame> <buttons> <stick x> <stick y> <mouse x> <mouse y>",
  * "pointer <frame> <x> <y> <clicks>" for the mouse moved (or clicked) in a menu (menu.c: what it moves is not all in
  * the buttons), and "end <frame>": the input as the game had it (the stick as turned by the mouse's orbit, camera.c). A save changed
@@ -94,6 +95,7 @@ static unsigned long replay_end;
 static int replay_loaded;
 static uint64_t replay_epoch_us;
 static unsigned long replay_free_from = ~0ul;   /* "camera <frame>": the mouse has the camera from that frame */
+static unsigned long replay_follows_from = ~0ul;    /* "follows <frame>": blocked, the camera follows the mouse from it */
 typedef struct { unsigned long frame; float x, y; int clicks; } Pointer;
 static Pointer *replay_pointer;
 static size_t replay_pointer_n;
@@ -199,6 +201,8 @@ static void load_replay(void) {
             ;
         else if (sscanf(line, "camera %lu", &replay_free_from) == 1)
             ;
+        else if (sscanf(line, "follows %lu", &replay_follows_from) == 1)
+            ;
         else if (strncmp(line, "poke ", 5) == 0)
             parse_poke(line + 5);
         else if (strncmp(line, "pointer ", 8) == 0) {
@@ -230,6 +234,16 @@ static unsigned long camera_free_from(void) {
         return ~0ul;            /* MHFU_CAMERA_ASSIST=1: the game turns its camera as it would */
     if (replay_free_from != ~0ul)
         return replay_free_from;
+    return replay_end;
+}
+
+/* From which game frame the camera, blocked by the scenery, follows the mouse (rt_camera_follows, camera.c): from the
+ * start - or, replaying a recording made before (no "follows" line: the game held its eye there, and went where that
+ * took it), from where it hands over */
+static unsigned long camera_follows_from(void) {
+    load_replay();
+    if (replay_follows_from != ~0ul)
+        return replay_follows_from;
     return replay_end;
 }
 
@@ -319,8 +333,8 @@ static void record_input(float mx, float my) {
                 fprintf(stderr, "cannot write the recording %s\n", name);
             else {
                 fprintf(stderr, "recording to %s\n", name);
-                fprintf(record, "mhfu-replay 1\nepoch %llu\nsens %.9g\ncamera %lu\n", (unsigned long long)run_epoch_us(),
-                        camera_sens(), camera_free_from());
+                fprintf(record, "mhfu-replay 1\nepoch %llu\nsens %.9g\ncamera %lu\nfollows %lu\n",
+                        (unsigned long long)run_epoch_us(), camera_sens(), camera_free_from(), camera_follows_from());
                 for (size_t i = 0; i < replay_poke_n; i++)     /* (the replay's pokes: a scenario extended keeps them) */
                     write_poke(record, &replay_poke[i]);
                 atexit(end_record);
@@ -1079,6 +1093,7 @@ void present_frame(void) {
     if (camera_orbit_ready != orbit_drawn + 1)
         camera_orbit_ready = orbit_drawn + 1, camera_orbit_enable(orbit_drawn);
     rt_camera_free = frame >= camera_free_from();
+    rt_camera_follows = frame >= camera_follows_from();
     if (!replaying())
         camera_free_look(controls_free_look(), &mx, &my);
     camera_update(mx, my);

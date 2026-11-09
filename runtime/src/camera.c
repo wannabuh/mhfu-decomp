@@ -70,6 +70,7 @@ void window_mouse_peek(float *dx, float *dy);
 #define STICK_SIGN 1.0f
 
 SAVED int rt_camera_free = 1;
+SAVED int rt_camera_follows = 1;         /* blocked by the scenery, the camera follows the mouse (camera_update) */
 static float sens = -1;
 SAVED static float left;                      /* yaw not yet written (in 65536ths) */
 SAVED static unsigned long tick;              /* the game's frames, counted */
@@ -515,11 +516,12 @@ void camera_update(float dx, float dy) {
      * left out while the mouse has the camera, and the mouse's turns set no count: the eye was held - the yaw following
      * the mouse a twentieth as fast - and then leapt (#29). So the count is kept above 0: the camera is the player's,
      * turned or not. (It also keeps the game's other turn, to the way the hunter is moving: 0888D36C.)
+     * Not while replaying a recording made before (rt_camera_follows, present.c): it went where the held eye took it.
      * MHFU_CAMERA_CATCH=1: as before, for comparing */
     static int catches = -1;
     if (catches < 0)
         catches = getenv("MHFU_CAMERA_CATCH") && atoi(getenv("MHFU_CAMERA_CATCH"));
-    if (active && rt_camera_free && !catches && !*MEM(view + 0x12D))
+    if (active && rt_camera_free && rt_camera_follows && !catches && !*MEM(view + 0x12D))
         *MEM(view + 0x12D) = 1;
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
