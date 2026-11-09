@@ -4933,6 +4933,138 @@ int gpu_pick_at(float x, float y, GpuPickHit *out, int max) {
     return n;
 }
 
+/* -- what scrolls: flat or not --------------------------------------------------------------------------------------
+ *
+ * Water is told by its texture scrolling (render_water.c) - and so are mist drifting over a cave's floor and a dark
+ * layer drifting over a hillside, which were drawn as water (#33, #41). Water lies in one plane; those follow the
+ * ground. So of what scrolls and is blended, each model's vertices are gone over as it is drawn - the draws in a row
+ * with one world matrix and texture - and whether they lay in one plane is kept by draw (where its vertices and
+ * indices are) for the next frame, when the draw is given it in FLAT_REG (a command the game does not use: bit 0 flat,
+ * recorded and replayed with the draw's state). A draw not seen the frame before is not flat. */
+#define FLAT_REG 0xFE
+#define FLAT_SLOTS 8192
+#define FLAT_DRAWS 4096
+#define FLAT_OFF 0.004f             /* out of its plane by this share of the model's size: not flat */
+static struct { uint32_t v, i; uint8_t used, flat; } flat_tab[2][FLAT_SLOTS];
+static int flat_cur, flat_filled;
+static struct {
+    float world[12];
+    uint32_t tex;
+    int open, n, have, bent;
+    float p[3][3], normal[3], lo[3], hi[3], off;
+    uint32_t keys[FLAT_DRAWS][2];
+} flat_group;
+static unsigned long flat_frame;
+
+static int flat_slot(int t, uint32_t v, uint32_t i) {
+    uint32_t h = (v * 0x9E3779B1u ^ i * 0x85EBCA6Bu) >> 19 & (FLAT_SLOTS - 1);
+    while (flat_tab[t][h].used && (flat_tab[t][h].v != v || flat_tab[t][h].i != i))
+        h = (h + 1) & (FLAT_SLOTS - 1);
+    return (int)h;
+}
+
+static void flat_close(void) {
+    if (!flat_group.open)
+        return;
+    float size = 0;
+    for (int k = 0; k < 3; k++)
+        size = fmaxf(size, flat_group.hi[k] - flat_group.lo[k]);
+    int flat = !flat_group.bent && flat_group.off <= FLAT_OFF * size;
+    for (int k = 0; k < flat_group.n && flat_filled < FLAT_SLOTS / 2; k++) {
+        int h = flat_slot(!flat_cur, flat_group.keys[k][0], flat_group.keys[k][1]);
+        if (!flat_tab[!flat_cur][h].used)
+            flat_filled++;
+        flat_tab[!flat_cur][h].v = flat_group.keys[k][0];
+        flat_tab[!flat_cur][h].i = flat_group.keys[k][1];
+        flat_tab[!flat_cur][h].used = 1;
+        flat_tab[!flat_cur][h].flat = (uint8_t)flat;
+    }
+    flat_group.open = 0;
+}
+
+/* A point of the group's: the plane is its first three not in a line, the rest measured from it */
+static void flat_point(const float *p) {
+    for (int k = 0; k < 3; k++) {
+        flat_group.lo[k] = fminf(flat_group.lo[k], p[k]);
+        flat_group.hi[k] = fmaxf(flat_group.hi[k], p[k]);
+    }
+    if (flat_group.have == 3) {
+        float d = 0;
+        for (int k = 0; k < 3; k++)
+            d += (p[k] - flat_group.p[0][k]) * flat_group.normal[k];
+        flat_group.off = fmaxf(flat_group.off, fabsf(d));
+        return;
+    }
+    float (*q)[3] = flat_group.p;
+    if (flat_group.have == 0) {
+        memcpy(q[0], p, sizeof q[0]);
+        flat_group.have = 1;
+    } else if (flat_group.have == 1) {
+        float d = 0;
+        for (int k = 0; k < 3; k++)
+            d += (p[k] - q[0][k]) * (p[k] - q[0][k]);
+        if (d > 0)
+            memcpy(q[1], p, sizeof q[1]), flat_group.have = 2;
+    } else {
+        float a[3], b[3], n[3];
+        for (int k = 0; k < 3; k++)
+            a[k] = q[1][k] - q[0][k], b[k] = p[k] - q[0][k];
+        n[0] = a[1] * b[2] - a[2] * b[1];
+        n[1] = a[2] * b[0] - a[0] * b[2];
+        n[2] = a[0] * b[1] - a[1] * b[0];
+        float len = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+        float la = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]), lb = sqrtf(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
+        if (len > 0.05f * la * lb) {    /* (not in a line with the first two) */
+            for (int k = 0; k < 3; k++)
+                flat_group.normal[k] = n[k] / len;
+            flat_group.have = 3;
+        }
+    }
+}
+
+/* The draw about to be made: FLAT_REG set for it, and its vertices gone over for the next frame */
+static void flat_draw(int count, int idx, const Layout *l) {
+    uint32_t vt = reg[0x12];
+    reg[FLAT_REG] = 0;
+    if ((vt >> 23 & 1) || proj[11] == 0 || !(reg[0x21] & 1) || (reg[0xDF] & 0xFFF) != 0x32 ||
+        !((reg[0x4A] | reg[0x4B]) & 0xFFFFFF) || ((vt >> 9) & 3) || count <= 0)
+        return;
+    unsigned long now = present_frame_number();
+    if (now != flat_frame) {
+        flat_close();
+        flat_frame = now;
+        flat_cur = !flat_cur;
+        memset(flat_tab[!flat_cur], 0, sizeof flat_tab[0]);
+        flat_filled = 0;
+    }
+    uint32_t ki = idx ? iaddr : 0, tex = (reg[0xA0] & 0xFFFFFF) | (reg[0xA8] & 0x0F0000) << 8;
+    int h = flat_slot(flat_cur, vaddr, ki);
+    reg[FLAT_REG] = flat_tab[flat_cur][h].used && flat_tab[flat_cur][h].flat;
+    if (flat_group.open && (tex != flat_group.tex || memcmp(world, flat_group.world, sizeof world)))
+        flat_close();
+    if (!flat_group.open) {
+        flat_group.open = 1;
+        flat_group.n = flat_group.have = flat_group.bent = 0;
+        flat_group.off = 0;
+        flat_group.tex = tex;
+        memcpy(flat_group.world, world, sizeof world);
+        for (int k = 0; k < 3; k++)
+            flat_group.lo[k] = 1e30f, flat_group.hi[k] = -1e30f;
+    }
+    if (flat_group.n < FLAT_DRAWS) {
+        flat_group.keys[flat_group.n][0] = vaddr;
+        flat_group.keys[flat_group.n++][1] = ki;
+    } else
+        flat_group.bent = 1;            /* (too many to keep: not water's few) */
+    int pos = (vt >> 7) & 3;
+    for (int k = 0; k < count; k++) {
+        int n = idx == 1 ? (int)LBU(iaddr + (uint32_t)k) : idx == 2 ? (int)LHU(iaddr + 2 * (uint32_t)k) : k;
+        float p[3];
+        tl_read3(vaddr + (uint32_t)(n * l->size) + (uint32_t)l->po, pos, p);
+        flat_point(p);
+    }
+}
+
 static void prim_drawn(uint32_t data) {
     if (prim_stats < 0)
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
@@ -4954,6 +5086,8 @@ static void prim_drawn(uint32_t data) {
     uint32_t vt = reg[0x12];
     int idx = (vt >> 11) & 3;
     Layout l = layout();
+    if (!in_replay && !held_drawing && !pick_pass)
+        flat_draw(count, idx, &l);
     if (pick_pass) {                    /* (the inspector going over a recorded frame: noted, not drawn) */
         if (count > 0)
             pick_note(type, count, idx, &l);

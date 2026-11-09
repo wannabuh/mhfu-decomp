@@ -99,6 +99,10 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
     }
     if (!moved_at[slot] || frame_no - moved_at[slot] > STILL_FRAMES)
         return 0;
+    /* (and it lies in one plane, as water does: what follows the ground - mist over a cave's floor, a dark layer
+     * drifting over a hillside - is not, #33 #41. gpu.c's flat_draw says, in a register the game does not use) */
+    if (!(reg[0xFE] & 1))
+        return 0;
     /* (sand flowing - the desert's sand sea, scrolled and blended as water is - told by its colour: red over green
      * over blue, as sand and earth are; water is blue, green or grey) */
     const float *c = tex_average[slot];
