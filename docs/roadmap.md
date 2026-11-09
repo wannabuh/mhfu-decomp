@@ -12,7 +12,7 @@ Bugs, ideas and impressions are tickets, not rows here: `tools/tickets.py`, `doc
 
 ## Tools first
 
-Built before the goals' next large jobs, as they make those cheaper. The rate fixes in progress finish first. Tools read the game's state and don't change it, except where stated. Rough is fine: they're for us.
+Built before the goals' next large jobs, as they make those cheaper. The rate fixes are in main (#16, to be checked by playing; what still counts game frames is #36 and #42). Tools read the game's state and don't change it, except where stated. Rough is fine: they're for us.
 
 | Step | Tool | What it does | Status |
 |---|---|---|---|
