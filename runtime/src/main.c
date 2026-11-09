@@ -87,7 +87,7 @@ static void load_settings(const char *path) {
 /* What is played with unless a file or the environment says otherwise. Headless runs and replays leave them out, which is
  * what the tests' baselines are of; MHFU_DEFAULTS=0 leaves them out anywhere, =1 keeps them even there. */
 static const struct { const char *name, *value; } setting_defaults[] = {
-    {"MHFU_FPS", "144"}, {"MHFU_TICK_HZ", "60"}, {"MHFU_RESOLUTION", "2560x1440"}, {"MHFU_MOUSE_SENS", "0.1"},
+    {"MHFU_TICK_HZ", "60"}, {"MHFU_MOUSE_SENS", "0.1"},
     {"MHFU_SHADOWS", "1"}, {"MHFU_SUN_SHADING", "1"}, {"MHFU_RELIEF", "1"}, {"MHFU_PIXEL_LIGHTING", "1"},
     {"MHFU_POINT_LIGHTS", "1"}, {"MHFU_POINT_SHADOWS", "1"}, {"MHFU_AO", "1"}, {"MHFU_AO_STRENGTH", "1.0"},
     {"MHFU_GRASS", "0"}, {"MHFU_GRASS_DISTANCE", "6000"}, {"MHFU_GRASS_FULL", "800"}, {"MHFU_GRASS_DENSITY", "0.5"},

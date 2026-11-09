@@ -206,6 +206,13 @@ void window_init(void) {
             /* MHFU_FULLSCREEN=1: the whole screen from the start (F11 toggles it) */
             if (window && getenv("MHFU_FULLSCREEN") && atoi(getenv("MHFU_FULLSCREEN")))
                 SDL_SetWindowFullscreen(window, true);
+            /* no MHFU_FPS: the screen's own refresh rate */
+            const SDL_DisplayMode *mode = window && !getenv("MHFU_FPS") ? SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window)) : NULL;
+            if (mode && mode->refresh_rate >= 1) {
+                char hz[16];
+                snprintf(hz, sizeof hz, "%d", (int)(mode->refresh_rate + 0.5f));
+                setenv("MHFU_FPS", hz, 0);
+            }
         }
         if (render_init(window)) {
             capture_mouse(1);

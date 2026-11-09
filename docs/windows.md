@@ -81,8 +81,8 @@ The console window shows the game's messages: copy them into any report.
 
 Texture packs are not looked for in `%APPDATA%`: name the pack's folder with `textures = C:/path/to/pack` in `settings.ini`.
 
-The settings' defaults are for 2560x1440 at 144 Hz. For another screen, set `resolution` (such as `1920x1080`) and `fps` to
-your own in `settings.ini` (the README lists the settings).
+The game runs at your screen's refresh rate and the window's size; `fps` and `resolution` in `settings.ini` (the README
+lists the settings) set them otherwise.
 
 ## Problems
 

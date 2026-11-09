@@ -115,9 +115,9 @@ fps = 144
 mouse_sens = 0.15
 ```
 
-Whatever is not set there has a default in `runtime/src/main.c` (`setting_defaults`), meant for 2560x1440 at 144 Hz: set
-`resolution` and `fps` for another screen. Headless runs and replays leave those defaults out; `MHFU_DEFAULTS=0` or `1`
-says otherwise.
+Whatever is not set there has a default in `runtime/src/main.c` (`setting_defaults`). Without `fps` the game runs at
+the screen's refresh rate, and without `resolution` at the window's size. Headless runs and replays leave those defaults
+out; `MHFU_DEFAULTS=0` or `1` says otherwise.
 
 Each is the environment variable without its `MHFU_` (which still works, and wins over the files): `MHFU_FPS=60` (or
 120, 144...: frame rate, the frames between the game's 30 interpolated), `MHFU_TICK_HZ=144` (an experiment: the game
