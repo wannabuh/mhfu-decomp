@@ -87,6 +87,10 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
         (s->flags & DRAW_LIT_PIXEL))
         return 0;
     uint32_t slot = s->tex_slot, u = reg[0x4A] & 0xFFFFFF, v = reg[0x4B] & 0xFFFFFF;
+    /* (not scrolled itself: another draw scrolling the same texture does not make it water - the jungle's roots and
+     * rocks share theirs with something that does, #32 - and it takes no part in the texture's tracking) */
+    if (!u && !v)
+        return 0;
     if (offset_seen[slot][0] != u || offset_seen[slot][1] != v) {
         if (moved_at[slot] || offset_seen[slot][0] || offset_seen[slot][1])
             moved_at[slot] = frame_no;
