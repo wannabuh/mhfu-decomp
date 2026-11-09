@@ -1,12 +1,13 @@
 #version 450
 // Ambient occlusion (render_ao.c) on the picture: multiplied in (the blending), from the half resolution occlusion - of
 // its 4 nearest, those at this pixel's distance, so that a thing's occlusion doesn't spill onto what is behind it.
+// Again for a later part of the world: only where that drew (the depth changed).
 #include "ao_common.glsl"
 layout(location = 0) out vec4 out_color;
 
 void main() {
     ivec2 pix = ivec2(gl_FragCoord.xy), last = ivec2(pc.area.zw) - 1;
-    if (is_water(pix)) {
+    if (is_water(pix) || (pc.params2.w > 0.5 && texelFetch(depth, pix, 0).r == texelFetch(done, pix, 0).r)) {
         out_color = vec4(1.0);
         return;
     }
