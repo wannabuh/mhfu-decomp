@@ -24,8 +24,8 @@
  * "Mouse X2", "Wheel Up" / "Wheel Down"; a gamepad's buttons by SDL's names ("a", "b", "x", "y", "leftshoulder",
  * "rightshoulder", "dpup", "start", "back", "leftstick"...) and its triggers ("lefttrigger", "righttrigger"). An empty
  * value unbinds. "[options]": pad_camera_speed_x and pad_camera_speed_y (degrees a second the right stick turns the camera
- * fully pushed, across and up and down; pad_camera_speed sets both), pad_deadzone (0-1), invert_y (the camera's tilt,
- * the mouse's and the stick's).
+ * fully pushed, across and up and down; pad_camera_speed sets both), pad_deadzone (0-1), mouse_invert_y and pad_invert_y
+ * (the camera's tilt inverted, the mouse's and the stick's; invert_y sets both).
  *
  * The controls screen (F1, overlay.c) binds them again in the game, and saves them here.
  *
@@ -109,7 +109,7 @@ static const Default pad_defaults[] = {
 };
 
 static float pad_speed_x = 200, pad_speed_y = 200, pad_deadzone = 0.2f;
-static int invert_y;
+static int invert_y[2];                 /* the mouse's, the stick's */
 
 /* ---- names ---- */
 
@@ -190,7 +190,7 @@ void controls_defaults(void) {
         bind_list(0, kb_defaults[i].action, kb_defaults[i].inputs);
     for (size_t i = 0; i < sizeof pad_defaults / sizeof pad_defaults[0]; i++)
         bind_list(1, pad_defaults[i].action, pad_defaults[i].inputs);
-    pad_speed_x = pad_speed_y = 200, pad_deadzone = 0.2f, invert_y = 0;
+    pad_speed_x = pad_speed_y = 200, pad_deadzone = 0.2f, invert_y[0] = invert_y[1] = 0;
 }
 
 /* Bind an input to an action (in place of its inputs, or added to them), taken from any other action of the same set
@@ -220,19 +220,19 @@ void controls_clear(int pad, int action) { memset(bind[pad][action], 0, sizeof b
 /* The bindings as they were (the rebinding screen's undo) */
 static Input kept[2][A_COUNT][MAX_BIND];
 static float kept_speed_x, kept_speed_y, kept_deadzone;
-static int kept_invert;
+static int kept_invert[2];
 void controls_keep(void) {
     memcpy(kept, bind, sizeof kept);
-    kept_speed_x = pad_speed_x, kept_speed_y = pad_speed_y, kept_deadzone = pad_deadzone, kept_invert = invert_y;
+    kept_speed_x = pad_speed_x, kept_speed_y = pad_speed_y, kept_deadzone = pad_deadzone, memcpy(kept_invert, invert_y, sizeof kept_invert);
 }
 void controls_undo(void) {
     memcpy(bind, kept, sizeof bind);
-    pad_speed_x = kept_speed_x, pad_speed_y = kept_speed_y, pad_deadzone = kept_deadzone, invert_y = kept_invert;
+    pad_speed_x = kept_speed_x, pad_speed_y = kept_speed_y, pad_deadzone = kept_deadzone, memcpy(invert_y, kept_invert, sizeof invert_y);
 }
 
 float *controls_pad_camera_speed(int y) { return y ? &pad_speed_y : &pad_speed_x; }
 float *controls_pad_deadzone(void) { return &pad_deadzone; }
-int *controls_invert_y_setting(void) { return &invert_y; }
+int *controls_invert_y_setting(int pad) { return &invert_y[pad != 0]; }
 
 /* ---- controls.ini ---- */
 
@@ -282,8 +282,12 @@ static int load(const char *path) {
                 pad_speed_y = (float)atof(value);
             else if (!strcasecmp(key, "pad_deadzone"))
                 pad_deadzone = (float)atof(value);
-            else if (!strcasecmp(key, "invert_y"))
-                invert_y = atoi(value) != 0;
+            else if (!strcasecmp(key, "invert_y"))          /* (both: as written before they were apart) */
+                invert_y[0] = invert_y[1] = atoi(value) != 0;
+            else if (!strcasecmp(key, "mouse_invert_y"))
+                invert_y[0] = atoi(value) != 0;
+            else if (!strcasecmp(key, "pad_invert_y"))
+                invert_y[1] = atoi(value) != 0;
             continue;
         }
         int a = 0;
@@ -331,8 +335,9 @@ int controls_save(void) {
             fputc('\n', f);
         }
     }
-    fprintf(f, "\n[options]\npad_camera_speed_x = %g\npad_camera_speed_y = %g\npad_deadzone = %g\ninvert_y = %d\n",
-            (double)pad_speed_x, (double)pad_speed_y, (double)pad_deadzone, invert_y);
+    fprintf(f, "\n[options]\npad_camera_speed_x = %g\npad_camera_speed_y = %g\npad_deadzone = %g\n"
+            "mouse_invert_y = %d\npad_invert_y = %d\n", (double)pad_speed_x, (double)pad_speed_y, (double)pad_deadzone,
+            invert_y[0], invert_y[1]);
     fclose(f);
     fprintf(stderr, "controls: saved %s\n", ini_path);
     return 1;
@@ -671,4 +676,4 @@ void controls_pad_camera(SDL_Gamepad *p, float dt, float sens, float *dx, float 
     *dy = sy * k * pad_speed_y * dt / sens;
 }
 
-int controls_invert_y(void) { return invert_y; }
+int controls_invert_y(int pad) { return invert_y[pad != 0]; }

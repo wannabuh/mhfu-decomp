@@ -371,7 +371,7 @@ static void pad_camera(void) {
     float dx, dy;
     controls_pad_camera(pad, dt, camera_sens(), &dx, &dy);
     if (mouse_captured || !window)
-        add_motion(FROM_PAD, dx, controls_invert_y() ? -dy : dy);
+        add_motion(FROM_PAD, dx, controls_invert_y(1) ? -dy : dy);
 }
 
 int window_poll(void) {
@@ -457,7 +457,7 @@ int window_poll(void) {
         } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
             capture_mouse(1);
         if (e.type == SDL_EVENT_MOUSE_MOTION && mouse_captured) {
-            add_motion(FROM_MOUSE, e.motion.xrel, controls_invert_y() ? -e.motion.yrel : e.motion.yrel);
+            add_motion(FROM_MOUSE, e.motion.xrel, controls_invert_y(0) ? -e.motion.yrel : e.motion.yrel);
         }
         if (e.type == SDL_EVENT_MOUSE_WHEEL && (mouse_captured || pointer_mode))
             controls_wheel(e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y);

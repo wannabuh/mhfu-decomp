@@ -26,7 +26,7 @@ uint32_t controls_buttons(const bool *keys, SDL_MouseButtonFlags mouse, SDL_Game
                           uint8_t *ly);
 void controls_wheel(float y);               /* the wheel turned (up +) */
 void controls_pad_camera(SDL_Gamepad *pad, float dt, float sens, float *dx, float *dy);
-int controls_invert_y(void);
+int controls_invert_y(int pad);         /* (0 the mouse, 1 the stick) */
 int controls_free_look(void);               /* free look held (the mouse turns the picture alone: camera.c) */
 int controls_device(void);                  /* the last used: 0 the keyboard and mouse, 1 a gamepad */
 void controls_note_device(int device);
@@ -39,4 +39,4 @@ void controls_keep(void);                   /* the bindings as they are, for con
 void controls_undo(void);
 float *controls_pad_camera_speed(int y);   /* (0 across, 1 up and down) */
 float *controls_pad_deadzone(void);
-int *controls_invert_y_setting(void);
+int *controls_invert_y_setting(int pad);

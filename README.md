@@ -69,7 +69,7 @@ F1 opens the controls screen (the game paused under it): choose an action and pr
 or a click; + or a right click adds it to those it has, Delete clears them), Tab between the keyboard and mouse's and
 the gamepad's; closing it saves them. They are kept in `controls.ini` (in the working directory, else
 `~/.config/mhfu-recomp/`, written with the defaults on the first run): `action = input, input...` under `[keyboard]` and `[gamepad]`, with the camera stick's speed across and up and down
-(`pad_camera_speed_x`, `pad_camera_speed_y`, degrees a second; also on the F1 screen), its dead zone and an inverted tilt under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
+(`pad_camera_speed_x`, `pad_camera_speed_y`, degrees a second; also on the F1 screen), its dead zone, and the tilt inverted for the mouse and the stick apart (`mouse_invert_y`, `pad_invert_y`) under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
 the shoulders L and R, the D-pad) and the wheel moves the cursor.
 
 The game's button hints (the item bar's, and others drawn with the HUD's button pictures) show the keys and mouse

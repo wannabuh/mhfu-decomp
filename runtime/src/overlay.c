@@ -103,7 +103,7 @@ static void change_option(int which, int dir) {
         if (*v < 0.05f) *v = 0.05f;
         if (*v > 0.6f) *v = 0.6f;
     } else
-        *controls_invert_y_setting() ^= 1;
+        *controls_invert_y_setting(set) ^= 1;
 }
 
 /* The row chosen, done: an action's input awaited, a setting changed, a button pressed */
@@ -279,14 +279,15 @@ static void option_text(int which, char *out, size_t size) {
     else if (which == O_DEADZONE)
         snprintf(out, size, "%d", (int)(*controls_pad_deadzone() * 100 + 0.5f));
     else
-        snprintf(out, size, "%s", *controls_invert_y_setting() ? "ON" : "OFF");
+        snprintf(out, size, "%s", *controls_invert_y_setting(set) ? "ON" : "OFF");
 }
 
 static const char *option_label(int which) {
     return which == O_SPEED     ? "CAMERA STICK SPEED ACROSS (DEGREES A SECOND)"
            : which == O_SPEED_Y ? "CAMERA STICK SPEED UP AND DOWN (DEGREES A SECOND)"
            : which == O_DEADZONE ? "STICK DEAD ZONE (HUNDREDTHS)"
-                                 : "INVERT CAMERA TILT";
+           : set                 ? "INVERT CAMERA TILT (THE STICK)"
+                                 : "INVERT CAMERA TILT (THE MOUSE)";
 }
 
 static const char *button_label(int which) {
