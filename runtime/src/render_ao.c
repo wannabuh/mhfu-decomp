@@ -1,6 +1,8 @@
 /* Ambient occlusion (render_internal.h): from the depth of the world once it is drawn (before what is drawn over it -
  * the HUD), at half resolution, blurred, multiplied into the picture (MHFU_AO=0: none; MHFU_AO_STRENGTH,
- * MHFU_AO_RADIUS). Then the ground grass is drawn (render_grass.c: after it, a field of blades being all crevices to the
+ * MHFU_AO_RADIUS). The solid world can come in parts with other things between (trees drawn flat, a tint over the
+ * screen: #34, #35): each part gets its occlusion before what follows it, the pixels it left alone not again (their
+ * depth as it was when the last was applied). Then the ground grass is drawn (render_grass.c: after it, a field of blades being all crevices to the
  * occlusion, which darkened it far below its ground) - it takes the occlusion of the ground it grows from. */
 #include "render_internal.h"
 
@@ -28,6 +30,7 @@ static VkDescriptorSet ao_sets[2][AO_PER_FRAME][4];     /* a frame in flight's: 
 static VkSampler depth_sampler;
 static Target *ao_target;               /* the solid world was drawn into it, without occlusion yet */
 static Target *ao_applied;              /* it has its occlusion (until it is cleared) */
+static VkImg ao_depth_done;             /* ao_applied's depth when its occlusion was last applied */
 static int ao_used;                     /* times this frame */
 static int ao_fresh;                    /* ao_img[0] holds the occlusion of what is being drawn (for the grass) */
 /* What shows of the water and the foam on it (light added by flat planes, also writing depth): their depth is no
@@ -49,6 +52,9 @@ void ao_rescale(void) {
         ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     }
+    vk_image_free(&ao_depth_done);
+    ao_depth_done = vk_image(scaled(RT_SIZE), scaled(RT_SIZE), VK_FORMAT_D32_SFLOAT,
+                             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
     vk_image_free(&ao_water);
     ao_water = vk_image(scaled(480), scaled(272), VK_FORMAT_R8_UNORM,
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -69,16 +75,17 @@ void ao_init(void) {
     if (!ao_on)
         return;
     ao_rescale();
-    VkDescriptorSetLayoutBinding b[4] = {
+    VkDescriptorSetLayoutBinding b[5] = {
         {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 4, b};
+    VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 5, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &ao_set_layout);
     enum { SETS = 2 * AO_PER_FRAME * 4 };
-    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 * SETS};
+    VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 5 * SETS};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL, 0, SETS, 1, &ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &ao_pool);
     VkDescriptorSetLayout layouts[SETS];
@@ -134,14 +141,14 @@ void ao_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, 
 }
 
 /* The water kept drawn again into the mask, where it is what shows */
-static void water_mask(Target *t) {
+static void water_mask(Target *t, int again) {
     uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
     VkCommandBuffer cmd = vk_cmd();
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
     vk_transition(&ao_water, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo ca = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, ao_water.view,
         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
+        again ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
     VkRenderingAttachmentInfo da = {VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, t->depth.view,
         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_RESOLVE_MODE_NONE, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_UNDEFINED,
         VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE, {{{0}}}};
@@ -214,11 +221,12 @@ VkImageView ao_image(void) {
 
 static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth,
                    VkImageView under) {
-    VkDescriptorImageInfo ii[4] = {{sampler, source, layout},
+    VkDescriptorImageInfo ii[5] = {{sampler, source, layout},
                                    {depth_sampler, depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL},
                                    {depth_sampler, ao_water.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-                                   {depth_sampler, under, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
-    VkWriteDescriptorSet w[4] = {
+                                   {depth_sampler, under, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL},
+                                   {depth_sampler, ao_depth_done.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL}};
+    VkWriteDescriptorSet w[5] = {
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 0, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[0],
          NULL, NULL},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 1, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[1],
@@ -226,8 +234,10 @@ static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout,
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 2, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[2],
          NULL, NULL},
         {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 3, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[3],
+         NULL, NULL},
+        {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ds, 4, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &ii[4],
          NULL, NULL}};
-    vkUpdateDescriptorSets(vk.device, 4, w, 0, NULL);
+    vkUpdateDescriptorSets(vk.device, 5, w, 0, NULL);
 }
 
 /* One of its passes: a triangle over w x h of an image */
@@ -250,31 +260,33 @@ static void ao_draw(VkImageView view, uint32_t w, uint32_t h, VkPipeline p, VkDe
     vkCmdEndRendering(cmd);
 }
 
-/* The world is drawn into t: its occlusion, multiplied in */
-static void ao_occlude(Target *t);
+/* The world is drawn into t: its occlusion, multiplied in (again: only where the depth has changed since) */
+static void ao_occlude(Target *t, int again);
 
 /* The solid world drawn: its ambient occlusion, then the ground grass (after it: a field of blades is all crevices to
- * the occlusion, which darkened it far below its ground) */
+ * the occlusion, which darkened it far below its ground) - once, with the first part of the world */
 static void ao_apply(Target *t) {
+    int again = ao_applied == t;
     ao_target = NULL;
     ao_applied = t;
     ao_fresh = 0;
-    ao_occlude(t);
-    grass_draw(t);
+    ao_occlude(t, again);
+    if (!again)
+        grass_draw(t);
 }
 
-static void ao_occlude(Target *t) {
+static void ao_occlude(Target *t, int again) {
     if (ao_on <= 0 || ao_used >= AO_PER_FRAME)
         return;
     AoPush pc;
     if (!invert4(scene.view, pc.to_view))
         return;
     end_rendering();
-    water_mask(t);
+    water_mask(t, again);
     uint32_t fw = scaled(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
     float focal = fabsf(scene.view[0]) * (float)render_scale;
     memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)render_scale, focal}, sizeof pc.params);
-    memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, 0}, sizeof pc.params2);
+    memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, again ? 1.0f : 0.0f}, sizeof pc.params2);
     memcpy(pc.area, (float[4]){(float)fw, (float)fh, (float)hw, (float)hh}, sizeof pc.area);
     /* the point lights (the first four), in the camera's space: where they shine, the occlusion takes nothing - it
      * takes away the light from all round, not theirs */
@@ -300,6 +312,7 @@ static void ao_occlude(Target *t) {
     ao_set(sets[2], ao_img[1].view, ro, depth_sampler, t->depth.view, under);
     ao_set(sets[3], ao_img[0].view, ro, depth_sampler, t->depth.view, under);
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
+    vk_transition(&ao_depth_done, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
     vk_transition(&ao_img[0], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     ao_draw(ao_img[0].view, hw, hh, ao_pipeline, sets[0], &pc, 0);
     for (int pass = 0; pass < 2; pass++) {     /* blurred across, then down: back into the first */
@@ -313,6 +326,15 @@ static void ao_occlude(Target *t) {
     vk_transition(&ao_img[0], ro);
     vk_transition(&t->color, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     ao_draw(t->color.view, fw, fh, ao_apply_pipeline, sets[3], &pc, 1);
+    /* the depth now, for the next part of the world, if one comes */
+    uint32_t px = scaled(RT_SIZE);
+    VkImageCopy c = {{VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0},
+                     {px, px, 1}};
+    vk_transition(&t->depth, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vk_transition(&ao_depth_done, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkCmdCopyImage(vk_cmd(), t->depth.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ao_depth_done.image,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &c);
+    vk_transition(&ao_depth_done, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL);
     ao_fresh = 1;
 }
 
@@ -328,7 +350,7 @@ void ao_state(Target *t, int solid, int clear) {
         ao_applied = NULL;
     if (clear && t == ao_target)
         nwater = nwater_segs = 0;
-    if (solid && t != ao_applied) {
+    if (solid) {                        /* (again after its occlusion: a part of the world still to come) */
         ao_target = t;
         memcpy(scene.view, prim_view, sizeof scene.view);
         memcpy(scene.world_view, prim_world_view, sizeof scene.world_view);

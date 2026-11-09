@@ -5,6 +5,7 @@ layout(set = 0, binding = 0) uniform sampler2D source;  // the pass's input (the
 layout(set = 0, binding = 1) uniform sampler2D depth;   // the render target's depth (full resolution)
 layout(set = 0, binding = 2) uniform sampler2D water_mask;  // what shows (full resolution): water 1, foam 0.5, else 0
 layout(set = 0, binding = 3) uniform sampler2D under;   // the depth as it was before the water (render_water.c)
+layout(set = 0, binding = 4) uniform sampler2D done;    // the depth when the occlusion was last applied (params2.w 1)
 
 layout(push_constant) uniform Ao { AO_PUSH } pc;
 
