@@ -18,7 +18,8 @@
  *
  * The game also turns the camera itself where the scenery is in the way (it casts rays between the eye and the hunter);
  * with the mouse having the camera (rt_camera_free) those turns are patched out (recomp/patches.py): the camera stays
- * where the mouse puts it. MHFU_CAMERA_ASSIST=1 leaves them in.
+ * where the mouse puts it - and up against the scenery it follows the mouse as it does the D-pad (camera_update).
+ * MHFU_CAMERA_ASSIST=1 leaves the game's turns in.
  *
  * At the display's rate the frames shown between the game's are interpolated (gpu.c), the camera with them; the
  * mouse's turn (each axis: yaw, the eye's bearing, and pitch, its elevation) is added at once instead - the part of it
@@ -507,9 +508,18 @@ void camera_update(float dx, float dy) {
         float lo = -20 * PI / 180 - el, hi = 80 * PI / 180 - el;
         orbit_pitch = p < lo ? lo : p > hi ? hi : p;
     }
-    /* (an experiment for #29, MHFU_TEST_UNCATCH=1: the game's count at +0x12D kept above 0, as its own turns by the
-     * D-pad set it - blocked, it then takes the eye to the wall on the way from the target instead of holding it) */
-    if (active && rt_camera_free && getenv("MHFU_TEST_UNCATCH") && !*MEM(view + 0x12D))
+    /* Blocked by the scenery (from where its eye was and from the target), the game's camera either takes the eye to the
+     * wall on the way from the target - following the turn - or holds it where it is and swings the yaw behind the
+     * hunter (EBOOT 0888FCE4 decides: to the wall if the player has just turned it, the count at +0x12D, which the
+     * D-pad's turns set to 8, or the eye is within a quarter turn of the hunter's facing). The swing is one of the turns
+     * left out while the mouse has the camera, and the mouse's turns set no count: the eye was held - the yaw following
+     * the mouse a twentieth as fast - and then leapt (#29). So the count is kept above 0: the camera is the player's,
+     * turned or not. (It also keeps the game's other turn, to the way the hunter is moving: 0888D36C.)
+     * MHFU_CAMERA_CATCH=1: as before, for comparing */
+    static int catches = -1;
+    if (catches < 0)
+        catches = getenv("MHFU_CAMERA_CATCH") && atoi(getenv("MHFU_CAMERA_CATCH"));
+    if (active && rt_camera_free && !catches && !*MEM(view + 0x12D))
         *MEM(view + 0x12D) = 1;
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
