@@ -309,28 +309,33 @@ static void ram_snapshot(void) {
 }
 
 /* Read input; returns 0 if the window was closed */
-/* MHFU_TEST_MOUSE="frame,vx,vy[,frames]": from the game's frame, move the mouse at vx, vy counts a second (for so many
- * frames), as the window would - for testing the camera without a hand on the mouse */
+/* MHFU_TEST_MOUSE="frame,vx,vy[,frames][;...]": from the game's frame, move the mouse at vx, vy counts a second (for so
+ * many frames), as the window would - for testing the camera without a hand on the mouse */
 unsigned long present_frame_number(void);
 
 static void test_mouse(void) {
-    static int read;
-    static unsigned long from, frames;
-    static float vx, vy;
+    static int read, n;
+    static struct { unsigned long from, frames; float vx, vy; } list[16];
     static uint64_t last;
     if (!read) {
         read = 1;
-        const char *e = getenv("MHFU_TEST_MOUSE");
-        frames = ~0ul;
-        if (!e || sscanf(e, "%lu,%f,%f,%lu", &from, &vx, &vy, &frames) < 3)
-            from = ~0ul;
+        for (const char *e = getenv("MHFU_TEST_MOUSE"); e && *e && n < 16;) {
+            list[n].frames = ~0ul;
+            if (sscanf(e, "%lu,%f,%f,%lu", &list[n].from, &list[n].vx, &list[n].vy, &list[n].frames) < 3)
+                break;
+            n++;
+            e = strchr(e, ';');
+            if (e)
+                e++;
+        }
     }
     unsigned long f = present_frame_number();
     uint64_t now = time_us();
-    if (f >= from && f < from + frames && last) {
-        float dt = (float)(now - last) / 1e6f;
-        add_motion(FROM_MOUSE, vx * dt, vy * dt);
-    }
+    for (int i = 0; i < n && last; i++)
+        if (f >= list[i].from && f - list[i].from < list[i].frames) {
+            float dt = (float)(now - last) / 1e6f;
+            add_motion(FROM_MOUSE, list[i].vx * dt, list[i].vy * dt);
+        }
     last = now;
 }
 

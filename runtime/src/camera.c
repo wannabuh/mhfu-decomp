@@ -299,7 +299,10 @@ static float eye_limit = EYE_NO_LIMIT, eye_limit_before = EYE_NO_LIMIT;
 
 /* How far along the way from target towards dir (a unit vector) the eye can be, up to want: casts the game's own way,
  * nothing of the game changed by it. EYE_NO_LIMIT without collision (the hunt's overlay not there, none yet) */
+static float cast_hits[2];              /* the last casts' hits, from the target: ground, walls (-1: none) - for the log */
+
 static float clear_distance(const float *target, const float *dir, float want) {
+    cast_hits[0] = cast_hits[1] = -1;
     Ctx *c = thread_ctx();
     if (!c || rt_resume_pc)
         return EYE_NO_LIMIT;
@@ -359,6 +362,7 @@ static float clear_distance(const float *target, const float *dir, float want) {
         /* (the wall cast's answer when an end is out of the grid: that end. The target out: no use) */
         if (len < 1 || !(len < full))
             continue;
+        cast_hits[walls_now] = len;
         float allowed = walls_now ? len - EYE_MARGIN : want * len / full;
         if (allowed < limit)
             limit = allowed;
@@ -371,6 +375,7 @@ static float clear_distance(const float *target, const float *dir, float want) {
 }
 
 static float distance_factor(void);
+unsigned long present_frame_number(void);
 static void view_distance(float *view, const float *c, float k);
 
 /* This game frame's limit on the eye shown, for the way the eye is now going to be turned (the game's angles and the
@@ -387,6 +392,7 @@ static void eye_limit_update(float yaw, float elev, float turned) {
     float away = (turned - EYE_OWN_FROM) / (EYE_OWN_TO - EYE_OWN_FROM);
     away = away < 0 ? 0 : away > 1 ? 1 : away;
     float least = EYE_NEAREST + (own - EYE_NEAREST) * (1 - away * away * (3 - 2 * away));
+    float cast = clear;
     if (clear < least)
         clear = least;
     if (clear < eye_limit)
@@ -401,6 +407,23 @@ static void eye_limit_update(float yaw, float elev, float turned) {
             eye_limit = clear;
         else
             eye_limit = eye_limit + step < clear ? eye_limit + step : clear;
+    }
+    /* MHFU_EYE_LOG=file: each game frame, the game's own eye and what the limit made of it (for #29) */
+    static FILE *log;
+    static int log_read;
+    if (!log_read) {
+        log_read = 1;
+        if (getenv("MHFU_EYE_LOG") && (log = fopen(getenv("MHFU_EYE_LOG"), "w")))
+            fprintf(log, "# frame target_x y z game_yaw game_elev own shown_yaw shown_elev turned want ground_hit wall_hit "
+                         "cast least limit (angles in degrees; a hit -1: none; cast and limit 1e9: none)\n");
+    }
+    if (log) {
+        float lim = eye_limit < want ? eye_limit : want;
+        fprintf(log, "%lu %.1f %.1f %.1f %.2f %.2f %.1f %.2f %.2f %.2f %.1f %.1f %.1f %.1f %.1f %.1f\n", present_frame_number(),
+                targets[1][0], targets[1][1], targets[1][2], yaw_axis.angle[1] * 180 / PI, pitch_axis.angle[1] * 180 / PI, own,
+                yaw * 180 / PI, elev * 180 / PI, turned * 180 / PI, want, cast_hits[0], cast_hits[1],
+                cast < want ? cast : want, least, lim);
+        fflush(log);
     }
 }
 
@@ -484,6 +507,10 @@ void camera_update(float dx, float dy) {
         float lo = -20 * PI / 180 - el, hi = 80 * PI / 180 - el;
         orbit_pitch = p < lo ? lo : p > hi ? hi : p;
     }
+    /* (an experiment for #29, MHFU_TEST_UNCATCH=1: the game's count at +0x12D kept above 0, as its own turns by the
+     * D-pad set it - blocked, it then takes the eye to the wall on the way from the target instead of holding it) */
+    if (active && rt_camera_free && getenv("MHFU_TEST_UNCATCH") && !*MEM(view + 0x12D))
+        *MEM(view + 0x12D) = 1;
     /* moving the mouse right turns the camera right: the yaw goes down */
     left += -dx * sens * 65536.0f / 360.0f;
     int turn = (int)left;
