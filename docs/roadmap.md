@@ -37,12 +37,13 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 ## Goals, in order
 
 1. Smoother gameplay: a fixed 60 ticks a second, shown at the display's rate (144 fps and up) by interpolation
-2. Graphics: native options, fixes for current artifacts, further enhancements that stay fast
-3. Better PC support: native interface and controls
+2. Better PC support: native interface and controls
+3. Graphics: native options, fixes for current artifacts, further enhancements that stay fast
 4. Modding: tools and workflows for textures, meshes, attacks, particles, monsters, and maybe areas
 
 ## Decisions
 
+- Goals' order: PC support before graphics (user, 2026-11-09; graphics was second).
 - Convert code by hand only when a goal needs it. Everything else stays at names and types: converting the whole game isn't a goal.
 - No Rust rewrite.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
@@ -85,7 +86,21 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
 
-## 2. Graphics
+## 2. PC support
+
+**Done when:** a player never sees a PSP-era prompt or limitation, and every menu works with mouse and keyboard or a pad.
+
+| Work | Why | Status | Next step |
+|---|---|---|---|
+| Controls, rebinding, F1 screen | Basics | Merged; F1 live path untested *(check)* | User tries F1 |
+| Button hints in menus' text | Still shows PSP buttons | Partly done: 2 of about 15 sprite drawers | Hook the rest, then font text |
+| Native interface: menus and HUD | The main item here | Not started | Restyle everything first: art, fonts, layout, scaling, hints, mouse (user's decision). Then replace only the worst screens, chosen by the user |
+| Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)*. Resolution follows the window and fps the screen's refresh rate unless set | Inventory what's missing |
+| Windows build | Most players | Merged and published (`docs/windows.md`, `tools/win_setup.py`, `tools/win_dlls.py`): cross-built, run under Wine with RAM hashes as on Linux. Off on Windows: save states, stall recorder, profiler | A tester on real Windows: pacing above all, a real window, sound |
+
+Restyling leaves game logic alone. Replacing a screen is where menu code needs naming and perhaps hand conversion, and where saves and inventories need their own checks.
+
+## 3. Graphics
 
 **Done when:** every option can be changed in-game, known artifacts are fixed, and each effect has a stated frame cost.
 
@@ -100,20 +115,6 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 **Wounds, in stages, each playable:** (1) one slash at the true hit point, staying on the moving model; (2) blood running down from it under gravity; (3) drops falling; (4) pools on the ground. Purely visual: reads the game's memory, writes none of it, draws no game random numbers, has an off switch and a stated frame cost. Proposed: wounds kept in bone space and drawn in the fragment shader, as UVs may be mirrored or shared *(check)*. Size and sharpness come from `readable/monster_hit_damage.c`; first prove the hit's position and the drawn model can be linked. Cut against impact isn't settled yet (see Balance, goal 4).
 
 Most of this lives in `runtime/src/`. Where a feature needs to know what the game's data means, understanding it comes first; rewriting it by hand is a separate question.
-
-## 3. PC support
-
-**Done when:** a player never sees a PSP-era prompt or limitation, and every menu works with mouse and keyboard or a pad.
-
-| Work | Why | Status | Next step |
-|---|---|---|---|
-| Controls, rebinding, F1 screen | Basics | Merged; F1 live path untested *(check)* | User tries F1 |
-| Button hints in menus' text | Still shows PSP buttons | Partly done: 2 of about 15 sprite drawers | Hook the rest, then font text |
-| Native interface: menus and HUD | The main item here | Not started | Restyle everything first: art, fonts, layout, scaling, hints, mouse (user's decision). Then replace only the worst screens, chosen by the user |
-| Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)*. Resolution follows the window and fps the screen's refresh rate unless set | Inventory what's missing |
-| Windows build | Most players | Merged and published (`docs/windows.md`, `tools/win_setup.py`, `tools/win_dlls.py`): cross-built, run under Wine with RAM hashes as on Linux. Off on Windows: save states, stall recorder, profiler | A tester on real Windows: pacing above all, a real window, sound |
-
-Restyling leaves game logic alone. Replacing a screen is where menu code needs naming and perhaps hand conversion, and where saves and inventories need their own checks.
 
 ## 4. Modding
 
@@ -136,7 +137,7 @@ Ordered roughly easiest first. New monsters and areas depend on most of what com
 | Larger hunts, more monsters at once | Object slots, overlay loading | Not started | Survey with extended memory |
 | Higher-detail models over the game's skeleton and hitboxes | Visuals change, gameplay doesn't | Not started | Follows meshes |
 | Visual simulation: debris, fur, footprints, foliage reacting | Read-only, as wounds | Not started | Follows wounds |
-| Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 2 |
+| Weather and time of day, volumetric fog, water | Renderer | Not started | Each needs a frame cost and off switch; may move to goal 3 |
 | Tools and workflow | A mod folder, loading order, a way to check a mod | Not started | Design after textures and meshes show the shape |
 
 **Extended memory, in steps.** Map a new region above the game's RAM (the runtime reserves 1 GB of address space; RAM is 32 MB at `0x08000000`), and keep the original 32 MB and the game's allocator as they are, so the baselines still hold. (1) Measure how full memory gets in the worst hunts. (2) Add the region, with save states covering it, and allocate from it only for mods. (3) Only for a mod that needs it: move or enlarge the game's own pools. Memory alone doesn't raise fixed object slots, or let code that loads at the same address be present together *(check)*. Most visual content lives on the PC side and needs none of this.
@@ -151,7 +152,7 @@ The runtime is our own code, so this isn't rewriting the game. Do each only wher
 |---|---|---|---|---|
 | Files (`io.c`) | Reads the ISO's files | Mods replace any file by a folder over the ISO | **Yes, first:** cheap, and most modding needs it | Design with mod folders |
 | Drawing: GE commands (`ge.c`, `gpu.c`) | Translates the PSP's display lists; GE and render were 57% of samples, game code 2% (`docs/ticks.md`) | Direct paths for chosen objects: new meshes, effects, less work | **Yes, by object type:** replacing it all isn't needed | With mesh replacement |
-| Screen layout | Game draws for 480x272 | HUD and menus laid out for the display | Yes, for goal 3 | With the native interface decision |
+| Screen layout | Game draws for 480x272 | HUD and menus laid out for the display | Yes, for goal 2 | With the native interface decision |
 | Input | Pad state, read at 30ths in a hunt | Read every tick; true actions for mouse and keys | Yes, in goal 1 | Already listed |
 | Memory | PSP's 32 MB layout | More room | Partly: see extended memory | Measure first |
 | Audio (`audio.c`, `atrac.c`) | Plays the game's formats | New sound formats, more voices | Later, for sound mods | None yet |
