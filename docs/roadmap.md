@@ -3,12 +3,12 @@
 What we want this project to do, in order, and what's next for each goal. Read this at the start of a session and update it at the
 end. Results and history go in `docs/readable-report.md` and the commit log; how to prove a rewrite is in `docs/readable.md`.
 
-**Draft, 2026-11-06.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and not yet
-confirmed against the current build.
+**Draft, updated 2026-11-09.** Goals are the user's. The order within a goal, and everything marked *(check)*, is from notes and
+not yet confirmed against the current build.
 
 ## Tickets
 
-Bugs, ideas and impressions are tickets, not rows here: `tools/tickets.py`, `docs/tickets.md`. This file keeps the goals, their order and the larger work. Only the user closes a ticket; `tools/tickets.py check` is what's waiting for them.
+Bugs, ideas and impressions are tickets, not rows here: `tools/tickets.py`, `docs/tickets.md`. This file keeps the goals, their order and the larger work. Only the user closes a ticket; `tools/tickets.py check` is what's waiting for them, and `tools/tickets.py tui` shows them all in the terminal, with vim's keys.
 
 ## Tools first
 
@@ -16,21 +16,22 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 
 | Step | Tool | What it does | Status |
 |---|---|---|---|
-| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Verified headless (F6, `runtime/src/capture.c`, `tools/capture.py`). Not played |
+| 1 | Bug capture key | One press: save state, screenshot, recent inputs, frame times and game events, in a numbered folder | Merged; played: the user files tickets with it (F6, `runtime/src/capture.c`, `tools/capture.py`) |
 | 1 | Performance panel | FPS, frame-time graph with spikes marked, tick rate and skipped frames, time by game logic, drawing commands and GPU, draws and triangles, memory including how full the game's 32 MB is. Off by default, almost free when off | Verified headless (F5, `runtime/src/perf.c`). Memory is the kernel's blocks only: the game's allocators aren't read. Not played |
 | 1 | Click inspector | Click something: what it is, its type, state, motion, health, its texture and how it was drawn. First by nearest object and texture under the cursor; exact per-pixel picking if needed | Verified headless (F7, F8, `runtime/src/inspect.c`): nearest object by projection; textures per pixel by triangles and depth, texels not read. Mouse paths not played |
 | 2 | Live visual toggles | Smoothing, GPU vertex path, shadows, effects on and off in-game, or split screen | Not started |
-| 2 | Freeze with free camera | While held, `C`: mouse looks, WASD and QE move, Shift faster, `H` hides the HUD (also a first photo mode), F6 captures it. Objects the game culled aren't there, sprites keep their angle | Tested headless by a test hook, on `auto/free-camera`, pictures looked at. Keys not played |
-| 2 | Hold, step and go back | F8 holds at any time, `.` a tick on, `,` back through the last frames drawn (`frame_history`, 60 by default: about 0.5 GB, gaps within noise (213 against 234 a minute over 9 ms, three pairs)), F6 captures the frame shown | Tested headless by test hooks, on `auto/frame-dump`. Keys not played; turn the default off before anything is released |
-| 2 | Frame dump | A frame's draws, vertices, bones and textures to files I can read and measure; RenderDoc on the Vulkan side | Draws, vertices, bones and triangles with a capture while held, on `auto/frame-dump`. Textures and RenderDoc not started |
+| 2 | Freeze with free camera | While held, `C`: mouse looks, WASD and QE move, Shift faster, `H` hides the HUD (also a first photo mode), F6 captures it. Objects the game culled aren't there, sprites keep their angle | Merged. Keys not played (#18) |
+| 2 | Hold, step and go back | F8 holds at any time, `.` a tick on, `,` back through the last frames drawn (`frame_history`, 60 by default: about 0.5 GB, gaps within noise (213 against 234 a minute over 9 ms, three pairs)), F6 captures the frame shown | Merged; F8 and F6 played. Going back not confirmed (#9); turn the default off before anything is released |
+| 2 | Frame dump | A frame's draws, vertices, bones and textures to files I can read and measure; RenderDoc on the Vulkan side | Merged: draws, vertices, bones and triangles with a capture while held. Textures and RenderDoc not started |
 | 2 | Automatic triage | From a capture, one frame with each setting off, side by side, and PPSSPP's where possible | Not started |
 | 3 | Debug console | Commands to a running game by local socket: pause, step, read and watch fields, dump. Live inspection for me, and a live panel for the user | Not started |
 | 3 | Monster lab | Any monster in a test area without playing to it; checks at 30 and 60. Changes game state on purpose | Not started |
 | 3 | Stall recorder | When frames come late: the stacks of the game's and render threads, time on the CPU, faults (`MHFU_STALL=ms`, `stall.c`, `tools/stalls.py`) | Verified: found the grass stall below |
 | 3 | Picture regression test | Key frames compared in the suite: whole and half way between ticks, as played (`--pictures`, `docs/testing.md`) | Verified: exact from run to run, and fails when shadows are off |
-| 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Started: the hit overlay (F12, `hitview.c`), attack and part shapes, gaps and skip reasons, on `auto/hit-overlay`. Rest not started |
+| 4 | Debug overlay | Toggled panels: game state; hit zones coloured by value, attack volumes, hit markers with damage and part, target lines, collision shapes; event log of hits, state and script changes. Unconfirmed values keep mechanical labels. Reads only | Started: the hit overlay (F12, `hitview.c`), attack and part shapes, gaps and skip reasons, merged. Rest not started |
 | 4 | First-difference finder | The exact tick and words where two runs part, hunter fields located, and the `watch.py` command for what wrote them (`tools/firstdiff.py`) | Verified on `pad_early`: parts at tick 3578, four hunter words, R's release a tick sooner. Names only what `fields/Hunter.toml` knows |
-| 4 | Tickets | One folder a ticket with its evidence (`tools/tickets.py`, `docs/tickets.md`). F6 files one from the game. Next: frame data on any capture, a rolling save state to look back from | Files, script and F6 done: F6 tested headless by a hook, keys not pressed |
+| 4 | Tickets | One folder a ticket with its evidence (`tools/tickets.py`, `docs/tickets.md`). F6 files one from the game; `tickets.py tui` browses, closes and notes them with vim's keys. Next: a rolling save state to look back from | Merged; played (#24 to #37 filed with F6). The rolling state not started |
+| 4 | Reload a capture with settings changed | A ticket's state loaded headless with one setting changed, pictures of the frames after it, to find what causes what is seen (`tickets/tools/reload-with-setting.py`, outside the repo) | In use: found the causes of #34, #35 and #37. A state only loads in a build like the one that took it |
 | 4 | Asset viewer | Models, motions and textures outside the game: starts the mesh work | Not started |
 
 ## Goals, in order
@@ -46,13 +47,16 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 - No Rust rewrite.
 - No complete source that stops needing the user's own ISO. Mods patch or add to the user's copy; a shared mod holds new work, not the
   game's files.
-- Merged into `main` at the user's word, 2026-11-06: everything up to `3c8326b`. `native-fps` stays at `d645c09`, behind it. Left out: `auto/shadow-random`.
+- Merged into `main` at the user's word: everything up to `3c8326b` (2026-11-06), and since then up to `261261e` (2026-11-09: the Windows build, tick phase, the AO and post-processing fixes, the tickets TUI). `native-fps` stays at `d645c09`, behind it. Left out: `auto/shadow-random` (#19).
+- The repository is public on GitHub: never a Windows `.exe`, the game's files or anything from the ISO in it.
 - Merge into `main` only at the user's word. "Verified" and "played" are separate states.
 - The game ticks at a fixed 60 by default (user's decision, 2026-11-05), no variable tick; display rate comes from interpolation. Ticks above 60 are to be supported as well, up to 144 (user, later the same day), starting with poses: see the table below.
 - Prefer branches; a new worktree only when two things must run at once.
 - One set of baselines (user's decision, 2026-11-05): once the shadows fix merges, `tools/suite.py` on Vulkan compares against
   `tests/data/baselines`, the software ones, and `baselines-vulkan` is retired after the merge has settled. Tests still run on Vulkan.
   The first deliberate RAM change re-blesses them from Vulkan, which ends their independence from the code; say so in that commit.
+  Where it stands, 2026-11-09: the shadows fix isn't merged, so the suite still compares against `baselines-vulkan`, re-blessed on
+  `7f5d06c` at the user's word. The software baselines weren't re-blessed then (the user cut it) and are stale.
 
 ## Status words
 
@@ -77,7 +81,7 @@ Built before the goals' next large jobs, as they make those cheaper. The rate fi
 | Effects, particles, camera easing at a higher tick | Visible stutter *(check)* | Not started | Follows from the list above |
 | Frame-rate dependence in big-monster fights | The rate checks may not cover real fights *(check)* | Not started | `tools/ratecheck.py` over the fight recordings at 60 |
 
-**Frame pacing, in order.** (1) Measure: done (`MHFU_PRESENT_LOG`, `tools/pacing.py`, the panel's `DISPLAY` lines, `pacing.c`). (2) Lock pacing to the display: done, on `auto/pacing`. Measured on the real display: frames on their own timer ran at 144.009 (1000000 / 144 in whole us) against a 143.97 Hz monitor, their phase sliding round every 27 s, with bursts of frames replaced and refreshes repeated for about half of each; locked, those are gone. What's left, 9 to 14 a minute at 60 ticks, is ticks holding a frame up past its refresh. (3) Ticks let go early, between frames: done, on `auto/tick-phase` (`MHFU_TICK_PHASE`), with the game's clock and interpolation unchanged. (4) Reduce the cost of a tick and the frame after it: first pass done on `auto/tick-phase`, in a field state with about 10,000 draws a tick. Headless, 45 s runs: gaps over 9 ms between frames 1487 a minute to 301-472; frames held over 4 ms 468 to 13-60; a frame on the game's thread 1.7 ms to 1.3. Not yet measured on the display. A tick is still about 5.3 ms against a 6.94 ms frame. Draw state is now kept once and shared between draws (`auto/draw-state`): memory with 60 frames kept 2.8 GB to 1.85 GB, gaps over 9 ms a further 272 to 204 a minute, over 10 ms 78 to 50, pictures the same. Left, largest first: decoding vertices (11%); the render thread's wait (about 1.1 ms: each draw's texture lookup syncs). (5) Draw display frames off the game's thread, only if ticks still collide with frames due.
+**Frame pacing, in order.** (1) Measure: done (`MHFU_PRESENT_LOG`, `tools/pacing.py`, the panel's `DISPLAY` lines, `pacing.c`). (2) Lock pacing to the display: done, on `auto/pacing`. Measured on the real display: frames on their own timer ran at 144.009 (1000000 / 144 in whole us) against a 143.97 Hz monitor, their phase sliding round every 27 s, with bursts of frames replaced and refreshes repeated for about half of each; locked, those are gone. What's left, 9 to 14 a minute at 60 ticks, is ticks holding a frame up past its refresh. (3) Ticks let go early, between frames: merged, on by default (`MHFU_TICK_PHASE=0` turns it off), with the game's clock and interpolation unchanged. Not yet felt on the display: the user to compare the F5 panel's LATE, REPEAT and REPLACED with it off and on. (4) Reduce the cost of a tick and the frame after it: first pass merged, in a field state with about 10,000 draws a tick. Headless, 45 s runs: gaps over 9 ms between frames 1487 a minute to 301-472; frames held over 4 ms 468 to 13-60; a frame on the game's thread 1.7 ms to 1.3. Not yet measured on the display. A tick is still about 5.3 ms against a 6.94 ms frame. Draw state is now kept once and shared between draws (merged): memory with 60 frames kept 2.8 GB to 1.85 GB, gaps over 9 ms a further 272 to 204 a minute, over 10 ms 78 to 50, pictures the same. Left, largest first: decoding vertices (11%); the render thread's wait (about 1.1 ms: each draw's texture lookup syncs). (5) Draw display frames off the game's thread, only if ticks still collide with frames due.
 
 Hand conversion helps where a rate assumption is buried in logic: `09BA2060` shows a gate reads plainly once written by hand.
 
@@ -89,6 +93,8 @@ Hand conversion helps where a rate assumption is buried in logic: `09BA2060` sho
 |---|---|---|---|
 | In-game graphics options | Many settings are env vars or `settings.ini` only | Not started | Inventory them; extend the F1 overlay (`runtime/src/overlay.c`) |
 | Ground knowledge for grass | Grass goes by triangles as drawn and whether they're green: it can't tell ground from rock or sky, and must see ground before growing on it | Not started | Survey the stage and collision data for surface types and a whole-map ground. Understand it; hand conversion likely not needed *(check)* |
+| Known artifacts | Seen in play: tickets of type graphics, and bugs #27 to #33 (sprites facing the camera, shadows drawn in close, bush outlines, water where there is none, AO on particles) | In progress: #24, #25, #26, #34, #35, #37 fixed and closed | Next by the user's order; `tools/tickets.py` |
+| Effects keyed on "the world is drawn" | The game draws 2D and see-through layers part way through the world, often every other frame: AO and post-processing took the first of them as the end, and went missing or flickered (#34, #35, #37) | Merged, played: AO applied again where depth changed; the first draw after the world held until the next shows the world is done | Anything new run "after the world" must use the same rule |
 | Further enhancements | Requested | Ongoing | Each one needs a frame cost and an off switch |
 
 **Wounds, in stages, each playable:** (1) one slash at the true hit point, staying on the moving model; (2) blood running down from it under gravity; (3) drops falling; (4) pools on the ground. Purely visual: reads the game's memory, writes none of it, draws no game random numbers, has an off switch and a stated frame cost. Proposed: wounds kept in bone space and drawn in the fragment shader, as UVs may be mirrored or shared *(check)*. Size and sharpness come from `readable/monster_hit_damage.c`; first prove the hit's position and the drawn model can be linked. Cut against impact isn't settled yet (see Balance, goal 4).
@@ -104,7 +110,8 @@ Most of this lives in `runtime/src/`. Where a feature needs to know what the gam
 | Controls, rebinding, F1 screen | Basics | Merged; F1 live path untested *(check)* | User tries F1 |
 | Button hints in menus' text | Still shows PSP buttons | Partly done: 2 of about 15 sprite drawers | Hook the rest, then font text |
 | Native interface: menus and HUD | The main item here | Not started | Restyle everything first: art, fonts, layout, scaling, hints, mouse (user's decision). Then replace only the worst screens, chosen by the user |
-| Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)* | Inventory what's missing |
+| Save handling, resolution, fullscreen, settings | Expected on PC | Partly done *(check)*. Resolution follows the window and fps the screen's refresh rate unless set | Inventory what's missing |
+| Windows build | Most players | Merged and published (`docs/windows.md`, `tools/win_setup.py`, `tools/win_dlls.py`): cross-built, run under Wine with RAM hashes as on Linux. Off on Windows: save states, stall recorder, profiler | A tester on real Windows: pacing above all, a real window, sound |
 
 Restyling leaves game logic alone. Replacing a screen is where menu code needs naming and perhaps hand conversion, and where saves and inventories need their own checks.
 
