@@ -2156,6 +2156,7 @@ static void pick_set_source(uint32_t vaddr);
  * Each tick the game puts one FAR_DISTANCE from its eye towards the stage's point +0x3A4, and draws it turned as its
  * camera is, so that it is seen in that direction wherever the eye is. The glare (StageCameraFacingGlare, 089BE3B0: tick
  * 09CBDB88, draw 09CBD2A8) it puts GLARE_DISTANCE straight ahead of its eye, turned the same, filling the picture.
+ * (So it does a second glare, vtable 089BE6D0, draw 09CCAEA8: the jungle's pale streaks.)
  * Taken for things in the world, with another camera shown than the game's (camera_distance, the mouse's raise and
  * orbit, free look), they are points near the game's eye seen from another place: the shaft near the ground in front of
  * the camera, moving the wrong way; the glare a small rectangle round the hunter.

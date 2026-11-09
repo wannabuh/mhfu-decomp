@@ -540,5 +540,8 @@ PATCHES = {
     ("game_sub", 0x09CBB15C): ("lw $ra, 0xC($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0xCu));", FAR_DRAW),
     ("game_sub", 0x09CBD2A8): ("addiu $sp, $sp, -0xD0", "rt_far_draw_begin(2); c->r[29] = c->r[29] + 0xFFFFFF30u;", FAR_DRAW),
     ("game_sub", 0x09CBDA18): ("lw $ra, 0x2C($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0x2Cu));", FAR_DRAW),
+    # (a second glare, vtable 089BE6D0: the jungle's pale streaks, #27 - placed 40 ahead of the eye as the first is)
+    ("game_sub", 0x09CCAEA8): ("addiu $sp, $sp, -0xC0", "rt_far_draw_begin(2); c->r[29] = c->r[29] + 0xFFFFFF40u;", FAR_DRAW),
+    ("game_sub", 0x09CCB638): ("lw $ra, 0x2C($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0x2Cu));", FAR_DRAW),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }
