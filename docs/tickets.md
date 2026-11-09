@@ -5,6 +5,8 @@ Everything seen wrong or wanted: bugs, ideas and impressions. `tools/tickets.py`
     tools/tickets.py            # what's open, highest priority first
     tools/tickets.py check      # ready for the user to check
     tools/tickets.py show 12
+    tools/tickets.py tui        # all of them in the terminal, with vim's keys: j k gg G ^d ^u, Enter, / search,
+                                # f a status, a closed too; c close, o reopen, n note, p priority, L later, v screenshot
 
 **From the game: F6.** It holds the game, captures the frame shown (a frame gone back to, too) and opens a note box; the mouse is let go and the keys type. Enter files a ticket, and goes on once the key is let go, unless it was held before F6. `#12 happens on Khezu too` adds to ticket 12; a number with no ticket makes a new one, the note whole. Esc, or Enter with no note, keeps the capture alone, in the captures' folder. New tickets are `open`, `bug`, `normal`. With the software renderer F6 only captures. `MHFU_TEST_TICKET="frame,passes,note"` does it headless (`ESC` for Esc).
 

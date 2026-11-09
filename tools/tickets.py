@@ -11,6 +11,7 @@
     tools/tickets.py set 12 status=fix-ready commit=3c8326b check="fight something with a long tail"
     tools/tickets.py attach 12 0010 hits.log    # a capture by number is moved in; a file is copied in
     tools/tickets.py close 12                   # only at the user's word
+    tools/tickets.py tui                        # all of it in the terminal, with vim's keys (tickets_tui.py)
 
 They live in one place outside every checkout, not under version control: $MHFU_TICKETDIR, else
 $XDG_DATA_HOME/mhfu-recomp/tickets, else ~/.local/share/mhfu-recomp/tickets. Commits name a ticket (#12), and the ticket
@@ -259,6 +260,7 @@ def main():
     c.add_argument("--status")
     c.add_argument("--type")
     s.add_parser("check")
+    s.add_parser("tui")
     s.add_parser("show").add_argument("number")
     c = s.add_parser("new")
     c.add_argument("title")
@@ -281,6 +283,9 @@ def main():
     a = p.parse_args()
     if not a.command:
         a = p.parse_args(["list"])
+    if a.command == "tui":
+        import tickets_tui
+        return tickets_tui.main()
     {"list": cmd_list, "check": cmd_check, "show": cmd_show, "new": cmd_new, "note": cmd_note, "set": cmd_set,
      "attach": cmd_attach, "close": cmd_close}[a.command](a)
 
