@@ -2325,6 +2325,7 @@ static void draw_position(const Draw *d, float *p) {
 /* In the world (the camera taken out) only things' own moves count: a big animal's limbs move 60 units a frame as it
  * flinches - the copies of a model (a herd) stand further apart than that */
 #define MATCH_DISTANCE_WORLD 150.0f
+#define MATCH_SIZE 1.5f             /* (and, between 30ths, to one no more than this many times its size) */
 #define MATCH_TURN 0.2f
 
 /* How far a draw is from the camera: its position through the view matrix (the game may put the camera in the view
@@ -3065,10 +3066,21 @@ static int slot_of(const Placings *f, uint64_t key) {
 
 /* Of r's draws with this key: the one after the last matched if it has it (the draws come in the same order, mostly),
  * else the nearest not taken - within reach: its index, or -1 */
-static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const float *pos) {
+/* (Not one of another size, of what has no bones: an effect's copies - dust puffs, each growing as it fades - have one
+ * key and are drawn newest first, so a new puff took the oldest's placing and was drawn a frame at its size, #40. A
+ * puff grows by a tenth or so a 30th but for its first step, which then goes unsmoothed, as at 30.) */
+static int like_size(const Placing *q, const Placing *e) {
+    if (!q || q->nb || e->nb)
+        return 1;
+    float a = q->w[0] * q->w[0] + q->w[1] * q->w[1] + q->w[2] * q->w[2];
+    float b = e->w[0] * e->w[0] + e->w[1] * e->w[1] + e->w[2] * e->w[2];
+    return a <= b * MATCH_SIZE * MATCH_SIZE && b <= a * MATCH_SIZE * MATCH_SIZE;
+}
+
+static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const float *pos, const Placing *q) {
     const float reach = MATCH_DISTANCE_WORLD * MATCH_DISTANCE_WORLD;
     int c = *next;
-    if (c < r->n && r->keys[c] == key && !taken[c] && dist2(pos, r->pos[c]) <= reach) {
+    if (c < r->n && r->keys[c] == key && !taken[c] && dist2(pos, r->pos[c]) <= reach && like_size(q, &r->p[c])) {
         taken[c] = 1;
         *next = c + 1;
         return c;
@@ -3080,7 +3092,7 @@ static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const floa
     float best_d = reach;
     for (int j = s->start; j < s->start + s->count && j < s->start + 256; j++) {   /* (grass comes in thousands) */
         int i = r->order[j];
-        float dd = taken[i] ? reach * 2 : dist2(pos, r->pos[i]);
+        float dd = taken[i] || !like_size(q, &r->p[i]) ? reach * 2 : dist2(pos, r->pos[i]);
         if (dd <= best_d) {
             best_d = dd;
             best = i;
@@ -3208,7 +3220,7 @@ static int *b_to_a(void) {
         uint8_t *taken = calloc((size_t)(nat_a->n ? nat_a->n : 1), 1);
         for (int i = 0; i < nat_b->n; i++)
         {
-            nat_b->ba[i] = find(nat_a, &next, taken, nat_b->keys[i], nat_b->pos[i]);
+            nat_b->ba[i] = find(nat_a, &next, taken, nat_b->keys[i], nat_b->pos[i], &nat_b->p[i]);
             if (nat_b->ba[i] < 0 && nat_b->p[i].nb && seam_on())
                 nat_b->ba[i] = find_object(nat_a, taken, nat_b->keys[i], nat_b->p[i].w);
         }
@@ -3327,7 +3339,7 @@ static void native_place(uint64_t key) {
     const float *from_bones = &f->bones[qi][0][0], *to_bones = from_bones;
     float t = 1;
     Placings *ref = f->is30 ? nat_p : nat_b;
-    int j = ref && ref->cams ? find(ref, &ref->next, ref->taken, key, f->pos[qi]) : -1;
+    int j = ref && ref->cams ? find(ref, &ref->next, ref->taken, key, f->pos[qi], q) : -1;
     if (j < 0 && q->nb && ref && ref->cams && seam_on())
         j = find_object(ref, ref->taken, key, q->w);
     q->match = j;
@@ -3387,7 +3399,7 @@ static void native_motion(uint64_t key) {
     else
         memcpy(f->pos[qi], &q->w[9], sizeof f->pos[qi]);
     Placings *r = drawn_last;
-    int j = r ? find(r, &r->next, r->taken, key, f->pos[qi]) : -1;
+    int j = r ? find(r, &r->next, r->taken, key, f->pos[qi], q) : -1;
     if (j < 0 || r->p[j].nb != q->nb)
         return;
     float shown[12];
@@ -3427,6 +3439,11 @@ static Frame held_prev;             /* the 2D and the rest gated code drew at th
 static Shape *hud_prev_shape;       /* its draws' shapes (ok -1: not 2D) */
 static uint8_t *hud_taken;
 static int hud_prev_cap, *hud_match, hud_match_cap, hud_cursor;
+/* A draw matched where it was is still, and one still at the 30th before is not matched to a draw elsewhere: what slides
+ * was sliding (or new) the 30th before, while text that changes - a quest's title for the next's, the same letters a few
+ * pixels off - had been still, and would be drawn a frame at the old text's places (#39). What starts to move goes its
+ * first 30th's step at once. */
+static uint8_t *hud_still, *hud_prev_still;
 static int held_index = -1;         /* (the kept draw gpu_held_draw is drawing again) */
 
 static int hud_on(void) {
@@ -3441,8 +3458,10 @@ static int hud_find(int i) {
     if (i >= hud_match_cap) {
         hud_match_cap = (i + 1) * 2;
         hud_match = realloc(hud_match, sizeof *hud_match * (size_t)hud_match_cap);
+        hud_still = realloc(hud_still, (size_t)hud_match_cap);
     }
     hud_match[i] = -1;
+    hud_still[i] = 0;
     const Draw *d = &held.draws[i];
     Shape a = shape(&held, d);
     if (!a.ok)
@@ -3462,6 +3481,8 @@ static int hud_find(int i) {
             m = fmaxf(m, fabsf(a.box[k] - b->box[k]));
         if (m > HUD_NEAR && j != next)
             continue;               /* (moved far: only as the next in order - a window sliding in, its letters in turn) */
+        if (m > 0 && hud_prev_still[j])
+            continue;               /* (it was still: this is another like it) */
         if (m < best_m) {
             best_m = m;
             best = j;
@@ -3471,6 +3492,7 @@ static int hud_find(int i) {
         return -1;
     hud_taken[best] = 1;
     hud_cursor = best + 1;
+    hud_still[i] = best_m == 0;
     return hud_match[i] = best;
 }
 
@@ -3530,13 +3552,17 @@ void gpu_held_clear(void) {
         hud_prev_cap = held_prev.n * 2;
         hud_prev_shape = realloc(hud_prev_shape, sizeof *hud_prev_shape * (size_t)hud_prev_cap);
         hud_taken = realloc(hud_taken, (size_t)hud_prev_cap);
+        hud_prev_still = realloc(hud_prev_still, (size_t)hud_prev_cap);
     }
     for (int j = 0; j < held_prev.n; j++) {
         const Draw *e = &held_prev.draws[j];
         hud_prev_shape[j].ok = -1;
         if (through_draw(e) && !e->ibytes)
             hud_prev_shape[j] = shape(&held_prev, e);
+        hud_prev_still[j] = j < hud_match_cap && hud_still[j];
     }
+    if (hud_match_cap)
+        memset(hud_still, 0, (size_t)hud_match_cap);
     memset(hud_taken, 0, (size_t)held_prev.n);
     hud_cursor = 0;
     held.n = held.nruns = held.open = 0;
