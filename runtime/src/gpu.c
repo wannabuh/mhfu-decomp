@@ -3439,10 +3439,12 @@ static Frame held_prev;             /* the 2D and the rest gated code drew at th
 static Shape *hud_prev_shape;       /* its draws' shapes (ok -1: not 2D) */
 static uint8_t *hud_taken;
 static int hud_prev_cap, *hud_match, hud_match_cap, hud_cursor;
-/* A draw matched where it was is still, and one still at the 30th before is not matched to a draw elsewhere: what slides
- * was sliding (or new) the 30th before, while text that changes - a quest's title for the next's, the same letters a few
- * pixels off - had been still, and would be drawn a frame at the old text's places (#39). What starts to move goes its
- * first 30th's step at once. */
+/* A letter matched where it was is still, and one still at the 30th before is not matched to a letter elsewhere: text
+ * that slides was sliding (or new) the 30th before, while text that changes - a quest's title for the next's, the same
+ * letters a few pixels off - had been still, and would be drawn a frame at the old text's places (#39). Text that
+ * starts to move goes its first 30th's step at once. Letters: what is drawn from the game's font (FONT_TEXTURE); the
+ * rest - gauges, the map's arrow, the loading screen's letters - is matched as before. */
+#define FONT_TEXTURE 0x040CC000u
 static uint8_t *hud_still, *hud_prev_still;
 static int held_index = -1;         /* (the kept draw gpu_held_draw is drawing again) */
 
@@ -3481,8 +3483,8 @@ static int hud_find(int i) {
             m = fmaxf(m, fabsf(a.box[k] - b->box[k]));
         if (m > HUD_NEAR && j != next)
             continue;               /* (moved far: only as the next in order - a window sliding in, its letters in turn) */
-        if (m > 0 && hud_prev_still[j])
-            continue;               /* (it was still: this is another like it) */
+        if (m > 0 && hud_prev_still[j] && ((d->reg[0xA0] & 0xFFFFF0) | ((d->reg[0xA8] & 0x0F0000) << 8)) == FONT_TEXTURE)
+            continue;               /* (a letter that was still: this is another like it) */
         if (m < best_m) {
             best_m = m;
             best = j;
