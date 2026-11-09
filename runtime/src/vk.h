@@ -54,6 +54,7 @@ typedef struct {
     int output_layer;                /* a vertex shader can choose the layer it draws into */
     int tessellation;                /* tessellation shaders can be used */
     int clip_distance;               /* clip distances and depth clamping can be used */
+    int depth_clamp;                 /* depth clamping can be used */
     int barycentric;                 /* the pixel stage can read its triangle's corners' values */
     int anisotropy;                  /* anisotropic filtering can be used */
     int present_timing;              /* the driver says when frames go out, for this window (pacing.c) */
