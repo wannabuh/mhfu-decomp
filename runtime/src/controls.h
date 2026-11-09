@@ -37,6 +37,6 @@ void controls_bind(int pad, int action, int add, int kind, int code);    /* (tak
 void controls_clear(int pad, int action);
 void controls_keep(void);                   /* the bindings as they are, for controls_undo */
 void controls_undo(void);
-float *controls_pad_camera_speed(void);
+float *controls_pad_camera_speed(int y);   /* (0 across, 1 up and down) */
 float *controls_pad_deadzone(void);
 int *controls_invert_y_setting(void);

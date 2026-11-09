@@ -20,7 +20,7 @@
 void window_overlay_mode(int on);
 
 enum { R_ACTION, R_OPTION, R_BUTTON };
-enum { O_SPEED, O_DEADZONE, O_INVERT };
+enum { O_SPEED, O_SPEED_Y, O_DEADZONE, O_INVERT };
 enum { B_DEFAULTS, B_UNDO, B_CLOSE };
 typedef struct { int kind, which; } Row;
 
@@ -47,6 +47,7 @@ static void build_rows(void) {
             rows[nrows++] = (Row){R_ACTION, a};
     if (set) {
         rows[nrows++] = (Row){R_OPTION, O_SPEED};
+        rows[nrows++] = (Row){R_OPTION, O_SPEED_Y};
         rows[nrows++] = (Row){R_OPTION, O_DEADZONE};
     }
     rows[nrows++] = (Row){R_OPTION, O_INVERT};
@@ -91,8 +92,8 @@ static void scroll_to_row(void) {
 }
 
 static void change_option(int which, int dir) {
-    if (which == O_SPEED) {
-        float *v = controls_pad_camera_speed();
+    if (which == O_SPEED || which == O_SPEED_Y) {
+        float *v = controls_pad_camera_speed(which == O_SPEED_Y);
         *v += 20.0f * (float)dir;
         if (*v < 20) *v = 20;
         if (*v > 720) *v = 720;
@@ -273,8 +274,8 @@ void overlay_tick(void) {
 /* ---- drawn ---- */
 
 static void option_text(int which, char *out, size_t size) {
-    if (which == O_SPEED)
-        snprintf(out, size, "%d", (int)*controls_pad_camera_speed());
+    if (which == O_SPEED || which == O_SPEED_Y)
+        snprintf(out, size, "%d", (int)*controls_pad_camera_speed(which == O_SPEED_Y));
     else if (which == O_DEADZONE)
         snprintf(out, size, "%d", (int)(*controls_pad_deadzone() * 100 + 0.5f));
     else
@@ -282,8 +283,10 @@ static void option_text(int which, char *out, size_t size) {
 }
 
 static const char *option_label(int which) {
-    return which == O_SPEED ? "CAMERA STICK SPEED (DEGREES A SECOND)" : which == O_DEADZONE ? "STICK DEAD ZONE (HUNDREDTHS)"
-                                                                                            : "INVERT CAMERA TILT";
+    return which == O_SPEED     ? "CAMERA STICK SPEED ACROSS (DEGREES A SECOND)"
+           : which == O_SPEED_Y ? "CAMERA STICK SPEED UP AND DOWN (DEGREES A SECOND)"
+           : which == O_DEADZONE ? "STICK DEAD ZONE (HUNDREDTHS)"
+                                 : "INVERT CAMERA TILT";
 }
 
 static const char *button_label(int which) {

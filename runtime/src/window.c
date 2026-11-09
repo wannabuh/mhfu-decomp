@@ -41,13 +41,15 @@ static uint32_t device_buttons;
 static uint8_t device_lx = 128, device_ly = 128;     /* the stick: the game reads it at frames (present.c) */
 static int mouse_captured;
 static float mouse_dx, mouse_dy;         /* motion since the game last took it */
-/* Camera smoothing (MHFU_CAMERA_SMOOTHING, ms; 0 or unset: none): the mouse's and the right stick's motion is let
- * through a share at a time, the rest held back, so that the camera eases into a turn and out of it; all of it gets
- * through in the end, so the camera comes to rest where it would have without. The time is how long it takes to let
- * through about two thirds of a motion (e.g. 30 light, 80 heavy). The game is given only what is let through, so a
- * recording has the smoothed motion and replays it as it was. */
-static float held_dx, held_dy;           /* motion not let through yet */
-static float smoothing_ms = -1;
+/* Camera smoothing, the mouse's and the right stick's apart (MHFU_MOUSE_SMOOTHING, MHFU_PAD_SMOOTHING, ms; either
+ * unset: MHFU_CAMERA_SMOOTHING, for both; 0 or none: none): the motion is let through a share at a time, the rest held
+ * back, so that the camera eases into a turn and out of it; all of it gets through in the end, so the camera comes to
+ * rest where it would have without. The time is how long it takes to let through about two thirds of a motion (e.g. 30
+ * light, 80 heavy). The game is given only what is let through, so a recording has the smoothed motion and replays it
+ * as it was. */
+enum { FROM_MOUSE, FROM_PAD };
+static float held_dx[2], held_dy[2];     /* motion not let through yet, by where it came from */
+static float smoothing_ms[2] = {-1, -1};
 static int want_capture = 1;             /* the player's choice: captured unless F10 or the focus lost let it go */
 static int pointer_mode;                 /* a menu is open: the mouse is a pointer (menu.c) */
 static int overlay_mode;                 /* the controls screen is open (overlay.c): the mouse a pointer */
@@ -62,8 +64,8 @@ static void apply_capture(void) {
     if (!window)
         return;
     mouse_captured = want_capture && !pointer_mode && !overlay_mode && !inspect_mode && !ticket_mode;
-    if (!mouse_captured)
-        held_dx = held_dy = 0;           /* (a menu opened: the rest of the turn isn't the camera's) */
+    if (!mouse_captured)                 /* (a menu opened: the rest of the turn isn't the camera's) */
+        memset(held_dx, 0, sizeof held_dx), memset(held_dy, 0, sizeof held_dy);
     SDL_SetWindowRelativeMouseMode(window, mouse_captured);
 }
 
@@ -185,17 +187,22 @@ void window_free_keys(float *right, float *up, float *front) {
     *front = speed * ((float)k[SDL_SCANCODE_W] - (float)k[SDL_SCANCODE_S]);
 }
 
-/* Motion for the camera: at once, or held to be let through by smooth_motion */
-static void add_motion(float dx, float dy) {
-    if (smoothing_ms < 0) {
-        const char *e = getenv("MHFU_CAMERA_SMOOTHING");
-        smoothing_ms = e ? (float)atof(e) : 0;
-        if (!(smoothing_ms > 0))
-            smoothing_ms = 0;
-    }
-    if (smoothing_ms > 0) {
-        held_dx += dx;
-        held_dy += dy;
+/* A smoothing time (ms) from the environment: name's, else MHFU_CAMERA_SMOOTHING's, else none */
+static float smoothing_setting(const char *name) {
+    const char *e = getenv(name);
+    if (!e)
+        e = getenv("MHFU_CAMERA_SMOOTHING");
+    float ms = e ? (float)atof(e) : 0;
+    return ms > 0 ? ms : 0;
+}
+
+/* Motion for the camera, from the mouse or the stick: at once, or held to be let through by smooth_motion */
+static void add_motion(int from, float dx, float dy) {
+    if (smoothing_ms[from] < 0)
+        smoothing_ms[from] = smoothing_setting(from == FROM_MOUSE ? "MHFU_MOUSE_SMOOTHING" : "MHFU_PAD_SMOOTHING");
+    if (smoothing_ms[from] > 0) {
+        held_dx[from] += dx;
+        held_dy[from] += dy;
     } else {
         mouse_dx += dx;
         mouse_dy += dy;
@@ -208,15 +215,17 @@ static void smooth_motion(void) {
     uint64_t now = time_us();
     float dt = last ? (float)(now - last) / 1000.0f : 0;     /* (ms) */
     last = now;
-    if (smoothing_ms <= 0 || (held_dx == 0 && held_dy == 0))
-        return;
-    float k = 1.0f - expf(-dt / smoothing_ms);
-    if (fabsf(held_dx) + fabsf(held_dy) < 0.05f)
-        k = 1;                          /* (the last of it: at once, not forever) */
-    mouse_dx += held_dx * k;
-    mouse_dy += held_dy * k;
-    held_dx -= held_dx * k;
-    held_dy -= held_dy * k;
+    for (int from = 0; from < 2; from++) {
+        if (smoothing_ms[from] <= 0 || (held_dx[from] == 0 && held_dy[from] == 0))
+            continue;
+        float k = 1.0f - expf(-dt / smoothing_ms[from]);
+        if (fabsf(held_dx[from]) + fabsf(held_dy[from]) < 0.05f)
+            k = 1;                      /* (the last of it: at once, not forever) */
+        mouse_dx += held_dx[from] * k;
+        mouse_dy += held_dy[from] * k;
+        held_dx[from] -= held_dx[from] * k;
+        held_dy[from] -= held_dy[from] * k;
+    }
 }
 
 void window_mouse_peek(float *dx, float *dy) {
@@ -320,7 +329,7 @@ static void test_mouse(void) {
     uint64_t now = time_us();
     if (f >= from && f < from + frames && last) {
         float dt = (float)(now - last) / 1e6f;
-        add_motion(vx * dt, vy * dt);
+        add_motion(FROM_MOUSE, vx * dt, vy * dt);
     }
     last = now;
 }
@@ -362,7 +371,7 @@ static void pad_camera(void) {
     float dx, dy;
     controls_pad_camera(pad, dt, camera_sens(), &dx, &dy);
     if (mouse_captured || !window)
-        add_motion(dx, controls_invert_y() ? -dy : dy);
+        add_motion(FROM_PAD, dx, controls_invert_y() ? -dy : dy);
 }
 
 int window_poll(void) {
@@ -448,7 +457,7 @@ int window_poll(void) {
         } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
             capture_mouse(1);
         if (e.type == SDL_EVENT_MOUSE_MOTION && mouse_captured) {
-            add_motion(e.motion.xrel, controls_invert_y() ? -e.motion.yrel : e.motion.yrel);
+            add_motion(FROM_MOUSE, e.motion.xrel, controls_invert_y() ? -e.motion.yrel : e.motion.yrel);
         }
         if (e.type == SDL_EVENT_MOUSE_WHEEL && (mouse_captured || pointer_mode))
             controls_wheel(e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -e.wheel.y : e.wheel.y);
