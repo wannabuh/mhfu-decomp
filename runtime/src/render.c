@@ -850,7 +850,11 @@ void render_prim_begin(const uint32_t *reg) {
     s.scissor = (VkRect2D){{(int32_t)scaled(sx0), (int32_t)scaled(sy0)}, {scaled(sx1) - scaled(sx0), scaled(sy1) - scaled(sy0)}};
     /* the solid world drawn, then what is not: its occlusion (and the grass), then post-processing; its fog and depth
      * test noted (the grass's) */
-    int solid = (s.flags & DRAW_WORLD) && s.depth_write;
+    /* (not what is see-through all over though it writes depth - dust and the like, #30: blended by its alpha, unlit,
+     * no colours of its vertices' own and the material's alpha under full. Its squares' depth would be taken for
+     * ground and the occlusion laid over them) */
+    int sheer = s.blend && (reg[0xDF] & 0xFFF) == 0x32 && !(reg[0x17] & 1) && !((reg[0x12] >> 2) & 7) && (reg[0x58] & 0xFF) < 0xFF;
+    int solid = (s.flags & DRAW_WORLD) && s.depth_write && !sheer;
     ao_state(s.target, solid, clear);
     if (solid) {
         scene.depth_op = s.depth_op;
