@@ -270,6 +270,12 @@ NOT_PLACED = {("game_task", a) for a in (0x09A9D328, 0x09A9D340, 0x09A9D578, 0x0
 CAMERA_HEIGHT = "the camera's height: each ease a fraction of what is left a game frame, in game time"
 CAMERA_LIFT = "the camera's lift over a drop: its 20 units a game frame times the time scale"
 CAMERA_SHAKE = "the camera shake's countdown: 1 less a 30th, not a game frame"
+# An event camera's script (view 5: EBOOT 0888A1FC -> 0888AFEC -> 0888B1C0; a monster's introduction): ops 0x12 and 0x26
+# give a segment its length in frames (+0x96, and what is left of it, +0x94); op 0x27 waits a frame, placing the camera
+# at the eased share left (0888EAF8) and taking 1 off +0x94. The cameras run every game frame, so at 60 a cutscene's
+# camera took half its time (#36), out of step with the monster in it. What is left is also the frame the scene's events
+# go by (+0x964 of the scene: 08813E70, 088CDF5C), so its values stay as they are: 1 less a 30th.
+CAMERA_SCRIPT = "an event camera's script: a segment's frames left, 1 less a 30th, not a game frame"
 
 # A weapon's effect ops (the row at +0x7F4 for some weapons: EBOOT 088CF2C8 the bones', 088D08D4 the materials), run as
 # it is drawn (game_task 09A95EA8 and 09A96954, in the render pass, every game frame). Flag 0x10 steps each op's state,
@@ -496,6 +502,7 @@ PATCHES = {
     ("EBOOT", 0x0888D24C): ("add.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f + c->f[0].f * rt_time_scale;", CAMERA_LIFT),
     ("EBOOT", 0x0888D280): ("sub.s $f1, $f1, $f0", "c->f[1].f = c->f[1].f - c->f[0].f * rt_time_scale;", CAMERA_LIFT),
     ("EBOOT", 0x08814E44): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SHAKE),
+    ("EBOOT", 0x0888B4B8): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", CAMERA_SCRIPT),
     ("game_task", 0x09A95EAC): ("addiu $a2, $zero, 0x30", "c->r[6] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
     ("game_task", 0x09A96958): ("addiu $a3, $zero, 0x30", "c->r[7] = rt_tick30 ? 0x30u : 0x20u;", WEAPON_OPS),
     ("EBOOT", 0x088D07DC): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", WEAPON_OPS),
