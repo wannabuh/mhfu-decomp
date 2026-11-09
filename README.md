@@ -68,8 +68,8 @@ Each action has its own key; the runtime presses the PSP buttons the game wants 
 F1 opens the controls screen (the game paused under it): choose an action and press the input to bind to it (Enter
 or a click; + or a right click adds it to those it has, Delete clears them), Tab between the keyboard and mouse's and
 the gamepad's; closing it saves them. They are kept in `controls.ini` (in the working directory, else
-`~/.config/mhfu-recomp/`, written with the defaults on the first run): `action = input, input...` under `[keyboard]` and `[gamepad]`, with the camera stick's speed, its
-dead zone and an inverted tilt under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
+`~/.config/mhfu-recomp/`, written with the defaults on the first run): `action = input, input...` under `[keyboard]` and `[gamepad]`, with the camera stick's speed across and up and down
+(`pad_camera_speed_x`, `pad_camera_speed_y`, degrees a second; also on the F1 screen), its dead zone and an inverted tilt under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
 the shoulders L and R, the D-pad) and the wheel moves the cursor.
 
 The game's button hints (the item bar's, and others drawn with the HUD's button pictures) show the keys and mouse
@@ -127,7 +127,7 @@ checked yet, nor the monsters: `docs/native.md`), `MHFU_SCALE=4` (internal resol
 PSP's, 1 to 12, fractions too; by default the window's own, followed as it is resized, so the picture is shown pixel for
 pixel), `MHFU_RESOLUTION=2560x1440` (the internal resolution by its size instead: the scale that fits it, 5.29 here;
 larger than the window it is filtered down to it), `MHFU_FULLSCREEN=1` (the whole screen from the start; F11 toggles it), `MHFU_MUTE=1`, `MHFU_NAME=...` (the name the on-screen keyboard gives), `MHFU_SAVEDIR=...`,
-`MHFU_RENDERER=soft`, `MHFU_RENDER_THREAD=0` (the renderer's work on the game's thread, not its own), `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_CAMERA_SMOOTHING=40` (the camera eased into and out of the mouse's and right stick's turns: about how many milliseconds it takes to follow two thirds of a motion, e.g. 30 light, 80 heavy; it still comes to rest where you aimed it; 0, the default, none), `MHFU_CAMERA_ASSIST=1` (the
+`MHFU_RENDERER=soft`, `MHFU_RENDER_THREAD=0` (the renderer's work on the game's thread, not its own), `MHFU_MOUSE_SENS=0.15` (degrees a mouse count turns the camera), `MHFU_MOUSE_SMOOTHING=40` and `MHFU_PAD_SMOOTHING=40` (the camera eased into and out of the mouse's, and the right stick's, turns: about how many milliseconds it takes to follow two thirds of a motion, e.g. 30 light, 80 heavy; it still comes to rest where you aimed it; 0, the default, none; `MHFU_CAMERA_SMOOTHING` sets both), `MHFU_CAMERA_ASSIST=1` (the
 game turns the camera away from walls itself, as on the PSP: otherwise it stays where the mouse puts it), `MHFU_CAMERA_DISTANCE=1` (how far the camera is from the hunter, times the game's: e.g. 1.3 farther, 0.8 closer - farther can go into walls; with `fps` or `tick_hz`), `MHFU_HUD_SCALE=1` (the hunt's HUD smaller, e.g. 0.75: the clock and gauges towards the top left, the map the top right, the item bar the bottom right), `MHFU_SUN_FLARE=1` (the game's sun flare kept: left out otherwise, as it stood in the middle of the picture), `MHFU_SHADOWS=0`, `MHFU_SUN_SHADING=0`, `MHFU_RELIEF=0`, `MHFU_PIXEL_LIGHTING=0`, `MHFU_POINT_LIGHTS=0`,
 `MHFU_POINT_SHADOWS=0`, `MHFU_AO=0` (the renderer's sun shadows, the scenery's sides turned from the sun shaded, its
 relief in the sun from its textures, lighting by the pixel, lights
