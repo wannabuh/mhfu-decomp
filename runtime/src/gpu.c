@@ -3782,6 +3782,9 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
     (void)monster;
     if (!wounds_on() || LBU(record + 0x0Fu))    /* (the hunters' records: their table 0) */
         return;
+    /* (a hit with no one behind it - a bomb's blast has no attacker, 0 - leaves no slash: reading its place crashed) */
+    if (attacker < 0x08800000u || attacker >= 0x0A000000u - 0x210u)
+        return;
     int k = 0;                          /* (a free place, or the oldest's) */
     for (int i = 0; i < 8; i++) {
         if (!wound_pending[i].used) {
