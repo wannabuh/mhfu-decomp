@@ -156,7 +156,7 @@ void grass_draw(Target *t) {
     if (!world_to_clip(scene.view, scene.world_view, clip))
         return;
     for (int c = 0; c < 4; c++) {           /* (the anti-aliasing's offset, as the GE's world has it) */
-        clip[4 * c] += render_jitter[0] * 2.0f / (float)scaled(RT_SIZE) * clip[4 * c + 3];
+        clip[4 * c] += render_jitter[0] * 2.0f / (float)scaled_x(RT_SIZE) * clip[4 * c + 3];
         clip[4 * c + 1] += render_jitter[1] * 2.0f / (float)scaled(RT_SIZE) * clip[4 * c + 3];
     }
     LightSet cam;
@@ -196,7 +196,7 @@ void grass_draw(Target *t) {
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, grass_pipeline);
     VkDeviceSize zero = 0;
     vkCmdBindVertexBuffers(cmd, 0, 1, &grass_pool.buffer, &zero);
-    VkRect2D sc = {{0, 0}, {scaled(480), scaled(272)}};
+    VkRect2D sc = {{0, 0}, {scaled_x(480), scaled(272)}};
     vkCmdSetScissor(cmd, 0, 1, &sc);
     vkCmdSetDepthTestEnable(cmd, VK_TRUE);
     vkCmdSetDepthWriteEnable(cmd, VK_TRUE);

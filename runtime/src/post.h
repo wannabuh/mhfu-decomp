@@ -22,8 +22,8 @@ typedef struct {
 /* make: render.c's pipelines (a full-screen pass: blend 0 none, 1 adding) */
 typedef VkPipeline (*PostPipeline)(VkShaderModule fs, VkPipelineLayout layout, VkFormat color, int blend);
 
-int post_init(float scale, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
-void post_rescale(float scale);   /* the internal resolution changed (the GPU idle): its images again */
+int post_init(float scale, float wide, VkImageView shadow_view, VkSampler shadow_sampler, PostPipeline make);
+void post_rescale(float scale, float wide);   /* the internal resolution changed (the GPU idle): its images again */
 int post_on(void);
 int post_motion(void);       /* the motion image is drawn (for the motion blur, or the anti-aliasing) */
 int post_taa(void);          /* the anti-aliasing is on: the world is drawn jittered */

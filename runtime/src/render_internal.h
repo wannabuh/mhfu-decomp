@@ -73,6 +73,8 @@ typedef struct {
 
 /* -- render.c ----------------------------------------------------------------------------------------------------- */
 extern float render_scale;          /* render target pixels a PSP pixel (MHFU_SCALE, or MHFU_RESOLUTION's lines) */
+extern float render_wide;           /* and so many times that across: 1, or a little more where the picture fills a
+                                     * screen a little wider than the PSP's (16:9: 1.0074) */
 extern VkPipelineLayout ge_layout;  /* the GE's draws' (and the shadow passes', the grass's): ge_set, DrawPush */
 extern VkDescriptorSet ge_set;
 extern VkShaderStageFlags pc_stages;    /* the stages the push constants are for */
@@ -86,6 +88,9 @@ extern float prim_view[16], prim_world_view[12];   /* the primitive's camera: it
 /* PSP pixels in render target pixels */
 static inline uint32_t scaled(int psp) {
     return (uint32_t)lroundf((float)psp * render_scale);
+}
+static inline uint32_t scaled_x(int psp) {      /* (across) */
+    return (uint32_t)lroundf((float)psp * render_scale * render_wide);
 }
 VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout pl, VkFormat color, VkFormat depth,
                          int kind);

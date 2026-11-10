@@ -51,14 +51,14 @@ void ao_rescale(void) {
         return;
     for (int i = 0; i < 2; i++) {
         vk_image_free(&ao_img[i]);
-        ao_img[i] = vk_image(scaled(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
+        ao_img[i] = vk_image(scaled_x(480) / 2, scaled(272) / 2, VK_FORMAT_R16G16_SFLOAT,
                              VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     vk_image_free(&ao_depth_done);
-    ao_depth_done = vk_image(scaled(RT_SIZE), scaled(RT_SIZE), VK_FORMAT_D32_SFLOAT,
+    ao_depth_done = vk_image(scaled_x(RT_SIZE), scaled(RT_SIZE), VK_FORMAT_D32_SFLOAT,
                              VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
     vk_image_free(&ao_water);
-    ao_water = vk_image(scaled(480), scaled(272), VK_FORMAT_R8_UNORM,
+    ao_water = vk_image(scaled_x(480), scaled(272), VK_FORMAT_R8_UNORM,
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     ao_fresh = 0;
 }
@@ -150,7 +150,7 @@ void ao_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, 
 
 /* The water kept drawn again into the mask, where it is what shows */
 static void water_mask(Target *t, int again) {
-    uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
+    uint32_t fw = scaled_x(480), fh = scaled(272), px = scaled(RT_SIZE), pw = scaled_x(RT_SIZE);
     VkCommandBuffer cmd = vk_cmd();
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
     vk_transition(&ao_water, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -168,7 +168,7 @@ static void water_mask(Target *t, int again) {
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_layout, 0, 1, &ge_set, 0, NULL);
         VkDeviceSize zero = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
-        VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
+        VkViewport vp = {0, 0, (float)pw, (float)px, 0, 1};
         vkCmdSetViewport(cmd, 0, 1, &vp);
         vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
         VkBool32 off = VK_FALSE;
@@ -293,7 +293,7 @@ static void ao_occlude(Target *t, int again) {
         return;
     end_rendering();
     water_mask(t, again);
-    uint32_t fw = scaled(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
+    uint32_t fw = scaled_x(480), fh = scaled(272), hw = fw / 2, hh = fh / 2;
     float focal = fabsf(scene.view[0]) * (float)render_scale;
     memcpy(pc.params, (float[4]){ao_radius, ao_strength, (float)render_scale, focal}, sizeof pc.params);
     memcpy(pc.params2, (float[4]){AO_FADE, 0, 0, again ? 1.0f : 0.0f}, sizeof pc.params2);
@@ -339,7 +339,7 @@ static void ao_occlude(Target *t, int again) {
     /* the depth now, for the next part of the world, if one comes */
     uint32_t px = scaled(RT_SIZE);
     VkImageCopy c = {{VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0},
-                     {px, px, 1}};
+                     {scaled_x(RT_SIZE), px, 1}};
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vk_transition(&ao_depth_done, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     vkCmdCopyImage(vk_cmd(), t->depth.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, ao_depth_done.image,

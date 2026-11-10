@@ -64,7 +64,7 @@ void main() {
     // where it was: this point (without this frame's offset) in the camera's space, less its own motion, through
     // the last frame's camera
     vec2 centre = vec2(x) + 0.5 - pc.texel.xy;
-    vec4 v = pc.to_view * vec4(centre / pc.area.z, nearest > 0.0 ? nearest : 1.0, 1.0);
+    vec4 v = pc.to_view * vec4(centre / psp_pixel(), nearest > 0.0 ? nearest : 1.0, 1.0);
     vec3 p = v.xyz / v.w;
     vec4 q;
     vec4 own = vec4(0.0);
@@ -75,7 +75,7 @@ void main() {
         q = pc.to_shadow * vec4(p, 1.0);
     } else
         q = pc.to_shadow * vec4(normalize(p), 0.0);
-    vec2 then = q.xy / q.w * pc.area.z;
+    vec2 then = q.xy / q.w * psp_pixel();
     if (q.w <= 1e-6 || any(lessThan(then, vec2(0.0))) || any(greaterThan(then, pc.area.xy))) {
         out_color = now;
         return;

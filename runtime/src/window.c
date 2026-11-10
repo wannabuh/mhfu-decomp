@@ -74,19 +74,22 @@ static void capture_mouse(int on) {
     apply_capture();
 }
 
-/* The picture's place in the window (points): letterboxed to the PSP's shape, centred (as render.c presents it) */
-static int picture(float *x0, float *y0, float *scale) {
+/* The picture's place in the window (points): letterboxed to its shape (the PSP's, or the little wider one it is
+ * drawn at to fill a screen), centred (as render.c presents it); a PSP pixel there, across (*scale) and down */
+static int picture_xy(float *x0, float *y0, float *scale, float *scale_y) {
     int w, h;
     if (!window || !SDL_GetWindowSize(window, &w, &h) || w <= 0 || h <= 0)
         return 0;
-    float vw = (float)w, vh = (float)w * 272.0f / 480.0f;
+    float shape = 480.0f * render_picture_wide() / 272.0f;
+    float vw = (float)w, vh = (float)w / shape;
     if (vh > (float)h) {
         vh = (float)h;
-        vw = (float)h * 480.0f / 272.0f;
+        vw = (float)h * shape;
     }
     *x0 = ((float)w - vw) / 2;
     *y0 = ((float)h - vh) / 2;
     *scale = vw / 480.0f;
+    *scale_y = vh / 272.0f;
     return 1;
 }
 
@@ -98,9 +101,10 @@ void window_pointer_mode(int on, float at_x, float at_y) {
     pointer_moved = pointer_clicks = 0;
     apply_capture();
     float x0, y0, k;
-    if (on && window && want_capture && picture(&x0, &y0, &k)) {
+    float ky;
+    if (on && window && want_capture && picture_xy(&x0, &y0, &k, &ky)) {
         pointer_x = x0 + at_x * k;
-        pointer_y = y0 + at_y * k;
+        pointer_y = y0 + at_y * ky;
         SDL_WarpMouseInWindow(window, pointer_x, pointer_y);
     }
 }
@@ -158,11 +162,21 @@ int window_mouse_position(float *x, float *y) {
 
 /* A point in the window (its points) on the PSP's screen; 0 if there is no window */
 int window_point(float wx, float wy, float *x, float *y) {
-    float x0, y0, k;
-    if (!picture(&x0, &y0, &k))
+    float x0, y0, k, ky;
+    if (!picture_xy(&x0, &y0, &k, &ky))
         return 0;
     *x = (wx - x0) / k;
-    *y = (wy - y0) / k;
+    *y = (wy - y0) / ky;
+    return 1;
+}
+
+/* The same on what is drawn over the picture (the settings screen...): the PSP's shape, in the picture's middle */
+int window_panel_point(float wx, float wy, float *x, float *y) {
+    float x0, y0, k, ky;
+    if (!picture_xy(&x0, &y0, &k, &ky))
+        return 0;
+    *x = (wx - x0 - (k - ky) * 240.0f) / ky;
+    *y = (wy - y0) / ky;
     return 1;
 }
 
@@ -171,11 +185,11 @@ int window_in_menu(void) { return pointer_mode; }
 
 /* The pointer on the PSP's screen; 0 if there is none (no window, or not in pointer mode) */
 int window_pointer(float *x, float *y) {
-    float x0, y0, k;
-    if (!pointer_mode || !picture(&x0, &y0, &k))
+    float x0, y0, k, ky;
+    if (!pointer_mode || !picture_xy(&x0, &y0, &k, &ky))
         return 0;
     *x = (pointer_x - x0) / k;
-    *y = (pointer_y - y0) / k;
+    *y = (pointer_y - y0) / ky;
     return 1;
 }
 

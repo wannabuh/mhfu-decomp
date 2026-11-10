@@ -17,7 +17,7 @@
 
 int water_on;
 static VkImg copy_color, copy_depth;
-static uint32_t copy_px;
+static uint32_t copy_px, copy_pw;
 static unsigned long copied_frame;
 static Target *copied;
 static VkSampler linear_clamp, nearest_clamp;
@@ -42,16 +42,17 @@ void water_init(void) {
 
 /* The copies, the size of a render target (made again when that changes) */
 static void copies_sized(void) {
-    uint32_t px = scaled(RT_SIZE);
-    if (copy_px == px && copy_color.image)
+    uint32_t px = scaled(RT_SIZE), pw = scaled_x(RT_SIZE);
+    if (copy_px == px && copy_pw == pw && copy_color.image)
         return;
     retire(&copy_color);
     retire(&copy_depth);
-    copy_color = vk_image(px, px, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+    copy_color = vk_image(pw, px, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                           VK_IMAGE_ASPECT_COLOR_BIT);
-    copy_depth = vk_image(px, px, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+    copy_depth = vk_image(pw, px, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                           VK_IMAGE_ASPECT_DEPTH_BIT);
     copy_px = px;
+    copy_pw = pw;
     VkDescriptorImageInfo ci = {linear_clamp, copy_color.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     VkDescriptorImageInfo di = {nearest_clamp, copy_depth.view, VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL};
     VkWriteDescriptorSet w[2] = {
@@ -69,7 +70,7 @@ static void copy_picture(Target *t) {
     copies_sized();
     VkCommandBuffer cmd = vk_cmd();
     VkImageCopy c = {{VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0},
-                     {copy_px, copy_px, 1}};
+                     {copy_pw, copy_px, 1}};
     vk_transition(&t->color, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     vk_transition(&copy_color, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     vkCmdCopyImage(cmd, t->color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, copy_color.image,

@@ -121,8 +121,8 @@ VkImg *post_glow(void) {
 }
 
 /* The images the size of the picture (or its halves...) */
-static void make_images(float scale) {
-    fw = (uint32_t)lroundf(480.0f * scale);
+static void make_images(float scale, float wide) {
+    fw = (uint32_t)lroundf(480.0f * scale * wide);
     fh = (uint32_t)lroundf(272.0f * scale);
     VkImageUsageFlags rt = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     scene = vk_image(fw, fh, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -158,7 +158,7 @@ static void make_images(float scale) {
 }
 
 /* The internal resolution changed (render_rescale, the GPU idle): its images again */
-void post_rescale(float scale) {
+void post_rescale(float scale, float wide) {
     if (!made)
         return;
     VkImg *all[] = {&history[0], &history[1], &taa_debug, &scene, &hazed, &moved, &motion_img, &tiles[0], &tiles[1], &glow, &shaft_img[0], &shaft_img[1],
@@ -167,7 +167,7 @@ void post_rescale(float scale) {
         vk_image_free(all[i]);
     for (int i = 0; i < nlevels; i++)
         vk_image_free(&levels[i]);
-    make_images(scale);
+    make_images(scale, wide);
 }
 
 /* The settings (MHFU_POST and its parts'), read: as it starts and when one is changed (settings.c) */
@@ -193,7 +193,7 @@ static void post_settings(void) {
         history_ok = 0;                 /* (the last frame's picture is not this run of them's) */
 }
 
-int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
+int post_init(float scale, float wide, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.gpu, &props);
     if (props.limits.maxPushConstantsSize < sizeof(Push)) {
@@ -202,7 +202,7 @@ int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline 
     }
     shadow_view = shadow;
     shadow_sampler = shadow_s;
-    make_images(scale);
+    make_images(scale, wide);
     dummy = vk_image(1, 1, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
     dummy_depth = vk_image(1, 1, VK_FORMAT_D32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                            VK_IMAGE_ASPECT_DEPTH_BIT);

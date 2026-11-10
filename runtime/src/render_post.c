@@ -33,7 +33,7 @@ static VkPipeline post_pipeline(VkShaderModule fs, VkPipelineLayout pl, VkFormat
 /* post.c, and the pipelines drawing the glow and motion (the GE's shaders vs, fs; tess: tessellated too, or NULL; tl_vs:
  * the GPU's vertex stage's, or none) */
 void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule tl_vs) {
-    if (!post_init(render_scale, shadow_img.view, shadow_sampler, post_pipeline))
+    if (!post_init(render_scale, render_wide, shadow_img.view, shadow_sampler, post_pipeline))
         return;
     glow_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
     /* (the motion's too, whether or not it is wanted now: the settings may turn it on) */
@@ -56,7 +56,7 @@ static void post_run(Target *t) {
     if (!glow_pipeline || !post_on())
         return;
     end_rendering();
-    uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
+    uint32_t fw = scaled_x(480), fh = scaled(272), px = scaled(RT_SIZE), pw = scaled_x(RT_SIZE);
     vk_transition(&t->depth, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
     /* the glow (the draws adding light, again); then the motion blur's (the hunter's, monsters' and people's motion) */
     for (int pass = 0; pass < (post_motion() ? 2 : 1); pass++) {
@@ -76,7 +76,7 @@ static void post_run(Target *t) {
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, ge_layout, 0, 1, &ge_set, 0, NULL);
             VkDeviceSize zero = 0;
             vkCmdBindVertexBuffers(cmd, 0, 1, &vertices.buffer, &zero);
-            VkViewport vp = {0, 0, (float)px, (float)px, 0, 1};
+            VkViewport vp = {0, 0, (float)pw, (float)px, 0, 1};
             vkCmdSetViewport(cmd, 0, 1, &vp);
             vkCmdSetDepthWriteEnable(cmd, VK_FALSE);
             VkBool32 blend = pass ? VK_FALSE : VK_TRUE;

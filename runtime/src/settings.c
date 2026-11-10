@@ -30,6 +30,7 @@ static const Setting list[] = {
     {NULL, "DISPLAY", S_HEADING},
     {"resolution", "INTERNAL RESOLUTION", S_CHOICE, "", 0, 0, 0, RESOLUTIONS, S_LIVE},
     {"fullscreen", "FULL SCREEN", S_TOGGLE, "0", 0, 0, 0, NULL, S_LIVE},
+    {"fill", "FILL A WIDE SCREEN", S_TOGGLE, "1", 0, 0, 0, NULL, S_LIVE},
     {"fps", "FRAMES A SECOND SHOWN", S_CHOICE, "0", 0, 0, 0, "0=AS THE GAME|60=60|75=75|90=90|120=120|144=144|165=165|240=240",
      S_RESTART},
     {"tick_hz", "GAME FRAMES A SECOND", S_CHOICE, "30", 0, 0, 0, "30=30 (AS THE PSP)|60=60", S_RESTART},
@@ -181,7 +182,7 @@ static void set_at(int i, const char *value) {
     rt_settings_generation++;
     if (!strcmp(list[i].key, "fullscreen"))
         window_set_fullscreen(on(value));
-    else if (!strcmp(list[i].key, "resolution"))
+    else if (!strcmp(list[i].key, "resolution") || !strcmp(list[i].key, "fill"))
         render_resolution_changed();
     else if (!strcmp(list[i].key, "mouse_sens"))
         camera_set_sens((float)atof(value));

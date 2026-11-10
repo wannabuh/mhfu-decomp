@@ -190,7 +190,7 @@ static int row_at(float x, float y) {
     return r < nrows ? r : -1;
 }
 
-int window_point(float wx, float wy, float *x, float *y);
+int window_panel_point(float wx, float wy, float *x, float *y);
 
 /* An event from the window while the screen is open: 1 if taken */
 int overlay_event(const SDL_Event *e) {
@@ -258,7 +258,7 @@ int overlay_event(const SDL_Event *e) {
     }
     case SDL_EVENT_MOUSE_MOTION: {
         float x, y;
-        if (window_point(e->motion.x, e->motion.y, &x, &y)) {
+        if (window_panel_point(e->motion.x, e->motion.y, &x, &y)) {
             int r = row_at(x, y);
             if (r >= 0 && rows[r].kind != R_HEADING)
                 row = r;
@@ -267,7 +267,7 @@ int overlay_event(const SDL_Event *e) {
     }
     case SDL_EVENT_MOUSE_BUTTON_DOWN: {
         float x, y;
-        if (!window_point(e->button.x, e->button.y, &x, &y))
+        if (!window_panel_point(e->button.x, e->button.y, &x, &y))
             return 1;
         if (y >= 28 && y < 42 && x >= PANEL_X + 8 && x < PANEL_X + 8 + TABS * TAB_W) {     /* a tab */
             int t = (int)((x - PANEL_X - 8) / TAB_W);

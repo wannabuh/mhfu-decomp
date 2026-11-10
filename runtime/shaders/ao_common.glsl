@@ -9,8 +9,9 @@ layout(set = 0, binding = 4) uniform sampler2D done;    // the depth when the oc
 
 layout(push_constant) uniform Ao { AO_PUSH } pc;
 
+// (area.xy: the picture's size in pixels - the PSP's 480 x 272, a little wider where it fills a wider screen)
 vec3 place(ivec2 pix, float d) {
-    vec4 v = pc.to_view * vec4((vec2(pix) + 0.5) / pc.params.z, d, 1.0);
+    vec4 v = pc.to_view * vec4((vec2(pix) + 0.5) / (pc.area.xy / vec2(480.0, 272.0)), d, 1.0);
     return v.xyz / v.w;
 }
 

@@ -13,9 +13,14 @@ float luma(vec3 c) {
     return dot(c, vec3(0.299, 0.587, 0.114));
 }
 
+// The picture's pixels a PSP pixel, across and down (the same, but where it fills a screen a little wider)
+vec2 psp_pixel() {
+    return pc.area.xy / vec2(480.0, 272.0);
+}
+
 // A pixel of the picture (full resolution) in the camera's space; depth 0 is the sky (nothing drawn there)
 vec3 view_pos(ivec2 pix, float d) {
-    vec4 v = pc.to_view * vec4((vec2(pix) + 0.5) / pc.area.z, d, 1.0);
+    vec4 v = pc.to_view * vec4((vec2(pix) + 0.5) / psp_pixel(), d, 1.0);
     return v.xyz / v.w;
 }
 

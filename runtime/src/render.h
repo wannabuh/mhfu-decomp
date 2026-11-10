@@ -42,6 +42,7 @@ void render_tl_slot_draw(int slot, const struct TlDrawS *d, uint32_t first, uint
 /* present.c: show the framebuffer at addr; read it back (480 x 272, ABGR8888) for frame dumps */
 void render_flip(uint32_t addr);
 void render_window_resized(void);           /* window.c: its size changed (the picture follows it) */
+float render_picture_wide(void);     /* how much wider than the PSP's shape the picture is drawn (1, or to 1.02) */
 void render_finish_frame(void);             /* a frame not shown (fast-forwarding) */
 void render_readback(uint32_t addr, uint32_t *pixels);
 

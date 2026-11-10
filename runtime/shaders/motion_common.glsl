@@ -19,7 +19,7 @@ vec2 motion(ivec2 pix) {
         q = pc.to_shadow * vec4(normalize(p), 0.0);
     if (q.w <= 1e-6)
         return vec2(0.0);
-    vec2 m = ((vec2(pix) + 0.5) / pc.area.z - q.xy / q.w) * pc.area.z * pc.texel.x;
+    vec2 m = ((vec2(pix) + 0.5) / psp_pixel() - q.xy / q.w) * psp_pixel() * pc.texel.x;
     float len = length(m);
     return len > pc.texel.y ? m * (pc.texel.y / len) : m;
 }
