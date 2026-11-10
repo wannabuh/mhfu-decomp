@@ -292,6 +292,11 @@ CAMERA = "the hunt's camera: its own turns away from the scenery, left out while
 # The test of a model's sphere against the camera's view (EBOOT 088160F0: a0 the scene, a1 the centre, f12 the radius;
 # 1 if it is to be drawn): what is drawn casts the renderer's shadows, so with them a model is drawn when within
 # rt_cull_margin (units) of the view - the shadows of what is just out of view do not come and go as the camera turns.
+# A stage's pieces drawn many times over (EBOOT 088C9988: the desert's ground tiles) have two models: the full one within
+# 1500 units of the eye (and the piece's radius), a coarser one beyond - a little lighter, so a tile changed shade at
+# once as it was come up to (#60). The full one at any distance, unless MHFU_SCENERY_LOD=1.
+LOD = "a stage piece's model by its distance from the eye: the full one always (rt_scenery_detail)"
+
 CULL = "the view test of a model's sphere: the sphere larger by rt_cull_margin (the shadows of what is just out of view)"
 
 # The game's list windows (the menus, shops, quest lists...) are drawn by EBOOT 0882F580 (a0 the drawer, a1 the
@@ -571,5 +576,6 @@ PATCHES = {
     # (a second glare, vtable 089BE6D0: the jungle's pale streaks, #27 - placed 40 ahead of the eye as the first is)
     ("game_sub", 0x09CCAEA8): ("addiu $sp, $sp, -0xC0", "rt_far_draw_begin(2); c->r[29] = c->r[29] + 0xFFFFFF40u;", FAR_DRAW),
     ("game_sub", 0x09CCB638): ("lw $ra, 0x2C($sp)", "rt_far_draw_end(); c->r[31] = LW((c->r[29] + 0x2Cu));", FAR_DRAW),
+    ("EBOOT", 0x088C9A7C): ("add.s $f1, $f20, $f1", "c->f[1].f = c->f[20].f + c->f[1].f; if (rt_scenery_detail()) c->f[1].f = 3.0e38f;", LOD),
     ("EBOOT", 0x088160F0): ("lbu $v0, 0xAAA($a0)", "c->r[2] = LBU((c->r[4] + 0xAAAu)); c->f[12].f += rt_cull_margin;", CULL),
 }

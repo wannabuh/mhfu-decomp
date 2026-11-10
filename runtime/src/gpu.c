@@ -5577,6 +5577,15 @@ static void backdrop_draw(int count, int idx, const Layout *l) {
     }
 }
 
+/* recomp/patches.py LOD: the stage's repeated pieces (the desert's ground) drawn with their full model at any distance,
+ * not the coarser one the game has for those over 1500 units off - MHFU_SCENERY_LOD=1: as the game does */
+int rt_scenery_detail(void) {
+    static int detail = -1;
+    if (detail < 0)
+        detail = !(getenv("MHFU_SCENERY_LOD") && atoi(getenv("MHFU_SCENERY_LOD")) != 0);
+    return detail;
+}
+
 /* -- what scrolls and is not water ------------------------------------------------------------------------------------
  *
  * Water is told by its texture scrolling (render_water.c) - and so were two things that are not: a dark layer drifting
