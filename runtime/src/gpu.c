@@ -2590,7 +2590,10 @@ static void match_loose(int *m, uint8_t *taken, int through, int in_world) {
                 best_d = a;
                 best = k;
             }
-            if (first < 0 && k >= cursor)
+            /* (not a piece of a mesh, drawn through indices: a cloth the game cuts into strips anew each frame - a
+             * flag - has the same kind of strip for different triangles, and blended from one to another its
+             * polygons flew across it between the game's frames: #53. Only the same picture is the same piece) */
+            if (first < 0 && k >= cursor && (through || !((d->reg[0x12] >> 11) & 3)))
                 first = k;
         }
         if (best < 0)
