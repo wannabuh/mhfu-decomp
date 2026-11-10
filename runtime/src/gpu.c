@@ -3130,7 +3130,11 @@ static int like_size(const Placing *q, const Placing *e) {
 static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const float *pos, const Placing *q) {
     const float reach = MATCH_DISTANCE_WORLD * MATCH_DISTANCE_WORLD;
     int c = *next;
-    if (c < r->n && r->keys[c] == key && !taken[c] && dist2(pos, r->pos[c]) <= reach && like_size(q, &r->p[c])) {
+    /* (the next in order only if it has hardly moved - grass, a herd standing: else the nearest is looked for. Taken
+     * whenever it was within reach, copies standing nearer each other than that - the kitchen's cats, 65 apart -
+     * were given each other's placing when the game drew them in another order, and for the frames between each
+     * was drawn half way to its neighbour, its limbs between two poses: #64) */
+    if (c < r->n && r->keys[c] == key && !taken[c] && dist2(pos, r->pos[c]) <= reach / 64 && like_size(q, &r->p[c])) {
         taken[c] = 1;
         *next = c + 1;
         return c;
