@@ -78,7 +78,7 @@ SAVED static int active;                      /* the camera is the hunt's, which
 /* Elsewhere (the village, the camp tent: view 2) the game's camera keeps its own angles; the mouse orbits the picture
  * about its target instead, by these (radians: yaw, and pitch up), and turns the stick to match */
 SAVED static int orbiting, orbit_on = 1;
-static int held;                              /* the orbit as it is: the mouse not read (talking, a shop) */
+static int held;                              /* the game's camera, smoothed: no orbit, the mouse not read (talking, a shop) */
 SAVED static float orbit_yaw, orbit_pitch;
 /* In the hunt, with the mouse having the camera (rt_camera_free) and MHFU_FPS: how far the mouse has raised the eye
  * (radians) over the elevation the game gives it - which rises over slopes to keep it above the ground - shown at once
@@ -493,9 +493,10 @@ void camera_update(float dx, float dy) {
     uint32_t stage_mgr = *(uint32_t *)MEM(0x09A4F1A0u);            /* (STAGE_MANAGER, its loaded byte: below) */
     /* (not while replaying a recording made before, rt_camera_follows: the mouse's turns then are part of its run) */
     int no_stage = rt_camera_follows && (!in_ram(stage_mgr) || !*MEM(stage_mgr + 0xA3E8u));
-    /* Talking to someone, a shop (the override view 4 over the village's, EBOOT 088131FC): the camera stays the
-     * village's, as orbited - shown between 30ths as the village's is, and nothing to snap from and back to (#44) -
-     * but the mouse is given no say till it ends, and the stick is the menus' (camera_stick). */
+    /* Talking to someone, a shop (the override view 4 over the village's, EBOOT 088131FC): the game's camera as it
+     * is - no orbit, distance or limit of ours, the mouse given no say, the stick the menus' (camera_stick) - but
+     * shown between 30ths as the village's is: it moves at 30ths only, and of five frames shown two stood still
+     * (#44). The orbit is kept for when the talk ends. */
     held = rt_camera_follows && view_no == 2 && *MEM(scene + 0xDC4) == 4 && !no_stage && !getenv("MHFU_TALK_CAMERA");
     if (held)
         dx = dy = 0;
@@ -741,8 +742,8 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
     if (orbiting) {
         /* the game's camera as interpolated, orbited by the mouse's (at once) */
         float ty = wrap(yaw_axis.angle[1] - yaw_axis.angle[0]), tp = pitch_axis.angle[1] - pitch_axis.angle[0];
-        a = (interpolating ? -(1 - t) * ty : 0) + orbit_yaw - dx * sens * PI / 180;
-        b = (interpolating ? -(1 - t) * tp : 0) + orbit_pitch + dy * sens * PI / 180;
+        a = (interpolating ? -(1 - t) * ty : 0) + (held ? 0 : orbit_yaw) - dx * sens * PI / 180;
+        b = (interpolating ? -(1 - t) * tp : 0) + (held ? 0 : orbit_pitch) + dy * sens * PI / 180;
     } else {
         /* (free look: the mouse's motion not read yet the picture's, as the rest of its turn) */
         float game_dx = looking ? 0 : dx, game_dy = looking ? 0 : dy;
@@ -764,8 +765,11 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         if (getenv("MHFU_CAMERA_LOG"))
             log = fopen(getenv("MHFU_CAMERA_LOG"), "w");
     }
-    const float *t0 = frames_late ? target_before : targets[0], *t1 = frames_late ? targets[0] : targets[1];
-    const float *e0 = frames_late ? eye_before : eyes[0], *e1 = frames_late ? eyes[0] : eyes[1];
+    /* (held: the target and the distance of the same two frames as the angles - the talk's camera turns about its
+     * eye, slowing, and a target one frame behind its bearing moved the eye every other game frame) */
+    int late = frames_late && !held;
+    const float *t0 = late ? target_before : targets[0], *t1 = late ? targets[0] : targets[1];
+    const float *e0 = late ? eye_before : eyes[0], *e1 = late ? eyes[0] : eyes[1];
     float c[3];
     for (int i = 0; i < 3; i++)
         c[i] = interpolating ? t0[i] + (t1[i] - t0[i]) * t : t1[i];
@@ -804,9 +808,10 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
                 shown[9 + i] += tv[i] * (k - 1);
         }
     }
-    if (distance_factor() != 1.0f)
+    if (distance_factor() != 1.0f && !held)
         view_distance(shown, c, distance_factor());
-    eye_limit_apply(shown, c, interpolating ? t : 1);
+    if (!held)
+        eye_limit_apply(shown, c, interpolating ? t : 1);
     if (log) {
         float ex[3];
         for (int i = 0; i < 3; i++)     /* the eye shown: -R^T t */
@@ -842,8 +847,8 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
         dx = dy = 0;
     float a, b;
     if (orbiting) {
-        a = orbit_yaw - dx * sens * PI / 180;
-        b = orbit_pitch + dy * sens * PI / 180;
+        a = (held ? 0 : orbit_yaw) - dx * sens * PI / 180;
+        b = (held ? 0 : orbit_pitch) + dy * sens * PI / 180;
     } else {
         float game_dx = looking ? 0 : dx;
         float look_a = look_yaw - (looking ? dx * sens * PI / 180 : 0), look_b = look_pitch + (looking ? dy * sens * PI / 180 : 0);
@@ -867,9 +872,10 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
     for (int i = 0; i < 3; i++)
         q[9 + i] = c[i] - (q[i] * c[0] + q[3 + i] * c[1] + q[6 + i] * c[2]);
     compose(view, q, shown);
-    if (distance_factor() != 1.0f)
+    if (distance_factor() != 1.0f && !held)
         view_distance(shown, c, distance_factor());
-    eye_limit_apply(shown, c, 1);
+    if (!held)
+        eye_limit_apply(shown, c, 1);
     return 1;
 }
 
