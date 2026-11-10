@@ -273,6 +273,11 @@ static double intro_time(void) {
     return rt_game_30ths();
 }
 
+/* overlay.c: a recording is being replayed (what it picked in the menus is not the player's pick now) */
+int present_replaying(void) {
+    return replaying();
+}
+
 int fast_forward(void) {
     return (skip_intro() && intro_time() >= LANGUAGE_FRAME + 10 && intro_time() < TITLE_FRAME) ||
            (replaying() && frame < replay_speed_at());

@@ -159,6 +159,9 @@ int settings_shown(int i, char *out, size_t size) {
     /* (the grass can be turned on only where it was on as the game started: render_grass.c) */
     if (!strcmp(s->key, "grass") && on(v) && !render_grass_made())
         return !on(started[i]);
+    /* (no resolution set, but a scale: that is what it is) */
+    if (!strcmp(s->key, "resolution") && !v[0] && getenv("MHFU_SCALE") && atof(getenv("MHFU_SCALE")) >= 1)
+        snprintf(out, size, "%s TIMES THE PSP", getenv("MHFU_SCALE"));
     return s->when == S_RESTART && strcmp(v, started[i]) != 0;
 }
 

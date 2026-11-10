@@ -116,7 +116,8 @@ static void show_tab(int t) {
 /* "PC Settings" picked in the game's menu (recomp/patches.py): the screen, on its graphics page */
 void rt_pc_settings(void) {
     int window_settings_screen(void);
-    if (screen_open || !window_settings_screen())
+    int present_replaying(void);
+    if (screen_open || present_replaying() || !window_settings_screen())
         return;
     overlay_toggle();
     show_tab(0);
@@ -296,6 +297,8 @@ int overlay_event(const SDL_Event *e) {
         if (top < 0) top = 0;
         if (row < top) row = top;
         if (row >= top + ROWS_SHOWN) row = top + ROWS_SHOWN - 1;
+        if (rows[row].kind == R_HEADING)        /* (not on a heading) */
+            row += row + 1 < nrows && row + 1 < top + ROWS_SHOWN ? 1 : -1;
         return 1;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
         switch (e->gbutton.button) {
@@ -328,6 +331,30 @@ int overlay_event(const SDL_Event *e) {
 void overlay_tick(void) {
     if (awaiting && SDL_GetTicksNS() - awaiting_since > 5000000000ull)
         awaiting = 0;
+    /* MHFU_TEST_OVERLAY_KEYS="DOWN,RIGHT,TAB,ESC...": pressed one after another while the screen is open, three a
+     * second (UP DOWN LEFT RIGHT TAB ENTER ESC), for testing it without a keyboard */
+    static const char *keys;
+    static int read;
+    static uint64_t next;
+    if (!read) {
+        read = 1;
+        keys = getenv("MHFU_TEST_OVERLAY_KEYS");
+    }
+    if (keys && *keys && screen_open && SDL_GetTicksNS() >= next) {
+        static const struct { const char *name; SDL_Scancode code; } names[] = {
+            {"UP", SDL_SCANCODE_UP}, {"DOWN", SDL_SCANCODE_DOWN}, {"LEFT", SDL_SCANCODE_LEFT}, {"RIGHT", SDL_SCANCODE_RIGHT},
+            {"TAB", SDL_SCANCODE_TAB}, {"ENTER", SDL_SCANCODE_RETURN}, {"ESC", SDL_SCANCODE_ESCAPE}};
+        size_t n = strcspn(keys, ",");
+        for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+            if (strlen(names[i].name) == n && !strncmp(names[i].name, keys, n)) {
+                SDL_Event e = {0};
+                e.type = SDL_EVENT_KEY_DOWN;
+                e.key.scancode = names[i].code;
+                overlay_event(&e);
+            }
+        keys += n + (keys[n] == ',');
+        next = SDL_GetTicksNS() + 330000000ull;
+    }
 }
 
 /* ---- drawn ---- */
