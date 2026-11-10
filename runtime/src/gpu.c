@@ -2491,6 +2491,17 @@ static Shape shape(const Frame *f, const Draw *d) {
         if (p[1] > s.box[3]) s.box[3] = p[1];
         for (int k = 0; k < 2 * sz[tc]; k++)
             s.uvs = (s.uvs ^ v[l.to + k]) * 16777619u;
+        /* (2D with no picture, a plain bar: what it shows is its colour, not how see-through it is - a fade stays
+         * one. The health gauge's red bar goes when the green has caught it up, and the green, taken for it, was
+         * red for the frames between: #55) */
+        int col = (vt >> 2) & 7;
+        if (through && !tc && col >= 4) {
+            uint8_t c[4] = {v[l.co], v[l.co + 1], col == 7 ? v[l.co + 2] : 0, 0};
+            if (col == 5) c[1] &= 0x7F;
+            else if (col == 6) c[1] &= 0x0F;
+            for (int k = 0; k < 3; k++)
+                s.uvs = (s.uvs ^ c[k]) * 16777619u;
+        }
     }
     s.ok = count > 0;
     return s;
@@ -2593,8 +2604,8 @@ static void match_loose(int *m, uint8_t *taken, int through, int in_world) {
             /* (not a piece of a mesh, drawn through indices: a cloth the game cuts into strips anew each frame - a
              * flag - has the same kind of strip for different triangles, and blended from one to another its
              * polygons flew across it between the game's frames: #53. Only the same picture is the same piece) */
-            if (first < 0 && k >= cursor && (through || !((d->reg[0x12] >> 11) & 3)))
-                first = k;
+            if (first < 0 && k >= cursor && (through ? (d->reg[0x12] & 3) || pshape[k].uvs == sh.uvs : !((d->reg[0x12] >> 11) & 3)))
+                first = k;      /* (nor is a plain 2D bar another colour's: shape()) */
         }
         if (best < 0)
             best = first;
@@ -3793,6 +3804,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_OWN 260.0f            /* bones all this near the attacker's place: the hunter's own, or the weapon's */
 #define WOUND_HALF_LENGTH 60.0f     /* a hit of damage 30's, units; others by the root of theirs */
 #define WOUND_HALF_WIDTH 20.0f      /* (the cut itself a third of it: the rest is the blood about it - ge_frag.glsl) */
+#define WOUND_PART 0.07f            /* half a wound's length, at most, of the animal's reach */
 #define WOUND_SHOT_HALF 16.0f       /* a shot's hole, and the blood about it */
 #define WOUND_DEPTH 14.0f           /* how far through the skin it reaches, either way */
 #define WOUND_SHIFT 40.0f           /* its middle from the vertex found, at most */
@@ -3953,14 +3965,48 @@ static void wounds_attach(Frame *f) {
         int nb = draw_bones(bd);
         float o[3], col[3][3];
         wound_world(bd, nb, bv, bv->pos, wound_cam[bcam], o);
+        /* (by the one bone that holds the vertex most, not the blend of them all: where a wing is folded the blend
+         * squeezes the vertices together, a wound measured through it took in half the wing, and was a streak the
+         * length of it when the wing opened - #58) */
+        TlVertex one = *bv;
+        if (nb) {
+            int most = 0;
+            for (int b = 1; b < nb; b++)
+                if (bv->weights[b] > bv->weights[most])
+                    most = b;
+            for (int b = 0; b < nb; b++)
+                one.weights[b] = b == most ? 1.0f : 0.0f;
+        }
+        float o1[3];
+        wound_world(bd, nb, &one, bv->pos, wound_cam[bcam], o1);
         for (int i = 0; i < 3; i++) {
             float r[3] = {bv->pos[0], bv->pos[1], bv->pos[2]}, w[3];
             float step = fmaxf(fabsf(r[i]) * 0.01f, 1e-3f);
             r[i] += step;
-            wound_world(bd, nb, bv, r, wound_cam[bcam], w);
+            wound_world(bd, nb, &one, r, wound_cam[bcam], w);
             for (int j = 0; j < 3; j++)
-                col[i][j] = (w[j] - o[j]) / step;
+                col[i][j] = (w[j] - o1[j]) / step;
         }
+        /* How large the animal is: the widest its model reaches as posed now (all its pieces: drawn with the same
+         * world matrix). A wound is no longer than a part of that: a small monster's were as large as a big one's (#56) */
+        float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f};
+        for (int gi = 0; gi < f->ntlg; gi++) {
+            const TlGroup *g = &f->tlg[gi];
+            const Draw *d = &f->draws[g->first];
+            if (!(d->reg[0x17] & 1) || memcmp(d->world, bd->world, sizeof(float) * 12))
+                continue;
+            int gb = draw_bones(d);
+            for (uint32_t k = 0; k < g->nvertex; k += 4) {   /* (every fourth: enough for its reach) */
+                const TlVertex *v = &f->tlv[g->vertex + k];
+                float w[3];
+                wound_world(d, gb, v, v->pos, wound_cam[bcam], w);
+                for (int j = 0; j < 3; j++) {
+                    lo[j] = fminf(lo[j], w[j]);
+                    hi[j] = fmaxf(hi[j], w[j]);
+                }
+            }
+        }
+        float reach = fmaxf(hi[0] - lo[0], fmaxf(hi[1] - lo[1], hi[2] - lo[2]));
         /* The wound lies on the skin: along it the way the weapon's shape lay (what of that is in the skin's plane),
          * across it, and through it - deep enough that fur over the skin and a coarse mesh's bends are inside. Where a
          * vertex is from it is measured in the world as it was posed then (the vertices' own units are not the same
@@ -4018,14 +4064,16 @@ static void wounds_attach(Frame *f) {
         float across[3] = {nrm[1] * along[2] - nrm[2] * along[1], nrm[2] * along[0] - nrm[0] * along[2],
                            nrm[0] * along[1] - nrm[1] * along[0]};
         float size = sqrtf(fmaxf((float)wound_pending[h].damage, 8.0f) / 30.0f);
-        size = size < 0.6f ? 0.6f : size > 1.8f ? 1.8f : size;
+        size = size < 0.6f ? 0.6f : size > 1.3f ? 1.3f : size;
+        if (reach > 0 && WOUND_HALF_LENGTH * size > WOUND_PART * reach)
+            size = WOUND_PART * reach / WOUND_HALF_LENGTH;
         static float bigger;            /* MHFU_WOUND_SIZE: times as large (1) */
         static unsigned bigger_seen;
         if (SETTING_STALE(bigger_seen))
             bigger = getenv("MHFU_WOUND_SIZE") && atof(getenv("MHFU_WOUND_SIZE")) > 0 ? (float)atof(getenv("MHFU_WOUND_SIZE")) : 1.0f;
         size *= bigger;
         const float *frame[3] = {along, across, nrm};
-        float over[3] = {1.0f / (WOUND_HALF_LENGTH * size), 1.0f / (WOUND_HALF_WIDTH * size), 1.0f / WOUND_DEPTH};
+        float over[3] = {1.0f / (WOUND_HALF_LENGTH * size), 1.0f / (WOUND_HALF_WIDTH * size), 1.0f / (WOUND_DEPTH * fminf(size, 1.0f))};
         if (wound_pending[h].kind == WOUND_SHOT)
             over[0] = over[1] = 1.0f / (WOUND_SHOT_HALF * bigger);
         /* the middle: the contact's place across the skin from the vertex */
@@ -4056,7 +4104,7 @@ static void wounds_attach(Frame *f) {
             mul43(wound_cam[bcam], m, wounds[n].where);
         }
         if (getenv("MHFU_WOUND_LOG"))
-            fprintf(stderr, "wound %d: frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, now,
+            fprintf(stderr, "wound %d (size %.2f, the animal's reach %.0f): frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, (double)size, (double)reach, now,
                     bd->vaddr, sqrtf(best), c[0], c[1], c[2], wound_pending[h].damage, sqrtf(col[0][0] * col[0][0] + col[0][1] * col[0][1] + col[0][2] * col[0][2]),
                     sqrtf(col[1][0] * col[1][0] + col[1][1] * col[1][1] + col[1][2] * col[1][2]), sqrtf(col[2][0] * col[2][0] + col[2][1] * col[2][1] + col[2][2] * col[2][2]));
     }
