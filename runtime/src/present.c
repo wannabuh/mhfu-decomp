@@ -1067,6 +1067,10 @@ void present_frame(void) {
     }
     ticket_poll();
     {
+        void settings_frame(unsigned long frame);   /* (MHFU_TEST_SETTING: settings changed at a frame) */
+        settings_frame(frame);
+    }
+    {
         void gpu_view_end(void);        /* (the game goes on: the frames as they were) */
         int gpu_view_back(void);
         int back = gpu_view_back(), taking = capture_state_pending();

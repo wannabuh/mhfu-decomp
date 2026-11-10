@@ -4,6 +4,7 @@
  * screen: #34, #35): each part gets its occlusion before what follows it, the pixels it left alone not again (their
  * depth as it was when the last was applied). Then the ground grass is drawn (render_grass.c: after it, a field of blades being all crevices to the
  * occlusion, which darkened it far below its ground) - it takes the occlusion of the ground it grows from. */
+#include "settings.h"
 #include "render_internal.h"
 
 #include <stdlib.h>
@@ -19,7 +20,8 @@
 #define AO_PER_FRAME 8                  /* times a frame (the frame dumps draw it again) */
 #define MAX_WATER_DRAWS 512
 #define MAX_WATER_SEGMENTS 2048
-static int ao_on = -1;
+static int ao_on = -1, ao_made;       /* on: wanted (and made); made: its images and pipelines are */
+static unsigned ao_seen;
 static float ao_strength = 2.0f, ao_radius = 120.0f;
 static VkImg ao_img[2];
 static VkPipeline ao_pipeline, ao_blur_pipeline, ao_apply_pipeline;
@@ -45,7 +47,7 @@ static int nwater_segs;
 
 /* Its images, at half the internal resolution (again when that changes: render_rescale, the GPU idle) */
 void ao_rescale(void) {
-    if (ao_on <= 0)
+    if (!ao_made)
         return;
     for (int i = 0; i < 2; i++) {
         vk_image_free(&ao_img[i]);
@@ -62,17 +64,23 @@ void ao_rescale(void) {
 }
 
 /* Ambient occlusion's images, pipelines and descriptor sets (each pass's: its input, and the depth) */
+/* The settings (MHFU_AO, its strength and radius), read: as it starts and when one is changed (settings.c) */
+static void ao_settings(void) {
+    static float strength, radius;
+    if (!strength)
+        strength = ao_strength, radius = ao_radius;     /* (as they are where nothing sets them) */
+    ao_on = ao_made && (!getenv("MHFU_AO") || atoi(getenv("MHFU_AO")) != 0);
+    ao_strength = getenv("MHFU_AO_STRENGTH") ? (float)atof(getenv("MHFU_AO_STRENGTH")) : strength;
+    ao_radius = getenv("MHFU_AO_RADIUS") ? (float)atof(getenv("MHFU_AO_RADIUS")) : radius;
+    ao_seen = rt_settings_generation;
+}
+
 void ao_init(void) {
-    ao_on = !getenv("MHFU_AO") || atoi(getenv("MHFU_AO")) != 0;
-    if (getenv("MHFU_AO_STRENGTH"))
-        ao_strength = (float)atof(getenv("MHFU_AO_STRENGTH"));
-    if (getenv("MHFU_AO_RADIUS"))
-        ao_radius = (float)atof(getenv("MHFU_AO_RADIUS"));
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.gpu, &props);
-    if (props.limits.maxPushConstantsSize < sizeof(AoPush))
-        ao_on = 0;
-    if (!ao_on)
+    ao_made = props.limits.maxPushConstantsSize >= sizeof(AoPush);
+    ao_settings();
+    if (!ao_made)
         return;
     ao_rescale();
     VkDescriptorSetLayoutBinding b[5] = {
@@ -111,7 +119,7 @@ void ao_init(void) {
 
 /* The pipelines drawing the water again (the GE's vertex shader vs; tl_vs: the GPU's vertex stage's, or none) */
 void ao_water_setup(VkShaderModule vs, VkShaderModule tl_vs) {
-    if (ao_on <= 0)
+    if (!ao_made)
         return;
     VkShaderModule fs = vk_shader(ao_water_frag, sizeof ao_water_frag);
     water_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R8_UNORM, VK_FORMAT_D32_SFLOAT, 1);
@@ -216,7 +224,7 @@ int ao_ready(void) {
 }
 
 VkImageView ao_image(void) {
-    return ao_on > 0 ? ao_img[0].view : VK_NULL_HANDLE;
+    return ao_made ? ao_img[0].view : VK_NULL_HANDLE;
 }
 
 static void ao_set(VkDescriptorSet ds, VkImageView source, VkImageLayout layout, VkSampler sampler, VkImageView depth,
@@ -276,6 +284,8 @@ static void ao_apply(Target *t) {
 }
 
 static void ao_occlude(Target *t, int again) {
+    if (ao_made && ao_seen != rt_settings_generation)
+        ao_settings();
     if (ao_on <= 0 || ao_used >= AO_PER_FRAME)
         return;
     AoPush pc;

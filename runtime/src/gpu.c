@@ -7,6 +7,7 @@
  * Fog. Not yet: mipmaps, texture coordinate generation, the DXT formats, lines and points, stencil, logic ops,
  * dithering. */
 #include "hle.h"
+#include "settings.h"
 #include "savestate.h"
 #include "render.h"
 #include "render_queue.h"
@@ -318,9 +319,11 @@ static int native_shown;
 static float native_shown_view[12], native_game_inv[12];
 
 static void shadow_frame(const float *shown) {
-    static int enabled = -1;
-    if (enabled < 0) {
+    static int enabled;
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
         enabled = !getenv("MHFU_SHADOWS") || atoi(getenv("MHFU_SHADOWS")) != 0;
+        SHADOW_HALF = 3000.0f;
         if (getenv("MHFU_SHADOW_DISTANCE") && atof(getenv("MHFU_SHADOW_DISTANCE")) >= 500)
             SHADOW_HALF = (float)atof(getenv("MHFU_SHADOW_DISTANCE"));
         SHADOW_RANGE = fmaxf(6000.0f, 2.0f * SHADOW_HALF);
@@ -440,8 +443,9 @@ static void shadow_prim(void) {
     }
     prim_pixel_light = 0;
     pixel_lights = 0;
-    static int pixel = -1;
-    if (pixel < 0)
+    static int pixel;
+    static unsigned pixel_seen;
+    if (SETTING_STALE(pixel_seen))
         pixel = !getenv("MHFU_PIXEL_LIGHTING") || atoi(getenv("MHFU_PIXEL_LIGHTING")) != 0;
     if (pixel && prim_world) {
         /* the directional lights giving diffuse light (no specular) go to the GPU, in the world */
@@ -3455,8 +3459,9 @@ static uint8_t *hud_still, *hud_prev_still;
 static int held_index = -1;         /* (the kept draw gpu_held_draw is drawing again) */
 
 static int hud_on(void) {
-    static int on = -1;
-    if (on < 0)
+    static int on;
+    static unsigned seen;
+    if (SETTING_STALE(seen))
         on = !getenv("MHFU_HUD_SMOOTH") || atoi(getenv("MHFU_HUD_SMOOTH")) != 0;
     return on && gpu_native_smoothing();
 }
@@ -3766,8 +3771,9 @@ static float wound_cam[2][12];      /* the game's camera undone: this frame's an
 static int wound_cams;
 
 static int wounds_on(void) {
-    static int on = -1;
-    if (on < 0)
+    static int on;
+    static unsigned seen;
+    if (SETTING_STALE(seen))
         on = !getenv("MHFU_WOUNDS") || atoi(getenv("MHFU_WOUNDS")) != 0;
     return on;
 }
@@ -3944,7 +3950,8 @@ static void wounds_attach(Frame *f) {
         float size = sqrtf(fmaxf((float)wound_pending[h].damage, 8.0f) / 30.0f);
         size = size < 0.6f ? 0.6f : size > 1.8f ? 1.8f : size;
         static float bigger;            /* MHFU_WOUND_SIZE: times as large (1) */
-        if (!bigger)
+        static unsigned bigger_seen;
+        if (SETTING_STALE(bigger_seen))
             bigger = getenv("MHFU_WOUND_SIZE") && atof(getenv("MHFU_WOUND_SIZE")) > 0 ? (float)atof(getenv("MHFU_WOUND_SIZE")) : 1.0f;
         size *= bigger;
         const float *frame[3] = {along, across, nrm};
@@ -4598,8 +4605,9 @@ static int flare_look(int w, int h) {
     return 0;
 }
 static int flare_texture(void) {
-    static int keep = -1;
-    if (keep < 0)
+    static int keep;
+    static unsigned keep_seen;
+    if (SETTING_STALE(keep_seen))
         keep = getenv("MHFU_SUN_FLARE") && atoi(getenv("MHFU_SUN_FLARE")) != 0;
     int w = 1 << (reg[0xB8] & 0xF), h = 1 << ((reg[0xB8] >> 8) & 0xF);
     if (keep || !(reg[0x1E] & 1) || !(reg[0x21] & 1) || ((reg[0xDF] >> 4) & 15) != 10 || w != h || w < 16 || w > 256 || (reg[0x12] >> 23 & 1))
@@ -4631,8 +4639,9 @@ static int flare_texture(void) {
 
 /* The Snowy Mountains' haze drawn (patches.py: its mist dome's and its snowstorm's draws), unless MHFU_SNOW_HAZE=0 */
 int rt_snow_haze(void) {
-    static int on = -1;
-    if (on < 0)
+    static int on;
+    static unsigned seen;
+    if (SETTING_STALE(seen))
         on = !getenv("MHFU_SNOW_HAZE") || atoi(getenv("MHFU_SNOW_HAZE")) != 0;
     return on;
 }
@@ -4708,8 +4717,9 @@ static int hud_command(uint32_t at) {
 }
 extern uint32_t rt_local_player;
 static float hud_scale_value(void) {
-    static float s = -1;
-    if (s < 0) {
+    static float s;
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
         s = getenv("MHFU_HUD_SCALE") ? (float)atof(getenv("MHFU_HUD_SCALE")) : 1.0f;
         if (!(s >= 0.3f && s <= 1.5f))
             s = 1.0f;
@@ -4834,8 +4844,9 @@ static void tex_log(uint32_t prims) {
 static const uint32_t painted_shadow_textures[] = {0xB68AB2DFu};
 
 static int painted_shadow(void) {
-    static int off = -1;
-    if (off < 0)
+    static int off;
+    static unsigned off_seen;
+    if (SETTING_STALE(off_seen))
         off = (getenv("MHFU_PAINTED_SHADOWS") && atoi(getenv("MHFU_PAINTED_SHADOWS")) != 0) ||
               (getenv("MHFU_SHADOWS") && atoi(getenv("MHFU_SHADOWS")) == 0);
     uint32_t vt = reg[0x12];
@@ -5345,8 +5356,9 @@ static void backdrop_close(void) {
 
 /* The draw about to be made: DRAW_REG's bit 1 set for it, and its vertices gone over */
 static void backdrop_draw(int count, int idx, const Layout *l) {
-    static int off = -1;
-    if (off < 0)
+    static int off;
+    static unsigned off_seen;
+    if (SETTING_STALE(off_seen))
         off = getenv("MHFU_BACKDROP_SHADOWS") && atoi(getenv("MHFU_BACKDROP_SHADOWS")) != 0;
     uint32_t vt = reg[0x12];
     if (off || (vt >> 23 & 1) || proj[11] == 0 || (reg[0xE7] & 1) || ((vt >> 9) & 3) || count <= 0)

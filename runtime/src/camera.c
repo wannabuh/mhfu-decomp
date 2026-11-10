@@ -54,6 +54,7 @@
  * back out as the way clears.
  *
  * MHFU_MOUSE_SENS: degrees a mouse count turns (default 0.15). */
+#include "settings.h"
 #include "hle.h"
 #include "runtime.h"
 #include "savestate.h"
@@ -571,8 +572,9 @@ void camera_update(float dx, float dy) {
 
 /* The eye's distance shown, times the game's (MHFU_CAMERA_DISTANCE) */
 static float distance_factor(void) {
-    static float k = -1;
-    if (k < 0) {
+    static float k;
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
         k = getenv("MHFU_CAMERA_DISTANCE") ? (float)atof(getenv("MHFU_CAMERA_DISTANCE")) : 1.0f;
         if (!(k >= 0.3f && k <= 3.0f))
             k = 1.0f;

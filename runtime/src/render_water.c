@@ -8,6 +8,7 @@
  *
  * What is under and above it is the picture as it is at the first water drawn into it (the solid world, its occlusion
  * and the grass): copied then, colour and depth, for the water's draws to read. MHFU_WATER=0: as the game draws it. */
+#include "settings.h"
 #include "render_internal.h"
 
 #include <stdio.h>
@@ -25,8 +26,12 @@ static uint32_t offset_seen[MAX_TEXTURES][2];
 static unsigned long moved_at[MAX_TEXTURES];
 #define STILL_FRAMES 240            /* frames shown since its offset moved for a texture to stop being water */
 
-void water_init(void) {
+void water_settings(void) {
     water_on = !getenv("MHFU_WATER") || atoi(getenv("MHFU_WATER")) != 0;
+}
+
+void water_init(void) {
+    water_settings();
     VkSamplerCreateInfo sci = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     sci.magFilter = sci.minFilter = VK_FILTER_LINEAR;
     sci.addressModeU = sci.addressModeV = sci.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;

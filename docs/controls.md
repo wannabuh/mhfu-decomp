@@ -46,6 +46,14 @@ resolution, as cleared rectangles after the picture is presented (render.c `draw
 the hints noted in a 30th's frame are shown until the next 30th's. Hints drawn as text (the font's own button
 letters) are not covered yet.
 
+## Settings screen
+
+The controls screen is two pages of the settings screen; its first page is the graphics settings (`runtime/src/settings.c`:
+the list, changing a setting while the game runs, saving it). `MHFU_TEST_OVERLAY=2,row` draws that page;
+`MHFU_TEST_SETTING="frame,key=value;..."` changes settings at a game frame headless - a picture after a change should
+be the picture of a run started with the setting. "PC Settings" in the game's START menu (its empty last row, in the
+village and in a quest: `recomp/patches.py` PC_MENU, the end of `overlay.c`) opens the screen.
+
 ## Controls screen
 
 `runtime/src/overlay.c`, F1: drawn the same way over the presented picture; while it is open `present_frame` polls

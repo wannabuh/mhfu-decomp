@@ -203,7 +203,8 @@ void ao_water_setup(VkShaderModule vs, VkShaderModule tl_vs);   /* the pipelines
 void ao_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, const TlSegment *seg);
 
 /* -- render_grass.c ----------------------------------------------------------------------------------------------- */
-extern int grass_on;
+extern int grass_on, grass_made;
+void grass_setting(void);
 void grass_init(void);
 void grass_bind_ao(void);           /* render_ao.c's image (re-made) bound for the blades */
 int grass_laying(void);             /* this frame lays the grass's ground */
@@ -213,6 +214,7 @@ void grass_draw(Target *t);
 /* -- render_water.c ----------------------------------------------------------------------------------------------- */
 extern int water_on;                /* MHFU_WATER */
 void water_init(void);
+void water_settings(void);
 int water_prim(const uint32_t *reg, const DrawState *s);   /* the primitive is water (its picture copied if first) */
 VkImageView water_under(Target *t);
 uint32_t water_light_set(void);     /* the water's light sets (two), ~0: none */

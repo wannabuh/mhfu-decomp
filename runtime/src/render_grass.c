@@ -3,6 +3,7 @@
  * their slots of the pool (near slots and far ones, grass.h), then those in view drawn - each blade an instance (grass.vert)
  * - with the world's camera, its depth test, the sun's shadow map, the trodden grass, the occlusion, the fog
  * (MHFU_GRASS=0: none; MHFU_GRASS_DENSITY, MHFU_GRASS_FULL: full density this near, MHFU_GRASS_DISTANCE: the reach). Only with the sun's shadows (the scenery's sun shading). */
+#include "settings.h"
 #include "render_internal.h"
 
 #include "grass.h"
@@ -13,7 +14,7 @@
 #include "grass.vert.inc"
 #include "grass.frag.inc"
 
-int grass_on;
+int grass_on, grass_made;           /* on: wanted (and made); made: its pipeline and pool are (it was on as the game started) */
 static VkPipeline grass_pipeline;
 static VkBuf grass_pool, trail_buf;
 static unsigned long grass_frame_no;    /* the frame the grass was last told of (grass_frame) */
@@ -26,6 +27,16 @@ void grass_bind_ao(void) {
     VkWriteDescriptorSet gw = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_AO, 0, 1,
                                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &gi, NULL, NULL};
     vkUpdateDescriptorSets(vk.device, 1, &gw, 0, NULL);
+}
+
+/* MHFU_GRASS, read again (settings.c): off and on at once where it was on as the game started - its reach and density,
+ * and turning it on where it was not, wait for the next start (the pool is as large as they say) */
+void grass_setting(void) {
+    grass_on = grass_made && (getenv("MHFU_GRASS") ? atof(getenv("MHFU_GRASS")) > 0 : 1);
+}
+
+int render_grass_made(void) {
+    return grass_made;
 }
 
 void grass_init(void) {
@@ -49,6 +60,7 @@ void grass_init(void) {
                                    ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 7);
     grass_pool = vk_buffer((VkDeviceSize)grass_pool_blades() * sizeof(GrassBlade),
                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, 0);
+    grass_made = 1;
 }
 
 double rt_game_30ths(void);         /* thread.c: the game's time in 30ths of a second */

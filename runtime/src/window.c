@@ -111,6 +111,25 @@ void window_overlay_mode(int on) {
     apply_capture();
 }
 
+void window_note(const char *text);
+/* overlay.c: whether the settings screen can be shown (a window, and not the software renderer's picture: nothing is
+ * drawn over that) */
+int window_settings_screen(void) {
+    if (!window)
+        return 0;
+    if (renderer) {
+        window_note("the settings screen needs the Vulkan renderer: settings.ini, controls.ini");
+        return 0;
+    }
+    return 1;
+}
+
+/* settings.c: the whole screen, or a window again */
+void window_set_fullscreen(int on) {
+    if (window)
+        SDL_SetWindowFullscreen(window, on != 0);
+}
+
 /* The click inspector opened or closed (inspect.c) */
 void window_inspect_mode(int on) {
     inspect_mode = on;
@@ -485,8 +504,13 @@ int window_poll(void) {
             pad = NULL;
         }
     }
+    /* (what is held as the settings screen closes - the key that closed it, or picked its last row - is not the game's
+     * until let go: Enter there would pick the menu's row under it again, Esc close the game's menu too) */
+    static int was_open;
+    static uint32_t held_over;
     if (overlay_open()) {               /* (the game paused: nothing pressed) */
         overlay_tick();
+        was_open = 1;
         device_buttons = 0;
         device_lx = device_ly = 128;
         return 1;
@@ -499,6 +523,12 @@ int window_poll(void) {
     uint32_t b = controls_buttons(SDL_GetKeyboardState(NULL), pointer_mode ? 0 : m, pad, pointer_mode, &lx, &ly);
     if (pointer_mode && (m & SDL_BUTTON_RMASK))
         b |= PSP_CIRCLE;
+    if (was_open) {
+        was_open = 0;
+        held_over = b;
+    }
+    held_over &= b;
+    b &= ~held_over;
     device_buttons = b;
     device_lx = lx;
     device_ly = ly;

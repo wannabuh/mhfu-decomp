@@ -65,9 +65,10 @@ Each action has its own key; the runtime presses the PSP buttons the game wants 
 | D-pad | arrows | | the D-pad |
 | Confirm / back in menus | Enter / Backspace | A / B | × / ○ |
 
-F1 opens the controls screen (the game paused under it): choose an action and press the input to bind to it (Enter
-or a click; + or a right click adds it to those it has, Delete clears them), Tab between the keyboard and mouse's and
-the gamepad's; closing it saves them. They are kept in `controls.ini` (in the working directory, else
+F1 opens the settings screen (the game paused under it), as does **PC Settings**, the last entry of the menu START
+opens (its second page). It has three pages - Tab, or a click on one: the graphics settings, the keyboard and mouse's
+controls and the gamepad's. On the controls' pages choose an action and press the input to bind to it (Enter
+or a click; + or a right click adds it to those it has, Delete clears them); closing the screen saves them. They are kept in `controls.ini` (in the working directory, else
 `~/.config/mhfu-recomp/`, written with the defaults on the first run): `action = input, input...` under `[keyboard]` and `[gamepad]`, with the camera stick's speed across and up and down
 (`pad_camera_speed_x`, `pad_camera_speed_y`, degrees a second; also on the F1 screen), its dead zone, and the tilt inverted for the mouse and the stick apart (`mouse_invert_y`, `pad_invert_y`) under `[options]`. In a menu the gamepad is laid out as the PSP is (A ×, B ○, X □, Y △,
 the shoulders L and R, the D-pad) and the wheel moves the cursor.
@@ -77,7 +78,7 @@ buttons bound instead of the PSP's, or the gamepad's buttons once the gamepad is
 
 | Key | Does |
 |-----|------|
-| F1 | the controls screen |
+| F1 | the settings screen (graphics, controls) |
 | F10 | release / capture the mouse |
 | F11 | fullscreen on / off |
 | F2 / F4 | save / load a save state |
@@ -106,7 +107,15 @@ state does not undo a save made since.
 
 ## Settings
 
-Put them in `~/.config/mhfu-recomp/settings.ini` (or `mhfu.ini` where you start the game), one a line, and run just
+The graphics settings can be changed in the game: the settings screen's first page (F1, or PC Settings in the game's
+menu) lists them - left and right, or a click, change the one chosen - and most take effect at once, the frame under
+the screen drawn again with them. A few are read only as the game starts (the frame rates, mipmaps, tessellation, the
+GPU's vertex stage, the shadow map's size, the grass's density and reach, and turning the grass on where it was off):
+those say NEXT START once changed. Closing the screen writes what was changed into `settings.ini`, leaving its other
+lines as they are. (A setting given in the environment is as given there each time the game starts, whatever the
+file says.)
+
+By hand: put them in `~/.config/mhfu-recomp/settings.ini` (or `mhfu.ini` where you start the game), one a line, and run just
 `build/mhfu`:
 
 ```ini

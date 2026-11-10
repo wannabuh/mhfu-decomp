@@ -324,6 +324,7 @@ BOX_WAIT = "the supply box's wait after an item is taken: a tenth of a second, n
 # (rt_hud_part: the chunks it links, the text it queues - EBOOT 08891474 and its kin add a text's entry, 0889377C
 # draws one; 08895220 adds a number, 08892A88 draws them in turn), to be made smaller towards its corner (gpu.c,
 # MHFU_HUD_SCALE); not the menus' windows nor the supply box drawn there too, nor other windows
+PC_MENU = "the empty last row of the menu START opens: \"PC Settings\", opening the settings screen (overlay.c)"
 HUD = "the hunt's HUD's parts (gauges, map, item bar) told apart as they are drawn, to be scaled (gpu.c)"
 # The HUD's sprites (EBOOT 0882AF70: a1 x, a2 y, a3 width, t0 height, t1 the sprite; 0882A9DC: a1 x, a2 y, a3 the
 # sprite, at its own size - the item bar's buttons): the PSP's buttons among them left out where the renderer shows
@@ -527,6 +528,19 @@ PATCHES = {
     ("EBOOT", 0x08848094): ("addiu $a3, $zero, 0x1A", "rt_menu_grid(0xE6, 0x36, 28, 24, 0x1A, 0x1A, 8, 24, c->r[23] + 0x55Du, 0x16); "
                             "rt_menu_sound(c); c->r[7] = 0x1Au;", BOX),
     ("EBOOT", 0x08847B98): ("addiu $v0, $zero, 0x1E", "c->r[2] = 3u;", BOX_WAIT),
+    # the village's menu (7 rows a page; the 14th, s2 at its id, s0 at its colour) and the quest's (6; the 12th, s1, s0)
+    ("EBOOT", 0x08834AA4): ("lhu $a0, 0x58($sp)", "if (c->r[18] == 0x09B052BAu) { extern uint32_t rt_pc_menu_label(void); "
+                            "c->r[2] = rt_pc_menu_label(); SB(c->r[16], 0); } c->r[4] = LHU((c->r[29] + 0x58u));", PC_MENU),
+    ("EBOOT", 0x08818F1C): ("lui $v1, 0x8A6", "if (c->r[17] == 0x089B5616u) { extern uint32_t rt_pc_menu_label(void); "
+                            "c->r[2] = rt_pc_menu_label(); SB(c->r[16], 0); } c->r[3] = 0x8A60000u;", PC_MENU),
+    ("EBOOT", 0x08834D3C): ("addiu $sp, $sp, -0x10", "if ((c->r[5] & 0xFFu) == 13) { extern void rt_pc_menu_pick(void); "
+                            "rt_pc_menu_pick(); c->r[2] = 1; return; } c->r[29] = c->r[29] + 0xFFFFFFF0u;", PC_MENU),
+    ("EBOOT", 0x08849120): ("addiu $sp, $sp, -0x10", "if ((c->r[5] & 0xFFu) == 11) { extern void rt_pc_menu_pick(void); "
+                            "rt_pc_menu_pick(); c->r[2] = 1; return; } c->r[29] = c->r[29] + 0xFFFFFFF0u;", PC_MENU),
+    ("EBOOT", 0x08834BE4): ("addiu $a2, $zero, 0x15", "{ extern uint32_t rt_pc_menu_sound(void); c->r[6] = rt_pc_menu_sound(); }", PC_MENU),
+    ("EBOOT", 0x08848FB8): ("addiu $a2, $zero, 0x15", "{ extern uint32_t rt_pc_menu_sound(void); c->r[6] = rt_pc_menu_sound(); }", PC_MENU),
+    ("EBOOT", 0x0881941C): ("addu $a1, $s0, $zero", "{ extern uint32_t rt_pc_menu_note(uint32_t hud, uint32_t text); "
+                            "c->r[2] = rt_pc_menu_note(c->r[17], c->r[2]); } c->r[5] = c->r[16] + 0;", PC_MENU),
     ("EBOOT", 0x0883F9F8): ("addiu $sp, $sp, -0x10", "rt_hud_part(c->r[31] == 0x0883F854u ? 1 : 0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),
     ("EBOOT", 0x0883FAD4): ("addiu $sp, $sp, -0x10", "rt_hud_part(0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),
     ("EBOOT", 0x08842EE8): ("addiu $sp, $sp, -0x10", "rt_hud_part(c->r[31] == 0x0883FD20u ? 2 : 0); c->r[29] = c->r[29] + 0xFFFFFFF0u;", HUD),

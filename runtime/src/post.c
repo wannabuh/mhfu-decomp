@@ -30,6 +30,7 @@
  *
  * The picture is copied out, the passes made from the copy, and the last pass writes the result back. MHFU_POST=0:
  * none of it. */
+#include "settings.h"
 #include "post.h"
 #include "shared.h"
 
@@ -59,7 +60,7 @@
 
 typedef PostPush Push;          /* (shared.h) */
 
-static int on = -1;
+static int on = -1, made;          /* on: wanted (and made); made: its images and pipelines are */
 static float bloom = 3.0f, bloom_threshold = 0.9f, bloom_picture = 0.35f, bloom_glow = 0.6f;
 static float shafts = 0.0f, shafts_contrast = 2.0f;
 static float saturation = 1.08f, contrast = 1.05f, warmth = 0.0f, vignette = 0.2f;
@@ -83,16 +84,27 @@ static float env(const char *name, float def) {
     return s ? (float)atof(s) : def;
 }
 
+static void post_settings(void);
+static unsigned settings_seen;
+/* (a setting changed: read again by whoever asks first) */
+static void fresh(void) {
+    if (made && SETTING_STALE(settings_seen))
+        post_settings();
+}
+
 int post_on(void) {
+    fresh();
     return on > 0;
 }
 
 int post_taa(void) {
+    fresh();
     return on > 0 && taa > 0;
 }
 
 /* the motion image is drawn: for the motion blur, or the anti-aliasing */
 int post_motion(void) {
+    fresh();
     return on > 0 && (motion > 0 || taa > 0);
 }
 
@@ -147,7 +159,7 @@ static void make_images(float scale) {
 
 /* The internal resolution changed (render_rescale, the GPU idle): its images again */
 void post_rescale(float scale) {
-    if (on <= 0)
+    if (!made)
         return;
     VkImg *all[] = {&history[0], &history[1], &taa_debug, &scene, &hazed, &moved, &motion_img, &tiles[0], &tiles[1], &glow, &shaft_img[0], &shaft_img[1],
                     &dof_img[0], &dof_img[1]};
@@ -158,26 +170,36 @@ void post_rescale(float scale) {
     make_images(scale);
 }
 
-int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
-    on = !getenv("MHFU_POST") || atoi(getenv("MHFU_POST")) != 0;
-    bloom = env("MHFU_BLOOM", bloom);
-    shafts = env("MHFU_SHAFTS", shafts);
-    saturation = env("MHFU_SATURATION", saturation);
-    contrast = env("MHFU_CONTRAST", contrast);
-    warmth = env("MHFU_WARMTH", warmth);
-    vignette = env("MHFU_VIGNETTE", vignette);
-    dof = env("MHFU_DOF", dof);
-    sharpen = env("MHFU_SHARPEN", sharpen);
-    haze = env("MHFU_HAZE", haze);
-    motion = env("MHFU_MOTION_BLUR", motion);
-    taa = env("MHFU_TAA", 1.0f) > 0 ? env("MHFU_TAA_BLEND", taa) : 0.0f;
+/* The settings (MHFU_POST and its parts'), read: as it starts and when one is changed (settings.c) */
+static void post_settings(void) {
+    static const float d_bloom = 3.0f, d_shafts = 0.0f, d_saturation = 1.08f, d_contrast = 1.05f, d_warmth = 0.0f,
+                       d_vignette = 0.2f, d_dof = 0.0f, d_sharpen = 0.4f, d_haze = 0.0f, d_motion = 0.5f, d_taa = 0.1f;
+    int was = on;
+    float taa_was = taa;
+    on = made && (!getenv("MHFU_POST") || atoi(getenv("MHFU_POST")) != 0);
+    bloom = env("MHFU_BLOOM", d_bloom);
+    shafts = env("MHFU_SHAFTS", d_shafts);
+    saturation = env("MHFU_SATURATION", d_saturation);
+    contrast = env("MHFU_CONTRAST", d_contrast);
+    warmth = env("MHFU_WARMTH", d_warmth);
+    vignette = env("MHFU_VIGNETTE", d_vignette);
+    dof = env("MHFU_DOF", d_dof);
+    sharpen = env("MHFU_SHARPEN", d_sharpen);
+    haze = env("MHFU_HAZE", d_haze);
+    motion = env("MHFU_MOTION_BLUR", d_motion);
+    taa = env("MHFU_TAA", 1.0f) > 0 ? env("MHFU_TAA_BLEND", d_taa) : 0.0f;
     fps = (int)env("MHFU_FPS", 0);
+    if (on != was || (taa > 0) != (taa_was > 0))
+        history_ok = 0;                 /* (the last frame's picture is not this run of them's) */
+}
+
+int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline make) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk.gpu, &props);
-    if (props.limits.maxPushConstantsSize < sizeof(Push))
+    if (props.limits.maxPushConstantsSize < sizeof(Push)) {
         on = 0;
-    if (!on)
         return 0;
+    }
     shadow_view = shadow;
     shadow_sampler = shadow_s;
     make_images(scale);
@@ -224,6 +246,9 @@ int post_init(float scale, VkImageView shadow, VkSampler shadow_s, PostPipeline 
     vkCreateSampler(vk.device, &sci, NULL, &linear);
     sci.magFilter = sci.minFilter = VK_FILTER_NEAREST;
     vkCreateSampler(vk.device, &sci, NULL, &nearest);
+    made = 1;
+    post_settings();
+    settings_seen = rt_settings_generation;
     return 1;
 }
 
@@ -270,6 +295,7 @@ static void draw(VkImg *dst, uint32_t w, uint32_t h, VkPipeline p, VkDescriptorS
 }
 
 void post_apply(VkImg *color, VkImg *depth, const PostFrame *f) {
+    fresh();
     if (on <= 0 || used >= PER_FRAME)
         return;
     VkDescriptorSet *s = sets[vk.frame][used++];

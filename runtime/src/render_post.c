@@ -36,9 +36,10 @@ void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule t
     if (!post_init(render_scale, shadow_img.view, shadow_sampler, post_pipeline))
         return;
     glow_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 1);
-    if (tl_vs && post_motion())
+    /* (the motion's too, whether or not it is wanted now: the settings may turn it on) */
+    if (tl_vs)
         glow_tl_pipeline = make_pipeline(tl_vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 8);
-    if (tess && post_motion())
+    if (tess)
         glow_tess_pipeline = make_pipeline(vs, fs, ge_layout, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_D32_SFLOAT, 6);
 }
 
@@ -52,7 +53,7 @@ int render_motion_wanted(void) {
 static void post_run(Target *t) {
     post_target = NULL;
     post_done = t;
-    if (!glow_pipeline)
+    if (!glow_pipeline || !post_on())
         return;
     end_rendering();
     uint32_t fw = scaled(480), fh = scaled(272), px = scaled(RT_SIZE);
@@ -216,7 +217,7 @@ void post_state(Target *t, uint32_t flags, int solid, int clear, int same) {
     }
     if (clear && t == post_done)
         post_done = NULL;
-    if (glow_pipeline && (flags & DRAW_WORLD) && t != post_done) {
+    if (glow_pipeline && post_on() && (flags & DRAW_WORLD) && t != post_done) {
         post_target = t;
         if (solid) {
             memcpy(post_view, prim_view, sizeof post_view);
@@ -228,7 +229,7 @@ void post_state(Target *t, uint32_t flags, int solid, int clear, int same) {
 /* A batch drawn into t (first, n: its vertices; tessellated: drawn so too): kept if it adds light to the world (fire,
  * glows), or moves in it (the hunter, monsters, people: their motion) */
 void post_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, int tessellated) {
-    if (!glow_pipeline || t != post_target)
+    if (!glow_pipeline || !post_on() || t != post_target)
         return;
     if ((s->flags & DRAW_WORLD) && s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
         s->eq.colorBlendOp == VK_BLEND_OP_ADD && nglow < MAX_GLOW_DRAWS) {

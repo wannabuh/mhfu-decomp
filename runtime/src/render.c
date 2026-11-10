@@ -20,6 +20,7 @@
  *
  * Not yet: the framebuffers' contents in VRAM for the CPU (nothing reads them back but frame dumps), block transfers
  * into framebuffers, stencil, logic ops, the blend factors the hardware lacks (doubled alphas). */
+#include "settings.h"
 #include "render_internal.h"
 #include "render_queue.h"
 
@@ -302,22 +303,35 @@ static float fit_scale(uint32_t w, uint32_t h) {
     return s < 1 ? 1 : s > 12 ? 12 : s;
 }
 
-int render_init(void *sdl_window) {
-    /* the internal resolution: by default the window's, its pixels as they are (the picture drawn 1:1, re-made as
-     * the window is resized); or MHFU_RESOLUTION=WxH (its lines, or as wide as it is if that is less: 2560x1440 is
-     * 5.29 times the PSP's), or MHFU_SCALE times the PSP's (fractions too) - 1 to 12 times, above the window's
-     * filtered down to it */
+/* The internal resolution as set (MHFU_RESOLUTION, else MHFU_SCALE; follow_window: neither, the window's) */
+static int have_window, resolution_changed;
+static float scale_setting(void) {
     const char *s = getenv("MHFU_SCALE"), *res = getenv("MHFU_RESOLUTION");
     int rw, rh;
     follow_window = 0;
     if (res && sscanf(res, "%dx%d", &rw, &rh) == 2 && rw > 0 && rh > 0) {
         float r = fminf((float)rw / 480.0f, (float)rh / 272.0f);
         if (r >= 1 && r <= 12)
-            render_scale = r;
+            return r;
     } else if (s && atof(s) >= 1 && atof(s) <= 12)
-        render_scale = (float)atof(s);
+        return (float)atof(s);
     else
-        follow_window = sdl_window != NULL;
+        follow_window = have_window;
+    return render_scale;
+}
+
+/* settings.c: it was changed - made so when the frame is next shown (render_flip) */
+void render_resolution_changed(void) {
+    resolution_changed = 1;
+}
+
+int render_init(void *sdl_window) {
+    /* the internal resolution: by default the window's, its pixels as they are (the picture drawn 1:1, re-made as
+     * the window is resized); or MHFU_RESOLUTION=WxH (its lines, or as wide as it is if that is less: 2560x1440 is
+     * 5.29 times the PSP's), or MHFU_SCALE times the PSP's (fractions too) - 1 to 12 times, above the window's
+     * filtered down to it */
+    have_window = sdl_window != NULL;
+    render_scale = scale_setting();
     if (!vk_init(sdl_window))
         return 0;
     if (follow_window && vk.surface)
@@ -519,6 +533,14 @@ static void window_changed(void) {
     vk_recreate_swapchain();
     if (follow_window)
         render_rescale(fit_scale(vk.swap_extent.width, vk.swap_extent.height));
+}
+
+static void resolution_set(void) {
+    resolution_changed = 0;
+    float to = scale_setting();
+    if (follow_window && vk.surface)
+        to = fit_scale(vk.swap_extent.width, vk.swap_extent.height);
+    render_rescale(to);
 }
 
 /* The render target at a VRAM address (made if create) */
@@ -881,12 +903,13 @@ void render_prim_begin(const uint32_t *reg) {
         flush();
         cur = s;
     }
-    static int settings_read;
-    if (!settings_read) {
-        settings_read = 1;
+    static unsigned settings_seen;
+    if (SETTING_STALE(settings_seen)) {
         lights_settings();
         shadow_settings();
         shading_settings();
+        water_settings();
+        grass_setting();
         blob_shadows = getenv("MHFU_BLOB_SHADOWS") && atoi(getenv("MHFU_BLOB_SHADOWS")) != 0;
     }
     emitting = point_lights_on && (s.flags & DRAW_WORLD) && s.blend && s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE &&
@@ -1732,6 +1755,8 @@ void render_flip(uint32_t addr) {
         if (vk.recording)
             vk_submit(VK_NULL_HANDLE, VK_NULL_HANDLE);
         end_frame();
+        if (resolution_changed)
+            resolution_set();
         /* MHFU_TEST_RESCALE=frame,scale: as if the window were resized there (headless) */
         static int rescaled;
         unsigned long at;
@@ -1786,6 +1811,8 @@ void render_flip(uint32_t addr) {
     end_frame();
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || window_resized)
         window_changed();
+    if (resolution_changed)
+        resolution_set();
 }
 
 /* The size frames are shown at: the window's, or headless the internal resolution */

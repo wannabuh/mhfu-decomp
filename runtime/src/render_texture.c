@@ -339,7 +339,7 @@ uint32_t texture_slot(const uint32_t *reg, int *w_out, int *h_out) {
         for (int k = 0; k < 3; k++)
             tex_average[t->slot][k] = wsum > 0 ? (float)(sum[k] / wsum / 255.0) : 0;
         tex_cutout[t->slot] = holes * 50 > n;
-        if (grass_on) {                 /* a small copy (the ground's colour, for the grass) */
+        if (grass_made) {               /* a small copy (the ground's colour, for the grass) */
             int sw = w < 64 ? w : 64, sh = h < 64 ? h : 64;
             if (!tex_small[t->slot])
                 tex_small[t->slot] = malloc(64 * 64 * 4);
