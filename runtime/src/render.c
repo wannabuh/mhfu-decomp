@@ -1383,12 +1383,29 @@ static void tl_scenery(int shade, int wind) {
                 m[i] = -(inv[i][0] * t[0] + inv[i][1] * t[1] + inv[i][2] * t[2]);
             for (int i = 0; i < 3; i++)
                 e[i] = d->to_world[i][0] * m[0] + d->to_world[i][1] * m[1] + d->to_world[i][2] * m[2] + d->to_world[i][3];
+            static int by_camera = -1;
+            if (by_camera < 0)
+                by_camera = getenv("MHFU_NORMALS_BY_CAMERA") && atoi(getenv("MHFU_NORMALS_BY_CAMERA")) != 0;
+            float det3 = 1;
+            for (int pass = 0; pass < 2; pass++) {      /* (the model to the world: its matrix, then the camera undone) */
+                const float (*w3)[4] = pass ? (const float (*)[4])d->to_world : (const float (*)[4])d->world;
+                det3 *= w3[0][0] * (w3[1][1] * w3[2][2] - w3[1][2] * w3[2][1]) -
+                        w3[0][1] * (w3[1][0] * w3[2][2] - w3[1][2] * w3[2][0]) +
+                        w3[0][2] * (w3[1][0] * w3[2][1] - w3[1][1] * w3[2][0]);
+            }
+            int mirrored = det3 < 0;
             for (uint32_t tr = 0; tr < pt->ntri; tr++) {
                 size_t c = (size_t)c0 + 3 * tr;
                 const float *a = cw[c], *b = cw[c + 1], *cc = cw[c + 2];
                 float e1[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, e2[3] = {cc[0] - a[0], cc[1] - a[1], cc[2] - a[2]};
                 float f[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
-                if (f[0] * (e[0] - a[0]) + f[1] * (e[1] - a[1]) + f[2] * (e[2] - a[2]) < 0)
+                /* Which way it faces: as it is wound (the scenery's triangles are wound alike, their fronts out -
+                 * all but a handful of 225000 in the volcano's cave), a mirrored model's the other way. Not towards
+                 * the camera, as before: a rock's far side, turned to face whoever first saw it, gave the corners
+                 * round its edge normals that depended on where the camera was when its mesh came into view - its
+                 * triangles lit or dark by the angle (#52). MHFU_NORMALS_BY_CAMERA=1: as before */
+                int flip = by_camera ? f[0] * (e[0] - a[0]) + f[1] * (e[1] - a[1]) + f[2] * (e[2] - a[2]) < 0 : mirrored;
+                if (flip)
                     f[0] = -f[0], f[1] = -f[1], f[2] = -f[2];
                 for (int q = 0; q < 3; q++)
                     for (int i = 0; i < 3; i++)
