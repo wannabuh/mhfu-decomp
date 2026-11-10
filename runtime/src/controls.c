@@ -538,9 +538,19 @@ int controls_device(void) {
 }
 void controls_note_device(int d) { last_device = d; }
 
+/* Out of the hunt (the village, its shops and counters, the title's menus) the gamepad's D-pad is the PSP's: what is
+ * bound to it is the hunt's (sheathe, the item bar, the map), and there it was all the D-pad did wherever menu.c
+ * did not know a menu for one - a shop's first choices, the quest list: down did nothing, left backed out (#51) */
+static int dpad_plain;
+
+static int on_dpad(const Input *in) {
+    return in->kind == IN_PAD && in->code >= SDL_GAMEPAD_BUTTON_DPAD_UP && in->code <= SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+}
+
 static int held_by(int padset, int action) {
     for (int i = 0; i < MAX_BIND; i++)
         if (bind[padset][action][i].kind && bind[padset][action][i].kind != IN_WHEEL &&
+            !(padset && dpad_plain && on_dpad(&bind[padset][action][i])) &&
             controls_input_held(padset, &bind[padset][action][i]))
             return 1;
     return 0;
@@ -593,6 +603,7 @@ uint32_t controls_buttons(const bool *k, SDL_MouseButtonFlags m, SDL_Gamepad *p,
     if (h && LW(h) != 0x089BB3CCu)      /* (the hunt's hunter, while there is one) */
         h = 0;
     uint64_t held = test_actions();
+    dpad_plain = !h && !in_menu;
     for (int a = 0; a < A_COUNT; a++)
         if (held_by(0, a) || (!in_menu && held_by(1, a)))
             held |= 1ull << a;
@@ -634,6 +645,11 @@ uint32_t controls_buttons(const bool *k, SDL_MouseButtonFlags m, SDL_Gamepad *p,
             if (pressed >> a & 1)
                 smart_start(a, now, h);
         b |= item_buttons(now, h) | smart_buttons(now, h);
+        if (dpad_plain && pad)
+            b |= (SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_UP) ? PSP_UP : 0) |
+                 (SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_DOWN) ? PSP_DOWN : 0) |
+                 (SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_LEFT) ? PSP_LEFT : 0) |
+                 (SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) ? PSP_RIGHT : 0);
     }
 
     /* the stick: the keys, then the gamepad's left stick */
