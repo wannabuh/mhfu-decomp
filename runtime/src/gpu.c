@@ -4124,11 +4124,23 @@ static void wounds_frame(const Frame *f) {
     }
 }
 
-/* The blood's colour, by the monster's type */
+/* The blood's colour, by the monster's type: the game's own, as its hit effects choose it (game_sub 09C34350: a
+ * number by the type, into its table of colours at 09CD3488 - dark red; green for the insects, grey for the crabs,
+ * darker for the sand's wyverns), half as bright again for the shading here */
 static const uint8_t *wound_blood(int type) {
-    static const uint8_t red[3] = {150, 10, 10};
-    (void)type;
-    return red;
+    static uint8_t out[3];
+    int i = 0;
+    switch (type) {
+    case 0x57: case 0x43: case 0x49: case 0x42: case 0x37: case 0x56: case 0x30: i = 7; break;
+    case 0x22: case 0x08: i = 6; break;
+    case 0x38: case 0x18: case 0x50: case 0x13: i = 2; break;
+    }
+    const uint8_t *game = (const uint8_t *)PTR(0x09CD3488u + 4u * (uint32_t)i);
+    for (int k = 0; k < 3; k++) {
+        int v = game[k] * 3 / 2 + 6;
+        out[k] = (uint8_t)(v > 255 ? 255 : v);
+    }
+    return out;
 }
 
 /* The draw's wounds into its record: the newest 4 of its model's */
