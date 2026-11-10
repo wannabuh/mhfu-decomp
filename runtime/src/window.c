@@ -544,6 +544,13 @@ int window_poll(void) {
      * until let go: Enter there would pick the menu's row under it again, Esc close the game's menu too) */
     static int was_open;
     static uint32_t held_over;
+    if (ticket_mode) {                  /* (the ticket's note being typed: its keys are not the game's, nor is the
+                                         * Enter that files it once the game runs again - it used an item) */
+        was_open = 1;
+        device_buttons = 0;
+        device_lx = device_ly = 128;
+        return 1;
+    }
     if (overlay_open()) {               /* (the game paused: nothing pressed) */
         overlay_tick();
         was_open = 1;
