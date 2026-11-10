@@ -78,6 +78,7 @@ SAVED static int active;                      /* the camera is the hunt's, which
 /* Elsewhere (the village, the camp tent: view 2) the game's camera keeps its own angles; the mouse orbits the picture
  * about its target instead, by these (radians: yaw, and pitch up), and turns the stick to match */
 SAVED static int orbiting, orbit_on = 1;
+static int held;                              /* the orbit as it is: the mouse not read (talking, a shop) */
 SAVED static float orbit_yaw, orbit_pitch;
 /* In the hunt, with the mouse having the camera (rt_camera_free) and MHFU_FPS: how far the mouse has raised the eye
  * (radians) over the elevation the game gives it - which rises over slopes to keep it above the ground - shown at once
@@ -492,7 +493,13 @@ void camera_update(float dx, float dy) {
     uint32_t stage_mgr = *(uint32_t *)MEM(0x09A4F1A0u);            /* (STAGE_MANAGER, its loaded byte: below) */
     /* (not while replaying a recording made before, rt_camera_follows: the mouse's turns then are part of its run) */
     int no_stage = rt_camera_follows && (!in_ram(stage_mgr) || !*MEM(stage_mgr + 0xA3E8u));
-    if ((view_no != 0 && view_no != 2) || (int8_t)*MEM(scene + 0xDC4) > 0 || no_stage) {
+    /* Talking to someone, a shop (the override view 4 over the village's, EBOOT 088131FC): the camera stays the
+     * village's, as orbited - shown between 30ths as the village's is, and nothing to snap from and back to (#44) -
+     * but the mouse is given no say till it ends, and the stick is the menus' (camera_stick). */
+    held = rt_camera_follows && view_no == 2 && *MEM(scene + 0xDC4) == 4 && !no_stage && !getenv("MHFU_TALK_CAMERA");
+    if (held)
+        dx = dy = 0;
+    if (!held && ((view_no != 0 && view_no != 2) || (int8_t)*MEM(scene + 0xDC4) > 0 || no_stage)) {
         orbiting = 0;
         left = 0;
         yaw_axis.written = pitch_axis.written = 0;
@@ -600,7 +607,7 @@ void camera_free_look(int held, float *dx, float *dy) {
 
 /* The stick, turned with the picture where the mouse orbits it: forward is then forward as shown */
 void camera_stick(uint8_t *lx, uint8_t *ly) {
-    if (!orbiting || orbit_yaw == 0)
+    if (!orbiting || held || orbit_yaw == 0)
         return;
     float x = (float)*lx - 128, y = (float)*ly - 128, c = cosf(orbit_yaw), s = sinf(orbit_yaw);
     float rx = x * c + y * s * STICK_SIGN, ry = y * c - x * s * STICK_SIGN;
@@ -728,6 +735,8 @@ int camera_views(float t, int interpolating, float *prev_inv, float *latest_inv,
         interpolating = 0;
     float dx, dy;
     window_mouse_peek(&dx, &dy);
+    if (held)
+        dx = dy = 0;
     float a, b;
     if (orbiting) {
         /* the game's camera as interpolated, orbited by the mouse's (at once) */
@@ -829,6 +838,8 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
     float yaw = atan2f(ox, oz), elev = atan2f(oy, sqrtf(ox * ox + oz * oz));
     float dx, dy;
     window_mouse_peek(&dx, &dy);
+    if (held)
+        dx = dy = 0;
     float a, b;
     if (orbiting) {
         a = orbit_yaw - dx * sens * PI / 180;
