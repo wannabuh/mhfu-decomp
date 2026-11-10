@@ -14,6 +14,7 @@ layout(location = 6) out vec3 out_world;
 layout(location = 7) out vec4 out_shape;
 layout(location = 8) out vec3 out_motion;
 layout(location = 9) out vec3 out_corner;   // (the scenery's normal again, for ge_tl.frag's corners)
+layout(location = 14) flat out vec4 out_wound_look[4];     // (how each looks: shared.h)
 layout(location = 10) out vec3 out_wound[4];    // (each wound's: where the vertex is from it, 1 at its edge)
 out gl_PerVertex {
     vec4 gl_Position;
@@ -148,8 +149,11 @@ void main() {
             vec4 r0 = draws[i].wound[3u * k], r1 = draws[i].wound[3u * k + 1u], r2 = draws[i].wound[3u * k + 2u];
             vec3 p = in_pos - vec3(r0.w, r1.w, r2.w);
             out_wound[k] = vec3(dot(r0.xyz, p), dot(r1.xyz, p), dot(r2.xyz, p));
-        } else
+            out_wound_look[k] = draws[i].wound_look[k];
+        } else {
             out_wound[k] = vec3(10.0);
+            out_wound_look[k] = vec4(0.0);
+        }
     }
     // (tessellated: the shape normal in the world as the normal is, and its triangle's straight edges)
     vec3 sw = xf3(draws[i].to_world[0], draws[i].to_world[1], draws[i].to_world[2],

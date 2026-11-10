@@ -41,6 +41,7 @@ layout(location = 4) in vec3 in_sun;
 layout(location = 5) in vec3 in_normal;
 #ifdef TL_CORNERS
 layout(location = 9) pervertexEXT in vec3 in_corner[];     // (the scenery's: each corner's normal summed at its place)
+layout(location = 14) flat in vec4 in_wound_look[4];
 layout(location = 10) in vec3 in_wound[4];                 // (ge_tl.vert: each wound's, 1 at its edge)
 #endif
 layout(location = 6) in vec3 in_world;
@@ -262,6 +263,15 @@ vec3 water(vec3 tint, float hidden, float far) {
     return col;
 }
 
+#ifdef TL_CORNERS
+// (the wounds': a number that wanders along x, 0 to 1)
+float wound_noise(float x) {
+    float i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(fract(sin(i * 127.1) * 43758.5453), fract(sin((i + 1.0) * 127.1) * 43758.5453), f);
+}
+#endif
+
 void main() {
     vec4 c = in_color;
     // the texture (sampled here: its slopes on the screen need every pixel's, before any is discarded)
@@ -368,13 +378,39 @@ void main() {
             c = vec4(water(c.rgb, sh, far), clamp(c.a * 3.0, 0.0, 1.0));
     }
 #ifdef TL_CORNERS
-    // wounds (gpu.c): a slash, dark red, its edges soft; lit as the skin under it is
+    // wounds (gpu.c): a cut where a blade landed - a ragged gash, dark inside, raw at its lips, the skin about it
+    // stained with blood that dries and in time fades - or a shot's hole. Lit as the skin under it is.
     for (int k = 0; k < 4; k++) {
-        float s = length(in_wound[k]);
-        if (s < 1.0) {
-            float m = smoothstep(1.0, 0.55, s);
-            c.rgb = mix(c.rgb, c.rgb * vec3(0.42, 0.04, 0.04) + vec3(0.05, 0.0, 0.0), m * 0.92);
+        vec3 q = in_wound[k];
+        vec4 look = in_wound_look[k];
+        if (abs(q.x) >= 1.0 || abs(q.y) >= 1.0 || abs(q.z) >= 1.0 || look.y <= 0.0)
+            continue;
+        float seed = fract(look.w) * 64.0;
+        vec3 blood = vec3(mod(look.x, 256.0), mod(floor(look.x / 256.0), 256.0), floor(look.x / 65536.0)) / 255.0;
+        float gash, stain;
+        if (look.w < 1.0) {
+            float taper = pow(max(1.0 - q.x * q.x, 0.0), 0.6);
+            float mid = ((wound_noise(q.x * 2.5 + seed) - 0.5) * 0.45 + (wound_noise(q.x * 9.0 + seed * 3.0) - 0.5) * 0.14) * taper;
+            float wide = taper * (0.14 + 0.16 * wound_noise(q.x * 6.0 + seed * 5.0));
+            float v = abs(q.y - mid);
+            gash = 1.0 - smoothstep(wide * 0.55, wide, v);
+            float about = taper * (0.45 + 0.4 * wound_noise(q.x * 4.0 + seed * 9.0) + 0.15 * wound_noise(q.x * 23.0 + seed));
+            stain = 1.0 - smoothstep(wide, max(about, wide + 0.01), v);
+        } else {
+            float r = length(q.xy) * (1.0 + 0.5 * (wound_noise(atan(q.y, q.x) * 2.2 + seed) - 0.5));
+            gash = 1.0 - smoothstep(0.2, 0.34, r);
+            stain = 1.0 - smoothstep(0.3, 0.9, r);
         }
+        float m = (1.0 - smoothstep(0.6, 1.0, abs(q.z))) * look.y;
+        float lit = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+        vec3 dry = mix(blood * 0.55, vec3(0.16, 0.08, 0.05), 0.35);
+        vec3 wet = mix(dry, blood, look.z);
+        vec3 stained = mix(c.rgb * (wet * 1.5 + 0.12), wet * (lit * 1.6 + 0.12), 0.45 + 0.25 * look.z);
+        vec3 lips = wet * (lit * 1.9 + 0.16) + vec3(0.04) * look.z;
+        vec3 inside = wet * 0.22 * (lit + 0.25);
+        c.rgb = mix(c.rgb, stained, stain * (0.55 + 0.25 * look.z) * m);
+        c.rgb = mix(c.rgb, lips, gash * m);
+        c.rgb = mix(c.rgb, inside, smoothstep(0.35, 0.9, gash) * m);
     }
 #endif
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1

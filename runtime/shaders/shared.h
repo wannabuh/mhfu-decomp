@@ -132,7 +132,8 @@
  * attenuation (w: the spot's cutoff), ambient (w: the spot's exponent), diffuse and specular colours; the bones (3 x 4
  * by rows), and a frame shown earlier; its wounds (gpu.c: how many, at most 4, and for each where it is among the
  * vertices as the game gave them, the rows' w, and what takes a vertex's place from there to its place from the wound
- * in the wound's measure, 1 at its edge: three rows) */
+ * in the wound's measure, 1 at its edge: three rows; and how it looks: its blood's colour as r + 256 g + 65536 b, how
+ * much of it is left, how wet it is, its kind (0 a cut, 1 a shot's hole) plus a fraction of its own) */
 #define TL_DRAW                                                                                                        \
     VEC4S(world, 3);                                                                                                   \
     VEC4S(view, 3);                                                                                                    \
@@ -157,7 +158,8 @@
     VEC4S(bone, 24);                                                                                                   \
     VEC4S(earlier_bone, 24);                                                                                           \
     U32 wounds, wound_pad0, wound_pad1, wound_pad2;                                                                    \
-    VEC4S(wound, 12);
+    VEC4S(wound, 12);                                                                                                  \
+    VEC4S(wound_look, 4);
 #define TL_LIT 1u               /* lit by the GE */
 #define TL_FLIP 2u              /* its normals turned round (0x51; only those the vertices have) */
 #define TL_WORLD 4u             /* placed in the world (to_world) */
@@ -193,7 +195,7 @@ typedef struct TlVertexS {
     float uv[2], weights[8], shape[3];
     uint32_t edges;
 } TlVertex;
-_Static_assert(sizeof(TlDraw) == 1760, "TlDraw: as GLSL lays it out");
+_Static_assert(sizeof(TlDraw) == 1824, "TlDraw: as GLSL lays it out");
 _Static_assert(sizeof(TlVertex) == 84, "TlVertex: ge_tl.vert's attributes");
 _Static_assert(sizeof(DrawPush) == 112, "DrawPush: as GLSL lays it out");
 _Static_assert(sizeof(GrassPush) == 84, "GrassPush: as GLSL lays it out");
