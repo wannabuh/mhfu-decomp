@@ -57,6 +57,13 @@ static int inspect_mode;                 /* the click inspector is open (inspect
 static int ticket_mode;                  /* the ticket's note box is open (ticket.c): the keys type, the mouse is let go */
 static float pointer_x, pointer_y;       /* where it is, in the window's points */
 static int pointer_moved, pointer_clicks;
+/* The mouse has the pointer only once it has been moved on purpose: a motion counts when the pointer is 6 points from
+ * where it lay when the menu opened or a key or the pad was last pressed (anchor) - opening a menu frees the mouse
+ * and puts the pointer on the cursor, and both can arrive as a motion from wherever the mouse was, which sent the
+ * game's cursor there under a pad's hands; and a mouse nudged on the desk did the same */
+static int pointer_live, anchor_set;
+static float anchor_x, anchor_y;
+static Uint64 pointer_since;             /* when the menu opened (ms): what moves in its first 150 ms is the opening's */
 
 /* The mouse drives the camera while it is captured: from the start, toggled with F10, released when the window loses
  * focus (and taken again when it is clicked), and while a menu is open, where it is a pointer */
@@ -99,6 +106,8 @@ void window_pointer_mode(int on, float at_x, float at_y) {
         return;
     pointer_mode = on;
     pointer_moved = pointer_clicks = 0;
+    pointer_live = anchor_set = 0;
+    pointer_since = SDL_GetTicks();
     apply_capture();
     float x0, y0, k;
     float ky;
@@ -491,6 +500,7 @@ int window_poll(void) {
                 pointer_clicks++;
             pointer_x = e.button.x;
             pointer_y = e.button.y;
+            pointer_live = 1;
             want_capture = 1;           /* (taken when the menu closes) */
         } else if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && !mouse_captured)
             capture_mouse(1);
@@ -509,7 +519,19 @@ int window_poll(void) {
         if (e.type == SDL_EVENT_MOUSE_MOTION && pointer_mode) {
             pointer_x = e.motion.x;
             pointer_y = e.motion.y;
-            pointer_moved = 1;
+            if (!anchor_set || SDL_GetTicks() - pointer_since < 150) {
+                anchor_set = 1;
+                anchor_x = pointer_x, anchor_y = pointer_y;
+            }
+            if (!pointer_live && fabsf(pointer_x - anchor_x) + fabsf(pointer_y - anchor_y) > 6)
+                pointer_live = 1;
+            if (pointer_live)
+                pointer_moved = 1;
+        }
+        if (pointer_mode && (e.type == SDL_EVENT_KEY_DOWN || e.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
+            (e.type == SDL_EVENT_GAMEPAD_AXIS_MOTION && (e.gaxis.value > 16000 || e.gaxis.value < -16000)))) {
+            pointer_live = pointer_moved = 0;   /* the keys or the pad have the cursor: the mouse again when moved */
+            anchor_x = pointer_x, anchor_y = pointer_y;
         }
         if (e.type == SDL_EVENT_GAMEPAD_ADDED && !pad)
             pad = SDL_OpenGamepad(e.gdevice.which);
