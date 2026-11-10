@@ -185,6 +185,7 @@ void grass_draw(Target *t) {
     memcpy((LightSet *)light_buf.map + cam_set, &cam, sizeof cam);
     GrassPush pc;
     memcpy(pc.light, scene.sun_vp, sizeof pc.light);
+    pc.light[15] = render_sun_strength;
     pc.camera = cam_set;
     pc.trail = trail_at;
     pc.trail_x = ox;

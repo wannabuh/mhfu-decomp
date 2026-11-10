@@ -232,6 +232,7 @@ static uint32_t pixel_lights;       /* the lights (bits) the GPU does */
 /* (SAVED: rt_cull_margin, which the game's run depends on, goes by whether the sun is known) */
 SAVED static float sun_dir[3];      /* towards the sun, in the world (as last seen) */
 SAVED static int sun_known;
+static float sun_peak;           /* the sun's light at its brightest of late (shadow_frame), 0 to 1 */
 
 int camera_game(float *inv, float *target);
 void camera_invert(const float *v, float *out);
@@ -343,6 +344,27 @@ static void shadow_frame(const float *shown) {
     if (!sun_known) {
         q_shadow_frame(NULL, 0);
         return;
+    }
+    /* How strong the sun is: the brightest the game gives its light in this area (it dims it a little for what stands
+     * in the shade, so the most counts). A clear day's is white; the volcano's dull sky gives two thirds of that, its caves
+     * under half - and a "sun" there is only the way the game lights its models from: its hard shadows over the rock
+     * were patches of shade with nothing in the sky to cast them (#52). Full from 0.9 up, none below 0.45.
+     * MHFU_SUN_STRENGTH=1: always full */
+    {
+        static uint32_t stage_was = ~0u;    /* (the most since the area was entered: found again in the next) */
+        uint32_t game = LW(0x089CC558u);
+        uint32_t stage = game >= 0x08800000u && game < 0x09F00000u ? LHU(game + 0x6AF0Eu) : ~0u;
+        if (stage != stage_was) {
+            stage_was = stage;
+            sun_peak = 0;               /* (till its light is given, as strong as it was) */
+        }
+        static int always = -1;
+        if (always < 0)
+            always = getenv("MHFU_SUN_STRENGTH") && atoi(getenv("MHFU_SUN_STRENGTH")) != 0;
+        float k = (sun_peak - 0.45f) / 0.45f;
+        k = k < 0 ? 0 : k > 1 ? 1 : k;
+        if (always || sun_peak > 0)
+            render_sun_strength_set(always ? 1.0f : k * k * (3 - 2 * k));
     }
     const float *d = sun_dir;
     float up[3] = {0, 1, 0};
@@ -494,6 +516,10 @@ static void shadow_prim(void) {
             for (int i = 0; i < 3; i++)
                 sun_dir[i] = w[i] / l;
             sun_known = 1;
+            uint32_t ld = reg[0x90 + 3 * k];
+            float lum = ((float)(ld & 255) + (float)((ld >> 8) & 255) + (float)((ld >> 16) & 255)) / 765.0f;
+            if (lum > sun_peak)
+                sun_peak = lum;
         }
     }
 }

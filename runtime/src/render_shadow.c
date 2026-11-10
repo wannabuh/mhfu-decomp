@@ -256,10 +256,18 @@ void render_shadow_frame(const float *m, int on) {
 /* A batch of the world (first, n: its vertices) drawn again into the shadow maps, if it casts shadows: what is solid -
  * blended over what is there by its alpha too (much of the scenery is), where it is more than half opaque - with what
  * clipping cut off of it */
+/* Under a dull sky (render_sun_strength under 1: the volcano, its caves) the scenery casts nothing: there is no sun
+ * for its cliffs to shade each other by, and their shade lay over the rock in hard patches (#52). What the game lights
+ * - hunters, monsters - still casts, fainter (ge_frag.glsl) */
+static int dull_scenery(const DrawState *s) {
+    return render_sun_strength < 0.999f && !(s->flags & DRAW_LIT);
+}
+
 void shadow_draw(const DrawState *s, DrawPush pc, uint32_t first, uint32_t n) {
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                       s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST)) {
+    if (shadow_on && (s->flags & DRAW_WORLD) && s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST) &&
+        !dull_scenery(s)) {
         if (alpha_blend)
             pc.flags |= DRAW_BLENDED;
         shadow_begin();
@@ -311,7 +319,7 @@ static void tl_segments(VkCommandBuffer cmd, VkPipeline pipeline, VkPipeline aft
 void shadow_draw_tl(const DrawState *s, DrawPush pc, const TlSegment *seg, int nseg) {
     int alpha_blend = s->blend && s->eq.srcColorBlendFactor == VK_BLEND_FACTOR_SRC_ALPHA &&
                       s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    int casts = s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST);
+    int casts = s->depth_write && (!s->blend || alpha_blend) && !(s->flags & DRAW_NO_CAST) && !dull_scenery(s);
     if (alpha_blend)
         pc.flags |= DRAW_BLENDED;
     if (!shadow_on || !(s->flags & DRAW_WORLD))

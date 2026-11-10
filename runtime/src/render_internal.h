@@ -73,6 +73,7 @@ typedef struct {
 
 /* -- render.c ----------------------------------------------------------------------------------------------------- */
 extern float render_scale;          /* render target pixels a PSP pixel (MHFU_SCALE, or MHFU_RESOLUTION's lines) */
+extern float render_sun_strength;
 extern float render_wide;           /* and so many times that across: 1, or a little more where the picture fills a
                                      * screen a little wider than the PSP's (16:9: 1.0074) */
 extern VkPipelineLayout ge_layout;  /* the GE's draws' (and the shadow passes', the grass's): ge_set, DrawPush */

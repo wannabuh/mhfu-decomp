@@ -294,7 +294,10 @@ void main() {
     vec3 bumped = (draw.flags & DRAW_RELIEF) != 0u ? relief_normal(normalize(normal + vec3(0.0, 1e-6, 0.0)),
                                                              dot(t.rgb, vec3(0.299, 0.587, 0.114))) : vec3(0.0);
     bool points = draw.points != 0xFFFFFFFFu && (draw.flags & DRAW_WORLD) != 0u;
-    float sh = (draw.flags & DRAW_WORLD) != 0u ? shadow() : 0.0;
+    // (draw.light[3][3]: how strong the stage's sun is, 0 to 1 - under a dull sky or in a cave its shade is that much
+    // fainter, as is what is turned from it: render.c)
+    float sun_strength = draw.light[3][3];
+    float sh = (draw.flags & DRAW_WORLD) != 0u ? shadow() * sun_strength : 0.0;
     if ((draw.flags & DRAW_LIT_GE) != 0u)          // lit: the sun's part goes in shadow
         c.rgb = max(c.rgb - in_sun * sh, vec3(0.0));
     if ((draw.flags & DRAW_LIT_PIXEL) != 0u) {       // lit by the pixel: the lights' diffuse terms on the material's colour
@@ -344,7 +347,7 @@ void main() {
             vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]));
             float lambert = dot(normal / nl, sun);
             float facing = smoothstep(-0.1, 0.3, lambert);
-            dark = 1.0 - (1.0 - sh) * facing;
+            dark = 1.0 - (1.0 - sh) * mix(1.0, facing, sun_strength);
             // the relief, in the sun: lighter where it turns towards it, darker where away
             if ((draw.flags & DRAW_RELIEF) != 0u)
                 relief = mix(1.0, clamp(dot(bumped, sun) / max(lambert, 0.25), 0.65, 1.35), 1.0 - dark);

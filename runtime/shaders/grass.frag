@@ -26,10 +26,10 @@ float shadow() {
 
 void main() {
     vec3 c = in_color;
-    float sh = shadow();
+    float sh = shadow() * g.light[3][3];        // (the sun's strength, as ge_frag.glsl's)
     vec3 sun = -normalize(vec3(g.light[0][2], g.light[1][2], g.light[2][2]));
     float facing = smoothstep(-0.1, 0.3, dot(in_normal, sun));
-    float dark = 1.0 - (1.0 - sh) * facing;
+    float dark = 1.0 - (1.0 - sh) * mix(1.0, facing, g.light[3][3]);
     c *= 1.0 - 0.45 * dark;
     // the sun through the blades, looking towards it
     float towards = max(dot(normalize(in_view), sun), 0.0);

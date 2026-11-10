@@ -47,6 +47,9 @@
 
 int render_on;
 float render_scale = 2, render_wide = 1;
+/* How strong the stage's sun is (gpu.c, from the light the game gives its models): 1 a clear day's - the sun's shadows
+ * and the shading of what is turned from it are that much fainter under a dull sky, none in a cave (#52) */
+float render_sun_strength = 1;
 static Target targets[MAX_TARGETS];
 VkBuf vertices, staging;
 static VkBuf frame_vertices[2], frame_staging[2];
@@ -1022,6 +1025,7 @@ void flush(void) {
         point_lights_on > 0 && (s->flags & DRAW_WORLD) && !(s->blend && s->eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE)
             ? point_light_set() : ~0u, ~0u, 0, 0};
     memcpy(pc.light, scene.sun_vp, sizeof pc.light);
+    pc.light[15] = render_sun_strength;     /* (the matrix's last row is not used: its place for it) */
     if (tl_nseg) {                      /* the GPU's vertex stage: its segments (none of the effects' work yet) */
         flush_tl(cmd, s, &pc);
         last = *s;
@@ -1827,6 +1831,10 @@ void render_flip(uint32_t addr) {
         window_changed();
     if (resolution_changed)
         resolution_set();
+}
+
+void render_sun_strength_set(float s) {
+    render_sun_strength = s;            /* (a float, read by the renderer's thread as it is) */
 }
 
 /* How much wider than the PSP's shape the picture is (window.c: where the pointer is on it) */
