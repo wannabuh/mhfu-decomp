@@ -2361,6 +2361,7 @@ static void draw_position(const Draw *d, float *p) {
 /* In the world (the camera taken out) only things' own moves count: a big animal's limbs move 60 units a frame as it
  * flinches - the copies of a model (a herd) stand further apart than that */
 #define MATCH_DISTANCE_WORLD 150.0f
+#define MATCH_DISTANCE_ALONE 900.0f   /* (the only draw of its kind: this far) */
 #define MATCH_SIZE 1.5f             /* (and, between 30ths, to one no more than this many times its size) */
 #define MATCH_TURN 0.2f
 
@@ -3151,6 +3152,15 @@ static int find(Placings *r, int *next, uint8_t *taken, uint64_t key, const floa
             best_d = dd;
             best = i;
         }
+    }
+    /* (the only one with its key - a piece of a monster there is one of - though it went further than the reach: a
+     * Tigrex's lunge takes it 230 units in a 30th and its tail's tip more, and with the pieces past the reach left
+     * where they were drawn and the rest drawn between, its tail stood apart from it and pieces of it out of place
+     * for the frames between: #67, #68. Not across the whole area: that is another animal, or the same moved) */
+    if (best < 0 && s->count == 1) {
+        int i = r->order[s->start];
+        if (!taken[i] && like_size(q, &r->p[i]) && dist2(pos, r->pos[i]) <= MATCH_DISTANCE_ALONE * MATCH_DISTANCE_ALONE)
+            best = i;
     }
     if (best >= 0) {
         taken[best] = 1;
