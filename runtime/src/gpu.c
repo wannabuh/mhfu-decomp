@@ -3815,7 +3815,19 @@ enum { WOUND_SLASH, WOUND_SHOT };
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
-static struct { uint32_t key; float q[3][4], where[3]; double born; WoundOwner of; int kind, gone; float seed; } wounds[WOUNDS];
+#define WOUND_PIECES 6              /* the model's pieces a wound lies over, at most */
+/* (each piece's vertices are in a space of their own - their own scale, by how they are packed - so the wound is kept
+ * among each piece's: one kept among the first's alone stepped aside at every join it crossed, #63) */
+static struct {
+    uint32_t key;
+    float q[3][4], where[3];
+    struct { uint32_t key; float q[3][4]; } piece[WOUND_PIECES];
+    int pieces;
+    double born;
+    WoundOwner of;
+    int kind, gone;
+    float seed;
+} wounds[WOUNDS];
 static int wound_next;
 static struct { float contact[3], axis[3], attacker[3]; int damage, kind; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
@@ -3903,6 +3915,45 @@ static void wound_world(const Draw *d, int nb, const TlVertex *v, const float *r
     }
     mul43(d->world, p, m);
     mul43(cam, m, out);
+}
+
+/* A piece's vertices to the world about its vertex v (col[i]: the world's step for one of the vertices' i), by the one
+ * bone that holds it most, and back (inv); 0 if that cannot be turned round */
+static int wound_linear(const Draw *d, int nb, const TlVertex *v, const float *cam, float col[3][3], float inv[3][3]) {
+    TlVertex one = *v;
+    if (nb) {
+        int most = 0;
+        for (int b = 1; b < nb; b++)
+            if (v->weights[b] > v->weights[most])
+                most = b;
+        for (int b = 0; b < nb; b++)
+            one.weights[b] = b == most ? 1.0f : 0.0f;
+    }
+    float o1[3];
+    wound_world(d, nb, &one, v->pos, cam, o1);
+    for (int i = 0; i < 3; i++) {
+        float r[3] = {v->pos[0], v->pos[1], v->pos[2]}, w[3];
+        float step = fmaxf(fabsf(r[i]) * 0.01f, 1e-3f);
+        r[i] += step;
+        wound_world(d, nb, &one, r, cam, w);
+        for (int j = 0; j < 3; j++)
+            col[i][j] = (w[j] - o1[j]) / step;
+    }
+    float det = col[0][0] * (col[1][1] * col[2][2] - col[1][2] * col[2][1]) -
+                col[1][0] * (col[0][1] * col[2][2] - col[0][2] * col[2][1]) +
+                col[2][0] * (col[0][1] * col[1][2] - col[0][2] * col[1][1]);
+    if (fabsf(det) < 1e-12f)
+        return 0;
+    float m[3][3] = {{col[1][1] * col[2][2] - col[1][2] * col[2][1], col[1][2] * col[2][0] - col[1][0] * col[2][2],
+                      col[1][0] * col[2][1] - col[1][1] * col[2][0]},
+                     {col[2][1] * col[0][2] - col[2][2] * col[0][1], col[2][2] * col[0][0] - col[2][0] * col[0][2],
+                      col[2][0] * col[0][1] - col[2][1] * col[0][0]},
+                     {col[0][1] * col[1][2] - col[0][2] * col[1][1], col[0][2] * col[1][0] - col[0][0] * col[1][2],
+                      col[0][0] * col[1][1] - col[0][1] * col[1][0]}};
+    for (int a = 0; a < 3; a++)
+        for (int b = 0; b < 3; b++)
+            inv[a][b] = m[a][b] / det;
+    return 1;
 }
 
 /* The frame's draws are in (f, recorded): the hits waiting looked for on them */
@@ -4092,6 +4143,51 @@ static void wounds_attach(Frame *f) {
                 wounds[n].q[r][k] = over[r] * (frame[r][0] * col[k][0] + frame[r][1] * col[k][1] + frame[r][2] * col[k][2]);
             wounds[n].q[r][3] = bv->pos[r] + keep * (inv[r][0] * shift[0] + inv[r][1] * shift[1] + inv[r][2] * shift[2]);
         }
+        /* and among the vertices of the model's other pieces it lies over: its middle in the world, and for each
+         * piece (a mesh: its vertices' address) the vertex nearest that, within the wound's length */
+        float mid[3];
+        for (int b = 0; b < 3; b++)
+            mid[b] = o[b] + keep * shift[b];
+        wounds[n].pieces = 0;
+        float reach2 = WOUND_HALF_LENGTH * size + 30.0f;
+        reach2 *= reach2;
+        for (int gi = 0; gi < f->ntlg; gi++) {
+            const TlGroup *g = &f->tlg[gi];
+            const Draw *d = &f->draws[g->first];
+            if (!(d->reg[0x17] & 1) || d->vaddr == bd->vaddr || memcmp(d->world, bd->world, sizeof(float) * 12))
+                continue;
+            int gb = draw_bones(d);
+            const TlVertex *nv = NULL;
+            float nd = reach2, nw[3] = {0, 0, 0};
+            for (uint32_t k = 0; k < g->nvertex; k++) {
+                const TlVertex *v = &f->tlv[g->vertex + k];
+                float w[3];
+                wound_world(d, gb, v, v->pos, wound_cam[bcam], w);
+                float dd = dist2(w, mid);
+                if (dd < nd)
+                    nd = dd, nv = v, memcpy(nw, w, sizeof nw);
+            }
+            if (!nv)
+                continue;
+            int at = 0;                 /* (a piece drawn in several groups: its nearest) */
+            while (at < wounds[n].pieces && wounds[n].piece[at].key != d->vaddr)
+                at++;
+            static float piece_near[WOUND_PIECES];
+            if (at < wounds[n].pieces ? nd >= piece_near[at] : at == WOUND_PIECES)
+                continue;
+            float pc[3][3], pi[3][3];
+            if (!wound_linear(d, gb, nv, wound_cam[bcam], pc, pi))
+                continue;
+            piece_near[at] = nd;
+            wounds[n].piece[at].key = d->vaddr;
+            for (int r = 0; r < 3; r++) {
+                for (int k = 0; k < 3; k++)
+                    wounds[n].piece[at].q[r][k] = over[r] * (frame[r][0] * pc[k][0] + frame[r][1] * pc[k][1] + frame[r][2] * pc[k][2]);
+                wounds[n].piece[at].q[r][3] = nv->pos[r] + pi[r][0] * (mid[0] - nw[0]) + pi[r][1] * (mid[1] - nw[1]) + pi[r][2] * (mid[2] - nw[2]);
+            }
+            if (at == wounds[n].pieces)
+                wounds[n].pieces++;
+        }
         wounds[n].born = rt_game_30ths();
         wounds[n].of = wound_pending[h].of;
         wounds[n].kind = wound_pending[h].kind;
@@ -4111,8 +4207,8 @@ static void wounds_attach(Frame *f) {
 }
 
 /* The frame's groups' wounds (f, about to be the latest): a wound is on the mesh it was found on, and on the model's
- * other meshes too - those drawn with the same world matrix: a model is drawn in pieces, their vertices all in the one
- * space, and a slash runs over their joins */
+ * other meshes it lies over - those drawn with the same world matrix: a model is drawn in pieces, and a slash runs
+ * over their joins (wounds_fill: among each piece's own vertices) */
 static uint64_t *wound_masks;
 static int wound_masks_cap;
 static const Frame *wound_masks_of;
@@ -4193,6 +4289,7 @@ static const uint8_t *wound_blood(int type) {
 
 /* The draw's wounds into its record: the newest 4 of its model's */
 static uint64_t wound_mask;         /* the group being drawn: its wounds (0: none) */
+static uint32_t wound_vaddr;        /* and its mesh (its vertices' address) */
 
 static void wounds_fill(TlDraw *d) {
     if (!wound_mask)
@@ -4202,7 +4299,13 @@ static void wounds_fill(TlDraw *d) {
         int i = (wound_next - 1 - k) % WOUNDS;
         if (!(wound_mask >> i & 1) || wounds[i].gone)
             continue;
-        memcpy(d->wound[3 * d->wounds], wounds[i].q, sizeof wounds[i].q);
+        const float (*q)[4] = wounds[i].key == wound_vaddr ? wounds[i].q : NULL;
+        for (int pc = 0; pc < wounds[i].pieces && !q; pc++)
+            if (wounds[i].piece[pc].key == wound_vaddr)
+                q = wounds[i].piece[pc].q;
+        if (!q)
+            continue;                   /* (a piece of the model it does not lie over) */
+        memcpy(d->wound[3 * d->wounds], q, sizeof wounds[i].q);
         /* how it looks: its blood's colour (as one number), how much of it is left (it fades at the end), how wet
          * it still is, and its kind with a number of its own (no two alike) */
         double age = rt_game_30ths() - wounds[i].born;
@@ -4698,6 +4801,7 @@ static void tl_group_feet(Frame *f, TlGroup *g, const TlDraw *d) {
 static void tl_group_draw(const TlGroup *g) {
     static TlDraw d;
     wound_mask = wound_masks_of == latest && g >= latest->tlg && g < latest->tlg + latest->ntlg ? wound_masks[g - latest->tlg] : 0;
+    wound_vaddr = wound_mask ? latest->draws[g->first].vaddr : 0;
     int same = tl_draw_now(&d);
     int slot = (int)(latest->tl_gen % TL_SLOTS);
     tl_groups_drawn++;
