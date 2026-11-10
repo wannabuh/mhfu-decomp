@@ -67,7 +67,7 @@ SNOW = "the Snowy Mountains' haze drawn, unless MHFU_SNOW_HAZE=0"
 # above 0, less 1" a game frame, counted in 30ths; not its other steps, which are events (a greatsword's charge levels;
 # a count taken off as another timer runs out). And how long R (the sprint) has been held, up to 10 (+0x11B0, game_task
 # 09A703F0): found by tools/ratecheck.py, twice as fast at 60
-COUNTDOWN = "a hunter's countdown (+0x1D7) or R held (+0x11B0): its game frames counted in 30ths"
+COUNTDOWN = "a hunter's countdown (+0x1D7, paralysis's +0x113C) or R held (+0x11B0): its game frames counted in 30ths"
 # The herd animals' countdown +0x54E (game_task 09AC5C30, from their tick 09AC4950: a minute or so, a game frame at a
 # time): found by tools/ratecheck.py with their vtable (089BC680) converted
 COUNTDOWN54E = "a herd animal's countdown +0x54E: 1 less a 30th, not a game frame"
@@ -465,6 +465,8 @@ PATCHES = {
     ("game_task", 0x09A8CAF0): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FAC0): ("addiu $v0, $v0, -0x1", "c->r[2] = c->r[2] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A8FDE4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
+    # (lying paralysed: +0x113C, 150 on entering - it was over in half the time at 60, #46)
+    ("game_task", 0x09A8FE28): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A9BCA4): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09BAE714): ("addiu $v1, $v1, -0x1", "c->r[3] = c->r[3] - (uint32_t)rt_tick30;", COUNTDOWN),
     ("game_task", 0x09A70464): ("addiu $v1, $v1, 0x1", "c->r[3] = c->r[3] + (uint32_t)rt_tick30;", COUNTDOWN),

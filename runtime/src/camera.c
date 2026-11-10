@@ -486,8 +486,13 @@ void camera_update(float dx, float dy) {
     float ox = e[0] - t[0], oy = e[1] - t[1], oz = e[2] - t[2];
     axis_frame(&yaw_axis, atan2f(ox, oz));
     axis_frame(&pitch_axis, atan2f(oy, sqrtf(ox * ox + oz * oz)));
-    /* an event camera (talking to someone, a cutscene): the game's, as it is */
-    if ((view_no != 0 && view_no != 2) || (int8_t)*MEM(scene + 0xDC4) > 0) {
+    /* an event camera (talking to someone, a cutscene): the game's, as it is - and where no stage is loaded (the load
+     * menu's Character Select, the title: the menu places the camera itself, in the hunt's view, and the mouse turned
+     * the hunter shown against his still backdrop, #43) */
+    uint32_t stage_mgr = *(uint32_t *)MEM(0x09A4F1A0u);            /* (STAGE_MANAGER, its loaded byte: below) */
+    /* (not while replaying a recording made before, rt_camera_follows: the mouse's turns then are part of its run) */
+    int no_stage = rt_camera_follows && (!in_ram(stage_mgr) || !*MEM(stage_mgr + 0xA3E8u));
+    if ((view_no != 0 && view_no != 2) || (int8_t)*MEM(scene + 0xDC4) > 0 || no_stage) {
         orbiting = 0;
         left = 0;
         yaw_axis.written = pitch_axis.written = 0;

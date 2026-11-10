@@ -41,6 +41,7 @@ layout(location = 4) in vec3 in_sun;
 layout(location = 5) in vec3 in_normal;
 #ifdef TL_CORNERS
 layout(location = 9) pervertexEXT in vec3 in_corner[];     // (the scenery's: each corner's normal summed at its place)
+layout(location = 10) in vec3 in_wound[4];                 // (ge_tl.vert: each wound's, 1 at its edge)
 #endif
 layout(location = 6) in vec3 in_world;
 layout(location = 8) in vec3 in_motion;
@@ -363,6 +364,16 @@ void main() {
         if (dot(ng, ng) > 0.0 && abs(normalize(ng).y) > 0.8 && in_world.y < eye.y)
             c = vec4(water(c.rgb, sh, far), clamp(c.a * 3.0, 0.0, 1.0));
     }
+#ifdef TL_CORNERS
+    // wounds (gpu.c): a slash, dark red, its edges soft; lit as the skin under it is
+    for (int k = 0; k < 4; k++) {
+        float s = length(in_wound[k]);
+        if (s < 1.0) {
+            float m = smoothstep(1.0, 0.55, s);
+            c.rgb = mix(c.rgb, c.rgb * vec3(0.42, 0.04, 0.04) + vec3(0.05, 0.0, 0.0), m * 0.92);
+        }
+    }
+#endif
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
                         float((draw.fog_color >> 16) & 255u)) / 255.0;

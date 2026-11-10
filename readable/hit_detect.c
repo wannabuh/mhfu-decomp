@@ -14,6 +14,7 @@
 #include "hit.h"
 #include "names.h"
 #include "hitview.h"
+#include "wounds.h"
 
 /* Named here by address as function names may change: */
 #define in_current_stage f_EBOOT_08865BAC
@@ -320,6 +321,7 @@ static int test_monster_parts(Ctx *c, const HitRecord *record, uint32_t record_a
                 c->r[8] = LW(sp + F_TARGET_CURSOR);
                 c->r[9] = sp + F_CONTACT;
                 call4(c, land_on_monster, record_addr, attacker, monster_addr, LW(sp + F_ATTACKER_CURSOR));
+                wound_hit(record_addr, attacker, monster_addr, sp + F_CONTACT, sp + F_ATTACKER_TYPE);  /* (the runtime's: reads only) */
                 land_and_tell(c, record_addr, attacker, monster_addr, sp);
                 return 1;
             }

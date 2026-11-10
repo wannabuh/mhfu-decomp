@@ -1771,9 +1771,15 @@ static void bone_log(const Frame *f) {
     }
 }
 
+static int wounds_on(void);
+static void wounds_attach(Frame *f);
+static void wounds_frame(const Frame *f);
+
 void gpu_frame_end(uint32_t display_addr, uint64_t time) {
     close_run(rec);
     bone_log(rec);
+    if (wounds_on())
+        wounds_attach(rec), wounds_frame(rec);
     tl_send(rec);
     Frame *old = previous;
     previous = latest;
@@ -3732,6 +3738,308 @@ static void tl_rows(const float *m, float (*r)[4]) {
 }
 
 /* The primitive's draw, as vertex() and light() would read it now */
+/* -- wounds ---------------------------------------------------------------------------------------------------------
+ *
+ * A hunter's hit on a monster leaves a slash where it landed (wounds.h; stage 1 of docs/roadmap.md's: the mark alone).
+ * The game works out where the two shapes touch (readable/hit_detect.c: its hit effects and sound go there); that
+ * point, in the world, is kept until the frame's draws are in, and then looked for on the models: of the vertices of
+ * what the game lights (monsters: their pieces skinned, or rigid and placed whole), posed as drawn, the nearest - not
+ * the hunter's own or the weapon's (their bones are all by the attacker). The wound is kept where that vertex is among the vertices as the game gave them, before any bone moves
+ * them, with the mesh they are of (their address): so it stays on the skin through every pose and every frame shown
+ * between, and the vertex stage hands the pixels where they are from it (ge_tl.vert, ge_frag.glsl: the GPU's vertex
+ * stage's draws alone, MHFU_GPU_TL, and frames recorded for a display rate, MHFU_FPS). It runs the way the weapon's
+ * shape lies. Nothing of the game's is written.
+ * MHFU_WOUNDS=0: none. */
+#include "wounds.h"
+extern unsigned long present_frame_number(void);
+#define WOUNDS 64
+#define WOUND_REACH 140.0f          /* from the contact to the skin, at most (units) */
+#define WOUND_OWN 260.0f            /* bones all this near the attacker's place: the hunter's own, or the weapon's */
+#define WOUND_HALF_LENGTH 60.0f     /* a hit of damage 30's, units; others by the root of theirs */
+#define WOUND_HALF_WIDTH 8.0f
+#define WOUND_DEPTH 14.0f           /* how far through the skin it reaches, either way */
+#define WOUND_SHIFT 40.0f           /* its middle from the vertex found, at most */
+static struct { uint32_t key; float q[3][4], where[3]; unsigned long born; } wounds[WOUNDS];
+static int wound_next;
+static struct { float contact[3], axis[3], attacker[3]; int damage; unsigned long frame; int used; } wound_pending[8];
+static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
+static int wound_cams;
+
+static int wounds_on(void) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_WOUNDS") || atoi(getenv("MHFU_WOUNDS")) != 0;
+    return on;
+}
+
+void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t contact, uint32_t attacker_shape) {
+    (void)monster;
+    if (!wounds_on() || LBU(record + 0x0Fu))    /* (the hunters' records: their table 0) */
+        return;
+    int k = 0;                          /* (a free place, or the oldest's) */
+    for (int i = 0; i < 8; i++) {
+        if (!wound_pending[i].used) {
+            k = i;
+            break;
+        }
+        if (wound_pending[i].frame < wound_pending[k].frame)
+            k = i;
+    }
+    memcpy(wound_pending[k].contact, PTR(contact), sizeof wound_pending[k].contact);
+    memcpy(wound_pending[k].attacker, PTR(attacker + 0x200u), sizeof wound_pending[k].attacker);
+    /* the way the weapon's shape lies (a capsule's ends; a ball has none: level, across) */
+    float a[3] = {1, 0, 0};
+    if (LW(attacker_shape) == 0) {
+        const float *e0 = (const float *)PTR(attacker_shape + 0x10u), *e1 = (const float *)PTR(attacker_shape + 0x20u);
+        float len = sqrtf(dist2(e0, e1));
+        if (len > 1)
+            for (int i = 0; i < 3; i++)
+                a[i] = (e1[i] - e0[i]) / len;
+    }
+    memcpy(wound_pending[k].axis, a, sizeof a);
+    wound_pending[k].damage = (int)LBU(record + 0x1Eu);
+    wound_pending[k].frame = present_frame_number();
+    wound_pending[k].used = 1;
+}
+
+/* A recorded draw's vertex v where it is in the world, the camera cam undone */
+static void wound_world(const Draw *d, int nb, const TlVertex *v, const float *raw, const float *cam, float *out) {
+    float p[3] = {0, 0, 0}, m[3];
+    if (!nb)
+        memcpy(p, raw, sizeof p);
+    for (int b = 0; b < nb; b++) {
+        float q[3];
+        mul43(d->bones[b], raw, q);
+        for (int i = 0; i < 3; i++)
+            p[i] += q[i] * v->weights[b];
+    }
+    mul43(d->world, p, m);
+    mul43(cam, m, out);
+}
+
+/* The frame's draws are in (f, recorded): the hits waiting looked for on them */
+static void wounds_attach(Frame *f) {
+    float inv[12], target[3];
+    if (camera_game(inv, target)) {
+        memcpy(wound_cam[1], wound_cam[0], sizeof wound_cam[1]);
+        memcpy(wound_cam[0], inv, sizeof inv);
+        wound_cams = wound_cams < 2 ? wound_cams + 1 : 2;
+    }
+    unsigned long now = present_frame_number();
+    for (int h = 0; h < 8; h++) {
+        if (!wound_pending[h].used)
+            continue;
+        if (now > wound_pending[h].frame + 3) {
+            wound_pending[h].used = 0;
+            continue;
+        }
+        const float *c = wound_pending[h].contact;
+        float best = WOUND_REACH * WOUND_REACH;
+        const Draw *bd = NULL;
+        const TlVertex *bv = NULL;
+        int bcam = 0;
+        for (int gi = 0; gi < f->ntlg; gi++) {
+            const TlGroup *g = &f->tlg[gi];
+            const Draw *d = &f->draws[g->first];
+            int nb = draw_bones(d);
+            /* (what the game lights: the monsters, people and hunters - not the scenery, which the ground under a
+             * hit would be the nearest of) */
+            if (!(d->reg[0x17] & 1) || (d->reg[0x12] >> 23 & 1))
+                continue;
+            for (int cam = 0; cam < wound_cams; cam++) {
+                /* (the hunter's own and the weapon's: every bone by the attacker) */
+                int own = 1;
+                const float zero[3] = {0, 0, 0};
+                for (int b = 0; b < (nb ? nb : 1) && own; b++) {
+                    float o[3] = {0, 0, 0}, m[3], w[3];
+                    if (nb)
+                        mul43(d->bones[b], zero, o);
+                    mul43(d->world, o, m);
+                    mul43(wound_cam[cam], m, w);
+                    own = dist2(w, wound_pending[h].attacker) < WOUND_OWN * WOUND_OWN;
+                }
+                if (own)
+                    continue;
+                for (uint32_t k = 0; k < g->nvertex; k++) {
+                    const TlVertex *v = &f->tlv[g->vertex + k];
+                    float w[3];
+                    wound_world(d, nb, v, v->pos, wound_cam[cam], w);
+                    float dd = dist2(w, c);
+                    if (dd < best)
+                        best = dd, bd = d, bv = v, bcam = cam;
+                }
+            }
+        }
+        if (!bd)
+            continue;                   /* (not drawn yet, or by the CPU's vertex stage: tried again next frame) */
+        wound_pending[h].used = 0;
+        /* the vertices' space to the world's, about that vertex (the pose's part: by differences) */
+        int nb = draw_bones(bd);
+        float o[3], col[3][3];
+        wound_world(bd, nb, bv, bv->pos, wound_cam[bcam], o);
+        for (int i = 0; i < 3; i++) {
+            float r[3] = {bv->pos[0], bv->pos[1], bv->pos[2]}, w[3];
+            float step = fmaxf(fabsf(r[i]) * 0.01f, 1e-3f);
+            r[i] += step;
+            wound_world(bd, nb, bv, r, wound_cam[bcam], w);
+            for (int j = 0; j < 3; j++)
+                col[i][j] = (w[j] - o[j]) / step;
+        }
+        /* The wound lies on the skin: along it the way the weapon's shape lay (what of that is in the skin's plane),
+         * across it, and through it - deep enough that fur over the skin and a coarse mesh's bends are inside. Where a
+         * vertex is from it is measured in the world as it was posed then (the vertices' own units are not the same
+         * every way), 1 at its edge. Its middle: the contact brought onto the skin's plane at the vertex, no further
+         * along it than WOUND_SHIFT (the game's shapes stand off the model). */
+        const float *x = wound_pending[h].axis;
+        float det = col[0][0] * (col[1][1] * col[2][2] - col[1][2] * col[2][1]) -
+                    col[1][0] * (col[0][1] * col[2][2] - col[0][2] * col[2][1]) +
+                    col[2][0] * (col[0][1] * col[1][2] - col[0][2] * col[1][1]);
+        if (fabsf(det) < 1e-12f)
+            continue;
+        /* (M^-1, by cofactors: inv[i][j], the vertices' i from the world's j) */
+        float inv[3][3] = {{col[1][1] * col[2][2] - col[1][2] * col[2][1], col[1][2] * col[2][0] - col[1][0] * col[2][2],
+                            col[1][0] * col[2][1] - col[1][1] * col[2][0]},
+                           {col[2][1] * col[0][2] - col[2][2] * col[0][1], col[2][2] * col[0][0] - col[2][0] * col[0][2],
+                            col[2][0] * col[0][1] - col[2][1] * col[0][0]},
+                           {col[0][1] * col[1][2] - col[0][2] * col[1][1], col[0][2] * col[1][0] - col[0][0] * col[1][2],
+                            col[0][0] * col[1][1] - col[0][1] * col[1][0]}};
+        for (int a = 0; a < 3; a++)
+            for (int b = 0; b < 3; b++)
+                inv[a][b] /= det;
+        /* the skin's normal there, in the world (the vertex's, by the inverse's transpose; none: towards the contact) */
+        float nrm[3], nl = 0, toc[3], tl = 0;
+        for (int b = 0; b < 3; b++) {
+            nrm[b] = inv[0][b] * bv->normal[0] + inv[1][b] * bv->normal[1] + inv[2][b] * bv->normal[2];
+            nl += nrm[b] * nrm[b];
+            toc[b] = c[b] - o[b];
+            tl += toc[b] * toc[b];
+        }
+        if (nl > 1e-12f)
+            for (int b = 0; b < 3; b++)
+                nrm[b] /= sqrtf(nl);
+        else if (tl > 1)
+            for (int b = 0; b < 3; b++)
+                nrm[b] = toc[b] / sqrtf(tl);
+        else
+            nrm[0] = 0, nrm[1] = 1, nrm[2] = 0;
+        float along[3], al = 0, xn = x[0] * nrm[0] + x[1] * nrm[1] + x[2] * nrm[2];
+        for (int b = 0; b < 3; b++) {
+            along[b] = x[b] - xn * nrm[b];
+            al += along[b] * along[b];
+        }
+        if (al < 0.04f) {               /* (a stab, straight in: level across the skin, or up it) */
+            float up[3] = {0, 1, 0}, un = nrm[1];
+            if (fabsf(un) > 0.9f)
+                up[0] = 1, up[1] = 0, un = nrm[0];
+            al = 0;
+            for (int b = 0; b < 3; b++) {
+                along[b] = up[b] - un * nrm[b];
+                al += along[b] * along[b];
+            }
+        }
+        for (int b = 0; b < 3; b++)
+            along[b] /= sqrtf(al);
+        float across[3] = {nrm[1] * along[2] - nrm[2] * along[1], nrm[2] * along[0] - nrm[0] * along[2],
+                           nrm[0] * along[1] - nrm[1] * along[0]};
+        float size = sqrtf(fmaxf((float)wound_pending[h].damage, 8.0f) / 30.0f);
+        size = size < 0.6f ? 0.6f : size > 1.8f ? 1.8f : size;
+        static float bigger;            /* MHFU_WOUND_SIZE: times as large (1) */
+        if (!bigger)
+            bigger = getenv("MHFU_WOUND_SIZE") && atof(getenv("MHFU_WOUND_SIZE")) > 0 ? (float)atof(getenv("MHFU_WOUND_SIZE")) : 1.0f;
+        size *= bigger;
+        const float *frame[3] = {along, across, nrm};
+        float over[3] = {1.0f / (WOUND_HALF_LENGTH * size), 1.0f / (WOUND_HALF_WIDTH * size), 1.0f / WOUND_DEPTH};
+        /* the middle: the contact's place across the skin from the vertex */
+        float shift[3], sl = 0;
+        float tn = toc[0] * nrm[0] + toc[1] * nrm[1] + toc[2] * nrm[2];
+        for (int b = 0; b < 3; b++) {
+            shift[b] = toc[b] - tn * nrm[b];
+            sl += shift[b] * shift[b];
+        }
+        sl = sqrtf(sl);
+        float keep = sl > WOUND_SHIFT ? WOUND_SHIFT / sl : 1.0f;
+        int n = wound_next++ % WOUNDS;
+        wounds[n].key = bd->vaddr;
+        for (int r = 0; r < 3; r++) {
+            for (int k = 0; k < 3; k++)
+                wounds[n].q[r][k] = over[r] * (frame[r][0] * col[k][0] + frame[r][1] * col[k][1] + frame[r][2] * col[k][2]);
+            wounds[n].q[r][3] = bv->pos[r] + keep * (inv[r][0] * shift[0] + inv[r][1] * shift[1] + inv[r][2] * shift[2]);
+        }
+        wounds[n].born = now;
+        {
+            const float zero[3] = {0, 0, 0};
+            float m[3];
+            mul43(bd->world, zero, m);
+            mul43(wound_cam[bcam], m, wounds[n].where);
+        }
+        if (getenv("MHFU_WOUND_LOG"))
+            fprintf(stderr, "wound %d: frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, now,
+                    bd->vaddr, sqrtf(best), c[0], c[1], c[2], wound_pending[h].damage, sqrtf(col[0][0] * col[0][0] + col[0][1] * col[0][1] + col[0][2] * col[0][2]),
+                    sqrtf(col[1][0] * col[1][0] + col[1][1] * col[1][1] + col[1][2] * col[1][2]), sqrtf(col[2][0] * col[2][0] + col[2][1] * col[2][1] + col[2][2] * col[2][2]));
+    }
+}
+
+/* The frame's groups' wounds (f, about to be the latest): a wound is on the mesh it was found on, and on the model's
+ * other meshes too - those drawn with the same world matrix: a model is drawn in pieces, their vertices all in the one
+ * space, and a slash runs over their joins */
+static uint64_t *wound_masks;
+static int wound_masks_cap;
+static const Frame *wound_masks_of;
+
+static void wounds_frame(const Frame *f) {
+    if (f->ntlg > wound_masks_cap) {
+        wound_masks_cap = f->ntlg * 2;
+        wound_masks = realloc(wound_masks, sizeof *wound_masks * (size_t)wound_masks_cap);
+    }
+    wound_masks_of = f;
+    if (!f->ntlg)
+        return;
+    memset(wound_masks, 0, sizeof *wound_masks * (size_t)f->ntlg);
+    int n = wound_next < WOUNDS ? wound_next : WOUNDS;
+    for (int w = 0; w < n; w++) {
+        /* its model: of those drawn from its mesh (two of a kind are drawn from the same vertices) the one nearest where
+         * it was last, followed from frame to frame */
+        const float *world = NULL;
+        float best = 600.0f * 600.0f, at[3] = {0, 0, 0};
+        for (int gi = 0; gi < f->ntlg && wound_cams; gi++) {
+            const Draw *d = &f->draws[f->tlg[gi].first];
+            if (d->vaddr != wounds[w].key || !(d->reg[0x17] & 1) || d->world == world)
+                continue;
+            const float zero[3] = {0, 0, 0};
+            float m[3], o[3];
+            mul43(d->world, zero, m);
+            mul43(wound_cam[0], m, o);
+            float dd = dist2(o, wounds[w].where);
+            if (dd < best)
+                best = dd, world = d->world, memcpy(at, o, sizeof at);
+        }
+        if (!world)
+            continue;                   /* (its model is not drawn this frame, or has gone far in one) */
+        memcpy(wounds[w].where, at, sizeof at);
+        for (int gi = 0; gi < f->ntlg; gi++) {
+            const Draw *d = &f->draws[f->tlg[gi].first];
+            if ((d->reg[0x17] & 1) && (d->world == world || !memcmp(d->world, world, sizeof(float) * 12)))
+                wound_masks[gi] |= 1ull << w;
+        }
+    }
+}
+
+/* The draw's wounds into its record: the newest 4 of its model's */
+static uint64_t wound_mask;         /* the group being drawn: its wounds (0: none) */
+
+static void wounds_fill(TlDraw *d) {
+    if (!wound_mask)
+        return;
+    int n = wound_next < WOUNDS ? wound_next : WOUNDS;
+    for (int k = 0; k < n && d->wounds < 4; k++) {
+        int i = (wound_next - 1 - k) % WOUNDS;
+        if (!(wound_mask >> i & 1))
+            continue;
+        memcpy(d->wound[3 * d->wounds], wounds[i].q, sizeof wounds[i].q);
+        d->wounds++;
+    }
+}
+
 static void tl_fill(TlDraw *d) {
     uint32_t vt = reg[0x12];
     int tc = vt & 3, col = (vt >> 2) & 7, nrm = (vt >> 5) & 3, wt = (vt >> 9) & 3;
@@ -3743,6 +4051,7 @@ static void tl_fill(TlDraw *d) {
     d->bones = wt ? ((vt >> 14) & 7) + 1 : 0;
     for (uint32_t b = 0; b < d->bones; b++)
         tl_rows(bones[b], &d->bone[3 * b]);
+    wounds_fill(d);
     d->flags = (prim_world ? TL_WORLD : 0u) | (tc ? TL_TEX : 0u) | (col >= 4 ? TL_VCOL : 0u) | (nrm && (reg[0x51] & 1) ? TL_FLIP : 0u);
     if (earlier && prim_world) {
         d->flags |= TL_EARLIER;
@@ -3990,6 +4299,7 @@ static int tl_draw_now(TlDraw *d) {
 
 static void tl_prim(int type, int count, int idx, const Layout *l) {
     static TlDraw d;
+    wound_mask = 0;                     /* (drawn as it comes, not recorded: no wounds) */
     int same = tl_draw_now(&d);
     int nv = count, ntri = type == 3 ? count / 3 : count - 2, nfeet = tl_feet_wanted(&d) && ntri > 0 ? ntri : 0;
     size_t dbytes = same ? 0 : sizeof d, ibytes = ((size_t)(2 * count) + 3) & ~(size_t)3;
@@ -4210,6 +4520,7 @@ static void tl_group_feet(Frame *f, TlGroup *g, const TlDraw *d) {
 
 static void tl_group_draw(const TlGroup *g) {
     static TlDraw d;
+    wound_mask = wound_masks_of == latest && g >= latest->tlg && g < latest->tlg + latest->ntlg ? wound_masks[g - latest->tlg] : 0;
     int same = tl_draw_now(&d);
     int slot = (int)(latest->tl_gen % TL_SLOTS);
     tl_groups_drawn++;
@@ -4515,6 +4826,38 @@ static void tex_log(uint32_t prims) {
 }
 
 /* MHFU_TEX_HIDE=hash,hash,...: textures left out, by their hash, to see what one is in the picture */
+/* The shadows the game paints on the ground by its buildings (the village's house: a roof's and a fence's shape, dark,
+ * see-through, laid just over the path) float over the ground beside the renderer's own, and are left out with them on
+ * (#45). Told by their texture (texpack's hash), among what is drawn like them: in the world, blended by its alpha,
+ * writing no depth. MHFU_PAINTED_SHADOWS=1: kept. (A wider test fits this one - a palette all of one dark colour, only
+ * its alpha differing - but other stages' have not been looked at.) */
+static const uint32_t painted_shadow_textures[] = {0xB68AB2DFu};
+
+static int painted_shadow(void) {
+    static int off = -1;
+    if (off < 0)
+        off = (getenv("MHFU_PAINTED_SHADOWS") && atoi(getenv("MHFU_PAINTED_SHADOWS")) != 0) ||
+              (getenv("MHFU_SHADOWS") && atoi(getenv("MHFU_SHADOWS")) == 0);
+    uint32_t vt = reg[0x12];
+    if (off || (vt >> 23 & 1) || proj[11] == 0 || !(reg[0x1E] & 1) || !(reg[0x21] & 1) || (reg[0xDF] & 0xFFF) != 0x32 ||
+        !(reg[0xE7] & 1))
+        return 0;
+    static uint32_t last_tex = ~0u, last_clut;
+    static int last_is;
+    uint32_t tex = (reg[0xA0] & 0xFFFFFF) | (reg[0xA8] & 0x0F0000) << 8;
+    if (tex != last_tex || reg[0xB0] != last_clut) {
+        uint64_t key;
+        uint32_t hash;
+        texpack_key(reg, 512, &key, &hash);
+        last_tex = tex;
+        last_clut = reg[0xB0];
+        last_is = 0;
+        for (size_t i = 0; i < sizeof painted_shadow_textures / sizeof *painted_shadow_textures; i++)
+            last_is |= painted_shadow_textures[i] == hash;
+    }
+    return last_is;
+}
+
 static int tex_hidden(void) {
     static uint32_t hide[32];
     static int n = -1;
@@ -5058,8 +5401,9 @@ static void backdrop_draw(int count, int idx, const Layout *l) {
  * over a hillside, whose vertices' colours are all black (the jungle, #33: drawn with the water's own texture, among
  * its draws), and the mist drifting over a cave's floor (#41: grey, see-through at its edges, as water is - told by
  * its texture alone). The draw about to be made is given DRAW_REG's bit 0 (above): not water.
- * (That water lies in one plane does not tell them: rivers run downhill, and the layer is one model with the stream.) */
-static const uint32_t not_water_textures[] = {0x317FDA83u};     /* (texpack's hashes) the cave's mist */
+ * (That water lies in one plane does not tell them: rivers run downhill, and the layer is one model with the stream.
+ * Nor that it writes depth: the two mists do not, but neither does a stream of the Snowy Mountains.) */
+static const uint32_t not_water_textures[] = {0x317FDA83u, 0x8CBE626Du};    /* (texpack's hashes) two caves' mists */
 
 static void water_draw(int count, int idx, const Layout *l) {
     uint32_t vt = reg[0x12];
@@ -5100,7 +5444,7 @@ static void prim_drawn(uint32_t data) {
         prim_stats = getenv("MHFU_PRIM_STATS") && atoi(getenv("MHFU_PRIM_STATS")) != 0;
     if (data & 0xFFFF)
         tex_log(data & 0xFFFF);
-    if ((data & 0xFFFF) && (flare_texture() || tex_hidden())) {      /* (left out: its vertices passed over) */
+    if ((data & 0xFFFF) && (flare_texture() || tex_hidden() || painted_shadow())) {      /* (left out: its vertices passed over) */
         int n = data & 0xFFFF, idx = (reg[0x12] >> 11) & 3;
         if (idx)
             iaddr += (uint32_t)(n * (idx == 1 ? 1 : 2));
