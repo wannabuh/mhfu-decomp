@@ -5644,6 +5644,11 @@ static void prim_drawn(uint32_t data) {
     Layout l = layout();
     if (!in_replay && !held_drawing && !pick_pass)
         water_draw(count, idx, &l), backdrop_draw(count, idx, &l);
+    /* (an effect: blended, its vertices made anew each frame in the game's own memory - a model's are in the files'
+     * loaded at 04000000. A monster's lightning is strips of them standing over it, and each cast the sun's shadow,
+     * a dark band across the water that came and went with the bolts: #59. DRAW_REG's bit 2: casts none) */
+    if (!in_replay && !held_drawing && !pick_pass && (reg[0x21] & 1) && vaddr >= 0x08000000u && !(reg[0x12] >> 23 & 1))
+        reg[DRAW_REG] |= 4;
     if (pick_pass) {                    /* (the inspector going over a recorded frame: noted, not drawn) */
         if (count > 0)
             pick_note(type, count, idx, &l);
