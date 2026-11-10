@@ -37,8 +37,8 @@
  *
  * Where the camera keeps its own angles (the village, the camp tent: view 2) the mouse orbits the picture about the
  * camera's target instead (with MHFU_FPS: it is the frames shown that turn), the stick turned to match so that
- * forward is forward as shown. The game knows nothing of it: the camera can go into walls, and what the game places
- * on the screen from its own camera (name tags) stays where it was.
+ * forward is forward as shown. The game knows nothing of it: the camera can go into walls; what the game places
+ * on the screen from its own camera (name tags) is placed through the one shown instead (rt_world_to_screen).
  *
  * Free look (controls.c's free_look held, Left Alt): in the hunt the mouse turns the picture alone - the game's camera,
  * which the stick moves the hunter by, left where it is - so the hunter keeps going the same way while the camera
@@ -878,6 +878,41 @@ int camera_native_shown(const float *view, const float *target, float *shown) {
         view_distance(shown, c, distance_factor());
     if (!held)
         eye_limit_apply(shown, c, 1);
+    return 1;
+}
+
+/* The game's own placing of a point of the world on the screen (EBOOT 08814674: the names over people and Felynes,
+ * the HUD's marks; not a sound's side, left the game's), with the camera shown where that is not the game's - orbited, raised or moved back by the mouse,
+ * the game knows nothing of it and its names stood where its own camera put them (#49). As the game's: the point
+ * scaled (by 1), through the view (+0xBC0 there, the same as +0xB80's) and the
+ * projection (+0xC00), over w, by the viewport (+0xDA0.., +0xDAC..), less the offset (+0xB70). 0: the game's as it is */
+int rt_world_to_screen(uint32_t scene, uint32_t out, uint32_t in) {
+    if (free_on || !in_ram(scene) || scene != *(uint32_t *)MEM(SCENE_PTR) || getenv("MHFU_GAME_NAME_TAGS"))
+        return 0;
+    const float *vm = (const float *)MEM(scene + 0xB80);
+    float v[12], shown[12];
+    for (int j = 0; j < 4; j++)
+        for (int i = 0; i < 3; i++)
+            v[3 * j + i] = vm[4 * j + i];
+    if (!(fabsf(v[0]) + fabsf(v[4]) + fabsf(v[8]) > 0.5f) || !camera_native_shown(v, NULL, shown))
+        return 0;
+    const float *p = (const float *)MEM(in), *proj = (const float *)MEM(scene + 0xC00);
+    const float *vp = (const float *)MEM(scene + 0xDA0), *off = (const float *)MEM(scene + 0xB70);
+    float k = *(const float *)MEM(*(uint32_t *)MEM(0x08A62D60u));
+    if (k != 1)                         /* (the world's scale: 1 wherever looked; else left to the game) */
+        return 0;
+    float e[4], q[4], *o = (float *)MEM(out);
+    for (int i = 0; i < 3; i++)
+        e[i] = k * (shown[i] * p[0] + shown[3 + i] * p[1] + shown[6 + i] * p[2] + shown[9 + i]);
+    e[3] = 1;
+    for (int i = 0; i < 4; i++)
+        q[i] = proj[i] * e[0] + proj[4 + i] * e[1] + proj[8 + i] * e[2] + proj[12 + i] * e[3];
+    if (q[3] > -1e-05f && q[3] < 1e-05f)
+        q[3] = 1;
+    o[0] = vp[3] + vp[0] * q[0] / q[3] - off[0];
+    o[1] = vp[4] + vp[1] * q[1] / q[3] - off[1];
+    o[2] = vp[5] + vp[2] * q[2] / q[3];
+    o[3] = q[3];
     return 1;
 }
 

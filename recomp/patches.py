@@ -324,6 +324,7 @@ BOX_WAIT = "the supply box's wait after an item is taken: a tenth of a second, n
 # (rt_hud_part: the chunks it links, the text it queues - EBOOT 08891474 and its kin add a text's entry, 0889377C
 # draws one; 08895220 adds a number, 08892A88 draws them in turn), to be made smaller towards its corner (gpu.c,
 # MHFU_HUD_SCALE); not the menus' windows nor the supply box drawn there too, nor other windows
+NAME_TAGS = "the game's placing of a point on the screen (names over people): through the camera shown (camera.c)"
 PC_MENU = "the empty last row of the menu START opens: \"PC Settings\", opening the settings screen (overlay.c)"
 HUD = "the hunt's HUD's parts (gauges, map, item bar) told apart as they are drawn, to be scaled (gpu.c)"
 # The HUD's sprites (EBOOT 0882AF70: a1 x, a2 y, a3 width, t0 height, t1 the sprite; 0882A9DC: a1 x, a2 y, a3 the
@@ -555,6 +556,10 @@ PATCHES = {
     ("EBOOT", 0x08895274): ("sh $a1, 0x0($v1)", "SH((c->r[3] + 0x0u), c->r[5]); rt_hud_text_queued(c->r[3]);", HUD),
     ("EBOOT", 0x08892CAC): ("lbu $a0, 0x6($s4)", "rt_hud_text_drawn(c->r[20]); c->r[4] = LBU((c->r[20] + 0x6u));", HUD),
     ("EBOOT", 0x08892E50): ("lw $fp, 0x28($sp)", "rt_hud_part(0); c->r[30] = LW((c->r[29] + 0x28u));", HUD),
+    # the names over people placed through the camera shown, not the game's own (#49); a sound's side (its call
+    # from 08884F6C) as the game has it: that is the game's state
+    ("EBOOT", 0x08814674): ("addiu $sp, $sp, -0x20", "{ extern int rt_world_to_screen(uint32_t, uint32_t, uint32_t); "
+                            "if (c->r[31] != 0x8884F74u && rt_world_to_screen(c->r[4], c->r[5], c->r[6])) return; } c->r[29] = c->r[29] + 0xFFFFFFE0u;", NAME_TAGS),
     ("EBOOT", 0x0882AF70): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[9], c->r[5], c->r[6], c->r[7], c->r[8])) return; "
                             "c->r[29] = c->r[29] + 0xFFFFFF90u;", SPRITE),
     ("EBOOT", 0x0882A9DC): ("addiu $sp, $sp, -0x70", "if (rt_sprite(c, c->r[7], c->r[5], c->r[6], -1, -1)) return; "
