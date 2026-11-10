@@ -5477,7 +5477,8 @@ int gpu_pick_at(float x, float y, GpuPickHit *out, int max) {
 #define BACKDROP_WIDE 8000.0f
 #define BACKDROP_OVER 400.0f
 #define BACKDROP_VAST 30000.0f       /* (wider than any area: the ground's models are some 20000 across) */
-#define BACKDROP_SLOTS 16384
+#define BACKDROP_BITS 18
+#define BACKDROP_SLOTS (1 << BACKDROP_BITS)
 #define BACKDROP_DRAWS 2048
 static struct { uint32_t v, i; uint8_t used, far; } backdrop_tab[BACKDROP_SLOTS];
 static int backdrop_filled;
@@ -5493,7 +5494,7 @@ static float backdrop_inv[12], backdrop_target[3];
 static int backdrop_have;
 
 static int backdrop_slot(uint32_t v, uint32_t i) {
-    uint32_t h = (v * 0x9E3779B1u ^ i * 0x85EBCA6Bu) >> 18 & (BACKDROP_SLOTS - 1);
+    uint32_t h = (v * 0x9E3779B1u ^ i * 0x85EBCA6Bu) >> (32 - BACKDROP_BITS) & (BACKDROP_SLOTS - 1);
     while (backdrop_tab[h].used && (backdrop_tab[h].v != v || backdrop_tab[h].i != i))
         h = (h + 1) & (BACKDROP_SLOTS - 1);
     return (int)h;
@@ -5507,7 +5508,14 @@ static void backdrop_close(void) {
     for (int k = 0; k < 3; k++)
         d += (backdrop_group.hi[k] - backdrop_group.lo[k]) * (backdrop_group.hi[k] - backdrop_group.lo[k]);
     int far = sqrtf(d) > BACKDROP_VAST || (sqrtf(d) > BACKDROP_WIDE && backdrop_group.y[0] - backdrop_target[1] > BACKDROP_OVER);
-    if (backdrop_filled + backdrop_group.n > BACKDROP_SLOTS / 2) {  /* (another stage's, by now: begun again) */
+    /* Begun again in another stage (or full). Not by how many it holds alone: with room for 8192 draws the desert's
+     * open country, some 10000 draws a frame, emptied it every frame or two, and for the frame after each emptying
+     * no draw was known - the far cliffs cast their great shadow across the sand, on and off (#62) */
+    static uint32_t stage_was = ~0u;
+    uint32_t game = LW(0x089CC558u);
+    uint32_t stage = game >= 0x08800000u && game < 0x09F00000u ? LHU(game + 0x6AF0Eu) : ~0u;
+    if (stage != stage_was || backdrop_filled + backdrop_group.n > BACKDROP_SLOTS / 2) {
+        stage_was = stage;
         memset(backdrop_tab, 0, sizeof backdrop_tab);
         backdrop_filled = 0;
     }
