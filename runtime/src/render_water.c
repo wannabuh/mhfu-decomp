@@ -23,8 +23,12 @@ static Target *copied;
 static VkSampler linear_clamp, nearest_clamp;
 /* the texture coordinates' offset each texture was last drawn with, and the frame it last moved */
 static uint32_t offset_seen[MAX_TEXTURES][2];
-static unsigned long moved_at[MAX_TEXTURES];
-#define STILL_FRAMES 240            /* frames shown since its offset moved for a texture to stop being water */
+static double moved_at[MAX_TEXTURES];    /* (the game's time, in 30ths of its second, + 1; 0: never) */
+/* The game's time since its offset moved for a texture to stop being water: half a minute. It was 240 frames shown -
+ * under two seconds at 144 a second - and a sea whose swell rests that long between its moves went back to the
+ * game's own flat picture till the next (#66), as did any water with the game held (#65: its time stands still). */
+#define STILL_30THS 900.0
+double rt_game_30ths(void);
 
 void water_settings(void) {
     water_on = !getenv("MHFU_WATER") || atoi(getenv("MHFU_WATER")) != 0;
@@ -99,11 +103,11 @@ int water_prim(const uint32_t *reg, const DrawState *s) {
         return 0;
     if (offset_seen[slot][0] != u || offset_seen[slot][1] != v) {
         if (moved_at[slot] || offset_seen[slot][0] || offset_seen[slot][1])
-            moved_at[slot] = frame_no;
+            moved_at[slot] = rt_game_30ths() + 1;
         offset_seen[slot][0] = u;
         offset_seen[slot][1] = v;
     }
-    if (!moved_at[slot] || frame_no - moved_at[slot] > STILL_FRAMES)
+    if (!(moved_at[slot] > 0) || rt_game_30ths() + 1 - moved_at[slot] > STILL_30THS || rt_game_30ths() + 1 < moved_at[slot])
         return 0;
     /* (and gpu.c's water_draw has not said otherwise: a dark layer drifting over a hillside, a cave's mist - #33, #41) */
     if (reg[0xFE] & 1)
