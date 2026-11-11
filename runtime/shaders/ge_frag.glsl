@@ -431,12 +431,12 @@ void main() {
                     // (how much of the ground shows through: little, less where it is deep - some patches thinner)
                     float body = mix(0.8, 0.98, deep_of(thick)) * (0.82 + 0.18 * smoothstep(0.25, 0.6, blood_noise(in_world.xz * 0.06 + 7.3)));
                     wet *= 1.0 - 0.6 * sand;
-                    vec3 dry = mix(col * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
-                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.72, smoothstep(1.0, 3.0, thick));
+                    vec3 dry = mix(col * 0.6, vec3(0.3, 0.1, 0.07), 0.4);         // (dried: a dark red-brown, not black)
+                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.8, smoothstep(1.0, 3.0, thick));
                     tint = mix(tint, col * 1.15, 0.5 * snow);
                     tint = mix(tint, tint * 0.6, 0.6 * sand);
                     float deep = deep_of(thick);
-                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.5 + 0.06), mix(0.7, 0.93, deep));
+                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.9 + 0.1), mix(0.7, 0.93, deep));
                     // (snow: a paler ring of it soaked out past the edge)
                     c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.0), col * 1.3 + 0.25, 0.5), snow * smoothstep(0.02, 0.2, level) * (1.0 - cover));
                     c.rgb = mix(c.rgb, stained, cover * body * (1.0 - 0.25 * sand));

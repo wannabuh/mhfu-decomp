@@ -200,13 +200,13 @@ static void streak_later(float x0, float z0, float x1, float z1, float w0, float
 /* What a splash throws out: thin rays from about its middle - all round, or in a fan the way it was going - each
  * drawn out in two goes, some with a bead at the end; and fine specks beyond */
 static void rays(float x, float z, float r, float thick, float dx, float dz, float e, int ycode, int color, double now) {
-    int fan = e > 0, n = fan ? 3 + (int)(e * 2.0f) + (int)(chance() * 3.0f) : 2 + (int)(chance() * 5.0f);
+    int fan = e > 0, n = fan ? (int)(chance() * 2.4f) : 2 + (int)(chance() * 4.0f);
     float mid = fan ? atan2f(dz, dx) : 0;
     for (int i = 0; i < n; i++) {
-        float turn = fan ? mid + (chance() - 0.5f) * (1.3f - 0.2f * e) : chance() * 6.2832f;
-        float far = r * (fan ? 2.2f + (1.8f + 3.0f * e) * chance() : 1.6f + 3.2f * chance() * chance());
+        float turn = fan ? mid + (chance() - 0.5f) * 0.9f : chance() * 6.2832f;
+        float far = r * (fan ? 1.2f + (0.8f + 1.0f * e) * chance() : 1.3f + 1.9f * chance() * chance());
         float cx = cosf(turn), cz = sinf(turn), bend = (chance() - 0.5f) * 0.25f;
-        float w0 = fmaxf(r * (0.16f + 0.16f * chance()), 0.9f), from = r * 0.45f, half = from + (far - from) * 0.5f;
+        float w0 = fmaxf(r * (0.14f + 0.14f * chance()), 0.6f), from = r * 0.45f, half = from + (far - from) * 0.5f;
         float mx = x + cx * half - cz * bend * far * 0.3f, mz = z + cz * half + cx * bend * far * 0.3f;
         float ex = x + cx * far, ez = z + cz * far;
         streak(x + cx * from, z + cz * from, mx, mz, w0, w0 * 0.7f, thick, ycode, color);
@@ -214,10 +214,10 @@ static void rays(float x, float z, float r, float thick, float dx, float dz, flo
         if (chance() < 0.45f)
             paint_later(ex, ez, fmaxf(r * (0.14f + 0.16f * chance()), 0.9f), thick * 0.9f, ycode, color, now + 0.1 + 0.05 * chance());
     }
-    int specks = 5 + (int)(chance() * 9.0f);
+    int specks = fan ? 1 + (int)(chance() * 3.0f) : 3 + (int)(chance() * 6.0f);
     for (int i = 0; i < specks; i++) {
-        float turn = fan ? mid + (chance() - 0.5f) * 1.7f : chance() * 6.2832f, far = r * (1.6f + (3.4f + 2.5f * e) * chance());
-        paint_later(x + cosf(turn) * far, z + sinf(turn) * far, 0.6f + 0.9f * chance() * chance() * fminf(r * 0.3f, 2.0f), thick * 0.9f,
+        float turn = fan ? mid + (chance() - 0.5f) * 0.8f : chance() * 6.2832f, far = r * (1.4f + (2.0f + 1.2f * e) * chance());
+        paint_later(x + cosf(turn) * far, z + sinf(turn) * far, 0.5f + 0.7f * chance() * chance() * fminf(r * 0.3f, 1.5f), thick * 0.9f,
                     ycode, color, now + 0.03 + 0.12 * chance());
     }
 }
@@ -225,31 +225,39 @@ static void rays(float x, float z, float r, float thick, float dx, float dz, flo
 /* A drop lands: the splash it makes, by how fast it came in across the ground */
 static void land(const float *at, const float *speed, float size, int ycode, int color, double now) {
     float across = sqrtf(speed[0] * speed[0] + speed[2] * speed[2]);
-    float thick = 150.0f + 22.0f * size;
-    float r = size * 1.25f;
-    /* its middle: a blot and a lobe or two of it, no two alike */
-    int lobes = 1 + (int)(chance() * 2.5f);
-    for (int i = 0; i < lobes; i++) {
-        float turn = chance() * 6.2832f, off = r * (0.3f + 0.4f * chance());
-        blot(at[0] + cosf(turn) * off, at[2] + sinf(turn) * off, r * (0.35f + 0.35f * chance()), thick * 0.8f, 0.3f, ycode, color);
-    }
-    if (across < 70.0f) {               /* straight down: a blot, rays and specks thrown out all round it */
+    /* (no more than a cell holds: one drop is its own size on the ground, and only more drops on it make a pool) */
+    float thick = fminf(105.0f + 7.0f * size, 160.0f);
+    float r = size * 0.8f;
+    if (across < 70.0f) {               /* straight down: a blot - a lobe to it, sometimes - rays and specks all round it */
         blot(at[0], at[2], r, thick, 0.36f, ycode, color);
+        if (chance() < 0.5f) {
+            float turn = chance() * 6.2832f;
+            blot(at[0] + cosf(turn) * r * 0.55f, at[2] + sinf(turn) * r * 0.55f, r * (0.3f + 0.25f * chance()), thick * 0.5f, 0.3f, ycode, color);
+        }
         rays(at[0], at[2], r, thick, 0, 0, 0, ycode, color, now);
         return;
     }
-    /* across the ground: its head where it hit, a tail drawn out the way it went - narrower as it goes, a little
-     * aside here and there - and rays and specks thrown on ahead, in a fan */
-    float dx = speed[0] / across, dz = speed[2] / across, e = fminf(across / 200.0f, 3.0f);
-    float length = r * (1.2f + 1.8f * e);
-    int steps = 3 + (int)(length / (BLOOD_UNIT * 0.8f));
-    blot(at[0], at[2], r * 0.9f, thick, 0.3f, ycode, color);
-    for (int i = 1; i <= steps; i++) {
-        float s = (float)i / (float)steps, far = r * 0.5f + length * s, aside = (chance() - 0.5f) * r * 0.4f * s;
-        paint_later(at[0] + dx * far - dz * aside, at[2] + dz * far + dx * aside, r * (0.75f - 0.6f * s), thick * (1.0f - 0.45f * s),
-                    ycode, color, now + 0.15 * s);
+    /* across the ground: a drop of it, long the way it went - round where it hit, drawn out to a point over a
+     * tenth of a second - a speck or two thrown on past the point, and now and then a ray beside it */
+    float dx = speed[0] / across, dz = speed[2] / across, e = fminf(across / 250.0f, 2.0f);
+    float length = r * (1.0f + 1.6f * e), back = r * 0.3f;
+    blot(at[0], at[2], r * 0.8f, thick * 0.6f, 0.2f, ycode, color);
+    for (int i = 0; i < 3; i++) {
+        float s0 = (float)i / 3.0f, s1 = (float)(i + 1) / 3.0f;
+        float f0 = -back + (length + back) * s0, f1 = -back + (length + back) * s1;
+        float w0 = r * (0.75f - 0.6f * s0), w1 = fmaxf(r * (0.75f - 0.6f * s1), 0.3f);
+        if (!i)
+            streak(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color);
+        else
+            streak_later(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color, now + 0.05 * i);
     }
-    rays(at[0] + dx * r * 0.4f, at[2] + dz * r * 0.4f, r, thick, dx, dz, e, ycode, color, now);
+    int specks = 1 + (int)(chance() * 2.5f);
+    for (int i = 0; i < specks; i++) {
+        float far = length * (1.15f + 0.55f * chance()), aside = (chance() - 0.5f) * r * 0.5f;
+        paint_later(at[0] + dx * far - dz * aside, at[2] + dz * far + dx * aside, fmaxf(r * (0.1f + 0.12f * chance()), 0.5f), thick * 0.9f, ycode,
+                    color, now + 0.12 + 0.05 * chance());
+    }
+    rays(at[0] + dx * r * 0.3f, at[2] + dz * r * 0.3f, r, thick, dx, dz, e, ycode, color, now);
 }
 
 /* Wet blood moves (a tile's cells, one step): what a cell cannot hold goes to its neighbours with less; on a slope
