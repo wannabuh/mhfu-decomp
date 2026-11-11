@@ -25,6 +25,10 @@ layout(location = 14) in vec4 in_wound_look[][4];
 layout(location = 18) in float in_wound_facing[][4];
 layout(location = 22) in uint in_wound_tex[];
 layout(location = 23) in vec4 in_wound_run[][4];
+layout(location = 27) in uint in_runs[];
+layout(location = 28) in vec3 in_place[];
+layout(location = 27) patch out uint out_runs;
+layout(location = 28) out vec3 out_place[];
 layout(location = 10) out vec3 out_wound[][4];
 layout(location = 18) out float out_wound_facing[][4];
 layout(location = 14) patch out vec4 out_wound_look[4];
@@ -66,12 +70,15 @@ void main() {
 #ifdef TL_CLIP
     out_wound[gl_InvocationID] = in_wound[i];
     out_wound_facing[gl_InvocationID] = in_wound_facing[i];
+    out_place[gl_InvocationID] = in_place[i];
 #endif
     if (i == 0) {
 #ifdef TL_CLIP
         out_wound_look = in_wound_look[0];
         out_wound_tex = in_wound_tex[0];
         out_wound_run = in_wound_run[0];
+        // (the game's triangle this is, counted in its draw: the pixel stage's own count is of the pieces it is cut into)
+        out_runs = in_runs[0] != 0u ? in_runs[0] + uint(gl_PrimitiveID) : 0u;
 #endif
         vec4 p0 = gl_in[0].gl_Position, p1 = gl_in[1].gl_Position, p2 = gl_in[2].gl_Position;
         bool normals = dot(in_shape[0].xyz, in_shape[0].xyz) > 0.0 && dot(in_shape[1].xyz, in_shape[1].xyz) > 0.0 &&

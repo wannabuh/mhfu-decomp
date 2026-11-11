@@ -10,6 +10,9 @@ layout(set = 0, binding = BIND_SHADOW_MAP) uniform sampler2DShadow shadow_map;
 // term or 0; colour), and which is the sun (the shadows')
 layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
 layout(std430, set = 0, binding = BIND_BLOOD) readonly buffer Blood { uint blood_map[]; };
+#ifdef TL_WOUNDS
+layout(std430, set = 0, binding = BIND_RUNS) readonly buffer Runs { uint run_words[]; };
+#endif
 // The strongest two point lights' shadows: distance from the light over its reach, by direction from it
 layout(set = 0, binding = BIND_POINT_SHADOWS) uniform samplerCube point_shadow[2];
 
@@ -50,6 +53,10 @@ layout(location = 18) in float in_wound_facing[4];
 layout(location = 22) flat in uint in_wound_tex;            // (the deep wounds' picture: its slot)
 layout(location = 23) flat in vec4 in_wound_run[4];
 layout(location = 10) in vec3 in_wound[4];                 // (ge_tl.vert: each wound's, 1 at its edge)
+// (the blood run down it, shared.h RUN_: where its triangles' is kept - RUN_PATCH: this triangle's own, a tessellated
+// one being many - and where the pixel is among the vertices as the game gave them)
+layout(location = 27) flat in uint in_runs;
+layout(location = 28) in vec3 in_place;
 #endif
 layout(location = 6) in vec3 in_world;
 layout(location = 8) in vec3 in_motion;
@@ -585,6 +592,76 @@ void main() {
             }
         }
         c.rgb = drawn;
+    }
+    // The blood that has run down the animal (trails.c): its triangle's pieces, each a line among the vertices as the
+    // game gave them - so on the skin however it is posed - as wide as the trickle was there, wandering a little to
+    // either side as it goes, a bead where it ends. Its own colour over the skin (how far: the settings'), darker at
+    // its rim, lit as the skin is but no darker than the light there would leave it on dark fur; wet for a while
+    // behind the trickle's end, and shining so, then dried dark.
+#ifdef RUN_NONE
+    uint piece = 0u;            // (a pixel cannot count its triangle here: no tessellation, nor geometry stage)
+#else
+    uint piece = in_runs;
+#ifndef RUN_PATCH
+    piece += in_runs != 0u ? uint(gl_PrimitiveID) : 0u;
+#endif
+#endif
+    piece = piece != 0u && piece <= uint(RUN_MESHES * RUN_TRIS) ? run_words[piece - 1u] : 0u;
+    if (piece != 0u) {
+        vec3 look = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xyz;      // how solid, how it shines, the moment
+        vec3 px = dFdx(in_place), py = dFdy(in_place), face = cross(px, py);
+        float soft = 0.6 * sqrt(length(face)), cover = 0.0, wetness = 0.0, core = 0.0;
+        vec3 blood = vec3(0.0);
+        for (int n = 0; n < 32 && piece != 0u && piece <= uint(RUN_ENTRIES); n++) {
+            uint at = uint(RUN_MESHES * RUN_TRIS) + (piece - 1u) * uint(RUN_WORDS);
+            vec4 a = vec4(uintBitsToFloat(run_words[at]), uintBitsToFloat(run_words[at + 1u]), uintBitsToFloat(run_words[at + 2u]), uintBitsToFloat(run_words[at + 3u]));
+            vec4 b = vec4(uintBitsToFloat(run_words[at + 4u]), uintBitsToFloat(run_words[at + 5u]), uintBitsToFloat(run_words[at + 6u]), uintBitsToFloat(run_words[at + 7u]));
+            vec4 along = vec4(uintBitsToFloat(run_words[at + 8u]), uintBitsToFloat(run_words[at + 9u]), uintBitsToFloat(run_words[at + 10u]), uintBitsToFloat(run_words[at + 11u]));
+            uint tint = run_words[at + 13u];
+            float seed = uintBitsToFloat(run_words[at + 14u]), unit = uintBitsToFloat(run_words[at + 15u]);
+            piece = run_words[at + 12u];
+            vec3 ab = b.xyz - a.xyz, side = cross(face, ab);
+            float l2 = dot(ab, ab), sl = length(side);
+            if (!(l2 > 0.0) || !(sl > 0.0))
+                continue;
+            float u = clamp(dot(in_place - a.xyz, ab) / l2, 0.0, 1.0), s = mix(along.x, along.y, u);
+            // (to one side and the other as it goes: by how far it has run, so one piece goes on from the last)
+            vec3 q = in_place - side / sl * (wound_noise(s * 0.11 + seed * 17.0) - 0.5) * 2.8 * unit;
+            u = clamp(dot(q - a.xyz, ab) / l2, 0.0, 1.0);
+            float d = length(q - (a.xyz + ab * u)), wide = mix(a.w, b.w, u);
+            // (thinner and thicker along it, a little)
+            wide *= (tint & 0x1000000u) != 0u ? 1.0 : 0.8 + 0.4 * wound_noise(s * 0.23 + seed * 5.0);
+            float over = 1.0 - smoothstep(wide - soft, wide + soft, d);
+            if (over > cover) {
+                cover = over;
+                core = 1.0 - smoothstep(wide * 0.35, wide, d);
+                wetness = clamp(1.0 - (look.z - mix(along.z, along.w, u)) / 30.0, 0.0, 1.0);
+                blood = vec3(float(tint & 255u), float((tint >> 8) & 255u), float((tint >> 16) & 255u)) / 255.0;
+            }
+        }
+        if (cover > 0.0) {
+            vec3 skin = c.rgb;
+            float lit = dot(skin, vec3(0.3, 0.55, 0.15)), light = dot(in_color.rgb, vec3(0.3, 0.55, 0.15));
+            vec3 dry = mix(blood * 0.5, vec3(0.16, 0.07, 0.05), 0.4);
+            vec3 wet = mix(dry, blood, 0.25 + 0.6 * wetness);
+            // (thin, as it was: towards the skin's colour and as light as it; solid: its own, by the light alone)
+            vec3 thin = mix(wet, skin / max(lit, 0.02) * dot(wet, vec3(0.3, 0.55, 0.15)), 0.25) * lit * 1.9;
+            vec3 solid = wet * clamp(max(lit * 1.9, light * 0.9), 0.0, 1.3) * mix(0.72, 1.0, core);
+            vec3 drawn = mix(skin, mix(thin, solid, look.x), cover * mix(0.8, 1.0, look.x));
+            float gloss = cover * (0.35 + 0.65 * core) * max(wetness, 0.1) * look.y;
+            vec3 n = cross(dFdx(in_world), dFdy(in_world));
+            vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
+            if (gloss > 0.0 && dot(n, n) > 0.0 && dot(view, view) > 0.0) {
+                vec3 sunward = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]) + vec3(0.0, 1e-5, 0.0));
+                view = normalize(view);
+                n = normalize(n);
+                n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
+                float sun_shine = pow(max(dot(n, normalize(view + sunward)), 0.0), 40.0) * (1.0 - 0.85 * sh);
+                float sky_shine = pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 18.0) * 0.3 + 0.25 * pow(1.0 - dot(n, view), 3.0);
+                drawn += (sun_shine * 0.9 + sky_shine * (0.3 + lit)) * gloss;
+            }
+            c.rgb = drawn;
+        }
     }
 #endif
     // blood in the air (gpu.c: drops falling from wounds): each over what is behind it, in the world - where the line

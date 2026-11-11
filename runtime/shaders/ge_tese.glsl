@@ -33,6 +33,10 @@ layout(location = 18) in float in_wound_facing[][4];
 layout(location = 14) patch in vec4 in_wound_look[4];
 layout(location = 22) patch in uint in_wound_tex;
 layout(location = 23) patch in vec4 in_wound_run[4];
+layout(location = 27) patch in uint in_runs;
+layout(location = 28) in vec3 in_place[];
+layout(location = 27) flat out uint out_runs;
+layout(location = 28) out vec3 out_place;
 layout(location = 10) out vec3 out_wound[4];
 layout(location = 18) out float out_wound_facing[4];
 layout(location = 14) flat out vec4 out_wound_look[4];
@@ -76,5 +80,7 @@ void main() {
     out_wound_look = in_wound_look;
     out_wound_tex = in_wound_tex;
     out_wound_run = in_wound_run;
+    out_runs = in_runs;
+    out_place = b.x * in_place[0] + b.y * in_place[1] + b.z * in_place[2];
 #endif
 }

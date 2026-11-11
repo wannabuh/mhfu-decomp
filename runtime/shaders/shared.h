@@ -36,6 +36,7 @@
 #define BIND_SCENE_DEPTH 7
 #define BIND_TL 8               /* TlDraw[]: the draws whose vertex stage the GPU does (ge_tl.vert), half a frame */
 #define BIND_BLOOD 10           /* uint[]: the ground's blood (blood.c) */
+#define BIND_RUNS 11            /* uint[]: the blood run down the animals (trails.c) */
 #define BIND_TL_EXTRA 9         /* vec4[]: their vertices' part in the scenery's effects (render.c tl_scenery) */
 
 /* -- a draw's flags (DrawPush.flags) ------------------------------------------------------------------------------ */
@@ -120,7 +121,8 @@
 /* Blood off the animal (blood.c, render_lights.c). The light sets from BLOOD_SET_AT: the drops in the air - where
  * each is (dir, w: how wide) and its colour, the first's count how many; as many sets with each one's streak (dir: back
  * to where it was); two with the ground's blood's 16 colours (dir, then color); one with the eye's place (dir[0];
- * dir[1]: the look of the blood on an animal - x how solid, 0 to 1, y how it shines, times; its
+ * dir[1]: the look of the blood on an animal - x how solid, 0 to 1, y how it shines, times, z the moment the
+ * blood run down it is at (RUN_ below); its
  * count: whether there is any blood on the ground). BIND_BLOOD: the ground's blood, BLOOD_N x BLOOD_N cells of
  * BLOOD_UNIT units of the world, wrapped - a cell's low 10 bits how much (255 covers the ground), then 8 how wet, 10
  * its ground's height (8 units a step, modulo; BLOOD_ANY: any ground under the eye's reach), 4 its colour */
@@ -130,6 +132,18 @@
 #define BLOOD_N 4096
 #define BLOOD_UNIT 2.5f
 #define BLOOD_ANY 1023
+
+/* Blood run down an animal (trails.c, BIND_RUNS): for each of RUN_MESHES skins RUN_TRIS words, a triangle's the first
+ * of its pieces (1 the first of the RUN_ENTRIES; 0 none) - a draw's record says where its triangles' words begin, less
+ * one (TlDraw runs; 0: it has none). Then the pieces, RUN_WORDS words each: where it begins among its triangle's
+ * vertices as the game gave them (three floats) and half how wide it is there, in their units; the same where it ends;
+ * how far along its trickle it begins and ends (units of the world), and when the blood came to each end (seconds,
+ * as the eye's set's dir[1].z has now); the triangle's next piece, its colour (RGB8; bit 24: a bead, the trickle's
+ * end), a number of its own, and how many of the vertices' units one of the world's is here */
+#define RUN_MESHES 4
+#define RUN_TRIS 16384
+#define RUN_ENTRIES 8192
+#define RUN_WORDS 16
 
 #define LIGHT_SET                                                                                                      \
     VEC4S(dir, 4);                                                                                                     \
@@ -173,7 +187,7 @@
     VEC4S(light_specular, 4);                                                                                          \
     VEC4S(bone, 24);                                                                                                   \
     VEC4S(earlier_bone, 24);                                                                                           \
-    U32 wounds, wound_pad0, wound_pad1, wound_pad2;                                                                    \
+    U32 wounds, wound_pad0, runs, wound_pad2;                                                                          \
     VEC4S(wound, 12);                                                                                                  \
     VEC4S(wound_look, 4);                                                                                              \
     VEC4S(wound_run, 4);

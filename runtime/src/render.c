@@ -44,6 +44,9 @@
 #include "ge_tl.tesc.inc"
 #include "ge_tl.tese.inc"
 #include "ge_tl_tess.frag.inc"
+#include "ge_tl_flat.frag.inc"
+#include "ge_tl_bare.frag.inc"
+#include "ge_tl_flat_bare.frag.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
 
@@ -353,7 +356,7 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
-    VkDescriptorSetLayoutBinding b[11] = {
+    VkDescriptorSetLayoutBinding b[12] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
@@ -365,22 +368,23 @@ int render_init(void *sdl_window) {
         {BIND_TL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_TL_EXTRA, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_BLOOD, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
+        {BIND_RUNS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[11];
-    for (int i = 0; i < 11; i++)
+    VkDescriptorBindingFlags bf[12];
+    for (int i = 0; i < 12; i++)
         bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 11, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 12, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 11, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 12, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
     VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 8},
-                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5}};
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 6}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);
@@ -427,7 +431,10 @@ int render_init(void *sdl_window) {
         /* (its pixels read their triangles' corners if they can: the scenery's normals chosen as the CPU's are) */
         /* (and draw their wounds: so do the tessellated ones' - drawn over the flat, they hid its wounds) */
         VkShaderModule wfs = vk_shader(ge_tl_tess_frag, sizeof ge_tl_tess_frag);
-        VkShaderModule tfs = vk.barycentric ? vk_shader(ge_tl_frag, sizeof ge_tl_frag) : wfs;
+        /* (and the blood run down the animals, by which triangle of its draw a pixel is in: counted only on a device
+         * with tessellation) */
+        VkShaderModule tfs = vk.barycentric ? (vk.tessellation ? vk_shader(ge_tl_frag, sizeof ge_tl_frag) : vk_shader(ge_tl_bare_frag, sizeof ge_tl_bare_frag))
+                             : vk.tessellation ? vk_shader(ge_tl_flat_frag, sizeof ge_tl_flat_frag) : vk_shader(ge_tl_flat_bare_frag, sizeof ge_tl_flat_bare_frag);
         tl_pipeline = make_pipeline(tvs, tfs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
         if (tess_pipeline) {
             tess_ctrl_tl = vk_shader(ge_tl_tesc, sizeof ge_tl_tesc);

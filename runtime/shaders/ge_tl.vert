@@ -18,6 +18,8 @@ layout(location = 14) flat out vec4 out_wound_look[4];     // (how each looks: s
 layout(location = 18) out float out_wound_facing[4];        // (how squarely the skin faces each: 1 as where it was cut)
 layout(location = 22) flat out uint out_wound_tex;          // (the deep wounds' picture: its slot in the textures)
 layout(location = 23) flat out vec4 out_wound_run[4];      // (where each one's blood runs: shared.h)
+layout(location = 27) flat out uint out_runs;               // (where its triangles' blood run down is kept: shared.h RUN_)
+layout(location = 28) out vec3 out_place;                   // (the vertex as the game gave it: the blood's pieces are kept so)
 layout(location = 10) out vec3 out_wound[4];    // (each wound's: where the vertex is from it, 1 at its edge)
 out gl_PerVertex {
     vec4 gl_Position;
@@ -148,6 +150,8 @@ void main() {
     // (wounds: among the vertices as the game gave them, so they stay on the skin however it is posed. Linear in the
     // place, so the pixels' are exact: the way across over the half width, the way along over the half length)
     out_wound_tex = draws[i].wounds != 0u ? draws[i].wound_pad0 : 0xFFFFFFFFu;
+    out_runs = draws[i].runs;
+    out_place = in_pos;
     for (uint k = 0u; k < 4u; k++) {
         if (k < draws[i].wounds) {
             vec4 r0 = draws[i].wound[3u * k], r1 = draws[i].wound[3u * k + 1u], r2 = draws[i].wound[3u * k + 2u];

@@ -8,6 +8,7 @@
 #include "render_internal.h"
 #include "blood.h"
 #include "settings.h"
+#include "trails.h"
 
 #include "hle.h"
 
@@ -333,6 +334,21 @@ static void blood_sets(LightSet *l) {
         vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
         blood_init(blood_buf.map);
     }
+    /* (and the blood run down the animals, trails.c: its words, those changed since the last frame) */
+    static VkBuf runs_buf;
+    uint32_t run_from, run_to, run_words = RUN_MESHES * RUN_TRIS + RUN_ENTRIES * RUN_WORDS;
+    if (!runs_buf.map) {
+        runs_buf = vk_buffer((VkDeviceSize)run_words * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+        VkDescriptorBufferInfo bi = {runs_buf.buffer, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_RUNS, 0, 1,
+                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &bi, NULL};
+        vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
+        const uint32_t *all = trails_words(&run_from, &run_to);
+        memcpy(runs_buf.map, all, (size_t)run_words * sizeof(uint32_t));
+    }
+    const uint32_t *runs = trails_words(&run_from, &run_to);
+    if (run_to > run_from)
+        memcpy((uint32_t *)runs_buf.map + run_from, runs + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
     blood_step(scene_time(), &f);
     memset(l, 0, sizeof *l * BLOOD_SETS);
     for (int i = 0; i < f.ndrops; i++) {
@@ -347,7 +363,7 @@ static void blood_sets(LightSet *l) {
     memcpy(l[BLOOD_SETS - 1].dir[0], blood_eye_known ? blood_eye_shown : f.eye, 12);
     /* (and the settings' look of the blood on an animal: how solid, 0 as it was to 1; how it shines, times) */
     static unsigned seen;
-    static float look[2];
+    static float look[3];
     if (SETTING_STALE(seen)) {
         const char *o = getenv("MHFU_BLOOD_OPACITY"), *s = getenv("MHFU_BLOOD_SHINE");
         look[0] = o ? (float)atof(o) : 1.0f;
@@ -355,6 +371,7 @@ static void blood_sets(LightSet *l) {
         look[0] = look[0] < 0 ? 0 : look[0] > 1 ? 1 : look[0];
         look[1] = look[1] < 0 ? 0 : look[1] > 4 ? 4 : look[1];
     }
+    look[2] = trails_now();
     memcpy(l[BLOOD_SETS - 1].dir[1], look, sizeof look);
     l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
