@@ -1201,6 +1201,8 @@ int render_tl_tessellates(void) {
 static uint32_t tl_record(const TlDraw *d) {
     if (d) {                            /* (taken whatever is drawn: gpu.c sends a draw once) */
         memcpy(&tl_last, d, sizeof tl_last);
+        if (tl_last.wounds)             /* (its wounds' picture: where the pixel stage finds it) */
+            tl_last.wound_pad0 = texture_wound_slot();
         tl_rec = ~0u;
     }
     if (tl_rec == ~0u) {

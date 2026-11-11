@@ -6,6 +6,8 @@
 
 /* readable/hit_detect.c, as a hit lands on a monster: the hit record, the attacker and the monster (objects), where
  * the game put the contact (a point, in the world) and the attacker's shape (its type word: hit_detect.c's frame) */
+/* before the game works the hit out (land_on_monster): the monster, for what the hit then adds to its damage */
+void wound_before(uint32_t monster);
 void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t contact, uint32_t attacker_shape);
 
 #endif

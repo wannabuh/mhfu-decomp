@@ -7,6 +7,8 @@
 #include "hle.h"
 #include "texpack.h"
 
+#include <math.h>
+#include <png.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,6 +195,117 @@ static void upload(Texture *t, int w, int h) {
     write_slot(t->slot, t->img.view, samplers[sampler]);
     if (was)
         begin_rendering(was);
+}
+
+/* -- the wound's picture ---------------------------------------------------------------------------------------------
+ *
+ * A deep wound (gpu.c's wounds, ge_frag.glsl) is drawn from a picture: 256 x 64, the cut running along it. Its alpha
+ * is how much of the skin the wound covers; its colour the wound's own where the monster bleeds red, and only how
+ * light it is where it bleeds another colour. wound.png in $XDG_CONFIG_HOME/mhfu-recomp/ (~/.config/...) if there is
+ * one, any size; else one made here - a torn gash, dark inside, raw at its lips, blood drawn thin about it.
+ * MHFU_WOUND_TEMPLATE=file.png: the one made here written there, to paint over. */
+#define WOUND_W 256
+#define WOUND_H 64
+
+static float wound_hash(int x, int y) {
+    uint32_t h = (uint32_t)x * 0x9E3779B1u ^ (uint32_t)y * 0x85EBCA77u;
+    h ^= h >> 15;
+    h *= 0x2C1B3C6Du;
+    h ^= h >> 12;
+    return (float)(h & 0xFFFF) / 65535.0f;
+}
+
+/* (noise that wanders smoothly: x, y in cells) */
+static float wound_noise(float x, float y) {
+    int xi = (int)floorf(x), yi = (int)floorf(y);
+    float fx = x - (float)xi, fy = y - (float)yi;
+    fx = fx * fx * (3 - 2 * fx);
+    fy = fy * fy * (3 - 2 * fy);
+    float a = wound_hash(xi, yi), b = wound_hash(xi + 1, yi), c = wound_hash(xi, yi + 1), d = wound_hash(xi + 1, yi + 1);
+    return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+}
+
+static void wound_made(uint32_t *px) {
+    for (int y = 0; y < WOUND_H; y++)
+        for (int x = 0; x < WOUND_W; x++) {
+            float u = ((float)x + 0.5f) / WOUND_W * 2 - 1, v = ((float)y + 0.5f) / WOUND_H * 2 - 1;
+            float taper = powf(fmaxf(1 - u * u, 0), 0.55f);
+            /* the cut's middle wanders, its lips are torn: wide and fine noise along it */
+            float mid = (wound_noise(u * 3.0f + 7, 0) - 0.5f) * 0.5f + (wound_noise(u * 11.0f, 3) - 0.5f) * 0.16f;
+            float half = taper * (0.20f + 0.16f * wound_noise(u * 5.0f, 9) + 0.06f * wound_noise(u * 23.0f, 5));
+            float d = fabsf(v - mid * taper);
+            float torn = half + 0.05f * (wound_noise(u * 40.0f, v * 9.0f) - 0.5f) * taper;
+            float inside = 1 - fminf(fmaxf((d - torn * 0.55f) / (torn * 0.2f + 1e-4f), 0), 1);     /* the dark of it */
+            float lips = 1 - fminf(fmaxf((d - torn) / (torn * 0.25f + 1e-4f), 0), 1);              /* to its edge */
+            /* blood about it: runs out a little way, further in strands across the cut */
+            float run = taper * (0.42f + 0.3f * wound_noise(u * 6.0f + 3, 1) + 0.25f * wound_noise(u * 30.0f, 2));
+            float about = 1 - fminf(fmaxf((d - torn) / (fmaxf(run - torn, 0.02f)), 0), 1);
+            about *= 0.55f + 0.45f * wound_noise(u * 50.0f, v * 4.0f);
+            float fibre = 0.75f + 0.5f * wound_noise(u * 14.0f, v * 30.0f);                      /* flesh, across the cut */
+            float r = 0.62f * fibre, g = 0.07f * fibre, b = 0.06f * fibre;                           /* the lips: raw */
+            r = r + (0.16f - r) * inside, g = g + (0.015f - g) * inside, b = b + (0.02f - b) * inside;
+            float a = lips > 0 ? 0.92f * lips + (1 - lips) * 0.5f * about : 0.5f * about * about;
+            if (lips <= 0)
+                r = 0.42f, g = 0.03f, b = 0.03f;                                                   /* the blood about it */
+            a *= taper > 0.02f ? 1 : 0;
+            uint32_t R = (uint32_t)(fminf(r, 1) * 255), G = (uint32_t)(fminf(g, 1) * 255), B = (uint32_t)(fminf(b, 1) * 255);
+            px[y * WOUND_W + x] = R | G << 8 | B << 16 | (uint32_t)(fminf(fmaxf(a, 0), 1) * 255) << 24;
+        }
+}
+
+/* The wound's picture's slot (made at first asking: by the renderer, in a frame) */
+uint32_t texture_wound_slot(void) {
+    static Texture t;
+    static int made;
+    if (made)
+        return t.slot;
+    made = 1;
+    int w = WOUND_W, h = WOUND_H;
+    uint32_t *px = NULL;
+    char path[1024] = "";
+    const char *xdg = getenv("XDG_CONFIG_HOME"), *home = getenv("HOME");
+    if (xdg && xdg[0])
+        snprintf(path, sizeof path, "%s/mhfu-recomp/wound.png", xdg);
+    else if (home)
+        snprintf(path, sizeof path, "%s/.config/mhfu-recomp/wound.png", home);
+    png_image img;
+    memset(&img, 0, sizeof img);
+    img.version = PNG_IMAGE_VERSION;
+    if (path[0] && png_image_begin_read_from_file(&img, path)) {
+        img.format = PNG_FORMAT_RGBA;
+        if (img.width >= 8 && img.width <= 2048 && img.height >= 2 && img.height <= 2048) {
+            px = malloc(PNG_IMAGE_SIZE(img));
+            if (px && png_image_finish_read(&img, NULL, px, 0, NULL)) {
+                w = (int)img.width;
+                h = (int)img.height;
+                fprintf(stderr, "wounds: %s, %d x %d\n", path, w, h);
+            } else {
+                free(px);
+                px = NULL;
+            }
+        }
+        png_image_free(&img);
+    }
+    if (!px) {
+        px = malloc(sizeof *px * WOUND_W * WOUND_H);
+        wound_made(px);
+        const char *out = getenv("MHFU_WOUND_TEMPLATE");
+        if (out && out[0]) {
+            memset(&img, 0, sizeof img);
+            img.version = PNG_IMAGE_VERSION;
+            img.width = WOUND_W;
+            img.height = WOUND_H;
+            img.format = PNG_FORMAT_RGBA;
+            if (png_image_write_to_file(&img, out, 0, px, 0, NULL))
+                fprintf(stderr, "wounds: the picture made here written to %s\n", out);
+        }
+    }
+    memcpy(scratch_for((size_t)w * (size_t)h * 4 * 2), px, (size_t)w * (size_t)h * 4);
+    free(px);
+    t.slot = next_slot++;
+    t.sampler = 1 | 2 | 4;              /* (linear, held at its edges) */
+    upload(&t, w, h);
+    return t.slot;
 }
 
 /* A texture pack's image for the texture, if it has one and it is in: to the staging buffer in place of the game's

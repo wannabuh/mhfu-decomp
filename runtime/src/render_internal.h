@@ -127,7 +127,8 @@ extern uint8_t (*tex_holes)[HOLE_GRID * HOLE_GRID];    /* where: each of 16 x 16
 extern uint32_t *tex_small[MAX_TEXTURES];   /* small copies (at most 64 x 64), for the grass (MHFU_GRASS) */
 extern uint8_t tex_small_w[MAX_TEXTURES], tex_small_h[MAX_TEXTURES];
 void texture_init(void);
-uint32_t texture_new_slot(void);    /* a slot in the texture array */
+uint32_t texture_new_slot(void);
+uint32_t texture_wound_slot(void);  /* the picture deep wounds are drawn from (render_texture.c) */    /* a slot in the texture array */
 uint32_t texture_slot(const uint32_t *reg, int *w, int *h);    /* the GE's current texture's (made or updated) */
 
 /* -- render_scene.c ----------------------------------------------------------------------------------------------- */

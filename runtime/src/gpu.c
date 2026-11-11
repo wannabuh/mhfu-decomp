@@ -3824,6 +3824,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_SHIFT 40.0f           /* its middle from the vertex found, at most */
 #define WOUND_LIFE (wound_life() * 30)  /* how long one stays, in 30ths of the game's second; the last WOUND_FADE of it fading */
 #define WOUND_FADE (WOUND_LIFE * 0.25)
+#define WOUND_LASTS(depth) (2.0 / 3 + (depth))  /* (times WOUND_LIFE: a scratch two minutes, a gash five) */
 #define WOUND_FRESH (20.0 * 30)     /* wet this long, drying */
 enum { WOUND_SLASH, WOUND_SHOT };
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
@@ -3840,10 +3841,12 @@ static struct {
     double born;
     WoundOwner of;
     int kind, gone;
-    float seed;
+    float seed, depth;                  /* (depth: how deep, 0 a scratch to 1 a gash) */
 } wounds[WOUNDS];
 static int wound_next;
-static struct { float contact[3], axis[3], attacker[3]; int damage, kind; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], depth; int damage, kind; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
+static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
 static int wound_cams;
 
@@ -3862,6 +3865,22 @@ static int wounds_on(void) {
     if (SETTING_STALE(seen))
         on = !getenv("MHFU_WOUNDS") || atoi(getenv("MHFU_WOUNDS")) != 0;
     return on;
+}
+
+/* The damage waiting in a monster's eight slots (hit_damage adds each hit's to its part's) */
+static int wound_waiting(uint32_t monster) {
+    int sum = 0;
+    for (uint32_t k = 0; k < 8; k++)
+        sum += (int16_t)LHU(monster + 0x3B8u + 2 * k);
+    return sum;
+}
+
+void wound_before(uint32_t monster) {
+    wound_before_of = 0;
+    if (!wounds_on() || monster < 0x08800000u || monster >= 0x0A000000u - 0x420u)
+        return;
+    wound_before_sum = wound_waiting(monster);
+    wound_before_of = monster;
 }
 
 void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t contact, uint32_t attacker_shape) {
@@ -3911,6 +3930,25 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
     memcpy(wound_pending[k].axis, a, sizeof a);
     wound_pending[k].damage = (int)LBU(record + 0x1Eu);
     wound_pending[k].kind = kind;
+    /* How deep: by what the hit took of the monster's health - the damage it added, as the monster will take it
+     * (its scale, +0x384), over its most health (+0x41E): a scratch under half a hundredth, a gash from a
+     * twentieth; and a hit of the game's best grade a little deeper */
+    {
+        float dealt = wound_before_of == monster ? (float)(wound_waiting(monster) - wound_before_sum) : 0;
+        float scale, most = (float)(int16_t)LHU(monster + 0x41Eu);
+        memcpy(&scale, PTR(monster + 0x384u), sizeof scale);
+        if (!(scale > 0.01f && scale < 100.0f))
+            scale = 1;
+        float share = most > 0 ? dealt * scale / most : 0;
+        float d = (share - 0.005f) / (0.05f - 0.005f);
+        d = d < 0 ? 0 : d > 1 ? 1 : d;
+        d = sqrtf(d);
+        if (LBU(record + 0x74u) == 3)
+            d += 0.15f;
+        wound_pending[k].depth = d > 1 ? 1 : d;
+        if (getenv("MHFU_WOUND_LOG"))
+            fprintf(stderr, "hit: took %.0f x %.2f of %.0f health (%.1f%%): depth %.2f\n", (double)dealt, (double)scale, (double)most, (double)share * 100, (double)wound_pending[k].depth);
+    }
     wound_pending[k].of = (WoundOwner){monster, LW(monster), LBU(monster + 0x1E8u), (int16_t)LHU(monster + 0x2E4u)};
     wound_pending[k].frame = present_frame_number();
     wound_pending[k].used = 1;
@@ -4128,8 +4166,14 @@ static void wounds_attach(Frame *f) {
             along[b] /= sqrtf(al);
         float across[3] = {nrm[1] * along[2] - nrm[2] * along[1], nrm[2] * along[0] - nrm[0] * along[2],
                            nrm[0] * along[1] - nrm[1] * along[0]};
-        float size = sqrtf(fmaxf((float)wound_pending[h].damage, 8.0f) / 30.0f);
-        size = size < 0.6f ? 0.6f : size > 1.3f ? 1.3f : size;
+        float depth = wound_pending[h].depth;
+        static float depth_all = -1;        /* MHFU_WOUND_DEPTH=0..1: every wound that deep (to look at one) */
+        static unsigned depth_seen;
+        if (SETTING_STALE(depth_seen))
+            depth_all = getenv("MHFU_WOUND_DEPTH") ? (float)atof(getenv("MHFU_WOUND_DEPTH")) : -1;
+        if (depth_all >= 0)
+            depth = depth_all > 1 ? 1 : depth_all;
+        float size = 0.55f + 0.85f * depth;     /* (a scratch short, a gash long) */
         if (reach > 0 && WOUND_HALF_LENGTH * size > WOUND_PART * reach)
             size = WOUND_PART * reach / WOUND_HALF_LENGTH;
         static float bigger;            /* MHFU_WOUND_SIZE: times as large (1) */
@@ -4205,6 +4249,7 @@ static void wounds_attach(Frame *f) {
         wounds[n].born = rt_game_30ths();
         wounds[n].of = wound_pending[h].of;
         wounds[n].kind = wound_pending[h].kind;
+        wounds[n].depth = depth;
         wounds[n].gone = 0;
         wounds[n].seed = (float)((n * 7 + (int)(c[0] + c[2])) & 63) / 64.0f;
         {
@@ -4246,7 +4291,7 @@ static void wounds_frame(const Frame *f) {
         WoundOwner *of = &wounds[w].of;
         double age = now30 - wounds[w].born;
         int health = (int16_t)LHU(of->addr + 0x2E4u);
-        if (age < 0 || age > WOUND_LIFE || LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || health > of->health + 5) {
+        if (age < 0 || age > WOUND_LIFE * WOUND_LASTS(wounds[w].depth) || LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || health > of->health + 5) {
             if (getenv("MHFU_WOUND_LOG"))
                 fprintf(stderr, "wound %d gone: age %.0f s, health %d (least %d), class %08X (%08X)\n", w, age / 30, health, of->health,
                         LW(of->addr), of->vtable);
@@ -4323,12 +4368,14 @@ static void wounds_fill(TlDraw *d) {
         /* how it looks: its blood's colour (as one number), how much of it is left (it fades at the end), how wet
          * it still is, and its kind with a number of its own (no two alike) */
         double age = rt_game_30ths() - wounds[i].born;
-        float left = (float)((WOUND_LIFE - age) / WOUND_FADE), wet = 1.0f - (float)(age / WOUND_FRESH);
+        double life = WOUND_LIFE * WOUND_LASTS(wounds[i].depth);
+        float left = (float)((life - age) / (life * 0.25)), wet = 1.0f - (float)(age / (WOUND_FRESH * (0.5 + 1.5 * wounds[i].depth)));
         const uint8_t *blood = wound_blood(wounds[i].of.type);
         float *look = d->wound_look[d->wounds];
         look[0] = (float)(blood[0] | blood[1] << 8 | blood[2] << 16);
         look[1] = left < 0 ? 0 : left > 1 ? 1 : left;
-        look[2] = wet < 0 ? 0 : wet > 1 ? 1 : wet;
+        wet = wet < 0 ? 0 : wet > 1 ? 1 : wet;
+        look[2] = floorf(wet * 63.0f) + wounds[i].depth * 0.98f;    /* (how wet, in 64 steps; and how deep, its fraction) */
         look[3] = (float)wounds[i].kind + wounds[i].seed * 0.98f;
         d->wounds++;
     }

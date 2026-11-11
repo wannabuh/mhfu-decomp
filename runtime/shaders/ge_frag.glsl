@@ -43,6 +43,7 @@ layout(location = 5) in vec3 in_normal;
 layout(location = 9) pervertexEXT in vec3 in_corner[];     // (the scenery's: each corner's normal summed at its place)
 layout(location = 14) flat in vec4 in_wound_look[4];
 layout(location = 18) in float in_wound_facing[4];
+layout(location = 22) flat in uint in_wound_tex;            // (the deep wounds' picture: its slot)
 layout(location = 10) in vec3 in_wound[4];                 // (ge_tl.vert: each wound's, 1 at its edge)
 #endif
 layout(location = 6) in vec3 in_world;
@@ -379,20 +380,24 @@ void main() {
             c = vec4(water(c.rgb, sh, far), clamp(c.a * 3.0, 0.0, 1.0));
     }
 #ifdef TL_CORNERS
-    // wounds (gpu.c): a cut where a blade landed - a ragged gash, dark inside, raw at its lips, the skin about it
-    // stained with blood that dries and in time fades - or a shot's hole. Lit as the skin under it is.
+    // wounds (gpu.c): a cut where a blade landed, by how deep it went - a scratch: a thin line of the skin's own
+    // colour darkened, hardly bleeding; a cut: a ragged line, dark inside, raw at its lips, a little blood about it;
+    // a gash: wider and open, redder, bleeding more, drawn from the wound's picture (render_texture.c) - or a shot's
+    // hole. The blood dries and in time the wound fades. Lit as the skin under it is.
     for (int k = 0; k < 4; k++) {
         vec3 q = in_wound[k];
         vec4 look = in_wound_look[k];
         if (abs(q.x) >= 1.0 || abs(q.y) >= 1.0 || abs(q.z) >= 1.0 || look.y <= 0.0)
             continue;
         float seed = fract(look.w) * 64.0;
+        float wetness = floor(look.z) / 63.0, depth = fract(look.z) / 0.98;
         vec3 blood = vec3(mod(look.x, 256.0), mod(floor(look.x / 256.0), 256.0), floor(look.x / 65536.0)) / 255.0;
+        float bleeds = smoothstep(0.15, 0.6, depth);        // (a scratch does not: the skin's colour, darker)
         float gash, stain;
         if (look.w < 1.0) {
             float taper = pow(max(1.0 - q.x * q.x, 0.0), 0.6);
             float mid = ((wound_noise(q.x * 2.5 + seed) - 0.5) * 0.45 + (wound_noise(q.x * 9.0 + seed * 3.0) - 0.5) * 0.14) * taper;
-            float wide = taper * (0.09 + 0.10 * wound_noise(q.x * 6.0 + seed * 5.0));
+            float wide = taper * (0.09 + 0.10 * wound_noise(q.x * 6.0 + seed * 5.0)) * mix(0.55, 1.25, depth);
             float v = abs(q.y - mid);
             gash = 1.0 - smoothstep(wide * 0.55, wide, v);
             float about = taper * (0.25 + 0.3 * wound_noise(q.x * 4.0 + seed * 9.0) + 0.12 * wound_noise(q.x * 23.0 + seed));
@@ -405,14 +410,27 @@ void main() {
         // (not where the skin is turned from the cut: the far side of a limb, a fold lying by it)
         float m = (1.0 - smoothstep(0.6, 1.0, abs(q.z))) * look.y * smoothstep(0.1, 0.6, in_wound_facing[k]);
         float lit = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+        vec3 skin = c.rgb;
         vec3 dry = mix(blood * 0.55, vec3(0.16, 0.08, 0.05), 0.35);
-        vec3 wet = mix(dry, blood, look.z);
-        vec3 stained = mix(c.rgb * (wet * 1.5 + 0.12), wet * (lit * 1.6 + 0.12), 0.45 + 0.25 * look.z);
-        vec3 lips = wet * (lit * 1.5 + 0.1) + vec3(0.03) * look.z;
-        vec3 inside = wet * 0.4 * (lit + 0.2);
-        c.rgb = mix(c.rgb, stained, stain * (0.28 + 0.17 * look.z) * m);
-        c.rgb = mix(c.rgb, lips, gash * 0.8 * m);
-        c.rgb = mix(c.rgb, inside, smoothstep(0.35, 0.9, gash) * 0.8 * m);
+        vec3 wet = mix(dry, blood, wetness);
+        vec3 stained = mix(skin * (wet * 1.5 + 0.12), wet * (lit * 1.6 + 0.12), 0.45 + 0.25 * wetness);
+        vec3 lips = mix(skin * 0.62, wet * (lit * (1.3 + 0.5 * depth) + 0.1) + vec3(0.03) * wetness, bleeds);
+        vec3 inside = mix(skin * 0.4, wet * mix(0.5, 0.3, depth) * (lit + 0.2), bleeds);
+        vec3 drawn = mix(skin, stained, stain * (0.28 + 0.17 * wetness) * m * bleeds * (0.5 + 0.9 * depth));
+        drawn = mix(drawn, lips, gash * mix(0.6, 0.9, depth) * m);
+        drawn = mix(drawn, inside, smoothstep(0.35, 0.9, gash) * mix(0.55, 0.9, depth) * m);
+        // a deep cut from the picture: along it the cut, its alpha how much of the skin is covered; its colour as
+        // painted where the blood is red, only its lightness where it is another colour; drying as the rest
+        float pictured = smoothstep(0.55, 0.8, depth) * (look.w < 1.0 ? 1.0 : 0.0);
+        if (pictured > 0.0 && in_wound_tex != 0xFFFFFFFFu) {
+            vec4 p = texture(textures[nonuniformEXT(in_wound_tex)], vec2(q.x, q.y * 0.8) * 0.5 + 0.5);
+            float light = max(p.r, max(p.g, p.b));
+            bool red = blood.r > 2.0 * max(blood.g, blood.b);
+            vec3 pc = red ? p.rgb : blood * light * 1.6;
+            pc = mix(mix(pc * 0.6, vec3(0.16, 0.08, 0.05) * (light + 0.3), 0.3), pc, wetness) * (lit * 1.5 + 0.2);
+            drawn = mix(drawn, mix(skin, pc, p.a * m), pictured);
+        }
+        c.rgb = drawn;
     }
 #endif
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1

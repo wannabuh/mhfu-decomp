@@ -320,6 +320,7 @@ static int test_monster_parts(Ctx *c, const HitRecord *record, uint32_t record_a
                 call4(c, set_hit_angle, record_addr, monster_addr, to, from);
                 c->r[8] = LW(sp + F_TARGET_CURSOR);
                 c->r[9] = sp + F_CONTACT;
+                wound_before(monster_addr);     /* (the runtime's: reads only) */
                 call4(c, land_on_monster, record_addr, attacker, monster_addr, LW(sp + F_ATTACKER_CURSOR));
                 wound_hit(record_addr, attacker, monster_addr, sp + F_CONTACT, sp + F_ATTACKER_TYPE);  /* (the runtime's: reads only) */
                 land_and_tell(c, record_addr, attacker, monster_addr, sp);
