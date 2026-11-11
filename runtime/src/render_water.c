@@ -142,7 +142,7 @@ uint32_t water_light_set(void) {
         return ~0u;
     if (set != ~0u && set_frame == frame_no && !memcmp(clip, set_clip, sizeof clip))
         return set;
-    if (light_sets_used >= LIGHT_SETS - 4)
+    if (light_sets_used + 2 > BLOOD_SET_AT)
         return ~0u;
     set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used;
     light_sets_used += 2;

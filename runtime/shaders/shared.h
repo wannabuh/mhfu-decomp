@@ -116,6 +116,12 @@
  * colour, how many, which is the sun (99: none). The same layout holds other things: the point lights (dir: place and
  * reach; pad0 of the first set: how many have shadows) and cameras (dir: the world to the clip space, by columns; for
  * the grass, color too - see grass.vert) */
+/* Blood on the ground (gpu.c, render_lights.c): the light sets from BLOOD_SET_AT hold the marks, four a set - where in
+ * the world (dir: w how wide) and the colour (color: w how much is left, 0 to 1, plus twice how wet in 16 steps);
+ * the first set's count is how many there are */
+#define BLOOD_SETS 8
+#define BLOOD_SET_AT 8182u
+
 #define LIGHT_SET                                                                                                      \
     VEC4S(dir, 4);                                                                                                     \
     VEC4S(color, 4);                                                                                                   \

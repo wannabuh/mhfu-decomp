@@ -149,7 +149,7 @@ void grass_draw(Target *t) {
     if (!tiles)
         tiles = malloc((size_t)grass_slots() * sizeof *tiles);
     int ntiles = grass_tiles(tiles, grass_slots());
-    if (!ntiles || light_sets_used + 1 > LIGHT_SETS - 2)
+    if (!ntiles || light_sets_used + 1 > BLOOD_SET_AT)
         return;
     /* the world to the clip space, with the world's camera */
     float clip[16];

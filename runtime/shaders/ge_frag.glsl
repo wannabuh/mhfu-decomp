@@ -266,6 +266,13 @@ vec3 water(vec3 tint, float hidden, float far) {
     return col;
 }
 
+// (the blood's: a number that wanders along x, 0 to 1)
+float wound_blot(float x) {
+    float i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(fract(sin(i * 127.1) * 43758.5453), fract(sin((i + 1.0) * 127.1) * 43758.5453), f);
+}
+
 #ifdef TL_CORNERS
 // (the wounds': a number that wanders along x, 0 to 1)
 float wound_noise(float x) {
@@ -366,6 +373,33 @@ void main() {
                 relief = mix(1.0, clamp(dot(bumped, sun) / max(lambert, 0.25), 0.65, 1.35), 1.0 - dark);
         }
         c.rgb *= (1.0 - 0.45 * dark) * relief;
+        // blood on the ground (gpu.c: where bleeding wounds have dripped): each mark soaks the scenery's upward
+        // faces under it - a round stain with a ragged edge, darker and redder when wet, drying to a brown and
+        // fading. On whatever ground is there: found by its place across the ground, to a way below the wound.
+        uint marks = (draw.flags & DRAW_WORLD) != 0u ? sets[BLOOD_SET_AT].count : 0u;
+        if (marks != 0u) {
+            vec3 up = cross(dFdx(in_world), dFdy(in_world));
+            float ul = length(up);
+            if (ul > 0.0 && abs(up.y) > 0.5 * ul) {
+                for (uint i = 0u; i < marks && i < 4u * uint(BLOOD_SETS); i++) {
+                    vec4 at = sets[BLOOD_SET_AT + i / 4u].dir[i % 4u];
+                    vec2 off = in_world.xz - at.xz;
+                    float far = length(off);
+                    if (far >= at.w * 1.3 || in_world.y > at.y + 20.0 || in_world.y < at.y - 900.0)
+                        continue;
+                    vec4 col = sets[BLOOD_SET_AT + i / 4u].color[i % 4u];
+                    float left = fract(col.w * 0.5) * 2.0, wet = floor(col.w * 0.5) / 15.0;
+                    left = col.w >= 1.0 && left == 0.0 ? 1.0 : left;
+                    float turn = atan(off.y, off.x);
+                    float ragged = 1.0 + 0.22 * (wound_blot(turn * 1.9 + at.x * 0.37) - 0.5) + 0.1 * (wound_blot(turn * 5.3 + at.z * 0.21) - 0.5);
+                    float soak = 1.0 - smoothstep(at.w * 0.72, at.w, far * ragged);
+                    vec3 dry = mix(col.rgb * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
+                    vec3 tint = mix(dry, col.rgb * 0.8, wet);
+                    float ground = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+                    c.rgb = mix(c.rgb, mix(c.rgb * (tint * 1.6 + 0.1), tint * ground * 1.5, 0.5), soak * (0.5 + 0.2 * wet) * left);
+                }
+            }
+        }
     }
     if (points && (draw.flags & DRAW_LIT_PIXEL) == 0u)   // not lit by the pixel: the point lights brighten its colour
     {

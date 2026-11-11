@@ -77,7 +77,7 @@ void render_prim_lights(int n, const float *dirs, const float *colors, int sun) 
         memcpy(scene.sun_rgb, colors + 4 * sun, sizeof scene.sun_rgb);
     if (prim_lights != ~0u && light_sets_used && !memcmp(&l, &last_lights, sizeof l))
         return;
-    if (light_sets_used >= LIGHT_SETS - 2) {     /* (the last two: the point lights) */
+    if (light_sets_used >= BLOOD_SET_AT) {     /* (the last: the blood's, the point lights') */
         prim_lights = ~0u;
         return;
     }
@@ -291,7 +291,7 @@ uint32_t camera_light_set(void) {
         return ~0u;
     if (camera_set != ~0u && !memcmp(clip, camera_clip, sizeof clip))
         return camera_set;
-    if (light_sets_used >= LIGHT_SETS - 2)
+    if (light_sets_used >= BLOOD_SET_AT)
         return ~0u;
     camera_set = (uint32_t)vk.frame * LIGHT_SETS + light_sets_used++;
     memcpy(camera_clip, clip, sizeof clip);
@@ -300,6 +300,24 @@ uint32_t camera_light_set(void) {
     memcpy(l.dir, clip, sizeof clip);
     memcpy((LightSet *)light_buf.map + camera_set, &l, sizeof l);
     return camera_set;
+}
+
+/* gpu.c: the blood on the ground (shared.h BLOOD_SET_AT), each frame it records. Kept, and put in both halves of the
+ * sets at each frame's end: the pixel stage reads them at the one place whichever frame is in flight. */
+_Static_assert(BLOOD_SET_AT == LIGHT_SETS - 2 - BLOOD_SETS, "the blood's sets: before the point lights'");
+static LightSet blood_sets[BLOOD_SETS];
+
+void render_blood(int n, const float (*at)[4], const float (*color)[4]) {
+    LightSet l[BLOOD_SETS];
+    memset(l, 0, sizeof l);
+    if (n > 4 * BLOOD_SETS)
+        n = 4 * BLOOD_SETS;
+    for (int i = 0; i < n; i++) {
+        memcpy(l[i / 4].dir[i % 4], at[i], 16);
+        memcpy(l[i / 4].color[i % 4], color[i], 16);
+    }
+    l[0].count = (uint32_t)n;
+    memcpy(blood_sets, l, sizeof l);    /* (read by the renderer's thread as it is: a mark a frame late is nothing) */
 }
 
 /* The frame's end: the last emitter's light, the point lights for the next frame (its half: vk.frame is the next's
@@ -311,6 +329,8 @@ int lights_end_frame(uint32_t tex_slot) {
     make_point_lights();
     if (point_lights_on > 0)
         memcpy((LightSet *)light_buf.map + point_light_set(), point_lights, sizeof point_lights);
+    for (uint32_t half = 0; half < 2; half++)
+        memcpy((LightSet *)light_buf.map + half * LIGHT_SETS + BLOOD_SET_AT, blood_sets, sizeof blood_sets);
     light_sets_used = 0;
     camera_set = ~0u;
     prim_lights = ~0u;

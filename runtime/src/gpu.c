@@ -3843,6 +3843,8 @@ static struct {
     WoundOwner of;
     int kind, gone;
     float seed, depth;                  /* (depth: how deep, 0 a scratch to 1 a gash) */
+    uint32_t key_i, vertex;             /* its vertex: its group's first draw's indices, and which of the group's */
+    double dripped;                     /* the game's time its last drop fell (ground blood, below) */
     float run[4];                       /* which way is down across the skin, along and across the cut (as steep as
                                          * the skin is); the cut's half length and half width, units */
 } wounds[WOUNDS];
@@ -4036,6 +4038,7 @@ static void wounds_attach(Frame *f) {
         float best = WOUND_REACH * WOUND_REACH;
         const Draw *bd = NULL;
         const TlVertex *bv = NULL;
+        const TlGroup *bg = NULL;
         int bcam = 0;
         for (int gi = 0; gi < f->ntlg; gi++) {
             const TlGroup *g = &f->tlg[gi];
@@ -4065,7 +4068,7 @@ static void wounds_attach(Frame *f) {
                     wound_world(d, nb, v, v->pos, wound_cam[cam], w);
                     float dd = dist2(w, c);
                     if (dd < best)
-                        best = dd, bd = d, bv = v, bcam = cam;
+                        best = dd, bd = d, bv = v, bg = g, bcam = cam;
                 }
             }
         }
@@ -4306,6 +4309,9 @@ static void wounds_attach(Frame *f) {
         wounds[n].gone = 0;
         wounds[n].seed = (float)((n * 7 + (int)(c[0] + c[2])) & 63) / 64.0f;
         /* (the blood runs down from it - ge_frag.glsl: down as it was when the hit landed, kept on the skin) */
+        wounds[n].key_i = bd->iaddr;
+        wounds[n].vertex = (uint32_t)(bv - &f->tlv[bg->vertex]);
+        wounds[n].dripped = rt_game_30ths();
         wounds[n].run[0] = -along[1];
         wounds[n].run[1] = -across[1];
         wounds[n].run[2] = 1.0f / over[0];
@@ -4322,6 +4328,72 @@ static void wounds_attach(Frame *f) {
                     sqrtf(col[1][0] * col[1][0] + col[1][1] * col[1][1] + col[1][2] * col[1][2]), sqrtf(col[2][0] * col[2][0] + col[2][1] * col[2][1] + col[2][2] * col[2][2]));
     }
 }
+
+/* -- blood on the ground (stages 3 and 4 of the wounds) ---------------------------------------------------------------
+ *
+ * A wound that bleeds drips: while its blood is wet a drop falls from it now and then - sooner the deeper it is - and
+ * marks the ground under where the wound is then. Drops near each other are one mark that grows: where the animal
+ * stands and bleeds, a pool. The marks are places in the world (the wound's, with a size and a colour); the pixel
+ * stage darkens the scenery's upward faces under each (ge_frag.glsl, render_lights.c) - so they lie on whatever ground
+ * is there. The drop in the air is not drawn. They dry and are gone in two minutes. */
+#define BLOOD_MARKS 32
+#define BLOOD_LIFE (120.0 * 30)
+static struct { float at[3], r; double born, fed; uint8_t rgb[3]; int used; } blood[BLOOD_MARKS];
+void render_blood(int n, const float (*at)[4], const float (*color)[4]);
+
+static void blood_drop(const float *at, float size, const uint8_t *rgb) {
+    double now = rt_game_30ths();
+    int k = -1, oldest = 0;
+    for (int i = 0; i < BLOOD_MARKS; i++) {
+        if (!blood[i].used) {
+            oldest = i;
+            continue;
+        }
+        if (blood[i].born < blood[oldest].born && blood[oldest].used)
+            oldest = i;
+        float dx = at[0] - blood[i].at[0], dz = at[2] - blood[i].at[2], reach = fmaxf(blood[i].r, 14.0f);
+        if (dx * dx + dz * dz < reach * reach && fabsf(at[1] - blood[i].at[1]) < 150.0f)
+            k = i;
+    }
+    if (k >= 0) {                       /* (onto a mark: it grows, by the drop's area) */
+        blood[k].r = fminf(70.0f, sqrtf(blood[k].r * blood[k].r + size * size * 0.5f));
+        blood[k].fed = now;
+        if (at[1] > blood[k].at[1])
+            blood[k].at[1] = at[1];
+        return;
+    }
+    blood[oldest].used = 1;
+    memcpy(blood[oldest].at, at, sizeof blood[oldest].at);
+    blood[oldest].r = size;
+    blood[oldest].born = blood[oldest].fed = now;
+    memcpy(blood[oldest].rgb, rgb, 3);
+}
+
+/* The marks to the renderer, each frame: where, how wide; its colour and how much of it is left */
+static void blood_frame(void) {
+    float at[BLOOD_MARKS][4], color[BLOOD_MARKS][4];
+    double now = rt_game_30ths();
+    int n = 0;
+    for (int i = 0; i < BLOOD_MARKS; i++) {
+        if (!blood[i].used)
+            continue;
+        double age = now - blood[i].fed;
+        if (age < 0 || age > BLOOD_LIFE) {
+            blood[i].used = 0;
+            continue;
+        }
+        float left = (float)((BLOOD_LIFE - age) / (BLOOD_LIFE * 0.3)), wet = 1.0f - (float)(age / (30.0 * 30));
+        memcpy(at[n], blood[i].at, sizeof blood[i].at);
+        at[n][3] = blood[i].r;
+        for (int c = 0; c < 3; c++)
+            color[n][c] = (float)blood[i].rgb[c] / 255.0f;
+        color[n][3] = (left > 1 ? 1 : left) + (wet > 0 ? floorf(wet * 15.0f) * 2.0f : 0);   /* (how wet: in 16 steps, by twos) */
+        n++;
+    }
+    render_blood(n, at, color);
+}
+
+static const uint8_t *wound_blood(int type);
 
 /* The frame's groups' wounds (f, about to be the latest): a wound is on the mesh it was found on, and on the model's
  * other meshes it lies over - those drawn with the same world matrix: a model is drawn in pieces, and a slash runs
@@ -4382,7 +4454,35 @@ static void wounds_frame(const Frame *f) {
             if ((d->reg[0x17] & 1) && (d->world == world || !memcmp(d->world, world, sizeof(float) * 12)))
                 wound_masks[gi] |= 1ull << w;
         }
+        /* it drips while it is wet, if it is deep enough to bleed: a drop every 1.6 s to 0.4 s by its depth, for 15 to
+         * 60 s - onto the ground under where its vertex is now */
+        float depth = wounds[w].depth;
+        double every = (1.6 - 1.2 * depth) * 30, bleeds = (15.0 + 45.0 * depth) * 30;
+        if (depth >= 0.35f && wounds[w].kind == WOUND_SLASH && age < bleeds && now30 - wounds[w].dripped >= every) {
+            for (int gi = 0; gi < f->ntlg; gi++) {
+                const TlGroup *g = &f->tlg[gi];
+                const Draw *d = &f->draws[g->first];
+                if (d->vaddr != wounds[w].key || d->iaddr != wounds[w].key_i || wounds[w].vertex >= g->nvertex ||
+                    (d->world != world && memcmp(d->world, world, sizeof(float) * 12)))
+                    continue;
+                const TlVertex *v = &f->tlv[g->vertex + wounds[w].vertex];
+                float at[3];
+                wound_world(d, draw_bones(d), v, v->pos, wound_cam[0], at);
+                /* (no two drops alike: its size and where it lands a little by chance - a number of our own
+                 * making, not one of the game's) */
+                static uint32_t chance = 0x9E3779B9u;
+                chance = chance * 1664525u + 1013904223u;
+                float c1 = (float)(chance >> 8 & 0xFFFF) / 65535.0f, c2 = (float)(chance >> 16 & 0xFF) / 255.0f,
+                      c3 = (float)(chance >> 24) / 255.0f;
+                at[0] += (c2 - 0.5f) * 12.0f;
+                at[2] += (c3 - 0.5f) * 12.0f;
+                blood_drop(at, (2.5f + 4.5f * depth) * (0.55f + 0.9f * c1), wound_blood(of->type));
+                wounds[w].dripped = now30;
+                break;
+            }
+        }
     }
+    blood_frame();
 }
 
 /* The blood's colour, by the monster's type: the game's own, as its hit effects choose it (game_sub 09C34350: a
