@@ -382,8 +382,7 @@ void main() {
 #ifdef TL_CORNERS
     // wounds (gpu.c): a cut where a blade landed, by how deep it went - a scratch: a thin line of the skin's own
     // colour darkened, hardly bleeding; a cut: a ragged line, dark inside, raw at its lips, a little blood about it;
-    // a gash: wider and open, drawn from the wound's picture (render_texture.c); a slit, in a thin part: a dark
-    // line, no flesh - or a shot's hole. Part of the skin, not laid on it: as light as the skin under it and no
+    // a gash: wider and open, drawn from the wound's picture (render_texture.c) - or a shot's hole. Part of the skin, not laid on it: as light as the skin under it and no
     // lighter, its colours drawn towards the skin's, no sharper than the skin's own picture, its far lip lit and
     // its near one shaded by where the sun is, the skin about it a little darker. The blood dries, and in time the
     // wound fades.
@@ -393,10 +392,10 @@ void main() {
         if (abs(q.x) >= 1.0 || abs(q.y) >= 1.0 || abs(q.z) >= 1.0 || look.y <= 0.0)
             continue;
         float seed = fract(look.w) * 64.0, kind = floor(look.w);
-        bool hole = kind == 1.0, slit = kind == 2.0;
+        bool hole = kind == 1.0;
         float wetness = floor(look.z) / 63.0, depth = fract(look.z) / 0.98;
         vec3 blood = vec3(mod(look.x, 256.0), mod(floor(look.x / 256.0), 256.0), floor(look.x / 65536.0)) / 255.0;
-        float bleeds = slit ? 0.0 : smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
+        float bleeds = smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
         // how soft its edges are: a pixel's worth of the wound, and no finer than the skin's picture is here
         float soft = clamp(fwidth(q.y) * 1.5 + 0.035, 0.035, 0.3);
         float gash, stain, v = 0.0, wide = 0.1;
@@ -429,15 +428,15 @@ void main() {
         float side = ol > 0.0 ? clamp(dot(over / ol, sunward) * sign(v) * 2.0, -1.0, 1.0) : 0.0;
         float lip_light = 1.0 + 0.3 * side * (hole ? 0.0 : 1.0);
         vec3 lips = mix(skin * 0.6, tone * lit * (2.5 + 0.6 * depth), bleeds) * lip_light;
-        vec3 inside = mix(skin * (slit ? 0.22 : 0.4), tone * lit * mix(0.75, 0.45, depth), bleeds);
+        vec3 inside = mix(skin * 0.4, tone * lit * mix(0.75, 0.45, depth), bleeds);
         vec3 drawn = skin * (1.0 - 0.18 * stain * m * mix(0.3, 1.0, depth));          // the skin about it, darker
         drawn = mix(drawn, mix(drawn, tone * lit * 1.5, 0.6), stain * (0.22 + 0.14 * wetness) * m * bleeds * (0.5 + 0.7 * depth));
         drawn = mix(drawn, lips, gash * mix(0.6, 0.85, depth) * m);
-        drawn = mix(drawn, inside, smoothstep(0.3, 0.85, gash) * mix(0.55, 0.9, max(depth, slit ? 0.8 : 0.0)) * m);
+        drawn = mix(drawn, inside, smoothstep(0.3, 0.85, gash) * mix(0.55, 0.9, depth) * m);
         // a deep cut from the picture: along it the cut, its alpha how much of the skin is covered; its colour as
         // painted where the blood is red, only its lightness where it is another colour - then as the rest: dried,
         // towards the skin's colour, lit as the skin. Read no sharper than the skin's picture
-        float pictured = smoothstep(0.55, 0.8, depth) * (hole || slit ? 0.0 : 1.0);
+        float pictured = smoothstep(0.55, 0.8, depth) * (hole ? 0.0 : 1.0);
         if (pictured > 0.0 && in_wound_tex != 0xFFFFFFFFu) {
             vec4 p = texture(textures[nonuniformEXT(in_wound_tex)], vec2(q.x, q.y * 0.8) * 0.5 + 0.5, 1.5);
             float light = max(p.r, max(p.g, p.b));

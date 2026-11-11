@@ -3818,7 +3818,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_OWN 260.0f            /* bones all this near the attacker's place: the hunter's own, or the weapon's */
 #define WOUND_HALF_LENGTH 60.0f     /* a hit of damage 30's, units; others by the root of theirs */
 #define WOUND_HALF_WIDTH 20.0f      /* (the cut itself a third of it: the rest is the blood about it - ge_frag.glsl) */
-#define WOUND_SHEET 9.0f            /* a part thinner than this is a sheet: slit, not laid open */
+#define WOUND_THIN 30.0f            /* a part thinner than this takes no wound deeper than a cut */
 #define WOUND_PART 0.07f            /* half a wound's length, at most, of the animal's reach */
 #define WOUND_SHOT_HALF 16.0f       /* a shot's hole, and the blood about it */
 #define WOUND_DEPTH 14.0f           /* how far through the skin it reaches, either way */
@@ -3827,7 +3827,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_FADE (WOUND_LIFE * 0.25)
 #define WOUND_LASTS(depth) (2.0 / 3 + (depth))  /* (times WOUND_LIFE: a scratch two minutes, a gash five) */
 #define WOUND_FRESH (20.0 * 30)     /* wet this long, drying */
-enum { WOUND_SLASH, WOUND_SHOT, WOUND_SLIT };   /* (a slit: a cut in a thin part - a wing's skin, a fin, an ear) */
+enum { WOUND_SLASH, WOUND_SHOT };
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
@@ -4154,18 +4154,11 @@ static void wounds_attach(Frame *f) {
         else
             nrm[0] = 0, nrm[1] = 1, nrm[2] = 0;
         /* How thick the part is there: how far behind the skin the model's other side is - the nearest vertex up
-         * to 60 units inwards whose normal faces the other way. A sheet (under WOUND_SHEET: an ear, a fin, a wing's
-         * skin made with two sides) is slit when cut: no flesh to lay open. A slender part that is flesh - a
-         * tail, a leg - is cut as any, but the wound reaches less than half way through it: at its full depth it
-         * came out on the far side, a dark band round the tail (#74). (Not by whether the draw culls its back
-         * faces: none of a monster's do, and every wound was a slit, #73. A sheet with one side only is not told.) */
-        static int thin_all = -1;           /* MHFU_WOUND_THIN=1: every part taken for thin, 0: none (to look at one) */
-        static unsigned thin_seen;
-        if (SETTING_STALE(thin_seen))
-            thin_all = getenv("MHFU_WOUND_THIN") ? atoi(getenv("MHFU_WOUND_THIN")) != 0 : -1;
-        int thin = thin_all > 0;
-        if (thin_all == 0)
-            nl = 0;
+         * to 60 units inwards whose normal faces the other way. In a thin part (under WOUND_THIN: an ear, a fin, a
+         * tail's end) a wound is no deeper than a cut - there is no flesh for a gash to lie open in - and it
+         * reaches less than half way through: at its full depth it came out on the far side, a dark band round a
+         * tail (#74). (Thin parts were given a mark of their own, a dark slit: twice it was given to parts that
+         * were not thin, and it is gone - #73, #74.) */
         float thick = 1e9f;
         for (int gi = 0; gi < f->ntlg && nl > 1e-12f; gi++) {
             const TlGroup *g = &f->tlg[gi];
@@ -4200,10 +4193,9 @@ static void wounds_attach(Frame *f) {
                     thick = back;
             }
         }
-        if (thin_all < 0)
-            thin = thick < WOUND_SHEET;
+        int thin = thick < WOUND_THIN;
         if (getenv("MHFU_WOUND_LOG") && thick < 1e8f)
-            fprintf(stderr, "the part is %.0f thick there%s\n", (double)thick, thin ? ": a sheet" : "");
+            fprintf(stderr, "the part is %.0f thick there%s\n", (double)thick, thin ? ": thin" : "");
         float along[3], al = 0, xn = x[0] * nrm[0] + x[1] * nrm[1] + x[2] * nrm[2];
         for (int b = 0; b < 3; b++) {
             along[b] = x[b] - xn * nrm[b];
@@ -4230,6 +4222,8 @@ static void wounds_attach(Frame *f) {
             depth_all = getenv("MHFU_WOUND_DEPTH") ? (float)atof(getenv("MHFU_WOUND_DEPTH")) : -1;
         if (depth_all >= 0)
             depth = depth_all > 1 ? 1 : depth_all;
+        if (thin && depth > 0.5f)
+            depth = 0.5f;
         float size = 0.55f + 0.65f * depth;     /* (a scratch short, a gash long) */
         if (reach > 0 && WOUND_HALF_LENGTH * size > WOUND_PART * reach)
             size = WOUND_PART * reach / WOUND_HALF_LENGTH;
@@ -4305,7 +4299,7 @@ static void wounds_attach(Frame *f) {
         }
         wounds[n].born = rt_game_30ths();
         wounds[n].of = wound_pending[h].of;
-        wounds[n].kind = wound_pending[h].kind == WOUND_SLASH && thin ? WOUND_SLIT : wound_pending[h].kind;
+        wounds[n].kind = wound_pending[h].kind;
         wounds[n].depth = depth;
         wounds[n].gone = 0;
         wounds[n].seed = (float)((n * 7 + (int)(c[0] + c[2])) & 63) / 64.0f;
