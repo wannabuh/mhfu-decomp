@@ -381,7 +381,7 @@ void main() {
             vec3 up = cross(dFdx(in_world), dFdy(in_world));
             float ul = length(up);
             if (ul > 0.0 && abs(up.y) > 0.5 * ul) {
-                for (uint i = 0u; i < marks && i < 4u * uint(BLOOD_SETS); i++) {
+                for (uint i = 0u; i < marks && i < 4u * uint(BLOOD_MARK_SETS); i++) {
                     vec4 at = sets[BLOOD_SET_AT + i / 4u].dir[i % 4u];
                     vec2 off = in_world.xz - at.xz;
                     float far = length(off);
@@ -396,7 +396,7 @@ void main() {
                     vec3 dry = mix(col.rgb * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
                     vec3 tint = mix(dry, col.rgb * 0.8, wet);
                     float ground = dot(c.rgb, vec3(0.3, 0.55, 0.15));
-                    c.rgb = mix(c.rgb, mix(c.rgb * (tint * 1.6 + 0.1), tint * ground * 1.5, 0.5), soak * (0.5 + 0.2 * wet) * left);
+                    c.rgb = mix(c.rgb, mix(c.rgb * (tint * 1.6 + 0.1), tint * ground * 1.5, 0.6), soak * (0.68 + 0.2 * wet) * left);
                 }
             }
         }
@@ -509,6 +509,26 @@ void main() {
         c.rgb = drawn;
     }
 #endif
+    // blood in the air (gpu.c: drops falling from wounds): each over what is behind it, in the world - where the line
+    // from the eye to this pixel's place passes the drop, a streak as long as it is fast
+    uint drops = (draw.flags & DRAW_KIND) != 0u && (draw.flags & DRAW_MOTION) == 0u ? sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS)].count : 0u;
+    if (drops != 0u) {
+        vec3 eye = sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + 2u].dir[0].xyz;
+        vec3 ray = in_world - eye;
+        float rr = dot(ray, ray);
+        for (uint i = 0u; i < drops && i < 8u && rr > 0.0; i++) {
+            uint s = BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + i / 4u;
+            vec4 at = sets[s].dir[i % 4u], col = sets[s].color[i % 4u];
+            vec3 to = at.xyz - eye;
+            float t = dot(to, ray) / rr;
+            if (t <= 0.0 || t >= 1.0)
+                continue;
+            vec3 off = to - ray * t;
+            float r = max(at.w, 0.0016 * length(to));      // (no thinner than a pixel or so, far off)
+            off.y *= r / (r + col.w);
+            c.rgb = mix(c.rgb, col.rgb * 0.42, 0.9 * (1.0 - smoothstep(r * 0.45, r, length(off))));
+        }
+    }
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1
         vec3 fog = vec3(float(draw.fog_color & 255u), float((draw.fog_color >> 8) & 255u),
                         float((draw.fog_color >> 16) & 255u)) / 255.0;

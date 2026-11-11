@@ -307,11 +307,20 @@ uint32_t camera_light_set(void) {
 _Static_assert(BLOOD_SET_AT == LIGHT_SETS - 2 - BLOOD_SETS, "the blood's sets: before the point lights'");
 static LightSet blood_sets[BLOOD_SETS];
 
-void render_blood(int n, const float (*at)[4], const float (*color)[4]) {
+void render_blood(int n, const float (*at)[4], const float (*color)[4], int ndrops, const float (*drop_at)[4],
+                  const float (*drop_color)[4], const float *eye) {
     LightSet l[BLOOD_SETS];
     memset(l, 0, sizeof l);
-    if (n > 4 * BLOOD_SETS)
-        n = 4 * BLOOD_SETS;
+    if (n > 4 * BLOOD_MARK_SETS)
+        n = 4 * BLOOD_MARK_SETS;
+    if (ndrops > 8)
+        ndrops = 8;
+    for (int i = 0; i < ndrops; i++) {
+        memcpy(l[BLOOD_MARK_SETS + i / 4].dir[i % 4], drop_at[i], 16);
+        memcpy(l[BLOOD_MARK_SETS + i / 4].color[i % 4], drop_color[i], 16);
+    }
+    l[BLOOD_MARK_SETS].count = (uint32_t)ndrops;
+    memcpy(l[BLOOD_MARK_SETS + 2].dir[0], eye, 12);
     for (int i = 0; i < n; i++) {
         memcpy(l[i / 4].dir[i % 4], at[i], 16);
         memcpy(l[i / 4].color[i % 4], color[i], 16);
