@@ -18,6 +18,19 @@ layout(location = 5) in vec3 in_normal[];
 layout(location = 6) in vec3 in_world[];
 layout(location = 7) in vec4 in_shape[];
 layout(location = 8) in vec3 in_motion[];
+#ifdef TL_CLIP
+// (and its wounds, ge_tl.vert's: what is the same for the whole triangle given once)
+layout(location = 10) in vec3 in_wound[][4];
+layout(location = 14) in vec4 in_wound_look[][4];
+layout(location = 18) in float in_wound_facing[][4];
+layout(location = 22) in uint in_wound_tex[];
+layout(location = 23) in vec4 in_wound_run[][4];
+layout(location = 10) out vec3 out_wound[][4];
+layout(location = 18) out float out_wound_facing[][4];
+layout(location = 14) patch out vec4 out_wound_look[4];
+layout(location = 22) patch out uint out_wound_tex;
+layout(location = 23) patch out vec4 out_wound_run[4];
+#endif
 layout(location = 0) out vec2 out_uv[];
 layout(location = 1) out vec4 out_color[];
 layout(location = 2) out float out_fog[];
@@ -50,7 +63,16 @@ void main() {
     out_world[gl_InvocationID] = in_world[i];
     out_shape[gl_InvocationID] = in_shape[i];
     out_motion[gl_InvocationID] = in_motion[i];
+#ifdef TL_CLIP
+    out_wound[gl_InvocationID] = in_wound[i];
+    out_wound_facing[gl_InvocationID] = in_wound_facing[i];
+#endif
     if (i == 0) {
+#ifdef TL_CLIP
+        out_wound_look = in_wound_look[0];
+        out_wound_tex = in_wound_tex[0];
+        out_wound_run = in_wound_run[0];
+#endif
         vec4 p0 = gl_in[0].gl_Position, p1 = gl_in[1].gl_Position, p2 = gl_in[2].gl_Position;
         bool normals = dot(in_shape[0].xyz, in_shape[0].xyz) > 0.0 && dot(in_shape[1].xyz, in_shape[1].xyz) > 0.0 &&
                        dot(in_shape[2].xyz, in_shape[2].xyz) > 0.0;

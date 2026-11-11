@@ -42,6 +42,8 @@
 #include "ge.tese.inc"
 #include "ge_tl.vert.inc"
 #include "ge_tl.tesc.inc"
+#include "ge_tl.tese.inc"
+#include "ge_tl_tess.frag.inc"
 #include "present.vert.inc"
 #include "present.frag.inc"
 
@@ -118,7 +120,7 @@ static uint32_t tl_rec = ~0u;
 static TlSegment tl_seg[TL_SEGMENTS];
 static int tl_nseg;
 static size_t tl_nfeet;                 /* (the batch's lit vertices given: render_scene.c's feet) */
-static VkShaderModule tess_ctrl, tess_eval, tess_ctrl_tl;
+static VkShaderModule tess_ctrl, tess_eval, tess_ctrl_tl, tess_eval_tl;
 float prim_view[16], prim_world_view[12];
 static int prim_world;
 static int blob_shadows, blob_prim;
@@ -176,7 +178,7 @@ VkPipeline make_pipeline(VkShaderModule vs, VkShaderModule fs, VkPipelineLayout 
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT,
          tl ? tess_ctrl_tl : tess_ctrl, "main", NULL},
         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, 0, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT,
-         tess_eval, "main", NULL},
+         tl ? tess_eval_tl : tess_eval, "main", NULL},
     };
     VkVertexInputBindingDescription bind = {0, sizeof(GpuVertex), VK_VERTEX_INPUT_RATE_VERTEX};
     VkVertexInputAttributeDescription attrs[8] = {
@@ -423,11 +425,14 @@ int render_init(void *sdl_window) {
     if (vk.clip_distance) {             /* the GPU's vertex stage (MHFU_GPU_TL) */
         tvs = vk_shader(ge_tl_vert, sizeof ge_tl_vert);
         /* (its pixels read their triangles' corners if they can: the scenery's normals chosen as the CPU's are) */
-        VkShaderModule tfs = vk.barycentric ? vk_shader(ge_tl_frag, sizeof ge_tl_frag) : fs;
+        /* (and draw their wounds: so do the tessellated ones' - drawn over the flat, they hid its wounds) */
+        VkShaderModule wfs = vk_shader(ge_tl_tess_frag, sizeof ge_tl_tess_frag);
+        VkShaderModule tfs = vk.barycentric ? vk_shader(ge_tl_frag, sizeof ge_tl_frag) : wfs;
         tl_pipeline = make_pipeline(tvs, tfs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 8);
         if (tess_pipeline) {
             tess_ctrl_tl = vk_shader(ge_tl_tesc, sizeof ge_tl_tesc);
-            tl_tess_pipeline = make_pipeline(tvs, fs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 11);
+            tess_eval_tl = vk_shader(ge_tl_tese, sizeof ge_tl_tese);
+            tl_tess_pipeline = make_pipeline(tvs, wfs, ge_layout, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_D32_SFLOAT, 11);
         }
         tl_records = vk_buffer(2 * TL_RECORDS * sizeof(TlDraw), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
         tl_vertices = vk_buffer((2 * TL_VERTICES + TL_SLOTS * TL_SLOT_VERTICES) * sizeof(TlVertex),

@@ -1,4 +1,5 @@
-// The GE's pixel stage before blending (ge.frag; ge_tl.frag, the GPU's vertex stage's, with TL_CORNERS): the texture
+// The GE's pixel stage before blending (ge.frag; ge_tl.frag, the GPU's vertex stage's, with TL_CORNERS - its pixels read
+// their triangle's corners - and TL_WOUNDS; ge_tl_tess.frag, the same tessellated, with TL_WOUNDS alone): the texture
 // function, colour doubling, the alpha test. Blending, depth and write masks are the fixed-function state set per draw.
 #extension GL_EXT_nonuniform_qualifier : require
 #include "shared.h"
@@ -42,6 +43,8 @@ layout(location = 4) in vec3 in_sun;
 layout(location = 5) in vec3 in_normal;
 #ifdef TL_CORNERS
 layout(location = 9) pervertexEXT in vec3 in_corner[];     // (the scenery's: each corner's normal summed at its place)
+#endif
+#ifdef TL_WOUNDS
 layout(location = 14) flat in vec4 in_wound_look[4];
 layout(location = 18) in float in_wound_facing[4];
 layout(location = 22) flat in uint in_wound_tex;            // (the deep wounds' picture: its slot)
@@ -283,7 +286,7 @@ float wound_blot(float x) {
     return mix(fract(sin(i * 127.1) * 43758.5453), fract(sin((i + 1.0) * 127.1) * 43758.5453), f);
 }
 
-#ifdef TL_CORNERS
+#ifdef TL_WOUNDS
 // (the wounds': a number that wanders along x, 0 to 1)
 float wound_noise(float x) {
     float i = floor(x), f = fract(x);
@@ -466,7 +469,7 @@ void main() {
         if (dot(ng, ng) > 0.0 && abs(normalize(ng).y) > 0.8 && in_world.y < eye.y)
             c = vec4(water(c.rgb, sh, far), clamp(c.a * 3.0, 0.0, 1.0));
     }
-#ifdef TL_CORNERS
+#ifdef TL_WOUNDS
     // wounds (gpu.c): a cut where a blade landed, by how deep it went - a scratch: a thin line of the skin's own
     // colour darkened, hardly bleeding; a cut: a ragged line, dark inside, raw at its lips, a little blood about it;
     // a gash: wider and open, drawn from the wound's picture (render_texture.c) - or a shot's hole. Part of the skin, not laid on it: as light as the skin under it and no
