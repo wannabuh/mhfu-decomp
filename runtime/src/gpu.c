@@ -3818,6 +3818,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_OWN 260.0f            /* bones all this near the attacker's place: the hunter's own, or the weapon's */
 #define WOUND_HALF_LENGTH 60.0f     /* a hit of damage 30's, units; others by the root of theirs */
 #define WOUND_HALF_WIDTH 20.0f      /* (the cut itself a third of it: the rest is the blood about it - ge_frag.glsl) */
+#define WOUND_SHEET 9.0f            /* a part thinner than this is a sheet: slit, not laid open */
 #define WOUND_PART 0.07f            /* half a wound's length, at most, of the animal's reach */
 #define WOUND_SHOT_HALF 16.0f       /* a shot's hole, and the blood about it */
 #define WOUND_DEPTH 14.0f           /* how far through the skin it reaches, either way */
@@ -4152,10 +4153,12 @@ static void wounds_attach(Frame *f) {
                 nrm[b] = toc[b] / sqrtf(tl);
         else
             nrm[0] = 0, nrm[1] = 1, nrm[2] = 0;
-        /* A thin part: the model's other side is close behind the skin there - a vertex within 30 units inwards
-         * whose normal faces the other way. Cut, it is slit: no flesh to lay open. (Not by whether the draw culls
-         * its back faces: none of a monster's do, and every wound was a slit - dark marks and no red, #73. A sheet
-         * with one side only - a wing's skin, if it is made so - is not told.) */
+        /* How thick the part is there: how far behind the skin the model's other side is - the nearest vertex up
+         * to 60 units inwards whose normal faces the other way. A sheet (under WOUND_SHEET: an ear, a fin, a wing's
+         * skin made with two sides) is slit when cut: no flesh to lay open. A slender part that is flesh - a
+         * tail, a leg - is cut as any, but the wound reaches less than half way through it: at its full depth it
+         * came out on the far side, a dark band round the tail (#74). (Not by whether the draw culls its back
+         * faces: none of a monster's do, and every wound was a slit, #73. A sheet with one side only is not told.) */
         static int thin_all = -1;           /* MHFU_WOUND_THIN=1: every part taken for thin, 0: none (to look at one) */
         static unsigned thin_seen;
         if (SETTING_STALE(thin_seen))
@@ -4163,19 +4166,20 @@ static void wounds_attach(Frame *f) {
         int thin = thin_all > 0;
         if (thin_all == 0)
             nl = 0;
-        for (int gi = 0; gi < f->ntlg && !thin && nl > 1e-12f; gi++) {
+        float thick = 1e9f;
+        for (int gi = 0; gi < f->ntlg && nl > 1e-12f; gi++) {
             const TlGroup *g = &f->tlg[gi];
             const Draw *d = &f->draws[g->first];
             if (!(d->reg[0x17] & 1) || memcmp(d->world, bd->world, sizeof(float) * 12))
                 continue;
             int gb = draw_bones(d);
-            for (uint32_t k = 0; k < g->nvertex && !thin; k++) {
+            for (uint32_t k = 0; k < g->nvertex; k++) {
                 const TlVertex *v = &f->tlv[g->vertex + k];
                 float w[3], back = 0, side = 0;
                 wound_world(d, gb, v, v->pos, wound_cam[bcam], w);
                 for (int b = 0; b < 3; b++)
                     back -= (w[b] - o[b]) * nrm[b];
-                if (back < 3.0f || back > 30.0f)
+                if (back < 1.0f || back > 60.0f || back >= thick)
                     continue;
                 for (int b = 0; b < 3; b++) {
                     float r = w[b] - o[b] + back * nrm[b];
@@ -4192,11 +4196,14 @@ static void wounds_attach(Frame *f) {
                 }
                 for (int b = 0; b < 3; b++)
                     dotn += vn[b] * nrm[b];
-                thin = vl > 1e-12f && dotn < -0.3f * sqrtf(vl);
-                if (thin && getenv("MHFU_WOUND_LOG"))
-                    fprintf(stderr, "thin: a vertex %.0f behind, %.0f aside, normals %.2f\n", (double)back, (double)sqrtf(side), (double)(dotn / sqrtf(vl)));
+                if (vl > 1e-12f && dotn < -0.3f * sqrtf(vl))
+                    thick = back;
             }
         }
+        if (thin_all < 0)
+            thin = thick < WOUND_SHEET;
+        if (getenv("MHFU_WOUND_LOG") && thick < 1e8f)
+            fprintf(stderr, "the part is %.0f thick there%s\n", (double)thick, thin ? ": a sheet" : "");
         float along[3], al = 0, xn = x[0] * nrm[0] + x[1] * nrm[1] + x[2] * nrm[2];
         for (int b = 0; b < 3; b++) {
             along[b] = x[b] - xn * nrm[b];
@@ -4232,7 +4239,7 @@ static void wounds_attach(Frame *f) {
             bigger = getenv("MHFU_WOUND_SIZE") && atof(getenv("MHFU_WOUND_SIZE")) > 0 ? (float)atof(getenv("MHFU_WOUND_SIZE")) : 1.0f;
         size *= bigger;
         const float *frame[3] = {along, across, nrm};
-        float over[3] = {1.0f / (WOUND_HALF_LENGTH * size), 1.0f / (WOUND_HALF_WIDTH * size), 1.0f / (WOUND_DEPTH * fminf(size, 1.0f))};
+        float over[3] = {1.0f / (WOUND_HALF_LENGTH * size), 1.0f / (WOUND_HALF_WIDTH * size), 1.0f / fminf(WOUND_DEPTH * fminf(size, 1.0f), fmaxf(0.4f * thick, 2.0f))};
         if (wound_pending[h].kind == WOUND_SHOT)
             over[0] = over[1] = 1.0f / (WOUND_SHOT_HALF * bigger);
         /* the middle: the contact's place across the skin from the vertex */
