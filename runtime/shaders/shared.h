@@ -123,9 +123,9 @@
  * count: whether there is any blood on the ground). BIND_BLOOD: the ground's blood, BLOOD_N x BLOOD_N cells of
  * BLOOD_UNIT units of the world, wrapped - a cell's low 10 bits how much (255 covers the ground), then 8 how wet, 10
  * its ground's height (8 units a step, modulo; BLOOD_ANY: any ground under the eye's reach), 4 its colour */
-#define BLOOD_DROP_SETS 4
+#define BLOOD_DROP_SETS 6
 #define BLOOD_SETS (2 * BLOOD_DROP_SETS + 3)
-#define BLOOD_SET_AT 8179u
+#define BLOOD_SET_AT 8175u
 #define BLOOD_N 4096
 #define BLOOD_UNIT 2.5f
 #define BLOOD_ANY 1023

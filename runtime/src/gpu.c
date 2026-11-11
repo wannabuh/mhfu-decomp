@@ -3831,7 +3831,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_FADE (WOUND_LIFE * 0.25)
 #define WOUND_LASTS(depth) (2.0 / 3 + (depth))  /* (times WOUND_LIFE: a scratch two minutes, a gash five) */
 #define WOUND_FRESH (20.0 * 30)     /* wet this long, drying */
-enum { WOUND_SLASH, WOUND_SHOT };
+enum { WOUND_SLASH, WOUND_SHOT, WOUND_BLUNT };     /* (a blunt hit leaves no wound: its blood is the weapon's to throw) */
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
@@ -3863,7 +3863,7 @@ static int wound_next;
 static float blood_chance(void);
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must);
 static const uint8_t *wound_blood(int type);
-static struct { float contact[3], axis[3], attacker[3], swing[3], depth; int damage, kind, breaks, swung; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], swing[3], depth; int damage, kind, breaks, swung, capsule, bladed; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
 static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
@@ -3957,9 +3957,9 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
     if (LBU(attacker + 0x1E9u) != 0)
         return;
     if (flags & 0x40u) {
-        if (LBU(record + 0x74u) == 1 || class == 2 || class == 8 || LBU(record + 0x1Eu) < 4)
+        if (LBU(record + 0x74u) == 1 || LBU(record + 0x1Eu) < 4)
             return;
-        kind = WOUND_SLASH;
+        kind = class == 2 || class == 8 ? WOUND_BLUNT : WOUND_SLASH;
     } else if (flags & 8u)
         kind = WOUND_SHOT;
     else
@@ -3980,8 +3980,13 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
         wound_pending[k].breaks += LBU(monster + 0x582u + 8u * slot);
     /* the way the weapon's shape lies (a capsule's ends; a ball has none: level, across) */
     float a[3] = {1, 0, 0};
+    wound_pending[k].capsule = LW(attacker_shape) == 0;
+    wound_pending[k].bladed = 0;
+    wound_pending[k].by = attacker;
     if (LW(attacker_shape) == 0) {
         const float *e0 = (const float *)PTR(attacker_shape + 0x10u), *e1 = (const float *)PTR(attacker_shape + 0x20u);
+        memcpy(wound_pending[k].ends[0], e0, sizeof wound_pending[k].ends[0]);
+        memcpy(wound_pending[k].ends[1], e1, sizeof wound_pending[k].ends[1]);
         float len = sqrtf(dist2(e0, e1));
         if (len > 1)
             for (int i = 0; i < 3; i++)
@@ -4092,6 +4097,190 @@ static int wound_linear(const Draw *d, int nb, const TlVertex *v, const float *c
     return 1;
 }
 
+/* -- the weapon's blood ----------------------------------------------------------------------------------------------
+ *
+ * A hit wets the weapon, more the deeper it went, and for the rest of that swing blood is thrown off it: drops that
+ * leave from along it, as fast as it goes there - an arc of them on the ground, the way it was swung. The weapon is
+ * found in the picture, as the hit lands: of the attacker's own meshes, the one whose vertices lie along the hit's
+ * capsule; two of its vertices, the nearest each end, are followed from then on, frame by frame. */
+static struct {
+    uint32_t by, key, key_i, vertex[2];     /* whose, its mesh, its vertices: by the grip and at the tip */
+    float wet, at[2][3], speed[2][3], owed, fastest;
+    float swing[2][3], swing_fast;          /* its ends' speed when it was last going fastest, within a fifth of a second */
+    double hit_at, when, swing_when;
+    uint8_t rgb[3];
+} blade;
+
+static float segment_dist2(const float *p, const float *a, const float *b) {
+    float l[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, ll = l[0] * l[0] + l[1] * l[1] + l[2] * l[2];
+    float t = ll > 0 ? ((p[0] - a[0]) * l[0] + (p[1] - a[1]) * l[1] + (p[2] - a[2]) * l[2]) / ll : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    float q[3] = {a[0] + l[0] * t, a[1] + l[1] * t, a[2] + l[2] * t};
+    return dist2(p, q);
+}
+
+/* a group of the attacker's own (the hunter's, the weapon's): every bone by where the attacker is */
+static int blade_own(const Draw *d, const float *attacker) {
+    const float zero[3] = {0, 0, 0};
+    int nb = draw_bones(d);
+    if (!(d->reg[0x17] & 1) || (d->reg[0x12] >> 23 & 1))
+        return 0;
+    for (int b = 0; b < (nb ? nb : 1); b++) {
+        float o[3] = {0, 0, 0}, m[3], w[3];
+        if (nb)
+            mul43(d->bones[b], zero, o);
+        mul43(d->world, o, m);
+        mul43(wound_cam[0], m, w);
+        if (dist2(w, attacker) >= WOUND_OWN * WOUND_OWN)
+            return 0;
+    }
+    return 1;
+}
+
+static void blade_find(const Frame *f, int h) {
+    if (!wound_pending[h].capsule)
+        return;
+    const float *attacker = wound_pending[h].attacker;
+    const float *grip = wound_pending[h].ends[0], *tip = wound_pending[h].ends[1];
+    if (dist2(grip, attacker) > dist2(tip, attacker))
+        grip = wound_pending[h].ends[1], tip = wound_pending[h].ends[0];
+    /* (a weapon is drawn in pieces: the one that reaches nearest the tip, of those lying along the capsule. One
+     * followed already - found by an earlier hit, and seen this last tenth of a second - is kept) */
+    float best = 1e30f, fit = 0;
+    int found = 0, kept = blade.key && blade.by == wound_pending[h].by && fabs(rt_game_30ths() - blade.when) < 3.0;
+    for (int gi = 0; gi < f->ntlg; gi++) {
+        const TlGroup *g = &f->tlg[gi];
+        const Draw *d = &f->draws[g->first];
+        if (g->nvertex < 8 || !blade_own(d, attacker))
+            continue;
+        int nb = draw_bones(d), near = 0, all = 0;
+        float dg = 1e30f, dt = 1e30f;
+        uint32_t vg = 0, vt = 0;
+        float pg[3] = {0}, pt[3] = {0};
+        for (uint32_t k = 0; k < g->nvertex; k += 2) {
+            const TlVertex *v = &f->tlv[g->vertex + k];
+            float w[3];
+            wound_world(d, nb, v, v->pos, wound_cam[0], w);
+            all++;
+            near += segment_dist2(w, grip, tip) < 30.0f * 30.0f;
+            float a = dist2(w, grip), b = dist2(w, tip);
+            if (a < dg)
+                dg = a, vg = k, memcpy(pg, w, sizeof pg);
+            if (b < dt)
+                dt = b, vt = k, memcpy(pt, w, sizeof pt);
+        }
+        float score = (float)near / (float)all;
+        if (score < 0.35f || near < 4 || dt >= best)
+            continue;
+        best = dt;
+        fit = score;
+        found = 1;
+        if (!kept) {
+            blade.key = d->vaddr;
+            blade.key_i = d->iaddr;
+            blade.vertex[0] = vg;
+            blade.vertex[1] = vt;
+            memcpy(blade.at[0], pg, sizeof pg);
+            memcpy(blade.at[1], pt, sizeof pt);
+            blade.when = rt_game_30ths();
+            blade.swing_fast = 0;
+            memset(blade.speed, 0, sizeof blade.speed);
+        }
+    }
+    if (getenv("MHFU_WOUND_LOG"))
+        fprintf(stderr, "blade: %s (%.0f%% of its vertices along the hit's capsule, %.0f from its tip), wet %.2f\n", kept ? "kept" : found ? "found" : "not found",
+                (double)fit * 100, (double)sqrtf(best), (double)(0.2f + 0.8f * wound_pending[h].depth));
+    if (!found && !kept)
+        return;
+    blade.by = wound_pending[h].by;
+    blade.wet = fmaxf(blade.wet, 0.2f + 0.8f * wound_pending[h].depth);
+    blade.hit_at = rt_game_30ths();
+    blade.fastest = blade.owed = 0;
+    memcpy(blade.rgb, wound_blood(wound_pending[h].of.type), 3);
+    /* as it hits: a burst off it, as fast as it was swung (the game holds the blow still a moment as it lands: its
+     * speed just before) - the more the deeper the hit */
+    if (getenv("MHFU_WOUND_LOG"))
+        fprintf(stderr, "blade: mesh %08X %08X vertices %u %u by %08X\n", blade.key, blade.key_i, blade.vertex[0], blade.vertex[1], blade.by),
+        fprintf(stderr, "blade: fastest lately %.0f, %.2f s ago; followed %.2f s ago\n", (double)blade.swing_fast, (blade.hit_at - blade.swing_when) / 30,
+                (blade.hit_at - blade.when) / 30);
+    if (blade.swing_fast > 250.0f && blade.hit_at - blade.swing_when < 0.3 * 30) {
+        int n = 2 + (int)(9.0f * blade.wet);
+        for (int i = 0; i < n; i++) {
+            float along = sqrtf(blood_chance()), keep = 0.45f + 0.5f * blood_chance(), at[3], v[3];
+            for (int k = 0; k < 3; k++) {
+                at[k] = blade.at[0][k] + (blade.at[1][k] - blade.at[0][k]) * along;
+                v[k] = (blade.swing[0][k] + (blade.swing[1][k] - blade.swing[0][k]) * along) * keep + (blood_chance() - 0.5f) * 0.25f * blade.swing_fast;
+            }
+            blood_falls(at, v, attacker[1], 1.8f + 3.6f * blade.wet * blood_chance(), blade.rgb, 0);
+        }
+        if (getenv("MHFU_WOUND_LOG"))
+            fprintf(stderr, "blade: a burst of %d, swung at %.0f units a second\n", n, (double)blade.swing_fast);
+    }
+}
+
+/* Each frame, while it is wet: where its two vertices are, how fast; drops off it by how wet and how fast it goes
+ * (70 a second at the most), from along it - more of them towards the tip. Till the swing is over: it has slowed
+ * to a stop after going fast, or 0.6 s have gone */
+static void blade_frame(const Frame *f) {
+    if (!blade.key || blade.by < 0x08800000u || blade.by >= 0x0A000000u - 0x210u)
+        return;
+    double now = rt_game_30ths(), dt = (now - blade.when) / 30.0;
+    if (now < blade.hit_at || now - blade.hit_at > 0.6 * 30)
+        blade.wet = 0;
+    if (dt < 0)
+        blade.when = now;
+    if (dt < 0.004)
+        return;
+    const float *attacker = (const float *)PTR(blade.by + 0x200u);
+    for (int gi = 0; gi < f->ntlg; gi++) {
+        const TlGroup *g = &f->tlg[gi];
+        const Draw *d = &f->draws[g->first];
+        if (d->vaddr != blade.key || d->iaddr != blade.key_i || blade.vertex[0] >= g->nvertex || blade.vertex[1] >= g->nvertex ||
+            !blade_own(d, attacker))
+            continue;
+        float p[2][3], fast = 0;
+        for (int e = 0; e < 2; e++) {
+            const TlVertex *v = &f->tlv[g->vertex + blade.vertex[e]];
+            wound_world(d, draw_bones(d), v, v->pos, wound_cam[0], p[e]);
+            for (int k = 0; k < 3; k++)
+                blade.speed[e][k] = dt < 0.2 ? (p[e][k] - blade.at[e][k]) / (float)dt : 0;
+        }
+        memcpy(blade.at, p, sizeof p);
+        blade.when = now;
+        for (int k = 0; k < 3; k++)
+            fast += blade.speed[1][k] * blade.speed[1][k];
+        fast = sqrtf(fast);
+        if (fast > 4000.0f)             /* (put somewhere else in a frame: not a swing) */
+            return;
+        if (fast >= blade.swing_fast || now - blade.swing_when > 0.2 * 30 || now < blade.swing_when) {
+            memcpy(blade.swing, blade.speed, sizeof blade.swing);
+            blade.swing_fast = fast;
+            blade.swing_when = now;
+        }
+        if (blade.wet <= 0)
+            return;
+        if (fast > blade.fastest)
+            blade.fastest = fast;
+        if (blade.fastest > 500.0f && fast < 120.0f) {
+            blade.wet = 0;              /* (the swing is over) */
+            return;
+        }
+        blade.owed += (0.3f + 0.7f * blade.wet) * fminf(fast / 1200.0f, 1.0f) * 70.0f * (float)dt;
+        for (; blade.owed >= 1 && blade.wet > 0; blade.owed -= 1) {
+            float along = sqrtf(blood_chance()), keep = 0.75f + 0.25f * blood_chance(), at[3], v[3];
+            for (int k = 0; k < 3; k++) {
+                at[k] = p[0][k] + (p[1][k] - p[0][k]) * along;
+                v[k] = (blade.speed[0][k] + (blade.speed[1][k] - blade.speed[0][k]) * along) * keep + (blood_chance() - 0.5f) * 80.0f;
+            }
+            blood_falls(at, v, attacker[1], 1.8f + 3.6f * blade.wet * blood_chance(), blade.rgb, 0);
+            blade.wet -= 0.025f;
+            if (getenv("MHFU_WOUND_LOG"))
+                fprintf(stderr, "blade: a drop, going %.0f units a second\n", (double)fast);
+        }
+        return;
+    }
+}
+
 /* The frame's draws are in (f, recorded): the hits waiting looked for on them */
 static void wounds_attach(Frame *f) {
     float inv[12], target[3];
@@ -4105,6 +4294,14 @@ static void wounds_attach(Frame *f) {
         if (!wound_pending[h].used)
             continue;
         if (now > wound_pending[h].frame + 3) {
+            wound_pending[h].used = 0;
+            continue;
+        }
+        if (!wound_pending[h].bladed && wound_pending[h].kind != WOUND_SHOT && wound_cams) {
+            wound_pending[h].bladed = 1;
+            blade_find(f, h);
+        }
+        if (wound_pending[h].kind == WOUND_BLUNT) {
             wound_pending[h].used = 0;
             continue;
         }
@@ -4394,7 +4591,8 @@ static void wounds_attach(Frame *f) {
         wounds[n].breaks = wound_pending[h].breaks;
         wounds[n].at_when = 0;
         /* a gash throws blood as it is made: a few drops out from the skin, towards the one who cut it, and up */
-        if (depth >= WOUND_DRIPS && wound_pending[h].kind == WOUND_SLASH) {
+        if (wound_pending[h].kind == WOUND_SLASH) {
+            int gash = depth >= WOUND_DRIPS;    /* (a lesser cut: a speck or two) */
             float out[3], to[3], ol = 0;
             for (int k = 0; k < 3; k++)
                 to[k] = wound_pending[h].attacker[k] - c[k];
@@ -4407,7 +4605,7 @@ static void wounds_attach(Frame *f) {
             const float *sw = wound_pending[h].swing;
             float fast = wound_pending[h].swung ? sqrtf(sw[0] * sw[0] + sw[1] * sw[1] + sw[2] * sw[2]) : 0;
             float keep = fast > 1100.0f ? 1100.0f / fast : 1.0f;
-            for (int i = 0; i < (fast > 300.0f ? 7 : 4); i++) {
+            for (int i = 0; i < (!gash ? 1 + (depth >= 0.35f) : fast > 300.0f ? 7 : 4); i++) {
                 float c1 = blood_chance(), c2 = blood_chance(), c3 = blood_chance(), v[3];
                 for (int k = 0; k < 3; k++) {
                     v[k] = out[k] * ol * (140.0f + 200.0f * c1) + along[k] * (c2 - 0.5f) * 260.0f;
@@ -4415,7 +4613,7 @@ static void wounds_attach(Frame *f) {
                         v[k] = v[k] * 0.6f + sw[k] * keep * (0.3f + 0.55f * c3) + (blood_chance() - 0.5f) * 0.3f * fast * keep;
                 }
                 v[1] += 120.0f + 160.0f * c3;
-                blood_falls(c, v, wound_pending[h].attacker[1], 2.0f + 2.5f * c2, wound_blood(wound_pending[h].of.type), 0);
+                blood_falls(c, v, wound_pending[h].attacker[1], gash ? 2.0f + 2.5f * c2 : 1.0f + 0.8f * c2, wound_blood(wound_pending[h].of.type), 0);
             }
         }
         wounds[n].run[0] = -along[1];
@@ -4615,6 +4813,7 @@ static void wounds_frame(const Frame *f) {
             break;
         }
     }
+    blade_frame(f);
     blood_frame();
 }
 
