@@ -24,6 +24,7 @@ typedef struct {
     unsigned long used;
     int sampler;
     int pending;                    /* its texture pack image is being read */
+    int packed;                     /* what it holds is a texture pack's image */
     uint64_t pack_key;              /* (its key in the pack) */
     uint32_t pack_hash;
 } Texture;
@@ -121,9 +122,12 @@ static void make_level(const uint32_t *src, uint32_t *dst, int w, int h, int cut
         }
     if (!cutout)
         return;
-    /* the scale of this level's alpha keeping the share solid (alpha at least half) the full size has: want */
+    /* the scale of this level's alpha keeping the share solid (alpha at least half) the full size has: want. Never
+     * below 1: where averaging left more of a level solid than that, scaling it down took a solid texel's 255 to 190
+     * or so, under the alpha test's reference where that is higher than half - a helmet's chainmail, all of it solid,
+     * gone from a hunter seen from a little way off (#70) */
     size_t n = (size_t)dw * (size_t)dh;
-    float lo = 0.0f, hi = 4.0f;
+    float lo = 1.0f, hi = 4.0f;
     for (int it = 0; it < 10; it++) {
         float mid = 0.5f * (lo + hi);
         size_t c = 0;
@@ -162,6 +166,11 @@ static void upload(Texture *t, int w, int h) {
     }
     uint8_t *px = (uint8_t *)scratch_for(total);    /* (level 0 is there already: scratch_for keeps it) */
     int cutout = t->slot < MAX_TEXTURES && tex_cutout[t->slot];
+    /* A pack's image is judged by its own holes too, not only the game's texture's: one with holes the game's has
+     * not (a fringe, hair, fur) keeps them solid where they are in its smaller levels, not averaged away */
+    if (t->packed && !cutout && levels > 1)
+        for (size_t i = 0; i < (size_t)w * (size_t)h && !cutout; i++)
+            cutout = (((const uint32_t *)px)[i] >> 24) < 128;
     float want = 0;
     if (cutout && levels > 1) {         /* the share of the full size solid (alpha at least half) */
         size_t solid = 0;
@@ -330,6 +339,7 @@ static int pack_image(Texture *t, int w, int h, int *iw, int *ih) {
         t->sampler &= ~1;
     *iw = im.w;
     *ih = im.h;
+    t->packed = 1;
     return 1;
 }
 
@@ -338,6 +348,7 @@ static int pack_image(Texture *t, int w, int h, int *iw, int *ih) {
 static void upload_pack(Texture *t, const uint32_t *reg, int w, int h) {
     int uw = w, uh = h;
     t->pending = 0;
+    t->packed = 0;
     if (texpack_active()) {
         texpack_key(reg, texpack_draw_v, &t->pack_key, &t->pack_hash);
             texpack_dump(t->pack_key, t->pack_hash, scratch, w, h);

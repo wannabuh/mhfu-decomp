@@ -4,9 +4,9 @@
  * palette bytes left over from an earlier, bigger load.
  *
  * The pack is $MHFU_TEXTURES, else ~/.local/share/mhfu-recomp/TEXTURES/ULUS10391, else PPSSPP's
- * ~/.config/ppsspp/PSP/TEXTURES/ULUS10391. Images (PNG, or KTX2 - ktx2.cpp) are read by threads of their own: a texture is drawn as the
- * game has it until its image is in. MHFU_TEXTURE_DUMP=1 writes each texture the game uses to the pack's new/ under the
- * name PPSSPP gives it, to make packs from.
+ * ~/.config/ppsspp/PSP/TEXTURES/ULUS10391. Images (PNG, or KTX2 - ktx2.cpp) are read by threads of their own: a
+ * texture is drawn as the game has it until its image is in. MHFU_TEXTURE_DUMP=1 writes each texture the game uses
+ * to the pack's new/ under the name PPSSPP gives it, to make packs from.
  *
  * Not yet: textures.zip, DDS / ZIM images, [indexed] textures, the mipmaps a pack gives (they are made here). */
 #include "texpack.h"

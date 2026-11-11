@@ -160,9 +160,11 @@ PPSSPP's texture packs work as they are: put the pack (its folder, with its `tex
 `~/.local/share/mhfu-recomp/TEXTURES/ULUS10391`, or leave it where PPSSPP has it (`~/.config/ppsspp/PSP/TEXTURES/ULUS10391`),
 or name it with `textures = /path/to/pack`. Its images are drawn in place of the game's textures, at their own
 resolution (with mipmaps); they are read in the background, so a texture can show as the game has it for a moment
-first. PNG images, the `quick`, `xxh32` and `xxh64` hashes, `[hashes]`, `[hashranges]`, `[filtering]`,
-`[reducehashranges]` and `ignoreAddress` are understood; a zipped pack (`textures.zip`), DDS / KTX2 images and
-`[indexed]` are not yet. `texture_dump = 1` writes each texture the game uses to the pack's `new/` under the name a pack
+first. PNG and KTX2 images (KTX2 needs the `basis-universal` package when building; `make` uses it when it is
+installed), the `quick`, `xxh32` and `xxh64` hashes, `[hashes]`, `[hashranges]`, `[filtering]`,
+`[reducehashranges]` and `ignoreAddress` are understood; a zipped pack (`textures.zip`), DDS images and
+`[indexed]` are not yet. Install a pack as its readme says for PPSSPP (for a Freedom Unite pack, its US
+`textures.ini`); PPSSPP's "Replace textures" setting has no counterpart here, a pack is used whenever it is there. `texture_dump = 1` writes each texture the game uses to the pack's `new/` under the name a pack
 gives it (as PPSSPP's "save new textures"), to make a pack from.
 
 To get back somewhere quickly - into a quest, say - record playing there once, `MHFU_RECORD=quest.rec`, then start
