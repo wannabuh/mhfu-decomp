@@ -3945,6 +3945,11 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
         d = sqrtf(d);
         if (LBU(record + 0x74u) == 3)
             d += 0.15f;
+        /* (a small animal's every hit is a great share of its health: no deeper than a cut at 150 health or under,
+         * the cap rising to a gash's at 1500) */
+        float cap = 0.45f + 0.55f * (most - 150.0f) / (1500.0f - 150.0f);
+        cap = cap < 0.45f ? 0.45f : cap > 1 ? 1 : cap;
+        d = d > cap ? cap : d;
         wound_pending[k].depth = d > 1 ? 1 : d;
         if (getenv("MHFU_WOUND_LOG"))
             fprintf(stderr, "hit: took %.0f x %.2f of %.0f health (%.1f%%): depth %.2f\n", (double)dealt, (double)scale, (double)most, (double)share * 100, (double)wound_pending[k].depth);
