@@ -6,6 +6,7 @@
  * draw's vertices give a place and a colour (with its texture's average colour), those near each other are one light,
  * and the warm ones light the next frame around them (MHFU_POINT_LIGHTS=0: none; MHFU_POINT_GAIN: their strength) */
 #include "render_internal.h"
+#include "blood.h"
 
 #include "hle.h"
 
@@ -302,33 +303,36 @@ uint32_t camera_light_set(void) {
     return camera_set;
 }
 
-/* gpu.c: the blood on the ground (shared.h BLOOD_SET_AT), each frame it records. Kept, and put in both halves of the
- * sets at each frame's end: the pixel stage reads them at the one place whichever frame is in flight. */
+/* The blood (blood.c; shared.h BLOOD_SET_AT, BIND_BLOOD): moved on each frame, its sets put in both halves at the
+ * frame's end - the pixel stage reads them at the one place whichever frame is in flight - and the ground's map one
+ * buffer, changed as it is read (a cell a frame late or early is nothing) */
 _Static_assert(BLOOD_SET_AT == LIGHT_SETS - 2 - BLOOD_SETS, "the blood's sets: before the point lights'");
-static LightSet blood_sets[BLOOD_SETS];
+static VkBuf blood_buf;
 
-void render_blood(int n, const float (*at)[4], const float (*color)[4], const float (*lie)[4], int ndrops,
-                  const float (*drop_at)[4], const float (*drop_color)[4], const float (*drop_streak)[4], const float *eye) {
-    LightSet l[BLOOD_SETS];
-    memset(l, 0, sizeof l);
-    if (n > 4 * BLOOD_MARK_SETS)
-        n = 4 * BLOOD_MARK_SETS;
-    if (ndrops > 4 * BLOOD_DROP_SETS)
-        ndrops = 4 * BLOOD_DROP_SETS;
-    for (int i = 0; i < ndrops; i++) {
-        memcpy(l[BLOOD_DROP_AT + i / 4].dir[i % 4], drop_at[i], 16);
-        memcpy(l[BLOOD_DROP_AT + i / 4].color[i % 4], drop_color[i], 16);
-        memcpy(l[BLOOD_DROP_AT + BLOOD_DROP_SETS + i / 4].dir[i % 4], drop_streak[i], 16);
+static void blood_sets(LightSet *l) {
+    BloodFrame f;
+    if (!blood_buf.map) {
+        blood_buf = vk_buffer((VkDeviceSize)BLOOD_N * BLOOD_N * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+        memset(blood_buf.map, 0, (size_t)BLOOD_N * BLOOD_N * sizeof(uint32_t));
+        VkDescriptorBufferInfo bi = {blood_buf.buffer, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_BLOOD, 0, 1,
+                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &bi, NULL};
+        vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
+        blood_init(blood_buf.map);
     }
-    l[BLOOD_DROP_AT].count = (uint32_t)ndrops;
-    memcpy(l[BLOOD_SETS - 1].dir[0], eye, 12);
-    for (int i = 0; i < n; i++) {
-        memcpy(l[i / 4].dir[i % 4], at[i], 16);
-        memcpy(l[i / 4].color[i % 4], color[i], 16);
-        memcpy(l[BLOOD_MARK_SETS + i / 4].dir[i % 4], lie[i], 16);
+    blood_step(scene_time(), &f);
+    memset(l, 0, sizeof *l * BLOOD_SETS);
+    for (int i = 0; i < f.ndrops; i++) {
+        memcpy(l[i / 4].dir[i % 4], f.drop_at[i], 16);
+        memcpy(l[i / 4].color[i % 4], f.drop_color[i], 16);
+        memcpy(l[BLOOD_DROP_SETS + i / 4].dir[i % 4], f.drop_streak[i], 16);
     }
-    l[0].count = (uint32_t)n;
-    memcpy(blood_sets, l, sizeof l);    /* (read by the renderer's thread as it is: a mark a frame late is nothing) */
+    l[0].count = (uint32_t)f.ndrops;
+    for (int i = 0; i < 16; i++)
+        memcpy(i < 4 ? l[2 * BLOOD_DROP_SETS].dir[i] : i < 8 ? l[2 * BLOOD_DROP_SETS].color[i - 4] : i < 12 ? l[2 * BLOOD_DROP_SETS + 1].dir[i - 8]
+                     : l[2 * BLOOD_DROP_SETS + 1].color[i - 12], f.palette[i], 12);
+    memcpy(l[BLOOD_SETS - 1].dir[0], f.eye, 12);
+    l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
 
 /* The frame's end: the last emitter's light, the point lights for the next frame (its half: vk.frame is the next's
@@ -340,8 +344,10 @@ int lights_end_frame(uint32_t tex_slot) {
     make_point_lights();
     if (point_lights_on > 0)
         memcpy((LightSet *)light_buf.map + point_light_set(), point_lights, sizeof point_lights);
+    LightSet blood[BLOOD_SETS];
+    blood_sets(blood);
     for (uint32_t half = 0; half < 2; half++)
-        memcpy((LightSet *)light_buf.map + half * LIGHT_SETS + BLOOD_SET_AT, blood_sets, sizeof blood_sets);
+        memcpy((LightSet *)light_buf.map + half * LIGHT_SETS + BLOOD_SET_AT, blood, sizeof blood);
     light_sets_used = 0;
     camera_set = ~0u;
     prim_lights = ~0u;

@@ -8,6 +8,7 @@ layout(set = 0, binding = BIND_SHADOW_MAP) uniform sampler2DShadow shadow_map;
 // Lighting by the pixel: a draw's directional lights, in the world (direction to the light, w a power of the diffuse
 // term or 0; colour), and which is the sun (the shadows')
 layout(std430, set = 0, binding = BIND_LIGHTS) readonly buffer Lights { LightSet sets[]; };
+layout(std430, set = 0, binding = BIND_BLOOD) readonly buffer Blood { uint blood_map[]; };
 // The strongest two point lights' shadows: distance from the light over its reach, by direction from it
 layout(set = 0, binding = BIND_POINT_SHADOWS) uniform samplerCube point_shadow[2];
 
@@ -266,6 +267,14 @@ vec3 water(vec3 tint, float hidden, float far) {
     return col;
 }
 
+// (the ground's blood's: a number that wanders across the ground, 0 to 1)
+float blood_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float blood_noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(blood_hash(i), blood_hash(i + vec2(1.0, 0.0)), f.x), mix(blood_hash(i + vec2(0.0, 1.0)), blood_hash(i + vec2(1.0)), f.x), f.y);
+}
+
 // (the blood's: a number that wanders along x, 0 to 1)
 float wound_blot(float x) {
     float i = floor(x), f = fract(x);
@@ -373,32 +382,65 @@ void main() {
                 relief = mix(1.0, clamp(dot(bumped, sun) / max(lambert, 0.25), 0.65, 1.35), 1.0 - dark);
         }
         c.rgb *= (1.0 - 0.45 * dark) * relief;
-        // blood on the ground (gpu.c: where bleeding wounds have dripped): each mark soaks the scenery's upward
-        // faces under it - a round stain with a ragged edge, darker and redder when wet, drying to a brown and
-        // fading. On whatever ground is there: found by its place across the ground, to a way below the wound.
-        uint marks = (draw.flags & DRAW_WORLD) != 0u ? sets[BLOOD_SET_AT].count : 0u;
-        if (marks != 0u) {
+        // Blood on the ground (blood.c: a map of it, painted where drops land, moved while wet): the scenery's upward
+        // faces stained by the cells about each pixel - those whose ground is as high as it. Its edge where enough
+        // of it lies, uneven; thin blood a stain in the ground's own light, deep blood darker and its own colour;
+        // wet blood redder, and shining where the sun is on it. Snow takes it up bright and wide, sand dark and dull.
+        uint blood_info = BLOOD_SET_AT + uint(BLOOD_SETS) - 1u;
+        if ((draw.flags & DRAW_WORLD) != 0u && sets[blood_info].count != 0u) {
             vec3 up = cross(dFdx(in_world), dFdy(in_world));
             float ul = length(up);
-            if (ul > 0.0 && abs(up.y) > 0.5 * ul) {
-                for (uint i = 0u; i < marks && i < 4u * uint(BLOOD_MARK_SETS); i++) {
-                    vec4 at = sets[BLOOD_SET_AT + i / 4u].dir[i % 4u];
-                    vec2 off = in_world.xz - at.xz;
-                    vec4 lie = sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + i / 4u].dir[i % 4u];   // longer the way its drop went
-                    off = vec2(dot(off, lie.xy) / max(lie.z, 1.0), dot(off, vec2(-lie.y, lie.x)));
-                    float far = length(off);
-                    if (far >= at.w * 1.3 || in_world.y > at.y + 20.0 || in_world.y < at.y - 900.0)
+            vec3 eye = sets[blood_info].dir[0].xyz;
+            vec2 from_eye = abs(in_world.xz - eye.xz);
+            if (ul > 0.0 && abs(up.y) > 0.5 * ul && max(from_eye.x, from_eye.y) < float(BLOOD_N) * BLOOD_UNIT * 0.41) {
+                vec2 g = in_world.xz / BLOOD_UNIT - 0.5;
+                ivec2 g0 = ivec2(floor(g));
+                vec2 f = fract(g);
+                int here = int(floor(in_world.y / 8.0));
+                float amount = 0.0, wet = 0.0, most = 0.0;
+                uint which = 0u;
+                for (int k = 0; k < 4; k++) {
+                    ivec2 at = (g0 + ivec2(k & 1, k >> 1)) & (BLOOD_N - 1);
+                    uint v = blood_map[at.y * BLOOD_N + at.x];
+                    float a = float(v & 1023u);
+                    int yc = int((v >> 18) & 1023u);
+                    if (a == 0.0 || (yc != BLOOD_ANY && abs(((yc - here + 512) & 1023) - 512) > 4))
                         continue;
-                    vec4 col = sets[BLOOD_SET_AT + i / 4u].color[i % 4u];
-                    float left = fract(col.w * 0.5) * 2.0, wet = floor(col.w * 0.5) / 15.0;
-                    left = col.w >= 1.0 && left == 0.0 ? 1.0 : left;
-                    float turn = atan(off.y, off.x);
-                    float ragged = 1.0 + 0.22 * (wound_blot(turn * 1.9 + at.x * 0.37) - 0.5) + 0.1 * (wound_blot(turn * 5.3 + at.z * 0.21) - 0.5);
-                    float soak = 1.0 - smoothstep(at.w * 0.72, at.w, far * ragged);
-                    vec3 dry = mix(col.rgb * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
-                    vec3 tint = mix(dry, col.rgb * 0.8, wet);
-                    float ground = dot(c.rgb, vec3(0.3, 0.55, 0.15));
-                    c.rgb = mix(c.rgb, mix(c.rgb * (tint * 1.6 + 0.1), tint * ground * 1.5, 0.6), soak * (0.68 + 0.2 * wet) * left);
+                    a *= ((k & 1) != 0 ? f.x : 1.0 - f.x) * ((k >> 1) != 0 ? f.y : 1.0 - f.y);
+                    amount += a;
+                    wet += a * float((v >> 10) & 255u);
+                    if (a > most) {
+                        most = a;
+                        which = v >> 28;
+                    }
+                }
+                if (amount > 0.0) {
+                    wet /= amount * 255.0;
+                    float thick = amount / 255.0;
+                    uint ps = BLOOD_SET_AT + 2u * uint(BLOOD_DROP_SETS) + which / 8u;
+                    vec3 col = (which & 4u) == 0u ? sets[ps].dir[which & 3u].rgb : sets[ps].color[which & 3u].rgb;
+                    float ground = dot(c.rgb, vec3(0.3, 0.55, 0.15)), pale = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
+                    float snow = smoothstep(0.5, 0.75, ground) * (1.0 - smoothstep(0.1, 0.25, pale));
+                    float sand = smoothstep(1.2, 1.6, c.r / max(c.b, 0.05)) * smoothstep(0.25, 0.45, ground) * (1.0 - snow);
+                    float n = blood_noise(in_world.xz * 0.9) * 0.6 + blood_noise(in_world.xz * 0.21) * 0.4;
+                    float level = thick + (n - 0.5) * 0.3;
+                    float cover = smoothstep(0.16, 0.3, level);
+                    wet *= 1.0 - 0.6 * sand;
+                    vec3 dry = mix(col * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
+                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.72, smoothstep(1.0, 3.0, thick));
+                    tint = mix(tint, col * 1.15, 0.5 * snow);
+                    tint = mix(tint, tint * 0.6, 0.6 * sand);
+                    float deep = smoothstep(0.3, 1.6, thick);
+                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.5 + 0.06), mix(0.55, 0.9, deep));
+                    // (snow: a paler ring of it soaked out past the edge)
+                    c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.0), col * 1.3 + 0.25, 0.5), snow * smoothstep(0.02, 0.2, level) * (1.0 - cover));
+                    c.rgb = mix(c.rgb, stained, cover * (mix(0.62, 0.92, deep) + 0.08 * wet) * (1.0 - 0.3 * sand));
+                    vec3 sunward = -vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]);
+                    if (dot(sunward, sunward) > 0.0) {
+                        vec3 nrm = up * (up.y < 0.0 ? -1.0 : 1.0) / ul, view = normalize(eye - in_world);
+                        float shine = pow(max(dot(normalize(view + normalize(sunward)), nrm), 0.0), 70.0);
+                        c.rgb += (shine * 0.45 * (1.0 - sh) + 0.05 * pow(1.0 - max(dot(view, nrm), 0.0), 4.0)) * wet * deep * cover * (1.0 - sand);
+                    }
                 }
             }
         }
@@ -513,13 +555,13 @@ void main() {
 #endif
     // blood in the air (gpu.c: drops falling from wounds): each over what is behind it, in the world - where the line
     // from the eye to this pixel's place passes the drop, a streak as long as it is fast
-    uint drops = (draw.flags & DRAW_KIND) != 0u && (draw.flags & DRAW_MOTION) == 0u ? sets[BLOOD_SET_AT + uint(BLOOD_DROP_AT)].count : 0u;
+    uint drops = (draw.flags & DRAW_KIND) != 0u && (draw.flags & DRAW_MOTION) == 0u ? sets[BLOOD_SET_AT].count : 0u;
     if (drops != 0u) {
         vec3 eye = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz;
         vec3 ray = in_world - eye;
         float rr = dot(ray, ray);
         for (uint i = 0u; i < drops && i < 4u * uint(BLOOD_DROP_SETS) && rr > 0.0; i++) {
-            uint s = BLOOD_SET_AT + uint(BLOOD_DROP_AT) + i / 4u;
+            uint s = BLOOD_SET_AT + i / 4u;
             vec4 at = sets[s].dir[i % 4u], col = sets[s].color[i % 4u];
             vec3 to = at.xyz - eye;
             float t = dot(to, ray) / rr;

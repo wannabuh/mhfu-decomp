@@ -351,7 +351,7 @@ int render_init(void *sdl_window) {
     if (tess_on)
         pc_stages |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
     /* the GE's descriptor set (shared.h's bindings): the textures bindless, an array filled as they are made */
-    VkDescriptorSetLayoutBinding b[10] = {
+    VkDescriptorSetLayoutBinding b[11] = {
         {BIND_TEXTURES, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_SHADOW_MAP, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_LIGHTS, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, pc_stages, NULL},
@@ -362,22 +362,23 @@ int render_init(void *sdl_window) {
         {BIND_SCENE_DEPTH, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
         {BIND_TL, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
         {BIND_TL_EXTRA, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, NULL},
+        {BIND_BLOOD, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL},
     };
-    VkDescriptorBindingFlags bf[10];
-    for (int i = 0; i < 10; i++)
+    VkDescriptorBindingFlags bf[11];
+    for (int i = 0; i < 11; i++)
         bf[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     bf[BIND_TEXTURES] |= VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
     VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
-        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 10, bf};
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 11, bf};
     VkDescriptorSetLayoutCreateInfo dl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
-                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 10, b};
+                                          VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 11, b};
     vkCreateDescriptorSetLayout(vk.device, &dl, NULL, &set_layout);
     VkDescriptorSetLayoutBinding pb = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT,
                                        NULL};
     VkDescriptorSetLayoutCreateInfo pdl = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, NULL, 0, 1, &pb};
     vkCreateDescriptorSetLayout(vk.device, &pdl, NULL, &present_set_layout);
     VkDescriptorPoolSize ps[2] = {{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MAX_TEXTURES + 8},
-                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 4}};
+                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 5}};
     VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
                                       VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 3, 2, ps};
     vkCreateDescriptorPool(vk.device, &dpi, NULL, &pool);

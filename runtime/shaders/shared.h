@@ -35,6 +35,7 @@
 #define BIND_SCENE_COLOR 6      /* sampler2D: the picture under the water (render_water.c), and its depth */
 #define BIND_SCENE_DEPTH 7
 #define BIND_TL 8               /* TlDraw[]: the draws whose vertex stage the GPU does (ge_tl.vert), half a frame */
+#define BIND_BLOOD 10           /* uint[]: the ground's blood (blood.c) */
 #define BIND_TL_EXTRA 9         /* vec4[]: their vertices' part in the scenery's effects (render.c tl_scenery) */
 
 /* -- a draw's flags (DrawPush.flags) ------------------------------------------------------------------------------ */
@@ -116,17 +117,18 @@
  * colour, how many, which is the sun (99: none). The same layout holds other things: the point lights (dir: place and
  * reach; pad0 of the first set: how many have shadows) and cameras (dir: the world to the clip space, by columns; for
  * the grass, color too - see grass.vert) */
-/* Blood on the ground (gpu.c, render_lights.c): the light sets from BLOOD_SET_AT hold the marks, four a set - where in
- * the world (dir: w how wide) and the colour (color: w how much is left, 0 to 1, plus twice how wet in 16 steps);
- * the first set's count is how many there are; as many sets again with which way each lies across the ground (dir: x, z)
- * and how many times longer it is that way (dir z). Then the drops in the air - where each is (dir, w: how wide) and
- * its colour, the first's count how many; as many sets with each one's streak (dir: back to where it was) - and one
- * with the eye's place */
-#define BLOOD_MARK_SETS 8
-#define BLOOD_DROP_SETS 3
-#define BLOOD_DROP_AT (2 * BLOOD_MARK_SETS)
-#define BLOOD_SETS (2 * BLOOD_MARK_SETS + 2 * BLOOD_DROP_SETS + 1)
-#define BLOOD_SET_AT 8167u
+/* Blood off the animal (blood.c, render_lights.c). The light sets from BLOOD_SET_AT: the drops in the air - where
+ * each is (dir, w: how wide) and its colour, the first's count how many; as many sets with each one's streak (dir: back
+ * to where it was); two with the ground's blood's 16 colours (dir, then color); one with the eye's place (dir[0]; its
+ * count: whether there is any blood on the ground). BIND_BLOOD: the ground's blood, BLOOD_N x BLOOD_N cells of
+ * BLOOD_UNIT units of the world, wrapped - a cell's low 10 bits how much (255 covers the ground), then 8 how wet, 10
+ * its ground's height (8 units a step, modulo; BLOOD_ANY: any ground under the eye's reach), 4 its colour */
+#define BLOOD_DROP_SETS 4
+#define BLOOD_SETS (2 * BLOOD_DROP_SETS + 3)
+#define BLOOD_SET_AT 8179u
+#define BLOOD_N 4096
+#define BLOOD_UNIT 2.5f
+#define BLOOD_ANY 1023
 
 #define LIGHT_SET                                                                                                      \
     VEC4S(dir, 4);                                                                                                     \

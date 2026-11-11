@@ -218,6 +218,24 @@ static Tile *tile_at(int tx, int tz, int make) {
     return t;
 }
 
+/* The ground at a place, where it has been laid (blood.c): its height, and its slope - the normal's x, z. 0: not known */
+int grass_ground_at(float x, float z, float *y, float *nx, float *nz) {
+    if (!tile_index)
+        return 0;
+    int cx = (int)floorf(x / CELL), cz = (int)floorf(z / CELL);
+    int tx = (int)floorf((float)cx / TILE_CELLS), tz = (int)floorf((float)cz / TILE_CELLS);
+    const Tile *t = tile_at(tx, tz, 0);
+    if (!t)
+        return 0;
+    const Cell *c = &t->cells[(cz - tz * TILE_CELLS) * TILE_CELLS + (cx - tx * TILE_CELLS)];
+    if (!c->state)
+        return 0;
+    *y = c->y;
+    *nx = (float)c->nx / 127.0f;
+    *nz = (float)c->nz / 127.0f;
+    return 1;
+}
+
 /* a triangle seen before (its corners rounded to a unit): 1; else noted */
 static int seen_before(const float p[3][3]) {
     uint64_t k = 0x12345;

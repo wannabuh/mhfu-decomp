@@ -15,6 +15,7 @@
 #include "texpack.h"
 #include "perf.h"
 #include "inspect.h"
+#include "blood.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -357,6 +358,7 @@ static void shadow_frame(const float *shown) {
         if (stage != stage_was) {
             stage_was = stage;
             sun_peak = 0;               /* (till its light is given, as strong as it was) */
+            blood_clear();              /* (the ground's blood is the area's) */
         }
         static int always = -1;
         if (always < 0)
@@ -3849,6 +3851,7 @@ static struct {
     double dripped;                     /* the game's time its last drop fell (ground blood, below) */
     float floor_y;                      /* how high the ground was where its hunter stood, if its animal was in the air */
     int drips;                          /* how many drops have fallen from it */
+    double dead_at;                     /* the game's time its animal was first seen dead (0: alive) */
     float at[3], speed[3];              /* while it drips: where its vertex is in the world, and how fast it goes */
     double at_when;                     /* (the game's time of that; 0: not known) */
     float run[4];                       /* which way is down across the skin, along and across the cut (as steep as
@@ -4323,6 +4326,7 @@ static void wounds_attach(Frame *f) {
         wounds[n].dripped = rt_game_30ths();
         wounds[n].floor_y = wound_pending[h].attacker[1];
         wounds[n].drips = 0;
+        wounds[n].dead_at = 0;
         wounds[n].at_when = 0;
         /* a gash throws blood as it is made: a few drops out from the skin, towards the one who cut it, and up */
         if (depth >= WOUND_DRIPS && wound_pending[h].kind == WOUND_SLASH) {
@@ -4358,30 +4362,10 @@ static void wounds_attach(Frame *f) {
     }
 }
 
-/* -- blood on the ground (stages 3 and 4 of the wounds) ---------------------------------------------------------------
+/* -- blood off the animal ----------------------------------------------------------------------------------------
  *
- * A wound that bleeds drips: while its blood is wet a drop falls from it now and then - sooner the deeper it is - and
- * marks the ground under where the wound is then. Drops near each other are one mark that grows: where the animal
- * stands and bleeds, a pool. The marks are places in the world (the wound's, with a size and a colour); the pixel
- * stage darkens the scenery's upward faces under each (ge_frag.glsl, render_lights.c) - so they lie on whatever ground
- * is there. They dry and are gone in two minutes.
- *
- * The drop falls first (blood_falls): from the wound, as things fall, to the ground - which the game does not tell us:
- * taken to be as high as its animal's place is (or, for one hit in the air, where its hunter stood then, if lower) -
- * and marks it as it lands. In the air it is drawn by the pixel stage over whatever is behind it (ge_frag.glsl); one
- * that falls through ground higher than was thought is hidden by it, and its mark a moment late. */
-#define BLOOD_MARKS 32
-#define BLOOD_DROPS 12
-#define BLOOD_LIFE (120.0 * 30)
-#define BLOOD_POOL 140.0f               /* how wide a pool gets, units (its radius) */
-#define BLOOD_GRAVITY 980.0f            /* units a second, a second */
-#define BLOOD_DRAG 1.2f                 /* the air's: the share of its speed across a drop loses a second (e-folds) */
-static struct { float at[3], r, dir[2], stretch; double born, fed; uint8_t rgb[3]; int used; } blood[BLOOD_MARKS];
-static struct { float at[3], speed[3], from_y, floor_y, size; double born; uint8_t rgb[3]; int used; } blood_air[BLOOD_DROPS];
-static double blood_then;
-void render_blood(int n, const float (*at)[4], const float (*color)[4], const float (*lie)[4], int ndrops,
-                  const float (*drop_at)[4], const float (*drop_color)[4], const float (*drop_streak)[4], const float *eye);
-
+ * A gash throws a few drops as it is made, and drips for a while after (wounds_frame). Here only where each drop
+ * leaves, and how fast: blood.c moves them, on the renderer's thread, and paints the ground where they land. */
 /* (no two drops alike: a number of our own making, 0 to 1 - not one of the game's) */
 static float blood_chance(void) {
     static uint32_t chance = 0x9E3779B9u;
@@ -4389,122 +4373,18 @@ static float blood_chance(void) {
     return (float)(chance >> 8 & 0xFFFF) / 65535.0f;
 }
 
-/* A drop lands: onto a mark there it grows, by the drop's area (and is rounder for it); else a new one - longer the
- * way the drop was going, the faster it went across the ground */
-static void blood_drop(const float *at, const float *speed, float size, const uint8_t *rgb) {
-    double now = rt_game_30ths();
-    int k = -1, oldest = 0;
-    for (int i = 0; i < BLOOD_MARKS; i++) {
-        if (!blood[i].used) {
-            oldest = i;
-            continue;
-        }
-        if (blood[i].born < blood[oldest].born && blood[oldest].used)
-            oldest = i;
-        float dx = at[0] - blood[i].at[0], dz = at[2] - blood[i].at[2], reach = fmaxf(blood[i].r, 18.0f);
-        if (dx * dx + dz * dz < reach * reach && fabsf(at[1] - blood[i].at[1]) < 150.0f)
-            k = i;
-    }
-    if (k >= 0) {
-        float r = fminf(BLOOD_POOL, sqrtf(blood[k].r * blood[k].r + size * size * 2.0f));
-        blood[k].stretch = 1.0f + (blood[k].stretch - 1.0f) * blood[k].r * blood[k].r / (r * r);
-        blood[k].r = r;
-        blood[k].fed = now;
-        if (at[1] > blood[k].at[1])
-            blood[k].at[1] = at[1];
-        return;
-    }
-    float across = sqrtf(speed[0] * speed[0] + speed[2] * speed[2]);
-    blood[oldest].used = 1;
-    memcpy(blood[oldest].at, at, sizeof blood[oldest].at);
-    blood[oldest].r = size;
-    blood[oldest].dir[0] = across > 1 ? speed[0] / across : 1;
-    blood[oldest].dir[1] = across > 1 ? speed[2] / across : 0;
-    blood[oldest].stretch = 1.0f + fminf(across / 220.0f, 2.5f);
-    blood[oldest].born = blood[oldest].fed = now;
-    memcpy(blood[oldest].rgb, rgb, 3);
-}
-
-/* The marks to the renderer, each frame: where, how wide; its colour and how much of it is left; which way it lies
- * and how long. And the drops in the air, moved on: each falls, keeping the speed it left with but for the air's
- * drag, and marks the ground where it reaches it (or after two seconds) */
-static void blood_frame(void) {
-    float at[BLOOD_MARKS][4], color[BLOOD_MARKS][4], lie[BLOOD_MARKS][4];
-    double now = rt_game_30ths();
-    float dt = (float)((now - blood_then) / 30.0);
-    blood_then = now;
-    if (dt < 0 || dt > 0.1f)
-        dt = 0;
-    float drop_at[BLOOD_DROPS][4], drop_color[BLOOD_DROPS][4], drop_streak[BLOOD_DROPS][4], eye[3] = {0, 0, 0};
-    const float zero[3] = {0, 0, 0};
-    int nd = 0;
-    mul43(wound_cam[0], zero, eye);
-    for (int i = 0; i < BLOOD_DROPS; i++) {
-        if (!blood_air[i].used)
-            continue;
-        float *p = blood_air[i].at, *v = blood_air[i].speed, slow = expf(-BLOOD_DRAG * dt);
-        v[0] *= slow;
-        v[2] *= slow;
-        v[1] -= BLOOD_GRAVITY * dt;
-        for (int k = 0; k < 3; k++)
-            p[k] += v[k] * dt;
-        double t = (now - blood_air[i].born) / 30.0;
-        if (t < 0 || t > 2.0 || (p[1] <= blood_air[i].floor_y && v[1] < 0)) {
-            float mark[3] = {p[0], blood_air[i].from_y > p[1] ? blood_air[i].from_y : p[1], p[2]};
-            blood_air[i].used = 0;
-            blood_drop(mark, v, blood_air[i].size, blood_air[i].rgb);
-            continue;
-        }
-        memcpy(drop_at[nd], p, sizeof(float) * 3);
-        drop_at[nd][3] = fminf(2.2f, fmaxf(1.0f, blood_air[i].size * 0.22f));
-        for (int c = 0; c < 3; c++) {
-            drop_color[nd][c] = (float)blood_air[i].rgb[c] / 255.0f;
-            drop_streak[nd][c] = v[c] / 60.0f;      /* (a streak: where it was a 60th of a second ago) */
-        }
-        drop_color[nd][3] = drop_streak[nd][3] = 0;
-        nd++;
-    }
-    int n = 0;
-    for (int i = 0; i < BLOOD_MARKS; i++) {
-        if (!blood[i].used)
-            continue;
-        double age = now - blood[i].fed;
-        if (age < 0 || age > BLOOD_LIFE) {
-            blood[i].used = 0;
-            continue;
-        }
-        float left = (float)((BLOOD_LIFE - age) / (BLOOD_LIFE * 0.3)), wet = 1.0f - (float)(age / (30.0 * 30));
-        memcpy(at[n], blood[i].at, sizeof blood[i].at);
-        at[n][3] = blood[i].r;
-        for (int c = 0; c < 3; c++)
-            color[n][c] = (float)blood[i].rgb[c] / 255.0f;
-        color[n][3] = (left > 1 ? 1 : left) + (wet > 0 ? floorf(wet * 15.0f) * 2.0f : 0);   /* (how wet: in 16 steps, by twos) */
-        lie[n][0] = blood[i].dir[0];
-        lie[n][1] = blood[i].dir[1];
-        lie[n][2] = blood[i].stretch;
-        lie[n][3] = 0;
-        n++;
-    }
-    render_blood(n, at, color, lie, nd, drop_at, drop_color, drop_streak, eye);
-}
-
-/* A drop leaves a wound, at this place and speed: it falls to the ground at this height. None free: one that must
- * mark the ground does so now */
+/* A drop leaves a wound, at this place and speed (blood.c has it from here: it falls, and paints the ground) */
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must) {
-    for (int i = 0; i < BLOOD_DROPS; i++)
-        if (!blood_air[i].used) {
-            blood_air[i].used = 1;
-            memcpy(blood_air[i].at, at, sizeof blood_air[i].at);
-            memcpy(blood_air[i].speed, speed, sizeof blood_air[i].speed);
-            blood_air[i].from_y = at[1];
-            blood_air[i].floor_y = floor_y;
-            blood_air[i].size = size;
-            blood_air[i].born = rt_game_30ths();
-            memcpy(blood_air[i].rgb, rgb, 3);
-            return;
-        }
-    if (must)
-        blood_drop(at, speed, size, rgb);
+    (void)must;
+    blood_spawn(at, speed, floor_y, size, rgb);
+}
+
+/* Each frame: where the eye is (the ground's blood is kept about it) */
+static void blood_frame(void) {
+    const float zero[3] = {0, 0, 0};
+    float eye[3];
+    mul43(wound_cam[0], zero, eye);
+    blood_eye(eye);
 }
 
 static const uint8_t *wound_blood(int type);
@@ -4572,12 +4452,20 @@ static void wounds_frame(const Frame *f) {
          * (0.3 s, then a third longer each time), done in 15 s - a dozen or so. Only an animal's two newest. Each drop
          * leaves with the speed its place on the skin has (found from where its vertex is, frame by frame): flung
          * from a tail that whips, left behind one that runs */
+        /* The worse off the animal, the more: for up to twice as long, the drops closer together. And as it dies
+         * its cuts pour, for eight seconds: the pool it lies in */
         float depth = wounds[w].depth;
-        if (depth < WOUND_DRIPS || wounds[w].kind != WOUND_SLASH || age >= WOUND_DRIPS_FOR)
+        int most = (int16_t)LHU(of->addr + 0x41Eu);
+        float hurt = most > 0 ? fminf(fmaxf(1.0f - (float)health / (float)most, 0.0f), 1.0f) : 0.0f;
+        if (health <= 0 && !wounds[w].dead_at)
+            wounds[w].dead_at = now30;
+        int dying = wounds[w].dead_at > 0 && now30 - wounds[w].dead_at < 8.0 * 30 && now30 >= wounds[w].dead_at;
+        float drips_from = dying ? 0.35f : WOUND_DRIPS;
+        if (depth < drips_from || wounds[w].kind != WOUND_SLASH || (!dying && age >= WOUND_DRIPS_FOR * (1.0 + hurt)))
             continue;
         int newer = 0;
         for (int o = 0; o < n; o++)
-            newer += o != w && !wounds[o].gone && wounds[o].of.addr == of->addr && wounds[o].depth >= WOUND_DRIPS &&
+            newer += o != w && !wounds[o].gone && wounds[o].of.addr == of->addr && wounds[o].depth >= drips_from &&
                      wounds[o].kind == WOUND_SLASH && wounds[o].born > wounds[w].born;
         if (newer >= 2)
             continue;
@@ -4606,11 +4494,14 @@ static void wounds_frame(const Frame *f) {
                 memcpy(wounds[w].at, at, sizeof at);
                 wounds[w].at_when = now30;
             }
-            if (now30 - wounds[w].dripped >= 0.3 * 30 * pow(1.33, wounds[w].drips)) {
+            static int pour = -1;       /* (MHFU_BLOOD_POUR=n: a test - n drops a second from each, as long as it drips) */
+            if (pour < 0)
+                pour = getenv("MHFU_BLOOD_POUR") ? atoi(getenv("MHFU_BLOOD_POUR")) : 0;
+            if (now30 - wounds[w].dripped >= (pour > 0 ? 30.0 / pour : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips))) {
                 float floor_y = wounds[w].where[1] < wounds[w].floor_y ? wounds[w].where[1] : wounds[w].floor_y;
                 at[0] += (blood_chance() - 0.5f) * 8.0f;
                 at[2] += (blood_chance() - 0.5f) * 8.0f;
-                blood_falls(at, wounds[w].speed, floor_y, (3.0f + 5.5f * depth) * (0.55f + 0.9f * blood_chance()), wound_blood(of->type), 1);
+                blood_falls(at, wounds[w].speed, floor_y, (3.0f + 5.5f * depth + (dying ? 3.0f : 0.0f)) * (0.55f + 0.9f * blood_chance()), wound_blood(of->type), 1);
                 wounds[w].dripped = now30;
                 wounds[w].drips++;
             }
