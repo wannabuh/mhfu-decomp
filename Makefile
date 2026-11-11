@@ -40,6 +40,18 @@ endif
 
 RUNTIME_SRC := $(filter-out $(RUNTIME_SKIP),$(wildcard runtime/src/*.c))
 RUNTIME_OBJ := $(patsubst runtime/src/%.c,$(O)/runtime/%.o,$(RUNTIME_SRC))
+# KTX2 images in texture packs (runtime/src/ktx2.cpp), with basis-universal's transcoder: on when it is installed
+# (KTX2=0: off, KTX2=1: on, its headers and library in WINROOT for Windows)
+ifndef WINDOWS
+KTX2 ?= $(if $(wildcard /usr/include/basisu/transcoder/basisu_transcoder.h),1,0)
+endif
+KTX2 ?= 0
+CXX := $(if $(WINDOWS),$(WINCC)++,clang++)
+ifeq ($(KTX2),1)
+CFLAGS += -DMHFU_KTX2
+RUNTIME_OBJ += $(O)/runtime/ktx2.o
+LIBS += -lbasisu_encoder -lzstd -lstdc++
+endif
 # Game code rewritten by hand, readably (recomp/patches.py HAND)
 HAND_SRC := $(wildcard readable/*.c)
 RUNTIME_OBJ += $(patsubst readable/%.c,$(O)/hand/%.o,$(HAND_SRC))
@@ -98,6 +110,10 @@ $(O)/runtime/objects.o: build/gen/class_table.h
 $(O)/runtime/capture.o: build/gen/git_commit.h
 
 FORCE:
+
+$(O)/runtime/ktx2.o: runtime/src/ktx2.cpp
+	@mkdir -p $(@D)
+	$(CXX) -O2 -g -std=c++17 $(if $(WINROOT),-I$(WINROOT)/include) -w -c $< -o $@
 
 $(O)/hand/%.o: readable/%.c readable/hand.h build/gen/mhfu_types.h runtime/include/recomp.h build/gen/.stamp
 	@mkdir -p $(@D)

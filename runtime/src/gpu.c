@@ -3826,7 +3826,7 @@ extern unsigned long present_frame_number(void);
 #define WOUND_FADE (WOUND_LIFE * 0.25)
 #define WOUND_LASTS(depth) (2.0 / 3 + (depth))  /* (times WOUND_LIFE: a scratch two minutes, a gash five) */
 #define WOUND_FRESH (20.0 * 30)     /* wet this long, drying */
-enum { WOUND_SLASH, WOUND_SHOT };
+enum { WOUND_SLASH, WOUND_SHOT, WOUND_SLIT };   /* (a slit: a cut in a thin part - a wing's skin, a fin, an ear) */
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
@@ -4152,6 +4152,48 @@ static void wounds_attach(Frame *f) {
                 nrm[b] = toc[b] / sqrtf(tl);
         else
             nrm[0] = 0, nrm[1] = 1, nrm[2] = 0;
+        /* A thin part: a sheet drawn from both sides (no faces culled: a wing's skin), or with the model's other
+         * side close behind the skin there - a vertex within 30 units inwards whose normal faces the other way.
+         * Cut, it is slit: no flesh to lay open */
+        static int thin_all = -1;           /* MHFU_WOUND_THIN=1: every part taken for thin, 0: none (to look at one) */
+        static unsigned thin_seen;
+        if (SETTING_STALE(thin_seen))
+            thin_all = getenv("MHFU_WOUND_THIN") ? atoi(getenv("MHFU_WOUND_THIN")) != 0 : -1;
+        int thin = thin_all >= 0 ? thin_all : !(bd->reg[0x1D] & 1);
+        if (thin_all == 0)
+            nl = 0;
+        for (int gi = 0; gi < f->ntlg && !thin && nl > 1e-12f; gi++) {
+            const TlGroup *g = &f->tlg[gi];
+            const Draw *d = &f->draws[g->first];
+            if (!(d->reg[0x17] & 1) || memcmp(d->world, bd->world, sizeof(float) * 12))
+                continue;
+            int gb = draw_bones(d);
+            for (uint32_t k = 0; k < g->nvertex && !thin; k++) {
+                const TlVertex *v = &f->tlv[g->vertex + k];
+                float w[3], back = 0, side = 0;
+                wound_world(d, gb, v, v->pos, wound_cam[bcam], w);
+                for (int b = 0; b < 3; b++)
+                    back -= (w[b] - o[b]) * nrm[b];
+                if (back < 3.0f || back > 30.0f)
+                    continue;
+                for (int b = 0; b < 3; b++) {
+                    float r = w[b] - o[b] + back * nrm[b];
+                    side += r * r;
+                }
+                if (side > 25.0f * 25.0f)
+                    continue;
+                /* its normal, in the world as the skin's was taken: against it? (the piece's own turn left out -
+                 * the vertices' normals of one model lie alike) */
+                float vn[3], vl = 0, dotn = 0;
+                for (int b = 0; b < 3; b++) {
+                    vn[b] = inv[0][b] * v->normal[0] + inv[1][b] * v->normal[1] + inv[2][b] * v->normal[2];
+                    vl += vn[b] * vn[b];
+                }
+                for (int b = 0; b < 3; b++)
+                    dotn += vn[b] * nrm[b];
+                thin = vl > 1e-12f && dotn < -0.3f * sqrtf(vl);
+            }
+        }
         float along[3], al = 0, xn = x[0] * nrm[0] + x[1] * nrm[1] + x[2] * nrm[2];
         for (int b = 0; b < 3; b++) {
             along[b] = x[b] - xn * nrm[b];
@@ -4178,7 +4220,7 @@ static void wounds_attach(Frame *f) {
             depth_all = getenv("MHFU_WOUND_DEPTH") ? (float)atof(getenv("MHFU_WOUND_DEPTH")) : -1;
         if (depth_all >= 0)
             depth = depth_all > 1 ? 1 : depth_all;
-        float size = 0.55f + 0.85f * depth;     /* (a scratch short, a gash long) */
+        float size = 0.55f + 0.65f * depth;     /* (a scratch short, a gash long) */
         if (reach > 0 && WOUND_HALF_LENGTH * size > WOUND_PART * reach)
             size = WOUND_PART * reach / WOUND_HALF_LENGTH;
         static float bigger;            /* MHFU_WOUND_SIZE: times as large (1) */
@@ -4253,7 +4295,7 @@ static void wounds_attach(Frame *f) {
         }
         wounds[n].born = rt_game_30ths();
         wounds[n].of = wound_pending[h].of;
-        wounds[n].kind = wound_pending[h].kind;
+        wounds[n].kind = wound_pending[h].kind == WOUND_SLASH && thin ? WOUND_SLIT : wound_pending[h].kind;
         wounds[n].depth = depth;
         wounds[n].gone = 0;
         wounds[n].seed = (float)((n * 7 + (int)(c[0] + c[2])) & 63) / 64.0f;
@@ -4264,7 +4306,7 @@ static void wounds_attach(Frame *f) {
             mul43(wound_cam[bcam], m, wounds[n].where);
         }
         if (getenv("MHFU_WOUND_LOG"))
-            fprintf(stderr, "wound %d (size %.2f, the animal's reach %.0f): frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, (double)size, (double)reach, now,
+            fprintf(stderr, "wound %d (size %.2f%s, the animal's reach %.0f): frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, (double)size, thin ? ", a thin part" : "", (double)reach, now,
                     bd->vaddr, sqrtf(best), c[0], c[1], c[2], wound_pending[h].damage, sqrtf(col[0][0] * col[0][0] + col[0][1] * col[0][1] + col[0][2] * col[0][2]),
                     sqrtf(col[1][0] * col[1][0] + col[1][1] * col[1][1] + col[1][2] * col[1][2]), sqrtf(col[2][0] * col[2][0] + col[2][1] * col[2][1] + col[2][2] * col[2][2]));
     }

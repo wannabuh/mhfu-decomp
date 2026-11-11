@@ -4,11 +4,11 @@
  * palette bytes left over from an earlier, bigger load.
  *
  * The pack is $MHFU_TEXTURES, else ~/.local/share/mhfu-recomp/TEXTURES/ULUS10391, else PPSSPP's
- * ~/.config/ppsspp/PSP/TEXTURES/ULUS10391. Images (PNG) are read by threads of their own: a texture is drawn as the
+ * ~/.config/ppsspp/PSP/TEXTURES/ULUS10391. Images (PNG, or KTX2 - ktx2.cpp) are read by threads of their own: a texture is drawn as the
  * game has it until its image is in. MHFU_TEXTURE_DUMP=1 writes each texture the game uses to the pack's new/ under the
  * name PPSSPP gives it, to make packs from.
  *
- * Not yet: textures.zip, DDS / KTX2 / ZIM images, [indexed] textures, the mipmaps a pack gives (they are made here). */
+ * Not yet: textures.zip, DDS / ZIM images, [indexed] textures, the mipmaps a pack gives (they are made here). */
 #include "texpack.h"
 #include "hle.h"
 
@@ -257,8 +257,20 @@ static char *trim(char *s) {
 
 static int is_image(const char *name) {
     const char *dot = strrchr(name, '.');
-    return dot && !strcasecmp(dot, ".png");
+    return dot && (!strcasecmp(dot, ".png") || !strcasecmp(dot, ".ktx2"));
 }
+
+#ifdef MHFU_KTX2
+uint32_t *ktx2_read(const char *path, int *w, int *h);     /* ktx2.cpp */
+#else
+static uint32_t *ktx2_read(const char *path, int *w, int *h) {
+    (void)w, (void)h;
+    static int told;
+    if (!told++)
+        fprintf(stderr, "textures: this build reads no KTX2 images (built without basis-universal): %s\n", path);
+    return NULL;
+}
+#endif
 
 /* Images in the pack's root named by their key (ScanForHashNamedFiles) */
 static void scan_root(void) {
@@ -269,7 +281,7 @@ static void scan_root(void) {
     while ((e = readdir(d))) {
         if (e->d_name[0] == '.' || !is_image(e->d_name))
             continue;
-        size_t n = strlen(e->d_name) - 4;
+        size_t n = (size_t)(strrchr(e->d_name, '.') - e->d_name);
         if (!(n == 24 || ((n == 26 || n == 27) && e->d_name[24] == '_')))
             continue;
         unsigned long long ck = 0;
@@ -413,7 +425,8 @@ static void *reader(void *arg) {
         snprintf(path, sizeof path, "%s/%s", root, images[i].file);
         pthread_mutex_unlock(&lock);
         int w = 0, h = 0;
-        uint32_t *px = read_png(path, &w, &h);
+        const char *dot = strrchr(path, '.');
+        uint32_t *px = dot && !strcasecmp(dot, ".ktx2") ? ktx2_read(path, &w, &h) : read_png(path, &w, &h);
         if (!px)
             fprintf(stderr, "textures: can't read %s\n", path);
         pthread_mutex_lock(&lock);
