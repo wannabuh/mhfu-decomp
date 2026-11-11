@@ -3852,6 +3852,8 @@ static struct {
     float floor_y;                      /* how high the ground was where its hunter stood, if its animal was in the air */
     int drips;                          /* how many drops have fallen from it */
     double dead_at;                     /* the game's time its animal was first seen dead (0: alive) */
+    int breaks, burst;                  /* its animal's parts' breaks, counted; drops still to burst from it */
+    double broke_at;                    /* the game's time the hit that made it broke a part (0: it did not) */
     float at[3], speed[3];              /* while it drips: where its vertex is in the world, and how fast it goes */
     double at_when;                     /* (the game's time of that; 0: not known) */
     float run[4];                       /* which way is down across the skin, along and across the cut (as steep as
@@ -3861,7 +3863,7 @@ static int wound_next;
 static float blood_chance(void);
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must);
 static const uint8_t *wound_blood(int type);
-static struct { float contact[3], axis[3], attacker[3], depth; int damage, kind; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], depth; int damage, kind, breaks; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
 static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
@@ -3935,6 +3937,9 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
     }
     memcpy(wound_pending[k].contact, PTR(contact), sizeof wound_pending[k].contact);
     memcpy(wound_pending[k].attacker, PTR(attacker + 0x200u), sizeof wound_pending[k].attacker);
+    wound_pending[k].breaks = 0;        /* (its parts' breaks so far: one this hit makes is counted after) */
+    for (uint32_t slot = 0; slot < 9; slot++)
+        wound_pending[k].breaks += LBU(monster + 0x582u + 8u * slot);
     /* the way the weapon's shape lies (a capsule's ends; a ball has none: level, across) */
     float a[3] = {1, 0, 0};
     if (LW(attacker_shape) == 0) {
@@ -4327,6 +4332,9 @@ static void wounds_attach(Frame *f) {
         wounds[n].floor_y = wound_pending[h].attacker[1];
         wounds[n].drips = 0;
         wounds[n].dead_at = 0;
+        wounds[n].broke_at = 0;
+        wounds[n].burst = 0;
+        wounds[n].breaks = wound_pending[h].breaks;
         wounds[n].at_when = 0;
         /* a gash throws blood as it is made: a few drops out from the skin, towards the one who cut it, and up */
         if (depth >= WOUND_DRIPS && wound_pending[h].kind == WOUND_SLASH) {
@@ -4460,7 +4468,25 @@ static void wounds_frame(const Frame *f) {
         if (health <= 0 && !wounds[w].dead_at)
             wounds[w].dead_at = now30;
         int dying = wounds[w].dead_at > 0 && now30 - wounds[w].dead_at < 8.0 * 30 && now30 >= wounds[w].dead_at;
-        float drips_from = dying ? 0.35f : WOUND_DRIPS;
+        /* A part of it broken, or its tail cut (the game counts each part's breaks: monster_damage.c), by the hit
+         * that made this wound - the animal's newest, made within two seconds: blood bursts from it, and it bleeds
+         * hard for ten seconds, however deep it was */
+        int breaks = 0;
+        for (uint32_t slot = 0; slot < 9; slot++)
+            breaks += LBU(of->addr + 0x582u + 8u * slot);
+        if (breaks != wounds[w].breaks) {
+            int newest = breaks > wounds[w].breaks && age < 2.0 * 30 && wounds[w].kind == WOUND_SLASH;
+            for (int o = 0; o < n && newest; o++)
+                newest = o == w || wounds[o].gone || wounds[o].of.addr != of->addr || wounds[o].born <= wounds[w].born;
+            wounds[w].breaks = breaks;
+            if (newest) {
+                wounds[w].broke_at = now30;
+                wounds[w].burst = 8;
+            }
+        }
+        if (wounds[w].broke_at > 0 && now30 >= wounds[w].broke_at && now30 - wounds[w].broke_at < 10.0 * 30)
+            dying = 2;
+        float drips_from = dying == 2 ? 0.0f : dying ? 0.35f : WOUND_DRIPS;
         if (depth < drips_from || wounds[w].kind != WOUND_SLASH || (!dying && age >= WOUND_DRIPS_FOR * (1.0 + hurt)))
             continue;
         int newer = 0;
@@ -4494,10 +4520,17 @@ static void wounds_frame(const Frame *f) {
                 memcpy(wounds[w].at, at, sizeof at);
                 wounds[w].at_when = now30;
             }
+            for (; wounds[w].burst > 0; wounds[w].burst--) {
+                float turn = blood_chance() * 6.2832f, out = 120.0f + 260.0f * blood_chance();
+                float v[3] = {wounds[w].speed[0] + cosf(turn) * out, wounds[w].speed[1] + 150.0f + 250.0f * blood_chance(),
+                              wounds[w].speed[2] + sinf(turn) * out};
+                float floor_y = wounds[w].where[1] < wounds[w].floor_y ? wounds[w].where[1] : wounds[w].floor_y;
+                blood_falls(at, v, floor_y, 4.0f + 5.0f * blood_chance(), wound_blood(of->type), 1);
+            }
             static int pour = -1;       /* (MHFU_BLOOD_POUR=n: a test - n drops a second from each, as long as it drips) */
             if (pour < 0)
                 pour = getenv("MHFU_BLOOD_POUR") ? atoi(getenv("MHFU_BLOOD_POUR")) : 0;
-            if (now30 - wounds[w].dripped >= (pour > 0 ? 30.0 / pour : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips))) {
+            if (now30 - wounds[w].dripped >= (pour > 0 ? 30.0 / pour : dying == 2 ? 30.0 / 4 : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips))) {
                 float floor_y = wounds[w].where[1] < wounds[w].floor_y ? wounds[w].where[1] : wounds[w].floor_y;
                 at[0] += (blood_chance() - 0.5f) * 8.0f;
                 at[2] += (blood_chance() - 0.5f) * 8.0f;
