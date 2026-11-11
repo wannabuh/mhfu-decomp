@@ -267,6 +267,7 @@ vec3 water(vec3 tint, float hidden, float far) {
     return col;
 }
 
+float deep_of(float thick) { return smoothstep(0.25, 1.3, thick); }
 // (the ground's blood's: a number that wanders across the ground, 0 to 1)
 float blood_hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float blood_noise(vec2 p) {
@@ -396,6 +397,7 @@ void main() {
                 vec2 g = in_world.xz / BLOOD_UNIT - 0.5;
                 ivec2 g0 = ivec2(floor(g));
                 vec2 f = fract(g);
+                f = f * f * (3.0 - 2.0 * f);        // (rounder than straight between the cells: no corners)
                 int here = int(floor(in_world.y / 8.0));
                 float amount = 0.0, wet = 0.0, most = 0.0;
                 uint which = 0u;
@@ -423,18 +425,21 @@ void main() {
                     float snow = smoothstep(0.5, 0.75, ground) * (1.0 - smoothstep(0.1, 0.25, pale));
                     float sand = smoothstep(1.2, 1.6, c.r / max(c.b, 0.05)) * smoothstep(0.25, 0.45, ground) * (1.0 - snow);
                     float n = blood_noise(in_world.xz * 0.9) * 0.6 + blood_noise(in_world.xz * 0.21) * 0.4;
-                    float level = thick + (n - 0.5) * 0.3;
-                    float cover = smoothstep(0.16, 0.3, level);
+                    float level = thick * (0.7 + 0.6 * n);
+                    float edge = max(fwidth(level), 0.015);     // (a clean edge, a pixel wide)
+                    float cover = smoothstep(0.2 - edge, 0.2 + edge, level);
+                    // (how much of the ground shows through: little, less where it is deep - some patches thinner)
+                    float body = mix(0.8, 0.98, deep_of(thick)) * (0.82 + 0.18 * smoothstep(0.25, 0.6, blood_noise(in_world.xz * 0.06 + 7.3)));
                     wet *= 1.0 - 0.6 * sand;
                     vec3 dry = mix(col * 0.5, vec3(0.16, 0.08, 0.05), 0.45);
                     vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.72, smoothstep(1.0, 3.0, thick));
                     tint = mix(tint, col * 1.15, 0.5 * snow);
                     tint = mix(tint, tint * 0.6, 0.6 * sand);
-                    float deep = smoothstep(0.3, 1.6, thick);
-                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.5 + 0.06), mix(0.55, 0.9, deep));
+                    float deep = deep_of(thick);
+                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.5 + 0.06), mix(0.7, 0.93, deep));
                     // (snow: a paler ring of it soaked out past the edge)
                     c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.0), col * 1.3 + 0.25, 0.5), snow * smoothstep(0.02, 0.2, level) * (1.0 - cover));
-                    c.rgb = mix(c.rgb, stained, cover * (mix(0.62, 0.92, deep) + 0.08 * wet) * (1.0 - 0.3 * sand));
+                    c.rgb = mix(c.rgb, stained, cover * body * (1.0 - 0.25 * sand));
                     vec3 sunward = -vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]);
                     if (dot(sunward, sunward) > 0.0) {
                         vec3 nrm = up * (up.y < 0.0 ? -1.0 : 1.0) / ul, view = normalize(eye - in_world);

@@ -354,6 +354,8 @@ static void test_shapes(Ctx *c, uint32_t record_addr, uint32_t attacker, uint32_
             hit_view_attacker(record_addr, sp + F_ATTACKER_TYPE);
         if (LW(sp + F_ATTACKER_TYPE) == 0)
             call2(c, capsule_prepare, sp + F_ATTACKER_SHAPE, sp + F_ATTACKER_CAPSULE);
+        if (target->kind != 0)
+            wound_swing(record_addr, shape, sp + F_ATTACKER_TYPE);      /* (the runtime's: reads only) */
         int landed = target->kind == 0 ? test_hunter_spheres(c, record_addr, attacker, target, sp)
                                        : test_monster_parts(c, record, record_addr, attacker, OBJ(Monster, target_addr), sp);
         if (landed)

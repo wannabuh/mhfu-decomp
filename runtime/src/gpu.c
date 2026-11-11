@@ -3863,7 +3863,7 @@ static int wound_next;
 static float blood_chance(void);
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must);
 static const uint8_t *wound_blood(int type);
-static struct { float contact[3], axis[3], attacker[3], depth; int damage, kind, breaks; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], swing[3], depth; int damage, kind, breaks, swung; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
 static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
@@ -3900,6 +3900,44 @@ void wound_before(uint32_t monster) {
         return;
     wound_before_sum = wound_waiting(monster);
     wound_before_of = monster;
+}
+
+/* How the weapon moves: each tick a record's shape is tried against a monster, where its capsule's ends are - and
+ * where they were the tick before, if it was tried then. (A record that lands on its first tick has no before) */
+static struct { uint32_t record, shape; float e[2][3], was[2][3]; double when; int moved; } swings[16];
+static int swing_last = -1;
+
+void wound_swing(uint32_t record, uint32_t shape_id, uint32_t shape) {
+    swing_last = -1;
+    if (!wounds_on() || LW(shape) != 0)
+        return;
+    double now = rt_game_30ths();
+    int k = 0;
+    for (int i = 0; i < 16; i++) {
+        if (swings[i].record == record && swings[i].shape == shape_id) {
+            k = i;
+            break;
+        }
+        if (swings[i].when < swings[k].when)
+            k = i;
+    }
+    float e[2][3];
+    memcpy(e[0], PTR(shape + 0x10u), sizeof e[0]);
+    memcpy(e[1], PTR(shape + 0x20u), sizeof e[1]);
+    double dt = now - swings[k].when;
+    if (swings[k].record == record && swings[k].shape == shape_id && dt < 0.5) {     /* (again this tick: another target) */
+        swing_last = k;
+        return;
+    }
+    swings[k].moved = swings[k].record == record && swings[k].shape == shape_id && dt >= 0.5 && dt < 2.5;
+    if (swings[k].moved)
+        for (int i = 0; i < 6; i++)
+            swings[k].was[i / 3][i % 3] = swings[k].e[i / 3][i % 3] + (e[i / 3][i % 3] - swings[k].e[i / 3][i % 3]) * (1.0f - 1.0f / (float)dt);
+    memcpy(swings[k].e, e, sizeof e);
+    swings[k].record = record;
+    swings[k].shape = shape_id;
+    swings[k].when = now;
+    swing_last = k;
 }
 
 void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t contact, uint32_t attacker_shape) {
@@ -3977,6 +4015,25 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
             fprintf(stderr, "hit: took %.0f x %.2f of %.0f health (%.1f%%): depth %.2f\n", (double)dealt, (double)scale, (double)most, (double)share * 100, (double)wound_pending[k].depth);
     }
     wound_pending[k].of = (WoundOwner){monster, LW(monster), LBU(monster + 0x1E8u), (int16_t)LHU(monster + 0x2E4u)};
+    /* how fast the weapon was going where it touched (units a second): its capsule's point nearest the contact, from
+     * where that point was a tick ago */
+    wound_pending[k].swung = 0;
+    if (swing_last >= 0 && swings[swing_last].record == record && swings[swing_last].moved) {
+        const float (*e)[3] = swings[swing_last].e, (*was)[3] = swings[swing_last].was;
+        const float *at = wound_pending[k].contact;
+        float along = 0, ll = 0;
+        for (int i = 0; i < 3; i++) {
+            along += (at[i] - e[0][i]) * (e[1][i] - e[0][i]);
+            ll += (e[1][i] - e[0][i]) * (e[1][i] - e[0][i]);
+        }
+        along = ll > 0 ? fminf(fmaxf(along / ll, 0.0f), 1.0f) : 0.5f;
+        for (int i = 0; i < 3; i++)
+            wound_pending[k].swing[i] = 30.0f * ((e[0][i] + (e[1][i] - e[0][i]) * along) - (was[0][i] + (was[1][i] - was[0][i]) * along));
+        wound_pending[k].swung = 1;
+    }
+    if (getenv("MHFU_WOUND_LOG"))
+        fprintf(stderr, "swing: %s %.0f %.0f %.0f units a second\n", wound_pending[k].swung ? "the weapon going" : "not known",
+                (double)wound_pending[k].swing[0], (double)wound_pending[k].swing[1], (double)wound_pending[k].swing[2]);
     wound_pending[k].frame = present_frame_number();
     wound_pending[k].used = 1;
 }
@@ -4345,10 +4402,18 @@ static void wounds_attach(Frame *f) {
             for (int k = 0; k < 3; k++)
                 out[k] = side * nrm[k], ol += out[k] * out[k];
             ol = ol > 0 ? 1.0f / sqrtf(ol) : 0;
-            for (int i = 0; i < 4; i++) {
+            /* (and the way the weapon went: flung on with a share of its speed, where that is known - a blade
+             * swung across throws it that way, in a fan; no faster than 1100 units a second) */
+            const float *sw = wound_pending[h].swing;
+            float fast = wound_pending[h].swung ? sqrtf(sw[0] * sw[0] + sw[1] * sw[1] + sw[2] * sw[2]) : 0;
+            float keep = fast > 1100.0f ? 1100.0f / fast : 1.0f;
+            for (int i = 0; i < (fast > 300.0f ? 7 : 4); i++) {
                 float c1 = blood_chance(), c2 = blood_chance(), c3 = blood_chance(), v[3];
-                for (int k = 0; k < 3; k++)
+                for (int k = 0; k < 3; k++) {
                     v[k] = out[k] * ol * (140.0f + 200.0f * c1) + along[k] * (c2 - 0.5f) * 260.0f;
+                    if (fast > 0)
+                        v[k] = v[k] * 0.6f + sw[k] * keep * (0.3f + 0.55f * c3) + (blood_chance() - 0.5f) * 0.3f * fast * keep;
+                }
                 v[1] += 120.0f + 160.0f * c3;
                 blood_falls(c, v, wound_pending[h].attacker[1], 2.0f + 2.5f * c2, wound_blood(wound_pending[h].of.type), 0);
             }
@@ -4535,6 +4600,15 @@ static void wounds_frame(const Frame *f) {
                 at[0] += (blood_chance() - 0.5f) * 8.0f;
                 at[2] += (blood_chance() - 0.5f) * 8.0f;
                 blood_falls(at, wounds[w].speed, floor_y, (3.0f + 5.5f * depth + (dying ? 3.0f : 0.0f)) * (0.55f + 0.9f * blood_chance()), wound_blood(of->type), 1);
+                if (health <= 0) {      /* (#76: drops seen above a dead animal - where each leaves, for a capture's console) */
+                    static double told;
+                    if (now30 - told > 30 || now30 < told) {
+                        told = now30;
+                        fprintf(stderr, "blood: a dead animal's wound %d drips at %.0f %.0f %.0f, the animal at %.0f %.0f %.0f, %d bones, depth %.2f\n", w,
+                                (double)at[0], (double)at[1], (double)at[2], (double)wounds[w].where[0], (double)wounds[w].where[1],
+                                (double)wounds[w].where[2], draw_bones(d), (double)depth);
+                    }
+                }
                 wounds[w].dripped = now30;
                 wounds[w].drips++;
             }
