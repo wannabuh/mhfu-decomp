@@ -119,7 +119,8 @@
  * the grass, color too - see grass.vert) */
 /* Blood off the animal (blood.c, render_lights.c). The light sets from BLOOD_SET_AT: the drops in the air - where
  * each is (dir, w: how wide) and its colour, the first's count how many; as many sets with each one's streak (dir: back
- * to where it was); two with the ground's blood's 16 colours (dir, then color); one with the eye's place (dir[0]; its
+ * to where it was); two with the ground's blood's 16 colours (dir, then color); one with the eye's place (dir[0];
+ * dir[1]: the look of the blood on an animal - x how solid, 0 to 1, y how it shines, times; its
  * count: whether there is any blood on the ground). BIND_BLOOD: the ground's blood, BLOOD_N x BLOOD_N cells of
  * BLOOD_UNIT units of the world, wrapped - a cell's low 10 bits how much (255 covers the ground), then 8 how wet, 10
  * its ground's height (8 units a step, modulo; BLOOD_ANY: any ground under the eye's reach), 4 its colour */

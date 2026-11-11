@@ -488,6 +488,8 @@ void main() {
         float wetness = floor(look.z) / 63.0, depth = fract(look.z) / 0.98;
         vec3 blood = vec3(mod(look.x, 256.0), mod(floor(look.x / 256.0), 256.0), floor(look.x / 65536.0)) / 255.0;
         float bleeds = smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
+        // (the settings: how solid the blood that has run is - 0 as thin as it was - and how it shines)
+        vec2 solid_shine = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xy;
         // how soft its edges are: a pixel's worth of the wound, and no finer than the skin's picture is here
         float soft = clamp(fwidth(q.y) * 1.5 + 0.035, 0.035, 0.3);
         float gash = 0.0, stain = 0.0, v = 0.0, wide = 0.1;
@@ -559,7 +561,10 @@ void main() {
                 cover = max(cover, (1.0 - smoothstep(thick * 0.4, thick + fwidth(off), abs(off))) *
                                    (1.0 - smoothstep(0.96, 1.0, along_run / reach)));
             }
-            drawn = mix(drawn, tone * lit * 1.9, cover * 0.8 * m);
+            // (solid: its own colour and not the skin's under it, as light as the skin is here still)
+            vec3 ran_tone = mix(wet, skin / max(lit, 0.02) * dot(wet, vec3(0.3, 0.55, 0.15)), 0.25 * (1.0 - solid_shine.x));
+            drawn = mix(drawn, ran_tone * mix(lit * 1.9, max(lit * 1.9, 0.5 * (1.0 - 0.6 * sh)), solid_shine.x * 0.5),
+                        cover * mix(0.8, 1.0, solid_shine.x) * m);
         }
         // Wet blood shines: the sun on it, and the sky - where the blood lies thick (in the cut, down its runs, a
         // little on the stain about it), as wet as it is, and a little still when it has dried
@@ -573,7 +578,7 @@ void main() {
                 n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
                 float sun_shine = pow(max(dot(n, normalize(view + sunward)), 0.0), 40.0) * (1.0 - 0.85 * sh);
                 float sky_shine = pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 18.0) * 0.3 + 0.25 * pow(1.0 - dot(n, view), 3.0);
-                drawn += (sun_shine * 0.9 + sky_shine * (0.3 + lit)) * gloss;
+                drawn += (sun_shine * 0.9 + sky_shine * (0.3 + lit)) * gloss * solid_shine.y;
             }
         }
         c.rgb = drawn;

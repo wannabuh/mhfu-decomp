@@ -7,6 +7,7 @@
  * and the warm ones light the next frame around them (MHFU_POINT_LIGHTS=0: none; MHFU_POINT_GAIN: their strength) */
 #include "render_internal.h"
 #include "blood.h"
+#include "settings.h"
 
 #include "hle.h"
 
@@ -344,6 +345,17 @@ static void blood_sets(LightSet *l) {
         memcpy(i < 4 ? l[2 * BLOOD_DROP_SETS].dir[i] : i < 8 ? l[2 * BLOOD_DROP_SETS].color[i - 4] : i < 12 ? l[2 * BLOOD_DROP_SETS + 1].dir[i - 8]
                      : l[2 * BLOOD_DROP_SETS + 1].color[i - 12], f.palette[i], 12);
     memcpy(l[BLOOD_SETS - 1].dir[0], blood_eye_known ? blood_eye_shown : f.eye, 12);
+    /* (and the settings' look of the blood on an animal: how solid, 0 as it was to 1; how it shines, times) */
+    static unsigned seen;
+    static float look[2];
+    if (SETTING_STALE(seen)) {
+        const char *o = getenv("MHFU_BLOOD_OPACITY"), *s = getenv("MHFU_BLOOD_SHINE");
+        look[0] = o ? (float)atof(o) : 1.0f;
+        look[1] = s ? (float)atof(s) : 0.6f;
+        look[0] = look[0] < 0 ? 0 : look[0] > 1 ? 1 : look[0];
+        look[1] = look[1] < 0 ? 0 : look[1] > 4 ? 4 : look[1];
+    }
+    memcpy(l[BLOOD_SETS - 1].dir[1], look, sizeof look);
     l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
 
