@@ -309,6 +309,18 @@ uint32_t camera_light_set(void) {
 _Static_assert(BLOOD_SET_AT == LIGHT_SETS - 2 - BLOOD_SETS, "the blood's sets: before the point lights'");
 static VkBuf blood_buf;
 
+/* The picture's eye, as each primitive in the world gives it: into this frame's sets at once, and kept - the frame's
+ * end writes it again with the rest (not the game's own eye: a frame's sets are read after its end too) */
+static float blood_eye_shown[3];
+static int blood_eye_known;
+
+void lights_blood_eye(const float *eye) {
+    memcpy(blood_eye_shown, eye, sizeof blood_eye_shown);
+    blood_eye_known = 1;
+    if (light_buf.map)
+        memcpy(((LightSet *)light_buf.map + (size_t)vk.frame * LIGHT_SETS + BLOOD_SET_AT + BLOOD_SETS - 1)->dir[0], eye, sizeof(float) * 3);
+}
+
 static void blood_sets(LightSet *l) {
     BloodFrame f;
     if (!blood_buf.map) {
@@ -331,7 +343,7 @@ static void blood_sets(LightSet *l) {
     for (int i = 0; i < 16; i++)
         memcpy(i < 4 ? l[2 * BLOOD_DROP_SETS].dir[i] : i < 8 ? l[2 * BLOOD_DROP_SETS].color[i - 4] : i < 12 ? l[2 * BLOOD_DROP_SETS + 1].dir[i - 8]
                      : l[2 * BLOOD_DROP_SETS + 1].color[i - 12], f.palette[i], 12);
-    memcpy(l[BLOOD_SETS - 1].dir[0], f.eye, 12);
+    memcpy(l[BLOOD_SETS - 1].dir[0], blood_eye_known ? blood_eye_shown : f.eye, 12);
     l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
 

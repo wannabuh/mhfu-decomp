@@ -721,9 +721,8 @@ void render_prim_view(const float *screen_from_view, const float *world_from_vie
     /* the eye, for the blood in the air (shared.h BLOOD_SET_AT's last set; ge_frag.glsl draws each drop on the line
      * from the eye): this frame's, as its picture is drawn - the camera the picture has, which is not the game's own
      * (drawn from the game's, the drops stood off from where they were, by how the camera looked: #76) */
-    if (light_buf.map && (world_from_view[9] != 0 || world_from_view[10] != 0 || world_from_view[11] != 0))
-        memcpy(((LightSet *)light_buf.map + (size_t)vk.frame * LIGHT_SETS + BLOOD_SET_AT + BLOOD_SETS - 1)->dir[0], &world_from_view[9],
-               sizeof(float) * 3);
+    if (world_from_view[9] != 0 || world_from_view[10] != 0 || world_from_view[11] != 0)
+        lights_blood_eye(&world_from_view[9]);
 }
 
 void mul4(const float *a, const float *b, float *out) {
