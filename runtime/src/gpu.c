@@ -3851,6 +3851,7 @@ static struct {
     double dripped;                     /* the game's time its last drop fell (ground blood, below) */
     float floor_y;                      /* how high the ground was where its hunter stood, if its animal was in the air */
     int drips;                          /* how many drops have fallen from it */
+    float gap;                          /* how long after its last drop the next falls, 30ths of a second */
     double dead_at;                     /* the game's time its animal was first seen dead (0: alive) */
     int breaks, burst;                  /* its animal's parts' breaks, counted; drops still to burst from it */
     double broke_at;                    /* the game's time the hit that made it broke a part (0: it did not) */
@@ -4609,6 +4610,7 @@ static void wounds_attach(Frame *f) {
         wounds[n].key_i = bd->iaddr;
         wounds[n].vertex = (uint32_t)(bv - &f->tlv[bg->vertex]);
         wounds[n].dripped = rt_game_30ths();
+        wounds[n].gap = 3.0f + 12.0f * blood_chance();
         wounds[n].floor_y = wound_pending[h].attacker[1];
         wounds[n].drips = 0;
         wounds[n].dead_at = 0;
@@ -4792,7 +4794,10 @@ static void wounds_frame(const Frame *f) {
                 continue;
             const TlVertex *v = &f->tlv[g->vertex + wounds[w].vertex];
             float at[3];
-            wound_world(d, draw_bones(d), v, v->pos, wound_cam[0], at);
+            /* (from the wound's middle - as it was put among the vertices when it was made - not from its vertex, which
+             * on a coarse mesh is a long way off: the drips fell beside the wound, #79) */
+            const float middle[3] = {wounds[w].q[0][3], wounds[w].q[1][3], wounds[w].q[2][3]};
+            wound_world(d, draw_bones(d), v, middle, wound_cam[0], at);
             double dt = (now30 - wounds[w].at_when) / 30.0;
             if (wounds[w].at_when > 0 && dt > 0.004 && dt < 0.2) {
                 float fast = 0;
@@ -4819,11 +4824,19 @@ static void wounds_frame(const Frame *f) {
             static int pour = -1;       /* (MHFU_BLOOD_POUR=n: a test - n drops a second from each, as long as it drips) */
             if (pour < 0)
                 pour = getenv("MHFU_BLOOD_POUR") ? atoi(getenv("MHFU_BLOOD_POUR")) : 0;
-            if (now30 - wounds[w].dripped >= (pour > 0 ? 30.0 / pour : dying == 2 ? 30.0 / 4 : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips))) {
+            /* (no two gaps alike: each a chance share of what is usual by then - a third of it to two and a half
+             * times - and one drop in four followed at once by another; nor two drops the same size) */
+            if (now30 - wounds[w].dripped >= wounds[w].gap) {
+                double usual = pour > 0 ? 30.0 / pour : dying == 2 ? 30.0 / 4 : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips);
+                float c = blood_chance();
+                int twin = blood_chance() < 0.25f;
+                wounds[w].gap = twin ? 1.5f + 3.0f * c : (float)usual * fmaxf(-0.9f * logf(1.0f - 0.92f * c), 0.3f);
+                if (twin)
+                    wounds[w].drips--;  /* (the one after it comes when it would have) */
                 float floor_y = wounds[w].where[1] < wounds[w].floor_y ? wounds[w].where[1] : wounds[w].floor_y;
                 at[0] += (blood_chance() - 0.5f) * 8.0f;
                 at[2] += (blood_chance() - 0.5f) * 8.0f;
-                blood_falls(at, wounds[w].speed, floor_y, (3.0f + 5.5f * depth + (dying ? 3.0f : 0.0f)) * (0.55f + 0.9f * blood_chance()), wound_blood(of->type), 1);
+                blood_falls(at, wounds[w].speed, floor_y, (3.0f + 5.5f * depth + (dying ? 3.0f : 0.0f)) * (0.3f + 1.3f * blood_chance() * blood_chance() + 0.25f * blood_chance()), wound_blood(of->type), 1);
                 if (health <= 0) {      /* (#76: drops seen above a dead animal - where each leaves, for a capture's console) */
                     static double told;
                     if (now30 - told > 30 || now30 < told) {
