@@ -420,7 +420,7 @@ void main() {
         // the blood, drying; drawn towards the skin's colour, and as light as the skin is here
         vec3 dry = mix(blood * 0.55, vec3(0.16, 0.08, 0.05), 0.35);
         vec3 wet = mix(dry, blood, wetness * 0.7);
-        vec3 tone = mix(wet, skin / max(lit, 0.02) * dot(wet, vec3(0.3, 0.55, 0.15)), 0.35);
+        vec3 tone = mix(wet, skin / max(lit, 0.02) * dot(wet, vec3(0.3, 0.55, 0.15)), 0.25);
         // its lips: the far one catches the light, the near one is in its own shade (which way across the cut the
         // sun lies, from the cut's slopes on the screen)
         vec3 over = dFdx(q.y) * dFdx(in_world) + dFdy(q.y) * dFdy(in_world);
@@ -428,7 +428,7 @@ void main() {
         vec3 sunward = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]) + vec3(0.0, 1e-5, 0.0));
         float side = ol > 0.0 ? clamp(dot(over / ol, sunward) * sign(v) * 2.0, -1.0, 1.0) : 0.0;
         float lip_light = 1.0 + 0.3 * side * (hole ? 0.0 : 1.0);
-        vec3 lips = mix(skin * 0.6, tone * lit * (1.9 + 0.5 * depth), bleeds) * lip_light;
+        vec3 lips = mix(skin * 0.6, tone * lit * (2.5 + 0.6 * depth), bleeds) * lip_light;
         vec3 inside = mix(skin * (slit ? 0.22 : 0.4), tone * lit * mix(0.75, 0.45, depth), bleeds);
         vec3 drawn = skin * (1.0 - 0.18 * stain * m * mix(0.3, 1.0, depth));          // the skin about it, darker
         drawn = mix(drawn, mix(drawn, tone * lit * 1.5, 0.6), stain * (0.22 + 0.14 * wetness) * m * bleeds * (0.5 + 0.7 * depth));

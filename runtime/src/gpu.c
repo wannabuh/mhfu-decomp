@@ -4152,14 +4152,15 @@ static void wounds_attach(Frame *f) {
                 nrm[b] = toc[b] / sqrtf(tl);
         else
             nrm[0] = 0, nrm[1] = 1, nrm[2] = 0;
-        /* A thin part: a sheet drawn from both sides (no faces culled: a wing's skin), or with the model's other
-         * side close behind the skin there - a vertex within 30 units inwards whose normal faces the other way.
-         * Cut, it is slit: no flesh to lay open */
+        /* A thin part: the model's other side is close behind the skin there - a vertex within 30 units inwards
+         * whose normal faces the other way. Cut, it is slit: no flesh to lay open. (Not by whether the draw culls
+         * its back faces: none of a monster's do, and every wound was a slit - dark marks and no red, #73. A sheet
+         * with one side only - a wing's skin, if it is made so - is not told.) */
         static int thin_all = -1;           /* MHFU_WOUND_THIN=1: every part taken for thin, 0: none (to look at one) */
         static unsigned thin_seen;
         if (SETTING_STALE(thin_seen))
             thin_all = getenv("MHFU_WOUND_THIN") ? atoi(getenv("MHFU_WOUND_THIN")) != 0 : -1;
-        int thin = thin_all >= 0 ? thin_all : !(bd->reg[0x1D] & 1);
+        int thin = thin_all > 0;
         if (thin_all == 0)
             nl = 0;
         for (int gi = 0; gi < f->ntlg && !thin && nl > 1e-12f; gi++) {
@@ -4192,6 +4193,8 @@ static void wounds_attach(Frame *f) {
                 for (int b = 0; b < 3; b++)
                     dotn += vn[b] * nrm[b];
                 thin = vl > 1e-12f && dotn < -0.3f * sqrtf(vl);
+                if (thin && getenv("MHFU_WOUND_LOG"))
+                    fprintf(stderr, "thin: a vertex %.0f behind, %.0f aside, normals %.2f\n", (double)back, (double)sqrtf(side), (double)(dotn / sqrtf(vl)));
             }
         }
         float along[3], al = 0, xn = x[0] * nrm[0] + x[1] * nrm[1] + x[2] * nrm[2];
