@@ -3843,6 +3843,8 @@ static struct {
     WoundOwner of;
     int kind, gone;
     float seed, depth;                  /* (depth: how deep, 0 a scratch to 1 a gash) */
+    float run[4];                       /* which way is down across the skin, along and across the cut (as steep as
+                                         * the skin is); the cut's half length and half width, units */
 } wounds[WOUNDS];
 static int wound_next;
 static struct { float contact[3], axis[3], attacker[3], depth; int damage, kind; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
@@ -4303,6 +4305,11 @@ static void wounds_attach(Frame *f) {
         wounds[n].depth = depth;
         wounds[n].gone = 0;
         wounds[n].seed = (float)((n * 7 + (int)(c[0] + c[2])) & 63) / 64.0f;
+        /* (the blood runs down from it - ge_frag.glsl: down as it was when the hit landed, kept on the skin) */
+        wounds[n].run[0] = -along[1];
+        wounds[n].run[1] = -across[1];
+        wounds[n].run[2] = 1.0f / over[0];
+        wounds[n].run[3] = 1.0f / over[1];
         {
             const float zero[3] = {0, 0, 0};
             float m[3];
@@ -4419,9 +4426,14 @@ static void wounds_fill(TlDraw *d) {
         /* how it looks: its blood's colour (as one number), how much of it is left (it fades at the end), how wet
          * it still is, and its kind with a number of its own (no two alike) */
         double age = rt_game_30ths() - wounds[i].born;
+        static double older = -1;           /* MHFU_WOUND_AGE=seconds: every wound drawn that much older (to look at one) */
+        if (older < 0)
+            older = getenv("MHFU_WOUND_AGE") ? atof(getenv("MHFU_WOUND_AGE")) * 30 : 0;
+        age += older;
         double life = WOUND_LIFE * WOUND_LASTS(wounds[i].depth);
         float left = (float)((life - age) / (life * 0.25)), wet = 1.0f - (float)(age / (WOUND_FRESH * (0.5 + 1.5 * wounds[i].depth)));
         const uint8_t *blood = wound_blood(wounds[i].of.type);
+        memcpy(d->wound_run[d->wounds], wounds[i].run, sizeof wounds[i].run);
         float *look = d->wound_look[d->wounds];
         look[0] = (float)(blood[0] | blood[1] << 8 | blood[2] << 16);
         look[1] = left < 0 ? 0 : left > 1 ? 1 : left;

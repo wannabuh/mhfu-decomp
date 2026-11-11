@@ -44,6 +44,7 @@ layout(location = 9) pervertexEXT in vec3 in_corner[];     // (the scenery's: ea
 layout(location = 14) flat in vec4 in_wound_look[4];
 layout(location = 18) in float in_wound_facing[4];
 layout(location = 22) flat in uint in_wound_tex;            // (the deep wounds' picture: its slot)
+layout(location = 23) flat in vec4 in_wound_run[4];
 layout(location = 10) in vec3 in_wound[4];                 // (ge_tl.vert: each wound's, 1 at its edge)
 #endif
 layout(location = 6) in vec3 in_world;
@@ -389,7 +390,11 @@ void main() {
     for (int k = 0; k < 4; k++) {
         vec3 q = in_wound[k];
         vec4 look = in_wound_look[k];
-        if (abs(q.x) >= 1.0 || abs(q.y) >= 1.0 || abs(q.z) >= 1.0 || look.y <= 0.0)
+        // (its blood runs down from it, past the cut's own reach: where down was across the skin when it was made)
+        vec4 run = in_wound_run[k];
+        float steep = length(run.xy);
+        bool cut_here = abs(q.x) < 1.0 && abs(q.y) < 1.0;
+        if (abs(q.z) >= 1.0 || look.y <= 0.0 || (!cut_here && steep < 0.2))
             continue;
         float seed = fract(look.w) * 64.0, kind = floor(look.w);
         bool hole = kind == 1.0;
@@ -398,8 +403,9 @@ void main() {
         float bleeds = smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
         // how soft its edges are: a pixel's worth of the wound, and no finer than the skin's picture is here
         float soft = clamp(fwidth(q.y) * 1.5 + 0.035, 0.035, 0.3);
-        float gash, stain, v = 0.0, wide = 0.1;
-        if (!hole) {
+        float gash = 0.0, stain = 0.0, v = 0.0, wide = 0.1;
+        if (!cut_here) {
+        } else if (!hole) {
             float taper = pow(max(1.0 - q.x * q.x, 0.0), 0.6);
             float mid = ((wound_noise(q.x * 2.5 + seed) - 0.5) * 0.45 + (wound_noise(q.x * 9.0 + seed * 3.0) - 0.5) * 0.14) * taper;
             wide = taper * (0.08 + 0.09 * wound_noise(q.x * 6.0 + seed * 5.0)) * mix(0.55, 1.1, depth);
@@ -437,7 +443,7 @@ void main() {
         // painted where the blood is red, only its lightness where it is another colour - then as the rest: dried,
         // towards the skin's colour, lit as the skin. Read no sharper than the skin's picture
         float pictured = smoothstep(0.55, 0.8, depth) * (hole ? 0.0 : 1.0);
-        if (pictured > 0.0 && in_wound_tex != 0xFFFFFFFFu) {
+        if (cut_here && pictured > 0.0 && in_wound_tex != 0xFFFFFFFFu) {
             vec4 p = texture(textures[nonuniformEXT(in_wound_tex)], vec2(q.x, q.y * 0.8) * 0.5 + 0.5, 1.5);
             float light = max(p.r, max(p.g, p.b));
             bool red = blood.r > 2.0 * max(blood.g, blood.b);
@@ -445,6 +451,26 @@ void main() {
             pc = mix(mix(pc * 0.6, vec3(0.16, 0.08, 0.05) * (light + 0.3), 0.3), pc, wetness * 0.7);
             pc = mix(pc, skin / max(lit, 0.02) * dot(pc, vec3(0.3, 0.55, 0.15)), 0.35) * lit * 2.2 * lip_light;
             drawn = mix(drawn, mix(skin * (1.0 - 0.18 * stain * m), pc, p.a * m * 0.9), pictured);
+        }
+        // The blood running down: from a cut that bleeds, on skin that slopes, a few thin runs from points along
+        // the cut - each its own length, wandering a little, a bead at its end - growing while the blood is wet and
+        // staying where they got to. Longer the deeper the cut.
+        float runs = bleeds * smoothstep(0.3, 0.9, depth) * clamp(steep * 1.4, 0.0, 1.0) * (hole ? 0.5 : 1.0);
+        if (runs > 0.0 && steep >= 0.2) {
+            vec2 on_skin = vec2(q.x * run.z, q.y * run.w), down = run.xy / steep, aside = vec2(-down.y, down.x);
+            float far = 150.0 * runs * (1.0 - wetness * wetness), cover = 0.0;
+            for (int r = 0; r < 3; r++) {
+                float pick = wound_noise(seed * 5.3 + float(r) * 17.0);
+                vec2 from = vec2((pick * 2.0 - 1.0) * 0.65 * run.z, 0.0);
+                float along_run = dot(on_skin - from, down), reach = far * (0.35 + 0.65 * wound_noise(seed * 2.1 + float(r) * 9.0));
+                if (along_run <= 0.0 || along_run >= reach || reach < 2.0)
+                    continue;
+                float off = dot(on_skin - from, aside) - (wound_noise(along_run * 0.07 + seed + float(r) * 3.0) - 0.5) * 7.0;
+                float thick = mix(1.0, 2.2, depth) * (0.75 + 0.6 * smoothstep(0.75, 0.97, along_run / reach));
+                cover = max(cover, (1.0 - smoothstep(thick * 0.4, thick + fwidth(off), abs(off))) *
+                                   (1.0 - smoothstep(0.96, 1.0, along_run / reach)));
+            }
+            drawn = mix(drawn, tone * lit * 1.9, cover * 0.75 * m);
         }
         c.rgb = drawn;
     }

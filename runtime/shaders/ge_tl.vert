@@ -17,6 +17,7 @@ layout(location = 9) out vec3 out_corner;   // (the scenery's normal again, for 
 layout(location = 14) flat out vec4 out_wound_look[4];     // (how each looks: shared.h)
 layout(location = 18) out float out_wound_facing[4];        // (how squarely the skin faces each: 1 as where it was cut)
 layout(location = 22) flat out uint out_wound_tex;          // (the deep wounds' picture: its slot in the textures)
+layout(location = 23) flat out vec4 out_wound_run[4];      // (where each one's blood runs: shared.h)
 layout(location = 10) out vec3 out_wound[4];    // (each wound's: where the vertex is from it, 1 at its edge)
 out gl_PerVertex {
     vec4 gl_Position;
@@ -153,6 +154,7 @@ void main() {
             vec3 p = in_pos - vec3(r0.w, r1.w, r2.w);
             out_wound[k] = vec3(dot(r0.xyz, p), dot(r1.xyz, p), dot(r2.xyz, p));
             out_wound_look[k] = draws[i].wound_look[k];
+            out_wound_run[k] = draws[i].wound_run[k];
             // (the skin's normal against the wound's, both as the game gave the vertices: the other side of a
             // limb, a fold beside it are not cut - through the rows' inverse transpose, near enough: the rows)
             vec3 wn = vec3(dot(r0.xyz, in_normal), dot(r1.xyz, in_normal), dot(r2.xyz, in_normal));
@@ -161,6 +163,7 @@ void main() {
         } else {
             out_wound[k] = vec3(10.0);
             out_wound_look[k] = vec4(0.0);
+            out_wound_run[k] = vec4(0.0);
             out_wound_facing[k] = 0.0;
         }
     }
