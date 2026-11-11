@@ -118,11 +118,15 @@
  * the grass, color too - see grass.vert) */
 /* Blood on the ground (gpu.c, render_lights.c): the light sets from BLOOD_SET_AT hold the marks, four a set - where in
  * the world (dir: w how wide) and the colour (color: w how much is left, 0 to 1, plus twice how wet in 16 steps);
- * the first set's count is how many there are. After the marks' sets, two of the drops in the air - where each is (w:
- * how wide) and its colour (w: how long a streak, units), the first's count how many - and one with the eye's place */
+ * the first set's count is how many there are; as many sets again with which way each lies across the ground (dir: x, z)
+ * and how many times longer it is that way (dir z). Then the drops in the air - where each is (dir, w: how wide) and
+ * its colour, the first's count how many; as many sets with each one's streak (dir: back to where it was) - and one
+ * with the eye's place */
 #define BLOOD_MARK_SETS 8
-#define BLOOD_SETS 11
-#define BLOOD_SET_AT 8179u
+#define BLOOD_DROP_SETS 3
+#define BLOOD_DROP_AT (2 * BLOOD_MARK_SETS)
+#define BLOOD_SETS (2 * BLOOD_MARK_SETS + 2 * BLOOD_DROP_SETS + 1)
+#define BLOOD_SET_AT 8167u
 
 #define LIGHT_SET                                                                                                      \
     VEC4S(dir, 4);                                                                                                     \

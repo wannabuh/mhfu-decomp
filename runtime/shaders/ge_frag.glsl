@@ -384,6 +384,8 @@ void main() {
                 for (uint i = 0u; i < marks && i < 4u * uint(BLOOD_MARK_SETS); i++) {
                     vec4 at = sets[BLOOD_SET_AT + i / 4u].dir[i % 4u];
                     vec2 off = in_world.xz - at.xz;
+                    vec4 lie = sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + i / 4u].dir[i % 4u];   // longer the way its drop went
+                    off = vec2(dot(off, lie.xy) / max(lie.z, 1.0), dot(off, vec2(-lie.y, lie.x)));
                     float far = length(off);
                     if (far >= at.w * 1.3 || in_world.y > at.y + 20.0 || in_world.y < at.y - 900.0)
                         continue;
@@ -511,21 +513,25 @@ void main() {
 #endif
     // blood in the air (gpu.c: drops falling from wounds): each over what is behind it, in the world - where the line
     // from the eye to this pixel's place passes the drop, a streak as long as it is fast
-    uint drops = (draw.flags & DRAW_KIND) != 0u && (draw.flags & DRAW_MOTION) == 0u ? sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS)].count : 0u;
+    uint drops = (draw.flags & DRAW_KIND) != 0u && (draw.flags & DRAW_MOTION) == 0u ? sets[BLOOD_SET_AT + uint(BLOOD_DROP_AT)].count : 0u;
     if (drops != 0u) {
-        vec3 eye = sets[BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + 2u].dir[0].xyz;
+        vec3 eye = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz;
         vec3 ray = in_world - eye;
         float rr = dot(ray, ray);
-        for (uint i = 0u; i < drops && i < 8u && rr > 0.0; i++) {
-            uint s = BLOOD_SET_AT + uint(BLOOD_MARK_SETS) + i / 4u;
+        for (uint i = 0u; i < drops && i < 4u * uint(BLOOD_DROP_SETS) && rr > 0.0; i++) {
+            uint s = BLOOD_SET_AT + uint(BLOOD_DROP_AT) + i / 4u;
             vec4 at = sets[s].dir[i % 4u], col = sets[s].color[i % 4u];
             vec3 to = at.xyz - eye;
             float t = dot(to, ray) / rr;
             if (t <= 0.0 || t >= 1.0)
                 continue;
-            vec3 off = to - ray * t;
+            vec3 off = ray * t - to;                        // from the drop to the line's nearest point
+            vec3 streak = sets[s + uint(BLOOD_DROP_SETS)].dir[i % 4u].xyz;
+            streak -= ray * (dot(streak, ray) / rr);        // (as seen: across the line of sight)
+            float ss = dot(streak, streak);
+            if (ss > 0.0)
+                off += streak * clamp(dot(off, -streak) / ss, 0.0, 1.0);
             float r = max(at.w, 0.0016 * length(to));      // (no thinner than a pixel or so, far off)
-            off.y *= r / (r + col.w);
             c.rgb = mix(c.rgb, col.rgb * 0.42, 0.9 * (1.0 - smoothstep(r * 0.45, r, length(off))));
         }
     }
