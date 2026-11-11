@@ -228,7 +228,7 @@ uint32_t water_light_set(void);     /* the water's light sets (two), ~0: none */
 
 /* -- render_post.c ------------------------------------------------------------------------------------------------ */
 void post_setup(VkShaderModule vs, VkShaderModule fs, int tess, VkShaderModule tl_vs);
-void post_state(Target *t, uint32_t flags, int solid, int clear, int same);  /* a primitive drawn into t (same: batched with the last) */
+void post_state(Target *t, uint32_t flags, int solid, int depth_write, int clear, int same);  /* a primitive drawn into t (same: batched with the last) */
 void post_keep(Target *t, const DrawState *s, const DrawPush *pc, uint32_t first, uint32_t n, int tessellated);
 void post_keep_tl(Target *t, const DrawState *s, const DrawPush *pc, const TlSegment *seg, int nseg);
 void post_finish(void);

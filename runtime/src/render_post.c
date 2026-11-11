@@ -48,6 +48,9 @@ int render_motion_wanted(void) {
     return glow_pipeline && post_motion();
 }
 
+static VkImg solid_depth;          /* (keep_solid_depth) */
+static Target *solid_depth_of;
+
 /* The world is drawn into t: what added light to it drawn again into the glow (against its depth), then post.c's
  * passes over it */
 static void post_run(Target *t) {
@@ -187,7 +190,7 @@ static void post_run(Target *t) {
     f.fog_color = scene.fog_color;
     f.jitter[0] = render_jitter[0];
     f.jitter[1] = render_jitter[1];
-    post_apply(&t->color, &t->depth, &f);
+    post_apply(&t->color, solid_depth_of == t ? &solid_depth : &t->depth, &f);
 }
 
 /* The post-processing of t, then what is batched (the draw held) drawn over it */
@@ -202,7 +205,37 @@ static void post_run_held(Target *t) {
  * is drawn, at the first thing over it not in it, the post-processing (once, until cleared). That first thing is held
  * in its batch until what follows it shows whether the world was done: the game draws some over the world part way
  * through (the village's haze over the sky, every other frame: #37), and the world drawn after it was left out */
-void post_state(Target *t, uint32_t flags, int solid, int clear, int same) {
+/* The solid world's depth, for the effects (the motion blur, the anti-aliasing, haze, depth of field): t's copied as
+ * the first thing in the world not solid writes its own over it - the forest's mist, close to the camera all over the
+ * picture, was taken for the world there, and the camera's going round the hunter smeared all of it (#72) */
+static void keep_solid_depth(Target *t) {
+    if (solid_depth.width != t->depth.width || solid_depth.height != t->depth.height) {
+        if (solid_depth.image) {
+            vk_finish();
+            vk_image_free(&solid_depth);
+        }
+        solid_depth = vk_image(t->depth.width, t->depth.height, VK_FORMAT_D32_SFLOAT,
+                               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+    }
+    flush();
+    Target *was = rendering_target();
+    end_rendering();
+    vk_transition(&t->depth, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vk_transition(&solid_depth, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    VkImageCopy copy = {{VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0}, {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1}, {0, 0, 0},
+                        {t->depth.width, t->depth.height, 1}};
+    vkCmdCopyImage(vk_cmd(), t->depth.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, solid_depth.image,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+    solid_depth_of = t;
+    if (was)
+        begin_rendering(was);
+}
+
+void post_state(Target *t, uint32_t flags, int solid, int depth_write, int clear, int same) {
+    if (clear && t == solid_depth_of)
+        solid_depth_of = NULL;
+    if (t == post_target && (flags & DRAW_WORLD) && !solid && depth_write && !clear && solid_depth_of != t)
+        keep_solid_depth(t);
     if (post_held && !(t == post_held && !clear && same)) {
         Target *h = post_held;
         post_held = NULL;
@@ -279,6 +312,7 @@ void post_finish(void) {
 
 void post_frame_done(void) {
     post_target = post_done = post_held = NULL;
+    solid_depth_of = NULL;
     nglow = nglow_segs = 0;
     post_end_frame();
 }

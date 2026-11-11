@@ -899,6 +899,11 @@ void render_prim_begin(const uint32_t *reg) {
      * no colours of its vertices' own and the material's alpha under full. Its squares' depth would be taken for
      * ground and the occlusion laid over them) */
     int sheer = s.blend && (reg[0xDF] & 0xFFF) == 0x32 && !(reg[0x17] & 1) && !((reg[0x12] >> 2) & 7) && (reg[0x58] & 0xFF) < 0xFF;
+    /* (nor what keeps what is behind it whatever its own alpha - adds to it, or blends with it by a fixed share: a
+     * layer of light or mist, as the forest's over all of the picture, close to the camera, #72) */
+    sheer |= s.blend && (s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE ||
+                         s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_CONSTANT_COLOR ||
+                         s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
     int solid = (s.flags & DRAW_WORLD) && s.depth_write && !sheer;
     ao_state(s.target, solid, clear);
     if (solid) {
@@ -911,7 +916,7 @@ void render_prim_begin(const uint32_t *reg) {
     }
     if (!clear && water_prim(reg, &s))
         s.flags |= DRAW_WATER;
-    post_state(s.target, s.flags, solid, clear, !memcmp(&s, &cur, sizeof s));
+    post_state(s.target, s.flags, solid, s.depth_write, clear, !memcmp(&s, &cur, sizeof s));
     if (memcmp(&s, &cur, sizeof s)) {
         flush();
         cur = s;
