@@ -3814,6 +3814,7 @@ static void tl_rows(const float *m, float (*r)[4]) {
  * is its animal's: gone when the game's object is another's, and in MHFU_WOUND_SECONDS, fading over the last quarter.
  * MHFU_WOUNDS=0: none. */
 #include "wounds.h"
+#include "trails.h"
 extern unsigned long present_frame_number(void);
 #define WOUNDS 64
 #define WOUND_DRIPS 0.65f           /* how deep a wound drips blood: a gash */
@@ -3851,6 +3852,7 @@ static struct {
     double dripped;                     /* the game's time its last drop fell (ground blood, below) */
     float floor_y;                      /* how high the ground was where its hunter stood, if its animal was in the air */
     int drips;                          /* how many drops have fallen from it */
+    int skin_told;                      /* (MHFU_TRAIL_LOG: its animal's skin told of) */
     float gap;                          /* how long after its last drop the next falls, 30ths of a second */
     double dead_at;                     /* the game's time its animal was first seen dead (0: alive) */
     int breaks, burst;                  /* its animal's parts' breaks, counted; drops still to burst from it */
@@ -3863,6 +3865,7 @@ static struct {
 static int wound_next;
 static float blood_chance(void);
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must);
+static void trail_skin_log(const Frame *f, const float *world);
 static const uint8_t *wound_blood(int type);
 static struct { float contact[3], axis[3], attacker[3], swing[3], depth; int damage, kind, breaks, swung, capsule, bladed; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
@@ -4742,6 +4745,10 @@ static void wounds_frame(const Frame *f) {
         }
         if (!world)
             continue;                   /* (its model is not drawn this frame, or has gone far in one) */
+        if (!wounds[w].drips && !wounds[w].skin_told && getenv("MHFU_TRAIL_LOG")) {
+            wounds[w].skin_told = 1;
+            trail_skin_log(f, world);
+        }
         for (int gi = 0; gi < f->ntlg; gi++) {
             const Draw *d = &f->draws[f->tlg[gi].first];
             if ((d->reg[0x17] & 1) && (d->world == world || !memcmp(d->world, world, sizeof(float) * 12)))
@@ -4854,6 +4861,63 @@ static void wounds_frame(const Frame *f) {
     }
     blade_frame(f);
     blood_frame();
+}
+
+/* An animal's skin, for the blood that runs down it (trails.c): the groups of the frame's the game lights, placed as
+ * the model at world is, that write their depth and are not blended (not a coat of fur laid over the skin) - their
+ * vertices where they are in the world now, their triangles' corners among those. 0 if there is none */
+static uint32_t trail_skin(const Frame *f, const float *world, float (**pos)[3], uint32_t **tri, uint32_t *nv, int told) {
+    static float (*p)[3];
+    static uint32_t *t, pcap, tcap;
+    uint32_t np = 0, nt = 0;
+    for (int gi = 0; gi < f->ntlg; gi++) {
+        const TlGroup *g = &f->tlg[gi];
+        const Draw *d = &f->draws[g->first];
+        if (!(d->reg[0x17] & 1) || (d->world != world && memcmp(d->world, world, sizeof(float) * 12)))
+            continue;
+        int skin = !(d->reg[0x21] & 1) && !(d->reg[0xE7] & 1);
+        if (told)
+            fprintf(stderr, "skin: group %d mesh %08X %08X, %d draws, %u vertices, %u triangles, %d bones, texture %u, blend %u (%06X), depth %s%s, cull %u%s\n", gi,
+                    d->vaddr, d->iaddr, g->n, g->nvertex, g->nindex / 3, draw_bones(d), d->tex_slot, d->reg[0x21] & 1, d->reg[0xDF] & 0xFFFFFFu,
+                    d->reg[0x23] & 1 ? "tested" : "not tested", d->reg[0xE7] & 1 ? ", not written" : "", d->reg[0x1D] & 1, skin ? "" : ": left out");
+        if (!skin)
+            continue;
+        if (np + g->nvertex > pcap)
+            p = realloc(p, sizeof *p * (pcap = (np + g->nvertex) * 2));
+        if (nt + g->nindex > tcap)
+            t = realloc(t, sizeof *t * (tcap = (nt + g->nindex) * 2));
+        for (uint32_t i = 0; i < g->nvertex; i++)
+            wound_world(d, draw_bones(d), &f->tlv[g->vertex + i], f->tlv[g->vertex + i].pos, wound_cam[0], p[np + i]);
+        for (uint32_t i = 0; i < g->nindex; i++)
+            t[nt + i] = f->tli[g->index + i] - g->vertex + np;
+        np += g->nvertex;
+        nt += g->nindex;
+    }
+    *pos = p, *tri = t, *nv = np;
+    return nt / 3;
+}
+
+/* MHFU_TRAIL_LOG: what an animal's skin comes to, its vertices welded at several reaches */
+static void trail_skin_log(const Frame *f, const float *world) {
+    float (*pos)[3];
+    uint32_t *tri, nv, ntri = trail_skin(f, world, &pos, &tri, &nv, 1);
+    if (!ntri)
+        return;
+    float lo[3] = {1e30f, 1e30f, 1e30f}, hi[3] = {-1e30f, -1e30f, -1e30f};
+    for (uint32_t i = 0; i < nv; i++)
+        for (int k = 0; k < 3; k++)
+            lo[k] = fminf(lo[k], pos[i][k]), hi[k] = fmaxf(hi[k], pos[i][k]);
+    fprintf(stderr, "skin: %u vertices, %u triangles, %.0f x %.0f x %.0f units\n", nv, ntri, (double)(hi[0] - lo[0]), (double)(hi[1] - lo[1]), (double)(hi[2] - lo[2]));
+    int32_t (*nbr)[3] = malloc(sizeof *nbr * ntri);
+    static const float welds[] = {0.02f, 0.25f, 1.0f, 3.0f};
+    for (size_t k = 0; k < sizeof welds / sizeof welds[0]; k++) {
+        TrailStats st;
+        uint64_t t0 = perf_ns();
+        trail_topology((const float (*)[3])pos, nv, tri, ntri, welds[k], nbr, &st);
+        fprintf(stderr, "skin: welded within %.2f: %u places, edges %u open and %u shared (%u by more than two), %u triangles flat, %u pieces (the largest %u triangles), %.2f ms\n",
+                (double)welds[k], st.places, st.open, st.inner, st.many, st.flat, st.islands, st.largest, (double)(perf_ns() - t0) / 1e6);
+    }
+    free(nbr);
 }
 
 /* The blood's colour, by the monster's type: the game's own, as its hit effects choose it (game_sub 09C34350: a
