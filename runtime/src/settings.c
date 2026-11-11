@@ -77,6 +77,8 @@ static const Setting list[] = {
     {"vignette", "VIGNETTE", S_NUMBER, "0.2", 0, 1, 0.05f, NULL, S_LIVE},
     {"haze", "HAZE IN THE AIR", S_NUMBER, "0.0", 0, 4, 0.25f, NULL, S_LIVE},
     {"shafts", "LIGHT SHAFTS", S_NUMBER, "0.0", 0, 2, 0.25f, NULL, S_LIVE},
+    {"weapon_blood", "BLOOD THROWN OFF THE WEAPON", S_NUMBER, "1.0", 0, 4, 0.25f, NULL, S_LIVE},
+    {"weapon_blood_size", "SIZE OF THE WEAPON'S DROPS OF BLOOD", S_NUMBER, "1.0", 0.25f, 4, 0.25f, NULL, S_LIVE},
 
     {NULL, "VIEW", S_HEADING},
     {"hud_scale", "HUD SIZE", S_NUMBER, "1.0", 0.3f, 1.5f, 0.05f, NULL, S_LIVE},

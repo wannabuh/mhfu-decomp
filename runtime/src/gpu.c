@@ -4111,6 +4111,32 @@ static struct {
     uint8_t rgb[3];
 } blade;
 
+/* How many drops it throws, times what it would (the settings' "blood thrown off the weapon", MHFU_WEAPON_BLOOD: 0 none,
+ * 1 as made, up to 4) */
+static float blade_much(void) {
+    static float k = 1;
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
+        k = getenv("MHFU_WEAPON_BLOOD") ? (float)atof(getenv("MHFU_WEAPON_BLOOD")) : 1.0f;
+        if (!(k >= 0 && k <= 4.0f))
+            k = 1.0f;
+    }
+    return k;
+}
+
+/* How big its drops are, times what they would be ("size of the weapon's drops of blood", MHFU_WEAPON_BLOOD_SIZE:
+ * 0.25 to 4) */
+static float blade_size(void) {
+    static float k = 1;
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
+        k = getenv("MHFU_WEAPON_BLOOD_SIZE") ? (float)atof(getenv("MHFU_WEAPON_BLOOD_SIZE")) : 1.0f;
+        if (!(k >= 0.1f && k <= 4.0f))
+            k = 1.0f;
+    }
+    return k;
+}
+
 static float segment_dist2(const float *p, const float *a, const float *b) {
     float l[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]}, ll = l[0] * l[0] + l[1] * l[1] + l[2] * l[2];
     float t = ll > 0 ? ((p[0] - a[0]) * l[0] + (p[1] - a[1]) * l[1] + (p[2] - a[2]) * l[2]) / ll : 0;
@@ -4204,14 +4230,14 @@ static void blade_find(const Frame *f, int h) {
         fprintf(stderr, "blade: fastest lately %.0f, %.2f s ago; followed %.2f s ago\n", (double)blade.swing_fast, (blade.hit_at - blade.swing_when) / 30,
                 (blade.hit_at - blade.when) / 30);
     if (blade.swing_fast > 250.0f && blade.hit_at - blade.swing_when < 0.3 * 30) {
-        int n = 2 + (int)(9.0f * blade.wet);
+        int n = (int)((2.0f + 9.0f * blade.wet) * blade_much() + 0.5f);
         for (int i = 0; i < n; i++) {
             float along = sqrtf(blood_chance()), keep = 0.45f + 0.5f * blood_chance(), at[3], v[3];
             for (int k = 0; k < 3; k++) {
                 at[k] = blade.at[0][k] + (blade.at[1][k] - blade.at[0][k]) * along;
                 v[k] = (blade.swing[0][k] + (blade.swing[1][k] - blade.swing[0][k]) * along) * keep + (blood_chance() - 0.5f) * 0.25f * blade.swing_fast;
             }
-            blood_falls(at, v, attacker[1], 1.8f + 3.6f * blade.wet * blood_chance(), blade.rgb, 0);
+            blood_falls(at, v, attacker[1], (1.8f + 3.6f * blade.wet * blood_chance()) * blade_size(), blade.rgb, 0);
         }
         if (getenv("MHFU_WOUND_LOG"))
             fprintf(stderr, "blade: a burst of %d, swung at %.0f units a second\n", n, (double)blade.swing_fast);
@@ -4265,15 +4291,15 @@ static void blade_frame(const Frame *f) {
             blade.wet = 0;              /* (the swing is over) */
             return;
         }
-        blade.owed += (0.3f + 0.7f * blade.wet) * fminf(fast / 1200.0f, 1.0f) * 70.0f * (float)dt;
+        blade.owed += (0.3f + 0.7f * blade.wet) * fminf(fast / 1200.0f, 1.0f) * 70.0f * blade_much() * (float)dt;
         for (; blade.owed >= 1 && blade.wet > 0; blade.owed -= 1) {
             float along = sqrtf(blood_chance()), keep = 0.75f + 0.25f * blood_chance(), at[3], v[3];
             for (int k = 0; k < 3; k++) {
                 at[k] = p[0][k] + (p[1][k] - p[0][k]) * along;
                 v[k] = (blade.speed[0][k] + (blade.speed[1][k] - blade.speed[0][k]) * along) * keep + (blood_chance() - 0.5f) * 80.0f;
             }
-            blood_falls(at, v, attacker[1], 1.8f + 3.6f * blade.wet * blood_chance(), blade.rgb, 0);
-            blade.wet -= 0.025f;
+            blood_falls(at, v, attacker[1], (1.8f + 3.6f * blade.wet * blood_chance()) * blade_size(), blade.rgb, 0);
+            blade.wet -= 0.025f / fmaxf(blade_much(), 1.0f);    /* (more of them: not sooner dry) */
             if (getenv("MHFU_WOUND_LOG"))
                 fprintf(stderr, "blade: a drop, going %.0f units a second\n", (double)fast);
         }
