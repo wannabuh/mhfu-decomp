@@ -440,12 +440,15 @@ void main() {
                     // (snow: a paler ring of it soaked out past the edge)
                     c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.0), col * 1.3 + 0.25, 0.5), snow * smoothstep(0.02, 0.2, level) * (1.0 - cover));
                     c.rgb = mix(c.rgb, stained, cover * body * (1.0 - 0.25 * sand));
+                    // (it shines: the sun on it and the sky, on a surface a little uneven - wet blood, the deeper the
+                    // more; a little still when dry)
                     vec3 sunward = -vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]);
-                    if (dot(sunward, sunward) > 0.0) {
-                        vec3 nrm = up * (up.y < 0.0 ? -1.0 : 1.0) / ul, view = normalize(eye - in_world);
-                        float shine = pow(max(dot(normalize(view + normalize(sunward)), nrm), 0.0), 70.0);
-                        c.rgb += (shine * 0.45 * (1.0 - sh) + 0.05 * pow(1.0 - max(dot(view, nrm), 0.0), 4.0)) * wet * deep * cover * (1.0 - sand);
-                    }
+                    vec3 nrm = up * (up.y < 0.0 ? -1.0 : 1.0) / ul, view = normalize(eye - in_world);
+                    nrm = normalize(nrm + 0.18 * vec3(blood_noise(in_world.xz * 0.5) - 0.5, 0.0, blood_noise(in_world.zx * 0.5 + 3.1) - 0.5));
+                    float gloss = max(wet, 0.12) * mix(0.45, 1.0, deep) * cover * (1.0 - 0.8 * sand);
+                    float sun_shine = dot(sunward, sunward) > 0.0 ? pow(max(dot(normalize(view + normalize(sunward)), nrm), 0.0), 45.0) * (1.0 - 0.85 * sh) : 0.0;
+                    float sky_shine = pow(max(dot(nrm, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 20.0) * 0.3 + 0.3 * pow(1.0 - max(dot(view, nrm), 0.0), 3.0);
+                    c.rgb += (sun_shine * 0.9 + sky_shine * (0.25 + ground)) * gloss;
                 }
             }
         }
@@ -477,7 +480,8 @@ void main() {
         vec4 run = in_wound_run[k];
         float steep = length(run.xy);
         bool cut_here = abs(q.x) < 1.0 && abs(q.y) < 1.0;
-        if (abs(q.z) >= 1.0 || look.y <= 0.0 || (!cut_here && steep < 0.2))
+        float left = mod(look.y, 2.0), ran = floor(look.y * 0.5) / 1000.0;      // (how much of it is left; how far its blood has run)
+        if (abs(q.z) >= 1.0 || left <= 0.0 || (!cut_here && steep < 0.1))
             continue;
         float seed = fract(look.w) * 64.0, kind = floor(look.w);
         bool hole = kind == 1.0;
@@ -502,7 +506,7 @@ void main() {
             stain = 1.0 - smoothstep(0.3, 0.9, r);
         }
         // (not where the skin is turned from the cut: the far side of a limb, a fold lying by it)
-        float m = (1.0 - smoothstep(0.6, 1.0, abs(q.z))) * look.y * smoothstep(0.1, 0.6, in_wound_facing[k]);
+        float m = (1.0 - smoothstep(0.6, 1.0, abs(q.z))) * left * smoothstep(0.1, 0.6, in_wound_facing[k]);
         vec3 skin = c.rgb;
         float lit = dot(skin, vec3(0.3, 0.55, 0.15));
         // the blood, drying; drawn towards the skin's colour, and as light as the skin is here
@@ -535,25 +539,42 @@ void main() {
             pc = mix(pc, skin / max(lit, 0.02) * dot(pc, vec3(0.3, 0.55, 0.15)), 0.35) * lit * 2.2 * lip_light;
             drawn = mix(drawn, mix(skin * (1.0 - 0.18 * stain * m), pc, p.a * m * 0.9), pictured);
         }
-        // The blood running down: from a cut that bleeds, on skin that slopes, a few thin runs from points along
-        // the cut - each its own length, wandering a little, a bead at its end - growing while the blood is wet and
-        // staying where they got to. Longer the deeper the cut.
-        float runs = bleeds * smoothstep(0.3, 0.9, depth) * clamp(steep * 1.4, 0.0, 1.0) * (hole ? 0.5 : 1.0);
-        if (runs > 0.0 && steep >= 0.2) {
+        // The blood running down: from a cut that bleeds, on skin that slopes at all, runs from points along the cut
+        // - each its own length and width and speed, wandering a little, a bead at its end - most of the way in a
+        // few seconds, and staying where they got to. More of them, longer and wider, the deeper the cut.
+        float runs = bleeds * smoothstep(0.25, 0.7, depth) * clamp(steep * 2.5, 0.0, 1.0) * (hole ? 0.5 : 1.0);
+        float cover = 0.0;
+        if (runs > 0.0 && steep >= 0.1) {
             vec2 on_skin = vec2(q.x * run.z, q.y * run.w), down = run.xy / steep, aside = vec2(-down.y, down.x);
-            float far = 150.0 * runs * (1.0 - wetness * wetness), cover = 0.0;
-            for (int r = 0; r < 3; r++) {
-                float pick = wound_noise(seed * 5.3 + float(r) * 17.0);
-                vec2 from = vec2((pick * 2.0 - 1.0) * 0.65 * run.z, 0.0);
-                float along_run = dot(on_skin - from, down), reach = far * (0.35 + 0.65 * wound_noise(seed * 2.1 + float(r) * 9.0));
+            int many = depth > 0.65 ? 6 : 3;
+            for (int r = 0; r < many; r++) {
+                float pick = wound_noise(seed * 5.3 + float(r) * 17.0), quick = wound_noise(seed * 3.7 + float(r) * 5.0);
+                vec2 from = vec2((pick * 2.0 - 1.0) * 0.8 * run.z, 0.0);
+                float reach = 330.0 * runs * (0.3 + 0.7 * wound_noise(seed * 2.1 + float(r) * 9.0)) * pow(ran, 0.6 + 1.4 * quick);
+                float along_run = dot(on_skin - from, down);
                 if (along_run <= 0.0 || along_run >= reach || reach < 2.0)
                     continue;
-                float off = dot(on_skin - from, aside) - (wound_noise(along_run * 0.07 + seed + float(r) * 3.0) - 0.5) * 7.0;
-                float thick = mix(1.0, 2.2, depth) * (0.75 + 0.6 * smoothstep(0.75, 0.97, along_run / reach));
+                float off = dot(on_skin - from, aside) - (wound_noise(along_run * 0.05 + seed + float(r) * 3.0) - 0.5) * 11.0;
+                float thick = mix(1.2, 3.0, depth) * (0.6 + 0.8 * quick) * (0.75 + 0.7 * smoothstep(0.8, 0.97, along_run / reach));
                 cover = max(cover, (1.0 - smoothstep(thick * 0.4, thick + fwidth(off), abs(off))) *
                                    (1.0 - smoothstep(0.96, 1.0, along_run / reach)));
             }
-            drawn = mix(drawn, tone * lit * 1.9, cover * 0.75 * m);
+            drawn = mix(drawn, tone * lit * 1.9, cover * 0.8 * m);
+        }
+        // Wet blood shines: the sun on it, and the sky - where the blood lies thick (in the cut, down its runs, a
+        // little on the stain about it), as wet as it is, and a little still when it has dried
+        float gloss = max(max(cover, smoothstep(0.3, 0.85, gash) * bleeds), 0.35 * stain * bleeds) * m * max(wetness, 0.12);
+        if (gloss > 0.0) {
+            vec3 n = cross(dFdx(in_world), dFdy(in_world));
+            vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
+            if (dot(n, n) > 0.0 && dot(view, view) > 0.0) {
+                view = normalize(view);
+                n = normalize(n);
+                n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
+                float sun_shine = pow(max(dot(n, normalize(view + sunward)), 0.0), 40.0) * (1.0 - 0.85 * sh);
+                float sky_shine = pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 18.0) * 0.3 + 0.25 * pow(1.0 - dot(n, view), 3.0);
+                drawn += (sun_shine * 0.9 + sky_shine * (0.3 + lit)) * gloss;
+            }
         }
         c.rgb = drawn;
     }

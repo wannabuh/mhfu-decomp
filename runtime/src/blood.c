@@ -34,8 +34,8 @@ int grass_ground_at(float x, float z, float *y, float *nx, float *nz);     /* gr
 #define DRAG 1.2f
 #define DROPS (4 * BLOOD_DROP_SETS)
 
-typedef struct { float at[3], speed[3], floor_y, size; uint8_t rgb[3]; int clear; } Event;
-typedef struct { float at[3], speed[3], from_y, floor_y, size; double born; uint8_t rgb[3]; int used; } Drop;
+typedef struct { float at[3], speed[3], floor_y, size, fall; uint8_t rgb[3]; int clear; } Event;
+typedef struct { float at[3], speed[3], from_y, floor_y, size; double born; uint8_t rgb[3]; int used; float fall; } Drop;
 typedef struct { float x, z, r, thick; int ycode; uint8_t color; double when; int used; float x1, z1, r1; int line; } Paint;
 typedef struct { int16_t tx, tz; uint8_t used, wet, dirty; } TileState;
 
@@ -67,7 +67,7 @@ static uint32_t hash2(int x, int z) {
 
 /* -- the game's thread -------------------------------------------------------------------------------------------- */
 
-void blood_spawn(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb) {
+void blood_spawn(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, float fall) {
     pthread_mutex_lock(&lock);
     if (nevents < (int)(sizeof events / sizeof *events)) {
         Event *e = &events[nevents++];
@@ -75,6 +75,7 @@ void blood_spawn(const float *at, const float *speed, float floor_y, float size,
         memcpy(e->speed, speed, sizeof e->speed);
         e->floor_y = floor_y;
         e->size = size;
+        e->fall = fall;
         memcpy(e->rgb, rgb, 3);
         e->clear = 0;
     }
@@ -382,7 +383,7 @@ void blood_step(double now, BloodFrame *out) {
         for (int d = 0; d < DROPS; d++)
             if (!drops[d].used) {
                 drops[d] = (Drop){{got[i].at[0], got[i].at[1], got[i].at[2]}, {got[i].speed[0], got[i].speed[1], got[i].speed[2]},
-                                  got[i].at[1], got[i].floor_y, got[i].size, now, {got[i].rgb[0], got[i].rgb[1], got[i].rgb[2]}, 1};
+                                  got[i].at[1], got[i].floor_y, got[i].size, now, {got[i].rgb[0], got[i].rgb[1], got[i].rgb[2]}, 1, got[i].fall};
                 break;
             }
     }
@@ -394,7 +395,7 @@ void blood_step(double now, BloodFrame *out) {
         float slow = expf(-DRAG * dt), was = d->at[1], gy, nx, nz;
         d->speed[0] *= slow;
         d->speed[2] *= slow;
-        d->speed[1] -= GRAVITY * dt;
+        d->speed[1] -= GRAVITY * d->fall * dt;
         for (int k = 0; k < 3; k++)
             d->at[k] += d->speed[k] * dt;
         /* the ground: the grass's, where it is known and the drop came from above it; else as high as was guessed */

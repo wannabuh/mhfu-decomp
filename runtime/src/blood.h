@@ -8,7 +8,7 @@
 
 /* The game's thread (gpu.c): a drop leaves a wound - where, how fast, how high the ground is taken to be if nothing
  * better is known, how big, its colour; the area is left; where the eye is */
-void blood_spawn(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb);
+void blood_spawn(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, float fall);   /* (fall: times gravity) */
 void blood_clear(void);
 void blood_eye(const float *eye);
 

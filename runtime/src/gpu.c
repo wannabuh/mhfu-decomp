@@ -4674,8 +4674,8 @@ static float blood_chance(void) {
 
 /* A drop leaves a wound, at this place and speed (blood.c has it from here: it falls, and paints the ground) */
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must) {
-    (void)must;
-    blood_spawn(at, speed, floor_y, size, rgb);
+    /* (a wound's own drips fall heavily, twice as fast as things do: a thrown drop flies as it would) */
+    blood_spawn(at, speed, floor_y, size, rgb, must ? 2.2f : 1.0f);
 }
 
 /* Each frame: where the eye is (the ground's blood is kept about it) */
@@ -4907,7 +4907,8 @@ static void wounds_fill(TlDraw *d) {
         memcpy(d->wound_run[d->wounds], wounds[i].run, sizeof wounds[i].run);
         float *look = d->wound_look[d->wounds];
         look[0] = (float)(blood[0] | blood[1] << 8 | blood[2] << 16);
-        look[1] = left < 0 ? 0 : left > 1 ? 1 : left;
+        /* (and, by twos, how far its blood has run down in a thousand steps: most of the way in a few seconds) */
+        look[1] = (left < 0 ? 0 : left > 1 ? 1 : left) + 2.0f * floorf(1000.0f * (1.0f - expf(-(float)(age < 0 ? 0 : age) / (2.5f * 30.0f))));
         wet = wet < 0 ? 0 : wet > 1 ? 1 : wet;
         look[2] = floorf(wet * 63.0f) + wounds[i].depth * 0.98f;    /* (how wet, in 64 steps; and how deep, its fraction) */
         look[3] = (float)wounds[i].kind + wounds[i].seed * 0.98f;
