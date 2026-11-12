@@ -1,7 +1,7 @@
 /* Blood kept on an animal's skin texel by texel (bloodmap.c; gpu.c gives it the skin and the hits, ge_frag.glsl draws
  * it). The game's own pictures cannot hold it: a model's picture is laid over both its sides and more, a texel 6 to 8
  * units across (a Tigrex: MHFU_UV_DUMP). So each skin kept (trails.h's meshes, RUN_MESHES of them) has a map of its
- * own, BLOODMAP_W x BLOODMAP_H texels, in which every triangle has a place to itself - laid out here, about 2 units a
+ * own, BLOODMAP_W x BLOODMAP_H texels, in which every triangle has a place to itself - laid out here, a unit a
  * texel if they fit - and for each triangle what takes a place among its vertices as the game gave them to its place
  * in the map (shared.h RUN_MAPS_AT: two rows). Blood is painted into it where the skin is in the world when it is
  * hit, each texel by its own place there, so what is painted goes on over the triangles' edges though they lie

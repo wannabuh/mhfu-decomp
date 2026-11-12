@@ -100,9 +100,9 @@ float bloodmap_layout(int mesh, uint32_t ntri, const TrailSkin *skin, const uint
         sizes[n++] = (Size){t, base, high, foot, first};
     }
     qsort(sizes, n, sizeof *sizes, taller);
-    /* in rows, the tallest first: as fine as 2 units a texel, coarser until they all fit */
+    /* in rows, the tallest first: as fine as a unit a texel, coarser until they all fit */
     Place *pl = calloc(ntri + 1, sizeof *pl);
-    float unit = 2.0f;
+    float unit = 1.0f;
     for (int tries = 0; tries < 60; tries++, unit *= 1.08f) {
         uint32_t x = 2, y = 2, row = 0, k = 0;
         for (; k < n; k++) {
@@ -392,7 +392,7 @@ void bloodmap_frame(float now) {
         if (!places[mesh])
             continue;
         uint32_t *tex = texels(mesh), lo = ~0u, hi = 0;
-        for (uint32_t y = row; y < row + 16 && y < BLOODMAP_H; y++)
+        for (uint32_t y = row; y < row + 24 && y < BLOODMAP_H; y++)
             for (uint32_t x = 0; x < BLOODMAP_W; x++) {
                 uint32_t w = tex[y * BLOODMAP_W + x], c = w >> 16 & 255u;
                 if (c && (code + 255u - c) % 255u > 120u) {
@@ -403,5 +403,5 @@ void bloodmap_frame(float now) {
         if (lo <= hi)
             touch(MAPS + (uint32_t)mesh * TEXELS + lo, MAPS + (uint32_t)mesh * TEXELS + hi + 1);
     }
-    row = row + 16 >= BLOODMAP_H ? 0 : row + 16;
+    row = row + 24 >= BLOODMAP_H ? 0 : row + 24;
 }

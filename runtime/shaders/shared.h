@@ -152,8 +152,8 @@
  * 255 going round, as the eye's set's dir[1].w has now; 0: dry long since), then 4 how open a cut is there (its lips
  * low, its inside high) and 4 how bruised the skin */
 #define RUN_MAP_WORDS 8
-#define BLOODMAP_W 1024
-#define BLOODMAP_H 1024
+#define BLOODMAP_W 2048
+#define BLOODMAP_H 2048
 #define RUN_MAPS_AT (RUN_MESHES * RUN_TRIS + RUN_ENTRIES * RUN_WORDS)
 #define RUN_TEXELS_AT (RUN_MAPS_AT + RUN_MESHES + RUN_MESHES * RUN_TRIS * RUN_MAP_WORDS)
 #define RUN_ALL (RUN_TEXELS_AT + RUN_MESHES * BLOODMAP_W * BLOODMAP_H)
