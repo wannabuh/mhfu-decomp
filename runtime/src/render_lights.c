@@ -332,12 +332,10 @@ static void runs_sync(void) {
         vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
         const uint32_t *all = trails_words(&run_from, &run_to);
         memcpy(runs_buf.map, all, (size_t)RUN_MAPS_AT * sizeof(uint32_t));
-        memcpy((uint32_t *)runs_buf.map + RUN_MAPS_AT, bloodmap_words(&run_from, &run_to), (size_t)(RUN_ALL - RUN_MAPS_AT) * sizeof(uint32_t));
+        memcpy((uint32_t *)runs_buf.map + RUN_MAPS_AT, bloodmap_store(), (size_t)(RUN_ALL - RUN_MAPS_AT) * sizeof(uint32_t));
     }
-    /* (and the blood kept texel by texel, bloodmap.c: after them) */
-    const uint32_t *maps = bloodmap_words(&run_from, &run_to);
-    if (run_to > run_from)
-        memcpy((uint32_t *)runs_buf.map + RUN_MAPS_AT + run_from, maps + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
+    /* (and the blood kept texel by texel, bloodmap.c: after them - what of it changed) */
+    bloodmap_sync((uint32_t *)runs_buf.map + RUN_MAPS_AT);
     const uint32_t *runs = trails_words(&run_from, &run_to);
     if (run_to > run_from)
         memcpy((uint32_t *)runs_buf.map + run_from, runs + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));

@@ -22,24 +22,63 @@ static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t dirty_from, dirty_to;
 static double now_code = 1;
 
-static void touch(uint32_t from, uint32_t to) {
+/* What has changed since the renderer last took it: of the maps' words a span; of the texels each row's own span -
+ * one span over all of it had the whole of a map sent, 16 MB, each time a trickle moved (its strokes fall on
+ * triangles anywhere in the map) or old blood was marked dry: every other frame late, #91 */
+#define ROWS (RUN_MESHES * BLOODMAP_H)
+static uint16_t row_lo[ROWS], row_hi[ROWS];     /* (hi 0: the row as the renderer has it) */
+static uint32_t rows_from = ROWS, rows_to;
+static volatile int changed;
+
+static void touch(uint32_t from, uint32_t to) {            /* (the maps' words) */
     pthread_mutex_lock(&lock);
     if (dirty_from == dirty_to)
         dirty_from = from, dirty_to = to;
     else
         dirty_from = from < dirty_from ? from : dirty_from, dirty_to = to > dirty_to ? to : dirty_to;
+    changed = 1;
     pthread_mutex_unlock(&lock);
 }
 
-const uint32_t *bloodmap_words(uint32_t *from, uint32_t *to) {
+static void touch_rect(int mesh, uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1) {    /* (texels x0 to x1, rows y0 to y1, of a map) */
+    if (x1 <= x0 || y1 <= y0)
+        return;
+    x1 = x1 > BLOODMAP_W ? BLOODMAP_W : x1, y1 = y1 > BLOODMAP_H ? BLOODMAP_H : y1;
     pthread_mutex_lock(&lock);
-    *from = dirty_from, *to = dirty_to;
-    dirty_from = dirty_to = 0;
+    for (uint32_t r = (uint32_t)mesh * BLOODMAP_H + y0; r < (uint32_t)mesh * BLOODMAP_H + y1; r++) {
+        if (!row_hi[r])
+            row_lo[r] = (uint16_t)x0, row_hi[r] = (uint16_t)x1;
+        else
+            row_lo[r] = x0 < row_lo[r] ? (uint16_t)x0 : row_lo[r], row_hi[r] = x1 > row_hi[r] ? (uint16_t)x1 : row_hi[r];
+    }
+    uint32_t a = (uint32_t)mesh * BLOODMAP_H + y0, b = (uint32_t)mesh * BLOODMAP_H + y1;
+    rows_from = a < rows_from ? a : rows_from, rows_to = b > rows_to ? b : rows_to;
+    changed = 1;
     pthread_mutex_unlock(&lock);
-    return store;
 }
 
-int bloodmap_changed(void) { return dirty_to != dirty_from; }
+const uint32_t *bloodmap_store(void) { return store; }
+
+uint32_t bloodmap_sync(uint32_t *to) {
+    uint32_t sent = 0;
+    pthread_mutex_lock(&lock);
+    if (dirty_to > dirty_from)
+        memcpy(to + dirty_from, store + dirty_from, sizeof(uint32_t) * (dirty_to - dirty_from)), sent += dirty_to - dirty_from;
+    dirty_from = dirty_to = 0;
+    for (uint32_t r = rows_from; r < rows_to; r++)
+        if (row_hi[r]) {
+            size_t at = MAPS + (size_t)r * BLOODMAP_W + row_lo[r];
+            memcpy(to + at, store + at, sizeof(uint32_t) * (size_t)(row_hi[r] - row_lo[r]));
+            sent += (uint32_t)(row_hi[r] - row_lo[r]);
+            row_hi[r] = 0;
+        }
+    rows_from = ROWS, rows_to = 0;
+    changed = 0;
+    pthread_mutex_unlock(&lock);
+    return sent;
+}
+
+int bloodmap_changed(void) { return changed; }
 
 float bloodmap_now(void) { return (float)now_code; }
 
@@ -56,7 +95,7 @@ void bloodmap_drop(int mesh) {
     memset(store + RUN_MESHES + (size_t)mesh * RUN_TRIS * RUN_MAP_WORDS, 0, sizeof(uint32_t) * RUN_TRIS * RUN_MAP_WORDS);
     memset(texels(mesh), 0, sizeof(uint32_t) * TEXELS);
     touch(RUN_MESHES + (uint32_t)mesh * RUN_TRIS * RUN_MAP_WORDS, RUN_MESHES + (uint32_t)(mesh + 1) * RUN_TRIS * RUN_MAP_WORDS);
-    touch(MAPS + (uint32_t)mesh * TEXELS, MAPS + (uint32_t)(mesh + 1) * TEXELS);
+    touch_rect(mesh, 0, 0, BLOODMAP_W, BLOODMAP_H);
 }
 
 static float dot3(const float *a, const float *b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
@@ -256,7 +295,7 @@ float bloodmap_layout(int mesh, uint32_t ntri, const TrailSkin *skin, const uint
                 }
             }
         if (first <= last)
-            touch(MAPS + (uint32_t)mesh * TEXELS + first, MAPS + (uint32_t)mesh * TEXELS + last + 1);
+            touch_rect(mesh, p->x, p->y, (uint32_t)p->x + p->w, (uint32_t)p->y + p->h);
     }
     if (kept)
         fprintf(stderr, "bloodmap %d: laid out anew (%u triangles), %u of the old one's triangles had blood, %u texels of it kept\n", mesh, ntri, nkept, moved);
@@ -320,7 +359,7 @@ static void paint_triangle(int mesh, uint32_t t, const float (*P)[3], const floa
             lo = at_word < lo ? at_word : lo, hi = at_word > hi ? at_word : hi;
         }
     if (lo <= hi)
-        touch(MAPS + (uint32_t)mesh * TEXELS + lo, MAPS + (uint32_t)mesh * TEXELS + hi + 1);
+        touch_rect(mesh, p->x, lo / BLOODMAP_W, (uint32_t)p->x + p->w, hi / BLOODMAP_W + 1);
 }
 
 static uint32_t wet_code(float now) {
@@ -507,7 +546,7 @@ void bloodmap_frame(float now) {
                 }
             }
         if (lo <= hi)
-            touch(MAPS + (uint32_t)mesh * TEXELS + lo, MAPS + (uint32_t)mesh * TEXELS + hi + 1);
+            touch_rect(mesh, 0, lo / BLOODMAP_W, BLOODMAP_W, hi / BLOODMAP_W + 1);
     }
     row = row + 24 >= BLOODMAP_H ? 0 : row + 24;
 }

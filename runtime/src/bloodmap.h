@@ -33,8 +33,10 @@ void bloodmap_stroke(int mesh, const TrailSkin *skin, const uint32_t *tris, int 
 /* Each frame of the game's (now: its time in seconds): old blood marked dry */
 void bloodmap_frame(float now);
 
-/* The renderer's thread: the words from RUN_MAPS_AT on (the maps, then the texels), and which changed since last asked */
-const uint32_t *bloodmap_words(uint32_t *from, uint32_t *to);
+/* The renderer's thread: all the words from RUN_MAPS_AT on (the maps, then the texels); and those changed since this
+ * was last asked copied to where the renderer keeps them (to: its copy of the first) - how many words */
+const uint32_t *bloodmap_store(void);
+uint32_t bloodmap_sync(uint32_t *to);
 /* the moment it is, as the texels have when they last got wet (1 to 256) */
 float bloodmap_now(void);
 int bloodmap_changed(void);            /* (whether any have: not locked, to ask often) */
