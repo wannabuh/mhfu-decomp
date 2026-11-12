@@ -741,7 +741,8 @@ void main() {
             if (lips > 0.0) {
                 vec3 raw = mix(full * vec3(1.0, 0.45, 0.4), vec3(0.75, 0.3, 0.26), 0.35) * (0.25 + 1.1 * lit_skin) * mix(0.75, 1.0, wet);
                 vec3 inside = full * 0.14 * max(shade, 0.5);
-                c.rgb = mix(c.rgb, mix(raw, inside, open), lips * 0.92);
+                // (as dark as the settings have blood, with it)
+                c.rgb = mix(c.rgb, mix(raw, inside, open) * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x, lips * 0.92);
             }
             float gloss = max(cover * (0.25 + 0.75 * clot), open) * max(wet, open * 0.25) * look.y * 0.6;
             if (gloss > 0.0) {
