@@ -18,8 +18,20 @@ static size_t lit_cap;
 double rt_game_30ths(void);
 
 /* gpu.c: the moment the frame shows, in seconds (-1: the game's own frame, drawn as it runs) */
+static double shown_s = -1;
+
 void render_time(double seconds) {
     clock_s = seconds;
+    if (seconds >= 0)
+        shown_s = seconds;
+}
+
+/* The moment of the frame last shown between the game's own (those are over by a frame's end, when the moment is the
+ * game's again and goes a tick at a time: the drops of blood in the air, moved then, went in jerks, #83) - the game's
+ * if none has been, or it is far from it (interpolation off since) */
+double scene_time_shown(void) {
+    double game = rt_game_30ths() / 30.0;
+    return shown_s >= 0 && game - shown_s < 0.25 && shown_s - game < 0.25 ? shown_s : game;
 }
 
 double scene_time(void) {

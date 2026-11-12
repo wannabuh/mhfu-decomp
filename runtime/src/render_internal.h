@@ -153,6 +153,7 @@ typedef struct {
 } Scene;
 extern Scene scene;
 void lights_blood_eye(const float *eye);    /* render_lights.c: the picture's eye, for the blood in the air */
+double scene_time_shown(void);      /* (the last frame shown's, at a frame's end too) */
 double scene_time(void);            /* the moment shown, in seconds of the game's */
 void scene_lit_vertex(size_t i, const float *w);   /* a lit batch's vertex i, in the world (its feet are found) */
 void scene_lit_batch(size_t n);     /* the lit batch of n vertices, flushed */

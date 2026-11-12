@@ -343,13 +343,39 @@ static void runs_sync(void) {
         memcpy((uint32_t *)runs_buf.map + run_from, runs + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
 }
 
+/* The look of the blood, into the eye's set (its dir[1], dir[2]): the settings', and the moments the blood on the
+ * animals is at */
+static void blood_look(LightSet *set) {
+    /* (and the settings' look of the blood on an animal: how solid, 0 as it was to 1; how it shines, times) */
+    static unsigned seen;
+    static float look[4], more[4] = {1, 0, 0, 0};
+    if (SETTING_STALE(seen)) {
+        /* (and how dark all the blood is: 1 as made, 0 twice as light, 2 half - dir[2].x how light, times) */
+        const char *dk = getenv("MHFU_BLOOD_DARKNESS");
+        float dark = dk ? (float)atof(dk) : 1.0f;
+        more[0] = powf(0.5f, (dark < 0 ? 0 : dark > 3 ? 3 : dark) - 1.0f);
+        const char *o = getenv("MHFU_BLOOD_OPACITY"), *s = getenv("MHFU_BLOOD_SHINE");
+        look[0] = o ? (float)atof(o) : 1.0f;
+        look[1] = s ? (float)atof(s) : 0.6f;
+        look[0] = look[0] < 0 ? 0 : look[0] > 1 ? 1 : look[0];
+        look[1] = look[1] < 0 ? 0 : look[1] > 4 ? 4 : look[1];
+    }
+    look[2] = trails_now();
+    look[3] = bloodmap_now();
+    memcpy(set->dir[1], look, sizeof look);
+    memcpy(set->dir[2], more, sizeof more);
+}
+
 void lights_blood_eye(const float *eye) {
     memcpy(blood_eye_shown, eye, sizeof blood_eye_shown);
     blood_eye_known = 1;
     if (bloodmap_changed())
         runs_sync();
-    if (light_buf.map)
+    if (light_buf.map) {
         memcpy(((LightSet *)light_buf.map + (size_t)vk.frame * LIGHT_SETS + BLOOD_SET_AT + BLOOD_SETS - 1)->dir[0], eye, sizeof(float) * 3);
+        /* (and its look: a frame shown without an end before it - the first, a headless run's pictures - has it so) */
+        blood_look((LightSet *)light_buf.map + (size_t)vk.frame * LIGHT_SETS + BLOOD_SET_AT + BLOOD_SETS - 1);
+    }
 }
 
 static void blood_sets(LightSet *l) {
@@ -364,7 +390,7 @@ static void blood_sets(LightSet *l) {
         blood_init(blood_buf.map);
     }
     runs_sync();
-    blood_step(scene_time(), &f);
+    blood_step(scene_time_shown(), &f);      /* (the moment last shown: at a frame's end the game's own is back, which goes in ticks) */
     memset(l, 0, sizeof *l * BLOOD_SETS);
     for (int i = 0; i < f.ndrops; i++) {
         memcpy(l[i / 4].dir[i % 4], f.drop_at[i], 16);
@@ -376,19 +402,7 @@ static void blood_sets(LightSet *l) {
         memcpy(i < 4 ? l[2 * BLOOD_DROP_SETS].dir[i] : i < 8 ? l[2 * BLOOD_DROP_SETS].color[i - 4] : i < 12 ? l[2 * BLOOD_DROP_SETS + 1].dir[i - 8]
                      : l[2 * BLOOD_DROP_SETS + 1].color[i - 12], f.palette[i], 12);
     memcpy(l[BLOOD_SETS - 1].dir[0], blood_eye_known ? blood_eye_shown : f.eye, 12);
-    /* (and the settings' look of the blood on an animal: how solid, 0 as it was to 1; how it shines, times) */
-    static unsigned seen;
-    static float look[4];
-    if (SETTING_STALE(seen)) {
-        const char *o = getenv("MHFU_BLOOD_OPACITY"), *s = getenv("MHFU_BLOOD_SHINE");
-        look[0] = o ? (float)atof(o) : 1.0f;
-        look[1] = s ? (float)atof(s) : 0.6f;
-        look[0] = look[0] < 0 ? 0 : look[0] > 1 ? 1 : look[0];
-        look[1] = look[1] < 0 ? 0 : look[1] > 4 ? 4 : look[1];
-    }
-    look[2] = trails_now();
-    look[3] = bloodmap_now();
-    memcpy(l[BLOOD_SETS - 1].dir[1], look, sizeof look);
+    blood_look(&l[BLOOD_SETS - 1]);
     l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
 

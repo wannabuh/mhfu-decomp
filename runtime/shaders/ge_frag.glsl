@@ -442,7 +442,7 @@ void main() {
                     float body = mix(0.8, 0.98, deep_of(thick)) * (0.82 + 0.18 * smoothstep(0.25, 0.6, blood_noise(in_world.xz * 0.06 + 7.3)));
                     wet *= 1.0 - 0.6 * sand;
                     vec3 dry = mix(col * 0.6, vec3(0.3, 0.1, 0.07), 0.4);         // (dried: a dark red-brown, not black)
-                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.8, smoothstep(1.0, 3.0, thick));
+                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.8, smoothstep(1.0, 3.0, thick)) * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x;
                     tint = mix(tint, col * 1.15, 0.5 * snow);
                     tint = mix(tint, tint * 0.6, 0.6 * sand);
                     float deep = deep_of(thick);
@@ -724,7 +724,7 @@ void main() {
             if (cover > 0.0) {
                 vec3 under = c.rgb;
                 // (fresh: a deep red; dried, over a minute: darker and towards brown)
-                vec3 tone = mix(mix(full * 0.34, vec3(0.2, 0.09, 0.05), 0.4), full * 0.62, wet);
+                vec3 tone = mix(mix(full * 0.34, vec3(0.2, 0.09, 0.05), 0.4), full * 0.62, wet) * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x;
                 vec3 stained = tone * (0.16 + 1.25 * lit_skin);
                 clot = smoothstep(0.25, 0.8, sum.y) * smoothstep(0.5, 0.9, sum.x);
                 vec3 clotted = tone * 0.62 * max(shade, 0.4);
@@ -833,7 +833,7 @@ void main() {
             // be: it was held at 0.0016 of its distance, three pixels on a large screen, and the drops across an
             // area were as big as those at hand, #83)
             float least = 0.0006 * length(to), r = max(at.w, least);
-            c.rgb = mix(c.rgb, col.rgb * 0.42, 0.9 * min(at.w / least, 1.0) * (1.0 - smoothstep(r * 0.45, r, length(off))));
+            c.rgb = mix(c.rgb, col.rgb * 0.42 * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x, 0.9 * min(at.w / least, 1.0) * (1.0 - smoothstep(r * 0.45, r, length(off))));
         }
     }
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1
