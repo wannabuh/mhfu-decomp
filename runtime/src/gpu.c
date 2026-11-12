@@ -3872,7 +3872,9 @@ static struct {
     double run_due;                     /* the game's time the next does */
     float gap;                          /* how long after its last drop the next falls, 30ths of a second */
     double dead_at;                     /* the game's time its animal was first seen dead (0: alive) */
-    int breaks, burst;                  /* its animal's parts' breaks, counted; drops still to burst from it */
+    int breaks, burst;                  /* its animal's parts' meters run out, counted; drops still to burst from it */
+    uint8_t part[9];                    /* (each part's count) */
+    int splash_due, forced;             /* a part broke by it: blood still to paint about it; (MHFU_WOUND_TEST_EVENT) */
     double broke_at;                    /* the game's time the hit that made it broke a part (0: it did not) */
     float at[3], speed[3];              /* while it drips: where its vertex is in the world, and how fast it goes */
     double at_when;                     /* (the game's time of that; 0: not known) */
@@ -3896,7 +3898,7 @@ static void paint_hits(const Frame *f, double now30);
 static float blood_chance(void);
 static int trickles_on(void);
 static const uint8_t *wound_blood(int type);
-static struct { float contact[3], axis[3], attacker[3], swing[3], depth, hard; int damage, kind, breaks, swung, capsule, bladed, test; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], swing[3], depth, hard; int damage, kind, breaks, swung, capsule, bladed, test; uint8_t part[9]; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
 static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
@@ -4056,7 +4058,7 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
     memcpy(wound_pending[k].attacker, PTR(attacker + 0x200u), sizeof wound_pending[k].attacker);
     wound_pending[k].breaks = 0;        /* (its parts' breaks so far: one this hit makes is counted after) */
     for (uint32_t slot = 0; slot < 9; slot++)
-        wound_pending[k].breaks += LBU(monster + 0x582u + 8u * slot);
+        wound_pending[k].breaks += wound_pending[k].part[slot] = LBU(monster + 0x582u + 8u * slot);
     /* the way the weapon's shape lies (a capsule's ends; a ball has none: level, across) */
     float a[3] = {1, 0, 0};
     wound_pending[k].capsule = LW(attacker_shape) == 0;
@@ -4391,6 +4393,50 @@ static void blade_frame(const Frame *f) {
         }
         return;
     }
+}
+
+/* More off the weapon, at once: n drops thrown from along it the way it was last swung, and it is wet again (so wet) for
+ * the rest of the swing - the blow made the animal flinch, or broke a part of it. 0: no weapon is followed, or it was
+ * not swung just now (a shot) */
+static int blade_throw(int n, float wet, const uint8_t *rgb) {
+    double now = rt_game_30ths();
+    if (!blade.key || blade.by < 0x08800000u || blade.by >= 0x0A000000u - 0x210u || now < blade.hit_at || now - blade.hit_at > 0.5 * 30 ||
+        !(blade.swing_fast > 250.0f))
+        return 0;
+    const float *attacker = (const float *)PTR(blade.by + 0x200u);
+    float fast = blade.swing_fast, keep = fast > 1400.0f ? 1400.0f / fast : 1.0f;
+    n = (int)((float)n * blade_much() + 0.5f);
+    for (int i = 0; i < n; i++) {
+        float along = sqrtf(blood_chance()), share = (0.35f + 0.65f * blood_chance()) * keep, at[3], v[3];
+        for (int k = 0; k < 3; k++) {
+            at[k] = blade.at[0][k] + (blade.at[1][k] - blade.at[0][k]) * along;
+            v[k] = (blade.swing[0][k] + (blade.swing[1][k] - blade.swing[0][k]) * along) * share + (blood_chance() - 0.5f) * 0.45f * fast * keep;
+        }
+        v[1] += 60.0f + 160.0f * blood_chance();
+        blood_falls(at, v, attacker[1], (1.6f + 3.4f * blood_chance()) * blade_size(), rgb, 0);
+    }
+    memcpy(blade.rgb, rgb, 3);
+    blade.wet = fmaxf(blade.wet, wet);
+    blade.hit_at = now;
+    if (getenv("MHFU_WOUND_LOG"))
+        fprintf(stderr, "blade: %d more thrown off it, swung at %.0f units a second\n", n, (double)fast);
+    return 1;
+}
+
+/* Whether a part of an animal breaks for good as its meter runs out for the count-th time (each time, the animal
+ * flinches): the game's own list (game_task 09AD4A40 looks through it: 62 records of 32 bytes at 09BCE9E0 - a
+ * monster's type, the part, the count; types are alike if the first of their group's list at 0899C060 is) */
+static int part_breaks_at(int type, uint32_t slot, int count) {
+    const uint32_t list = 0x09BCE9E0u, groups = 0x0899C060u;
+    uint32_t mine = LW(groups + 4u * (uint32_t)(type & 0xFF));
+    if (mine < 0x08800000u || mine >= 0x0A000000u)
+        return 0;
+    for (uint32_t e = list; e < list + 62u * 0x20u; e += 0x20u) {
+        uint32_t its = LW(groups + 4u * LBU(e));
+        if (LBU(e + 1) == slot && LBU(e + 2) == (uint32_t)count && its >= 0x08800000u && its < 0x0A000000u && LBU(its) == LBU(mine))
+            return 1;
+    }
+    return 0;
 }
 
 /* Which meshes (their vertices' addresses) have been drawn away from the local hunter - a bone of theirs further off
@@ -4944,6 +4990,7 @@ static void wounds_attach(Frame *f) {
         wounds[n].broke_at = 0;
         wounds[n].burst = 0;
         wounds[n].breaks = wound_pending[h].breaks;
+        memcpy(wounds[n].part, wound_pending[h].part, sizeof wounds[n].part);
         wounds[n].at_when = 0;
         wounds[n].run[0] = -along[1];
         wounds[n].run[1] = -across[1];
@@ -4956,6 +5003,8 @@ static void wounds_attach(Frame *f) {
             mul43(wound_cam[bcam], m, wounds[n].where);
         }
         }
+        if (wound_pending[h].test && getenv("MHFU_WOUND_TEST_EVENT"))   /* (a test's blow: as if the animal flinched at it, 1, or a part broke, 2) */
+            wounds[n].forced = atoi(getenv("MHFU_WOUND_TEST_EVENT"));
         if (bloodmap_on() && paint_dues < 8 && gain > 0) {
             float to[3];
             for (int k = 0; k < 3; k++)
@@ -5152,21 +5201,46 @@ static void wounds_frame(const Frame *f) {
         if (health <= 0 && !wounds[w].dead_at)
             wounds[w].dead_at = now30;
         int dying = wounds[w].dead_at > 0 && now30 - wounds[w].dead_at < 8.0 * 30 && now30 >= wounds[w].dead_at;
-        /* A part of it broken, or its tail cut (the game counts each part's breaks: monster_damage.c), by the hit
-         * that made this wound - the animal's newest, made within two seconds: blood bursts from it, and it bleeds
-         * hard for ten seconds, however deep it was */
-        int breaks = 0;
-        for (uint32_t slot = 0; slot < 9; slot++)
-            breaks += LBU(of->addr + 0x582u + 8u * slot);
+        /* The game keeps a meter for each part of the animal, and counts the times it has run out
+         * (monster_damage.c): each time the animal flinches, and at some counts the part breaks for good, or the
+         * tail is cut. By the blow that made this wound or last fed it - the animal's newest, within two seconds:
+         *   it flinched   drops burst from the wound and are thrown off the weapon; no more runs down it
+         *   a part broke  many more of both, blood all about the wound, three runs more from it, and it bleeds
+         *                 hard for ten seconds, however deep it was */
+        int breaks = 0, broke = 0, event = 0;
+        for (uint32_t slot = 0; slot < 9; slot++) {
+            int count = LBU(of->addr + 0x582u + 8u * slot);
+            breaks += count;
+            if (count > wounds[w].part[slot] && part_breaks_at(of->type, slot, count))
+                broke = 1;
+            wounds[w].part[slot] = (uint8_t)count;
+        }
         if (breaks != wounds[w].breaks) {
-            int newest = breaks > wounds[w].breaks && age < 2.0 * 30 && wounds[w].kind == WOUND_SLASH;
+            int newest = breaks > wounds[w].breaks && now30 >= wounds[w].fed && now30 - wounds[w].fed < 2.0 * 30;
             for (int o = 0; o < n && newest; o++)
-                newest = o == w || wounds[o].gone || wounds[o].of.addr != of->addr || wounds[o].born <= wounds[w].born;
+                newest = o == w || wounds[o].gone || wounds[o].of.addr != of->addr || wounds[o].fed <= wounds[w].fed;
             wounds[w].breaks = breaks;
-            if (newest) {
+            if (newest)
+                event = broke ? 2 : 1;
+        }
+        if (wounds[w].forced && now30 - wounds[w].fed >= 3) {
+            event = wounds[w].forced;
+            wounds[w].forced = 0;
+        }
+        if (event) {
+            int thrown = blade_throw(event == 2 ? 26 : 10, event == 2 ? 1.0f : 0.6f, wound_blood(of->type));
+            wounds[w].burst = (event == 2 ? 24 : 9) + (thrown ? 0 : event == 2 ? 14 : 6);
+            if (event == 2) {
                 wounds[w].broke_at = now30;
-                wounds[w].burst = 8;
+                wounds[w].splash_due = 1;
+                wounds[w].depth = fmaxf(wounds[w].depth, 0.7f);
+                wounds[w].runs_set = 1;
+                wounds[w].runs_left = wounds[w].runs_left > 0 ? wounds[w].runs_left + 2 : 3;
+                wounds[w].run_due = now30 + 3;
             }
+            if (getenv("MHFU_WOUND_LOG"))
+                fprintf(stderr, "wound %d: %s at its blow - %d drops burst from it%s\n", w, event == 2 ? "a part of its animal broke" : "its animal flinched",
+                        wounds[w].burst, thrown ? ", more off the weapon" : "");
         }
         if (wounds[w].broke_at > 0 && now30 >= wounds[w].broke_at && now30 - wounds[w].broke_at < 10.0 * 30)
             dying = 2;
@@ -5175,8 +5249,7 @@ static void wounds_frame(const Frame *f) {
          * dripping from where it is bloodiest, a drop every second or few, for as long as it lives) */
         double fresh = now30 - wounds[w].fed;
         int weak = hurt > 0.6f && health > 0 && wounds[w].blood >= 2.0f && wounds[w].kind == WOUND_SLASH;
-        if (!weak && (depth < drips_from || wounds[w].kind != WOUND_SLASH || (!dying && fresh >= WOUND_DRIPS_FOR * (1.0 + hurt))))
-            continue;
+        int drips = weak || !(depth < drips_from || (wounds[w].kind != WOUND_SLASH && dying != 2) || (!dying && fresh >= WOUND_DRIPS_FOR * (1.0 + hurt)));
         if (weak && depth < drips_from)
             drips_from = 0;
         int newer = 0;
@@ -5184,6 +5257,8 @@ static void wounds_frame(const Frame *f) {
             newer += o != w && !wounds[o].gone && wounds[o].of.addr == of->addr && wounds[o].depth >= drips_from &&
                      wounds[o].kind == WOUND_SLASH && wounds[o].fed > wounds[w].fed;
         if (newer >= 2)
+            drips = 0;
+        if (!drips && wounds[w].burst <= 0 && !wounds[w].splash_due)    /* (what bursts from it does whatever it is) */
             continue;
         for (int gi = 0; gi < f->ntlg; gi++) {
             const TlGroup *g = &f->tlg[gi];
@@ -5213,13 +5288,29 @@ static void wounds_frame(const Frame *f) {
                 memcpy(wounds[w].at, at, sizeof at);
                 wounds[w].at_when = now30;
             }
+            /* (the burst: droplets thrown out all ways and up, of every size - they fly as thrown things do) */
             for (; wounds[w].burst > 0; wounds[w].burst--) {
-                float turn = blood_chance() * 6.2832f, out = 120.0f + 260.0f * blood_chance();
-                float v[3] = {wounds[w].speed[0] + cosf(turn) * out, wounds[w].speed[1] + 150.0f + 250.0f * blood_chance(),
+                float turn = blood_chance() * 6.2832f, out = 130.0f + 330.0f * blood_chance(), from[3];
+                float v[3] = {wounds[w].speed[0] + cosf(turn) * out, wounds[w].speed[1] + 140.0f + 320.0f * blood_chance(),
                               wounds[w].speed[2] + sinf(turn) * out};
                 float floor_y = wounds[w].where[1] < wounds[w].floor_y ? wounds[w].where[1] : wounds[w].floor_y;
-                blood_falls(at, v, floor_y, 4.0f + 5.0f * blood_chance(), wound_blood(of->type), 1);
+                for (int k = 0; k < 3; k++)
+                    from[k] = at[k] + (blood_chance() - 0.5f) * 14.0f;
+                blood_falls(from, v, floor_y, 2.0f + 4.5f * blood_chance(), wound_blood(of->type), 0);
             }
+            /* (a part broke: blood all about the wound, on the skin - which way out is, paint_hits finds) */
+            if (wounds[w].splash_due && bloodmap_on() && paint_dues < 8) {
+                memset(&paint_due[paint_dues], 0, sizeof paint_due[paint_dues]);
+                paint_due[paint_dues].of = *of;
+                paint_due[paint_dues].world = world;
+                memcpy(paint_due[paint_dues].at, at, sizeof at);
+                paint_due[paint_dues].gain = 1.5f * fmaxf(blood_amount(), 0.0f);
+                paint_due[paint_dues].floor_y = wounds[w].floor_y;
+                paint_due[paint_dues++].kind = -1;
+            }
+            wounds[w].splash_due = 0;
+            if (!drips)
+                break;
             static int pour = -1;       /* (MHFU_BLOOD_POUR=n: a test - n drops a second from each, as long as it drips) */
             if (pour < 0)
                 pour = getenv("MHFU_BLOOD_POUR") ? atoi(getenv("MHFU_BLOOD_POUR")) : 0;
@@ -5831,7 +5922,21 @@ static void paint_hits(const Frame *f, double now30) {
          * splash with its arms - the cut leading, not the blood, #83. A blunt one: a bruise, and less blood) */
         float g = paint_due[k].gain, now = (float)(now30 / 30.0), big = paint_due[k].size > 0 ? fminf(fmaxf(paint_due[k].size, 0.4f), 1.5f) : 1.0f;
         float dp = paint_due[k].depth;
-        int blunt = paint_due[k].kind == WOUND_BLUNT;
+        int blunt = paint_due[k].kind == WOUND_BLUNT, broke = paint_due[k].kind < 0;
+        if (broke) {                    /* (a part broken, wounds_frame: out of the skin nearest it) */
+            uint32_t tri = 0;
+            float bc[3], P[3][3], R[3][3], u[3], v[3], o[3];
+            if (!(g > 0) || trail_nearest(tm, paint_due[k].at, 0, ~0u, 1e30f, NULL, &tri, bc) > 120.0f * 120.0f || !trail_corners(tm, tri, P, R))
+                continue;
+            for (int i = 0; i < 3; i++)
+                u[i] = P[1][i] - P[0][i], v[i] = P[2][i] - P[0][i];
+            o[0] = u[1] * v[2] - u[2] * v[1], o[1] = u[2] * v[0] - u[0] * v[2], o[2] = u[0] * v[1] - u[1] * v[0];
+            float ol = sqrtf(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
+            if (!(ol > 0))
+                continue;
+            for (int i = 0; i < 3; i++)
+                paint_due[k].out[i] = o[i] / (tm->flip && tm->flip[tri] ? -ol : ol);
+        }
         /* (a third larger and thicker than it was: too little at the hits, the user's word with #93) */
         BloodSplash sp = {.radius = (7.0f + 15.0f * g * g) * big * (blunt ? 0.8f : 1.0f), .much = fminf(0.4f + 0.5f * g, 0.95f) * (blunt ? 0.75f : 1.0f),
                           .lengthen = 1, .seed = blood_chance(), .kind = SPLASH_BLOT};
@@ -5840,7 +5945,10 @@ static void paint_hits(const Frame *f, double now30) {
         memcpy(sp.out, paint_due[k].out, sizeof sp.out);
         memcpy(sp.along, paint_due[k].along, sizeof sp.along);
         bloodmap_splash(m, &skin, &sp, tm->flip, now);
-        if (blunt) {
+        if (broke) {                    /* (and another over it, smaller, no two alike: thick in the middle) */
+            sp.radius *= 0.6f, sp.seed = blood_chance();
+            bloodmap_splash(m, &skin, &sp, tm->flip, now);
+        } else if (blunt) {
             sp.radius = (9.0f + 9.0f * g) * big, sp.much = fminf(0.45f + 0.4f * g, 1.0f), sp.kind = SPLASH_BRUISE, sp.seed = blood_chance();
             bloodmap_splash(m, &skin, &sp, tm->flip, now);
         } else if (paint_due[k].kind == WOUND_SLASH) {

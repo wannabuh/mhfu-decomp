@@ -61,6 +61,21 @@ Done:
 Seen headless on the Tigrex only (a splash on the cheek with short tapering drips). On the Congalala capture the
 monster leaps during the test and the planted hits land under a limb; not judged there. Not done: softer on fur.
 
+## Flinches and part breaks (added 2026-11-12, not yet seen in a fight)
+
+The user asked: a part breaking should bleed a lot and throw many drops off the weapon; a flinch should throw drops
+the same way but add no streaks.
+
+- The game counts, per part, the times its meter has run out (`+0x582 + 8 * slot`); each is a flinch. A part breaks
+  for good only at the counts in the game's list (62 records at `09BCE9E0`, read by `game_task 09AD4A40`):
+  `part_breaks_at` in `gpu.c`. Before this, every flinch was treated as a break, and only for a slash's new wound.
+- Flinch: 9 drops burst from the wound and 10 more are thrown off the weapon (`blade_throw`); no runs.
+- Break: 24 and 26 drops, a large blot painted about the wound (`paint_due` kind -1), three more runs, ten seconds
+  of hard dripping. Any kind of blow, and a wound that was fed counts (by `fed`, not `born`).
+- Test: `MHFU_WOUND_TEST_EVENT=1` (flinch) or `2` (break) with `MHFU_WOUND_TEST`. Seen headless: the blot and the
+  log lines. Not seen: the drops in the air, the weapon's throw (no blade is followed in a planted hit), and whether
+  the list picks out real breaks in a fight (`MHFU_WOUND_LOG=1` prints "flinched" or "a part of its animal broke").
+
 ## Tickets
 
 Only the user closes tickets; set `fix-ready` with a check line (`python3 tools/tickets.py`).
