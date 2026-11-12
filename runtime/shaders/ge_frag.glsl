@@ -491,15 +491,77 @@ void main() {
         float steep = length(run.xy);
         bool cut_here = abs(q.x) < 1.0 && abs(q.y) < 1.0;
         float left = mod(look.y, 2.0), ran = floor(look.y * 0.5) / 1000.0;      // (how much of it is left; how far its blood has run)
-        if (abs(q.z) >= 1.0 || left <= 0.0 || (!cut_here && steep < 0.1))
+        if (left <= 0.0)
+            continue;
+        // (packed with the cut's half length and half width: how far the blood about it reaches, how deep the
+        // wound's measure is, how thick the blood lies - gpu.c wounds_fill)
+        float reach_about = floor(run.z / 1024.0), packed = floor(run.w / 256.0);
+        run.z = mod(run.z, 1024.0);
+        run.w = mod(run.w, 256.0);
+        float deep_units = mod(packed, 256.0) / 8.0, lies = floor(packed / 256.0) / 63.0;
+        vec3 from_cut = vec3(q.x * run.z, q.y * run.w, q.z * deep_units);      // (units, in the cut's frame)
+        bool in_cut = abs(q.z) < 1.0 && (cut_here || steep >= 0.1);
+        if (!in_cut && (reach_about <= 0.0 || dot(from_cut, from_cut) > reach_about * reach_about * 7.0))
             continue;
         float seed = fract(look.w) * 64.0, kind = floor(look.w);
         bool hole = kind == 1.0;
+        cut_here = cut_here && kind != 2.0;     // (a blunt blow: no cut, the blood alone)
         float wetness = floor(look.z) / 63.0, depth = fract(look.z) / 0.98;
         vec3 blood = vec3(mod(look.x, 256.0), mod(floor(look.x / 256.0), 256.0), floor(look.x / 65536.0)) / 255.0;
         float bleeds = smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
         // (the settings: how solid the blood that has run is - 0 as thin as it was - and how it shines)
         vec2 solid_shine = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xy;
+        // The blood about the wound, more with every hit that lands in it: a patch of it on the skin, its edge
+        // ragged, lying mostly below the cut and hanging from its lower edge in runs where the skin slopes; red
+        // still when it has dried, darker at its rim and where it lies thick. Under the cut, which is drawn on it.
+        // Measured through the skin too (the wound's frame, in units), so it goes round a limb as far as it reaches
+        // and not through to its other side.
+        if (reach_about > 0.0) {
+            float slope = clamp(steep * 1.6, 0.0, 1.0);
+            vec2 down = steep > 0.02 ? run.xy / steep : vec2(0.0, -1.0), aside = vec2(-down.y, down.x);
+            vec3 from_mid = from_cut - vec3(down * reach_about * 0.3 * slope, 0.0);
+            float below = dot(from_mid.xy, down), beside = dot(from_mid.xy, aside);
+            // (the runs: columns of it drawn out downward, each its own length)
+            float column = wound_noise(beside * 0.085 + seed * 11.0);
+            float hangs = 1.0 + 2.2 * column * column * column * slope * smoothstep(0.0, reach_about * 0.25, below);
+            float far = length(vec3(beside, below > 0.0 ? below / hangs : below, from_mid.z));
+            vec2 turn = far > 0.0 ? vec2(beside, below) / max(length(vec2(beside, below)), 1e-3) : vec2(0.0);
+            float ragged = 0.5 * wound_noise(turn.x * 2.3 + seed * 7.0) + 0.3 * wound_noise(turn.y * 3.1 + seed * 13.0) +
+                           0.2 * wound_noise((turn.x - turn.y) * 6.0 + seed * 29.0);
+            float edge = reach_about * (0.55 + 0.45 * ragged);
+            float feather = max(fwidth(far) * 1.5, 1.2);
+            float about = 1.0 - smoothstep(edge - feather, edge, far);
+            // (broken up towards its edge, where it lies thin: blots of it, and skin between)
+            float blots = wound_noise(from_cut.x * 0.13 + seed * 3.0) + wound_noise(from_cut.y * 0.17 + seed * 5.0) +
+                          wound_noise((from_cut.x + from_cut.y) * 0.21 + seed * 17.0);
+            float inward = far / max(edge, 1.0);
+            about *= smoothstep(0.0, 0.2, blots / 3.0 - (0.5 - 0.4 * lies) * smoothstep(0.45, 1.0, inward) * (below > 0.0 ? 1.0 / hangs : 1.0));
+            about *= left * smoothstep(-0.7, -0.2, in_wound_facing[k]);     // (all but what is turned right away from it)
+            if (about > 0.0) {
+                vec3 under = c.rgb;
+                float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
+                vec3 its = mix(blood * 0.6, blood * 0.92, wetness) * (1.0 - 0.3 * smoothstep(0.7, 1.0, inward)) * (1.0 - 0.25 * lies * (1.0 - inward));
+                its = mix(its, under / max(lit_under, 0.02) * dot(its, vec3(0.3, 0.55, 0.15)), 0.2 * (1.0 - solid_shine.x));
+                // (as light as the skin is lit - its light without its picture's pattern, which would show through
+                // as if the blood were a tint: the lit colour over the picture's own - the more so the thicker it lies)
+                float shade = clamp(lit_under / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
+                float light = mix(lit_under * 1.9, shade * 0.62, solid_shine.x * mix(0.75, 1.0, lies));
+                c.rgb = mix(under, its * light, about * mix(0.7, 1.0, solid_shine.x) * mix(0.9, 1.0, lies));
+                float gloss = about * (0.3 + 0.5 * lies) * max(wetness, 0.15) * solid_shine.y;
+                vec3 n = cross(dFdx(in_world), dFdy(in_world));
+                vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
+                if (gloss > 0.0 && dot(n, n) > 0.0 && dot(view, view) > 0.0) {
+                    view = normalize(view);
+                    n = normalize(n);
+                    n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
+                    vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]) + vec3(0.0, 1e-5, 0.0));
+                    c.rgb += (pow(max(dot(n, normalize(view + sun)), 0.0), 40.0) * (1.0 - 0.85 * sh) * 0.9 +
+                              pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 18.0) * 0.2 * (0.3 + lit_under)) * gloss;
+                }
+            }
+        }
+        if (!in_cut)
+            continue;
         // how soft its edges are: a pixel's worth of the wound, and no finer than the skin's picture is here
         float soft = clamp(fwidth(q.y) * 1.5 + 0.035, 0.035, 0.3);
         float gash = 0.0, stain = 0.0, v = 0.0, wide = 0.1;
@@ -554,7 +616,7 @@ void main() {
         // The blood running down: from a cut that bleeds, on skin that slopes at all, runs from points along the cut
         // - each its own length and width and speed, wandering a little, a bead at its end - most of the way in a
         // few seconds, and staying where they got to. More of them, longer and wider, the deeper the cut.
-        float runs = bleeds * smoothstep(0.25, 0.7, depth) * clamp(steep * 2.5, 0.0, 1.0) * (hole ? 0.5 : 1.0);
+        float runs = bleeds * smoothstep(0.25, 0.7, depth) * clamp(steep * 2.5, 0.0, 1.0) * (hole ? 0.5 : kind == 2.0 ? 0.0 : 1.0);
         float cover = 0.0;
         if (runs > 0.0 && steep >= 0.1) {
             vec2 on_skin = vec2(q.x * run.z, q.y * run.w), down = run.xy / steep, aside = vec2(-down.y, down.x);

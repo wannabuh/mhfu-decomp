@@ -18,6 +18,7 @@
 #include "blood.h"
 static void trail_models_clear(void);  /* (the blood run down the animals, below: all forgotten) */
 static int trail_stage_known;
+static void wound_roams_clear(void);
 
 #include <math.h>
 #include <stdlib.h>
@@ -361,6 +362,7 @@ static void shadow_frame(const float *shown) {
             stage_was = stage;
             sun_peak = 0;               /* (till its light is given, as strong as it was) */
             blood_clear();              /* (the ground's blood is the area's) */
+            wound_roams_clear();
             if (trail_stage_known)      /* (and the animals' - not as the first area is first seen) */
                 trail_models_clear();
             trail_stage_known = 1;
@@ -3834,15 +3836,15 @@ extern unsigned long present_frame_number(void);
 #define WOUND_SHOT_HALF 16.0f       /* a shot's hole, and the blood about it */
 #define WOUND_DEPTH 14.0f           /* how far through the skin it reaches, either way */
 #define WOUND_SHIFT 40.0f           /* its middle from the vertex found, at most */
-#define WOUND_LIFE (wound_life() * 30)  /* how long one stays, in 30ths of the game's second; the last WOUND_FADE of it fading */
+#define WOUND_LIFE (wound_life() * 30)  /* how long one stays, in 30ths of the game's second; the last WOUND_FADE of it fading (0: as long as its animal) */
 #define WOUND_FADE (WOUND_LIFE * 0.25)
 #define WOUND_LASTS(depth) (2.0 / 3 + (depth))  /* (times WOUND_LIFE: a scratch two minutes, a gash five) */
 #define WOUND_FRESH (20.0 * 30)     /* wet this long, drying */
-enum { WOUND_SLASH, WOUND_SHOT, WOUND_BLUNT };     /* (a blunt hit leaves no wound: its blood is the weapon's to throw) */
+enum { WOUND_SLASH, WOUND_SHOT, WOUND_BLUNT };     /* (a blunt hit leaves no cut: the blood about where it landed, alone) */
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
-#define WOUND_PIECES 6              /* the model's pieces a wound lies over, at most */
+#define WOUND_PIECES 64             /* the model's pieces a wound lies over, at most */
 /* (each piece's vertices are in a space of their own - their own scale, by how they are packed - so the wound is kept
  * among each piece's: one kept among the first's alone stepped aside at every join it crossed, #63) */
 static struct {
@@ -3867,6 +3869,11 @@ static struct {
     double broke_at;                    /* the game's time the hit that made it broke a part (0: it did not) */
     float at[3], speed[3];              /* while it drips: where its vertex is in the world, and how fast it goes */
     double at_when;                     /* (the game's time of that; 0: not known) */
+    /* The blood about it (ge_frag.glsl): each hit that lands in it adds to it - no wound of its own - and it grows,
+     * wider and thicker, to rmax at most; fed: the game's time of the last. deep: how far through the skin the
+     * wound's measure reaches, units */
+    float blood, rmax, deep;
+    double fed;
     float run[4];                       /* which way is down across the skin, along and across the cut (as steep as
                                          * the skin is); the cut's half length and half width, units */
 } wounds[WOUNDS];
@@ -3878,19 +3885,52 @@ static void trail_models_frame(const Frame *f, double now30);
 static void trail_from_wound(const Frame *f, int w, const float *world, double now30);
 static int trickles_on(void);
 static const uint8_t *wound_blood(int type);
-static struct { float contact[3], axis[3], attacker[3], swing[3], depth; int damage, kind, breaks, swung, capsule, bladed; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
+static struct { float contact[3], axis[3], attacker[3], swing[3], depth, hard; int damage, kind, breaks, swung, capsule, bladed, test; float ends[2][3]; uint32_t by; WoundOwner of; unsigned long frame; int used; } wound_pending[8];
 static int wound_before_sum;        /* the monster's damage waiting, before the hit's was added (wound_before) */
 static uint32_t wound_before_of;
 static float wound_cam[2][12];      /* the game's camera undone: this frame's and the one's before */
 static int wound_cams;
 
-/* MHFU_WOUND_SECONDS: how long a wound stays (180) */
+/* MHFU_WOUND_SECONDS: how long a wound stays (a scratch two thirds of it, a gash five thirds). Not set: as long as its
+ * animal is there */
 static double wound_life(void) {
     static double life;
     static unsigned seen;
     if (SETTING_STALE(seen))
-        life = getenv("MHFU_WOUND_SECONDS") && atof(getenv("MHFU_WOUND_SECONDS")) > 0 ? atof(getenv("MHFU_WOUND_SECONDS")) : 180.0;
+        life = getenv("MHFU_WOUND_SECONDS") && atof(getenv("MHFU_WOUND_SECONDS")) > 0 ? atof(getenv("MHFU_WOUND_SECONDS")) : 0;
     return life;
+}
+
+/* MHFU_BLOOD_AMOUNT: how bloody a monster gets - times the blood each hit leaves about its wound (1; 0: none) */
+static float blood_amount(void) {
+    static float amount;
+    static unsigned seen;
+    if (SETTING_STALE(seen))
+        amount = getenv("MHFU_BLOOD_AMOUNT") ? fmaxf((float)atof(getenv("MHFU_BLOOD_AMOUNT")), 0.0f) : 1.0f;
+    return amount;
+}
+
+/* How far a wound's blood reaches about it, units, and how thick it lies (0-1) */
+static float wound_blood_reach(int w) {
+    return wounds[w].blood > 0 ? 14.0f + (wounds[w].rmax - 14.0f) * (1.0f - expf(-wounds[w].blood / 3.5f)) : 0;
+}
+
+static float wound_blood_thick(int w) {
+    return 1.0f - expf(-wounds[w].blood / 3.0f);
+}
+
+/* A place for a new wound: one free, or gone; else the one with the least blood about it (of two alike the older) */
+static int wound_place(void) {
+    if (wound_next < WOUNDS)
+        return wound_next++;
+    int at = 0;
+    for (int w = 0; w < WOUNDS; w++) {
+        if (wounds[w].gone)
+            return w;
+        if (wounds[w].blood < wounds[at].blood || (wounds[w].blood == wounds[at].blood && wounds[w].born < wounds[at].born))
+            at = w;
+    }
+    return at;
 }
 
 static int wounds_on(void) {
@@ -4023,6 +4063,12 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
         float d = (share - 0.005f) / (0.05f - 0.005f);
         d = d < 0 ? 0 : d > 1 ? 1 : d;
         d = sqrtf(d);
+        /* (and by how hard the blow was itself: a great animal's health is so much that no one blow is a great share
+         * of it, and its every wound was a scratch - #81. A cut from 25 or so, a gash at 85) */
+        float hard = dealt * scale, dh = (hard - 5.0f) / (85.0f - 5.0f);
+        dh = sqrtf(dh < 0 ? 0 : dh > 1 ? 1 : dh);
+        d = d > dh ? d : dh;
+        wound_pending[k].hard = hard;
         if (LBU(record + 0x74u) == 3)
             d += 0.15f;
         /* (a small animal's every hit is a great share of its health: no deeper than a cut at 150 health or under,
@@ -4322,6 +4368,101 @@ static void blade_frame(const Frame *f) {
     }
 }
 
+/* Which meshes (their vertices' addresses) have been drawn away from the local hunter - a bone of theirs further off
+ * than the hunter's own or the weapon's ever are - in this area: an animal's, a comrade's. Looked at each frame, since
+ * at the hit itself the animal's head may be as near the hunter as the hunter's own arm */
+extern uint32_t rt_local_player;
+static uint32_t wound_roam[512];
+static int wound_roam_n;
+
+static void wound_roams_clear(void) {
+    memset(wound_roam, 0, sizeof wound_roam);
+    wound_roam_n = 0;
+}
+
+static int wound_roams(uint32_t vaddr) {
+    for (uint32_t at = vaddr >> 4;; at++) {
+        uint32_t v = wound_roam[at & 511];
+        if (v == vaddr || !v)
+            return v != 0;
+    }
+}
+
+static void wound_roams_frame(const Frame *f) {
+    uint32_t h = rt_local_player;
+    if (h < 0x08800000u || h >= 0x0A000000u - 0x210u || !wound_cams)
+        return;
+    float place[3];
+    memcpy(place, PTR(h + 0x200u), sizeof place);
+    const float zero[3] = {0, 0, 0};
+    for (int gi = 0; gi < f->ntlg; gi++) {
+        const Draw *d = &f->draws[f->tlg[gi].first];
+        if (!(d->reg[0x17] & 1) || (d->reg[0x12] >> 23 & 1) || !d->vaddr || wound_roams(d->vaddr))
+            continue;
+        int nb = draw_bones(d), away = 0;
+        for (int b = 0; b < (nb ? nb : 1) && !away; b++) {
+            float o[3] = {0, 0, 0}, m[3], w[3];
+            if (nb)
+                mul43(d->bones[b], zero, o);
+            mul43(d->world, o, m);
+            mul43(wound_cam[0], m, w);
+            away = dist2(w, place) > 420.0f * 420.0f;
+        }
+        if (!away)
+            continue;
+        if (wound_roam_n >= 384)        /* (full: begun again - what is still about is seen again in a frame) */
+            wound_roams_clear();
+        uint32_t at = d->vaddr >> 4;
+        while (wound_roam[at & 511])
+            at++;
+        wound_roam[at & 511] = d->vaddr;
+        wound_roam_n++;
+    }
+}
+
+/* MHFU_WOUND_TEST=n,far,high,hard (to look at wounds without a fight): n blows, one every twenty frames, as if the
+ * hunter (the first) had cut the first monster - where the hunter is, far units towards the animal and high up, a few
+ * units either way each time - as hard as that (the damage, 60) */
+static void wound_test(unsigned long now) {
+    static int left = -1;
+    static float far_ = 100, high = 100, hard = 60;
+    static unsigned long last;
+    if (left < 0) {
+        left = 0;
+        if (getenv("MHFU_WOUND_TEST"))
+            sscanf(getenv("MHFU_WOUND_TEST"), "%d,%f,%f,%f", &left, &far_, &high, &hard);
+    }
+    const uint32_t hunter = 0x090B3580u, monster = 0x090C1330u;
+    if (left <= 0 || now < last + 20 || !wound_cams || !LW(monster) || !LW(hunter))
+        return;
+    last = now;
+    left--;
+    int k = 0;
+    while (k < 7 && wound_pending[k].used)
+        k++;
+    memset(&wound_pending[k], 0, sizeof wound_pending[k]);
+    float at[3], its[3], to[3], tl;
+    memcpy(at, PTR(hunter + 0x200u), sizeof at);
+    memcpy(its, PTR(monster + 0x200u), sizeof its);
+    to[0] = its[0] - at[0], to[1] = 0, to[2] = its[2] - at[2];
+    tl = sqrtf(to[0] * to[0] + to[2] * to[2]);
+    for (int i = 0; i < 3; i++) {
+        wound_pending[k].attacker[i] = at[i];
+        wound_pending[k].contact[i] = at[i] + (tl > 0 ? to[i] / tl * far_ : 0) + (i == 1 ? high : 0) + (blood_chance() - 0.5f) * 50.0f;
+    }
+    float turn = blood_chance() * 6.2832f;
+    wound_pending[k].axis[0] = cosf(turn) * 0.7f, wound_pending[k].axis[1] = 0.7f, wound_pending[k].axis[2] = sinf(turn) * 0.7f;
+    wound_pending[k].hard = hard;
+    wound_pending[k].depth = sqrtf(fminf(fmaxf((hard - 5.0f) / 80.0f, 0.0f), 1.0f));
+    wound_pending[k].damage = (int)hard;
+    wound_pending[k].kind = WOUND_SLASH;
+    wound_pending[k].bladed = wound_pending[k].test = 1;
+    wound_pending[k].by = hunter;
+    wound_pending[k].of = (WoundOwner){monster, LW(monster), LBU(monster + 0x1E8u), (int16_t)LHU(monster + 0x2E4u)};
+    wound_pending[k].frame = now;
+    wound_pending[k].used = 1;
+}
+
 /* The frame's draws are in (f, recorded): the hits waiting looked for on them */
 static void wounds_attach(Frame *f) {
     float inv[12], target[3];
@@ -4331,6 +4472,8 @@ static void wounds_attach(Frame *f) {
         wound_cams = wound_cams < 2 ? wound_cams + 1 : 2;
     }
     unsigned long now = present_frame_number();
+    wound_roams_frame(f);
+    wound_test(now);
     for (int h = 0; h < 8; h++) {
         if (!wound_pending[h].used)
             continue;
@@ -4342,12 +4485,9 @@ static void wounds_attach(Frame *f) {
             wound_pending[h].bladed = 1;
             blade_find(f, h);
         }
-        if (wound_pending[h].kind == WOUND_BLUNT) {
-            wound_pending[h].used = 0;
-            continue;
-        }
         const float *c = wound_pending[h].contact;
-        float best = WOUND_REACH * WOUND_REACH;
+        int k_told = 0;
+        float best = wound_pending[h].test ? 600.0f * 600.0f : WOUND_REACH * WOUND_REACH;      /* (a test's: the skin nearest, however far) */
         const Draw *bd = NULL;
         const TlVertex *bv = NULL;
         const TlGroup *bg = NULL;
@@ -4372,6 +4512,14 @@ static void wounds_attach(Frame *f) {
                     mul43(wound_cam[cam], m, w);
                     own = dist2(w, wound_pending[h].attacker) < WOUND_OWN * WOUND_OWN;
                 }
+                /* (but not a part of an animal's that the hunter stands by - the head of one cut from in front of
+                 * it, whose bones are all that near: such a hit left no wound there, #81. What has been seen away
+                 * from the hunter is not the hunter's) */
+                if (own && wound_roams(d->vaddr)) {
+                    own = 0;
+                    if (getenv("MHFU_WOUND_LOG") && !k_told)
+                        k_told = 1, fprintf(stderr, "hit: a piece by the hunter (its bones within %.0f) is an animal's: looked at too\n", (double)WOUND_OWN);
+                }
                 if (own)
                     continue;
                 for (uint32_t k = 0; k < g->nvertex; k++) {
@@ -4383,6 +4531,35 @@ static void wounds_attach(Frame *f) {
                         best = dd, bd = d, bv = v, bg = g, bcam = cam;
                 }
             }
+        }
+        /* (MHFU_WOUND_LOG=2: the nearest vertex of every kind of draw - lit or not, the scenery's, the hunter's own) */
+        if (getenv("MHFU_WOUND_LOG") && atoi(getenv("MHFU_WOUND_LOG")) > 1 && wound_cams) {
+            float near[4] = {1e18f, 1e18f, 1e18f, 1e18f};
+            uint32_t mesh[4] = {0, 0, 0, 0};
+            for (int gi = 0; gi < f->ntlg; gi++) {
+                const TlGroup *g = &f->tlg[gi];
+                const Draw *d = &f->draws[g->first];
+                int nb = draw_bones(d), own = 1;
+                const float zero[3] = {0, 0, 0};
+                for (int b = 0; b < (nb ? nb : 1) && own; b++) {
+                    float o[3] = {0, 0, 0}, m[3], w[3];
+                    if (nb)
+                        mul43(d->bones[b], zero, o);
+                    mul43(d->world, o, m);
+                    mul43(wound_cam[0], m, w);
+                    own = dist2(w, wound_pending[h].attacker) < WOUND_OWN * WOUND_OWN;
+                }
+                int what = !(d->reg[0x17] & 1) ? 0 : (d->reg[0x12] >> 23 & 1) ? 1 : own && !wound_roams(d->vaddr) ? 2 : 3;
+                for (uint32_t k = 0; k < g->nvertex; k++) {
+                    float w[3];
+                    wound_world(d, nb, &f->tlv[g->vertex + k], f->tlv[g->vertex + k].pos, wound_cam[0], w);
+                    float dd = dist2(w, c);
+                    if (dd < near[what])
+                        near[what] = dd, mesh[what] = d->vaddr;
+                }
+            }
+            fprintf(stderr, "hit: nearest vertex - unlit %.0f (%08X), through-mode %.0f (%08X), the hunter's own %.0f (%08X), taken %.0f (%08X); %d groups\n",
+                    sqrt(near[0]), mesh[0], sqrt(near[1]), mesh[1], sqrt(near[2]), mesh[2], sqrt(near[3]), mesh[3], f->ntlg);
         }
         if (!bd)
             continue;                   /* (not drawn yet, or by the CPU's vertex stage: tried again next frame) */
@@ -4539,7 +4716,7 @@ static void wounds_attach(Frame *f) {
             depth_all = getenv("MHFU_WOUND_DEPTH") ? (float)atof(getenv("MHFU_WOUND_DEPTH")) : -1;
         if (depth_all >= 0)
             depth = depth_all > 1 ? 1 : depth_all;
-        if (thin && depth > 0.5f)
+        if ((thin || wound_pending[h].kind == WOUND_BLUNT) && depth > 0.5f)
             depth = 0.5f;
         float size = 0.55f + 0.65f * depth;     /* (a scratch short, a gash long) */
         if (reach > 0 && WOUND_HALF_LENGTH * size > WOUND_PART * reach)
@@ -4562,7 +4739,57 @@ static void wounds_attach(Frame *f) {
         }
         sl = sqrtf(sl);
         float keep = sl > WOUND_SHIFT ? WOUND_SHIFT / sl : 1.0f;
-        int n = wound_next++ % WOUNDS;
+        /* The blood it leaves: by how hard the blow was (a blunt one half as much). Landing in the blood about a wound
+         * the animal has - near its middle, measured among the vertices of the piece hit, in that wound's measure -
+         * it makes no wound of its own: that one's blood grows, wet again, and it is as deep as the deeper */
+        float gain = fmaxf(wound_pending[h].hard / 40.0f, 0.2f) * blood_amount() * (wound_pending[h].kind == WOUND_BLUNT ? 0.5f : 1.0f);
+        int fed = -1;
+        {
+            float rest[3], near = 1e18f;
+            for (int r = 0; r < 3; r++)
+                rest[r] = bv->pos[r] + keep * (inv[r][0] * shift[0] + inv[r][1] * shift[1] + inv[r][2] * shift[2]);
+            int have = wound_next < WOUNDS ? wound_next : WOUNDS;
+            for (int o = 0; o < have && wound_pending[h].kind != WOUND_SHOT; o++) {
+                if (wounds[o].gone || wounds[o].of.addr != wound_pending[h].of.addr || wounds[o].of.vtable != wound_pending[h].of.vtable ||
+                    wounds[o].kind == WOUND_SHOT || (wounds[o].kind == WOUND_BLUNT && wound_pending[h].kind != WOUND_BLUNT))
+                    continue;
+                const float (*oq)[4] = wounds[o].key == bd->vaddr ? wounds[o].q : NULL;
+                for (int pc = 0; pc < wounds[o].pieces && !oq; pc++)
+                    if (wounds[o].piece[pc].key == bd->vaddr)
+                        oq = wounds[o].piece[pc].q;
+                if (!oq)
+                    continue;
+                const float unit[3] = {wounds[o].run[2], wounds[o].run[3], wounds[o].deep};
+                float far = 0;
+                for (int r = 0; r < 3; r++) {
+                    float m = 0;
+                    for (int k = 0; k < 3; k++)
+                        m += oq[r][k] * (rest[k] - oq[k][3]);
+                    far += m * unit[r] * m * unit[r];
+                }
+                far = sqrtf(far);
+                if (far < 0.7f * wound_blood_reach(o) + 25.0f && far < near)
+                    near = far, fed = o;
+            }
+        }
+        int n = fed >= 0 ? fed : wound_place();
+        if (fed >= 0) {
+            wounds[n].blood += gain;
+            wounds[n].fed = rt_game_30ths();
+            if (wound_pending[h].kind == WOUND_SLASH && depth > wounds[n].depth)
+                wounds[n].depth = depth;
+            wounds[n].dripped = rt_game_30ths();
+            wounds[n].drips = 0;
+            wounds[n].floor_y = wound_pending[h].attacker[1];
+            if (getenv("MHFU_WOUND_LOG"))
+                fprintf(stderr, "wound %d fed: %.2f more blood about it, %.2f now, reaching %.0f units (damage %.0f)\n", n, (double)gain,
+                        (double)wounds[n].blood, (double)wound_blood_reach(n), (double)wound_pending[h].hard);
+        } else {
+        memset(&wounds[n], 0, sizeof wounds[n]);
+        wounds[n].blood = gain;
+        wounds[n].rmax = reach > 0 ? fminf(fmaxf(0.18f * reach, 35.0f), 240.0f) : 120.0f;
+        wounds[n].deep = 1.0f / over[2];
+        wounds[n].fed = rt_game_30ths();
         wounds[n].key = bd->vaddr;
         for (int r = 0; r < 3; r++) {
             for (int k = 0; k < 3; k++)
@@ -4575,7 +4802,7 @@ static void wounds_attach(Frame *f) {
         for (int b = 0; b < 3; b++)
             mid[b] = o[b] + keep * shift[b];
         wounds[n].pieces = 0;
-        float reach2 = WOUND_HALF_LENGTH * size + 30.0f;
+        float reach2 = fmaxf(WOUND_HALF_LENGTH * size, wounds[n].rmax) + 30.0f;     /* (as far as its blood may come to reach) */
         reach2 *= reach2;
         for (int gi = 0; gi < f->ntlg; gi++) {
             const TlGroup *g = &f->tlg[gi];
@@ -4614,6 +4841,8 @@ static void wounds_attach(Frame *f) {
             if (at == wounds[n].pieces)
                 wounds[n].pieces++;
         }
+        if (getenv("MHFU_WOUND_LOG"))
+            fprintf(stderr, "wound %d lies over %d more pieces of the model (of %d at most)\n", n, wounds[n].pieces, WOUND_PIECES);
         wounds[n].born = rt_game_30ths();
         wounds[n].of = wound_pending[h].of;
         wounds[n].kind = wound_pending[h].kind;
@@ -4632,6 +4861,17 @@ static void wounds_attach(Frame *f) {
         wounds[n].burst = 0;
         wounds[n].breaks = wound_pending[h].breaks;
         wounds[n].at_when = 0;
+        wounds[n].run[0] = -along[1];
+        wounds[n].run[1] = -across[1];
+        wounds[n].run[2] = 1.0f / over[0];
+        wounds[n].run[3] = 1.0f / over[1];
+        {
+            const float zero[3] = {0, 0, 0};
+            float m[3];
+            mul43(bd->world, zero, m);
+            mul43(wound_cam[bcam], m, wounds[n].where);
+        }
+        }
         /* a gash throws blood as it is made: a few drops out from the skin, towards the one who cut it, and up */
         if (wound_pending[h].kind == WOUND_SLASH) {
             int gash = depth >= WOUND_DRIPS;    /* (a lesser cut: a speck or two) */
@@ -4658,17 +4898,7 @@ static void wounds_attach(Frame *f) {
                 blood_falls(c, v, wound_pending[h].attacker[1], gash ? 2.0f + 2.5f * c2 : 1.0f + 0.8f * c2, wound_blood(wound_pending[h].of.type), 0);
             }
         }
-        wounds[n].run[0] = -along[1];
-        wounds[n].run[1] = -across[1];
-        wounds[n].run[2] = 1.0f / over[0];
-        wounds[n].run[3] = 1.0f / over[1];
-        {
-            const float zero[3] = {0, 0, 0};
-            float m[3];
-            mul43(bd->world, zero, m);
-            mul43(wound_cam[bcam], m, wounds[n].where);
-        }
-        if (getenv("MHFU_WOUND_LOG"))
+        if (getenv("MHFU_WOUND_LOG") && fed < 0)
             fprintf(stderr, "wound %d (size %.2f%s, the animal's reach %.0f): frame %lu mesh %08X, %.1f from the contact (%.0f %.0f %.0f), damage %d, vertex units %.0f %.0f %.0f\n", n, (double)size, thin ? ", a thin part" : "", (double)reach, now,
                     bd->vaddr, sqrtf(best), c[0], c[1], c[2], wound_pending[h].damage, sqrtf(col[0][0] * col[0][0] + col[0][1] * col[0][1] + col[0][2] * col[0][2]),
                     sqrtf(col[1][0] * col[1][0] + col[1][1] * col[1][1] + col[1][2] * col[1][2]), sqrtf(col[2][0] * col[2][0] + col[2][1] * col[2][1] + col[2][2] * col[2][2]));
@@ -4729,7 +4959,7 @@ static void wounds_frame(const Frame *f) {
         WoundOwner *of = &wounds[w].of;
         double age = now30 - wounds[w].born;
         int health = (int16_t)LHU(of->addr + 0x2E4u);
-        if (age < 0 || age > WOUND_LIFE * WOUND_LASTS(wounds[w].depth) || LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || health > of->health + 5) {
+        if (age < 0 || (WOUND_LIFE > 0 && age > WOUND_LIFE * WOUND_LASTS(wounds[w].depth)) || LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || health > of->health + 5) {
             if (getenv("MHFU_WOUND_LOG"))
                 fprintf(stderr, "wound %d gone: age %.0f s, health %d (least %d), class %08X (%08X)\n", w, age / 30, health, of->health,
                         LW(of->addr), of->vtable);
@@ -4754,6 +4984,24 @@ static void wounds_frame(const Frame *f) {
             float dd = dist2(o, wounds[w].where);
             if (dd < best)
                 best = dd, world = d->world;
+        }
+        if (!world && getenv("MHFU_WOUND_LOG") && atoi(getenv("MHFU_WOUND_LOG")) > 1) {
+            static double told;
+            float near = 1e18f;
+            int same = 0;
+            for (int gi = 0; gi < f->ntlg && wound_cams; gi++) {
+                const Draw *d = &f->draws[f->tlg[gi].first];
+                if (d->vaddr != wounds[w].key)
+                    continue;
+                const float zero[3] = {0, 0, 0};
+                float m[3], o[3];
+                mul43(d->world, zero, m);
+                mul43(wound_cam[0], m, o);
+                same++;
+                near = fminf(near, dist2(o, wounds[w].where));
+            }
+            if (now30 - told > 15 || now30 < told)
+                told = now30, fprintf(stderr, "wound %d not drawn: its mesh in %d groups, the nearest placed %.0f from its animal\n", w, same, sqrt(near));
         }
         if (!world)
             continue;                   /* (its model is not drawn this frame, or has gone far in one) */
@@ -4815,12 +5063,18 @@ static void wounds_frame(const Frame *f) {
         if (wounds[w].broke_at > 0 && now30 >= wounds[w].broke_at && now30 - wounds[w].broke_at < 10.0 * 30)
             dying = 2;
         float drips_from = dying == 2 ? 0.0f : dying ? 0.35f : WOUND_DRIPS;
-        if (depth < drips_from || wounds[w].kind != WOUND_SLASH || (!dying && age >= WOUND_DRIPS_FOR * (1.0 + hurt)))
+        /* (counted from the last hit that fed it. And an animal badly off - under two fifths of its health - goes on
+         * dripping from where it is bloodiest, a drop every second or few, for as long as it lives) */
+        double fresh = now30 - wounds[w].fed;
+        int weak = hurt > 0.6f && health > 0 && wounds[w].blood >= 2.0f && wounds[w].kind == WOUND_SLASH;
+        if (!weak && (depth < drips_from || wounds[w].kind != WOUND_SLASH || (!dying && fresh >= WOUND_DRIPS_FOR * (1.0 + hurt))))
             continue;
+        if (weak && depth < drips_from)
+            drips_from = 0;
         int newer = 0;
         for (int o = 0; o < n; o++)
             newer += o != w && !wounds[o].gone && wounds[o].of.addr == of->addr && wounds[o].depth >= drips_from &&
-                     wounds[o].kind == WOUND_SLASH && wounds[o].born > wounds[w].born;
+                     wounds[o].kind == WOUND_SLASH && wounds[o].fed > wounds[w].fed;
         if (newer >= 2)
             continue;
         for (int gi = 0; gi < f->ntlg; gi++) {
@@ -4865,6 +5119,8 @@ static void wounds_frame(const Frame *f) {
              * times - and one drop in four followed at once by another; nor two drops the same size) */
             if (now30 - wounds[w].dripped >= wounds[w].gap) {
                 double usual = pour > 0 ? 30.0 / pour : dying == 2 ? 30.0 / 4 : dying ? 30.0 / 7 : 0.3 * 30 * pow(1.33 - 0.13 * hurt, wounds[w].drips);
+                if (weak && usual > 30.0 * (4.0 - 5.0 * (hurt - 0.6)))
+                    usual = 30.0 * (4.0 - 5.0 * (hurt - 0.6));
                 float c = blood_chance();
                 int twin = blood_chance() < 0.25f;
                 wounds[w].gap = twin ? 1.5f + 3.0f * c : (float)usual * fmaxf(-0.9f * logf(1.0f - 0.92f * c), 0.3f);
@@ -5416,7 +5672,7 @@ static const uint8_t *wound_blood(int type) {
     return out;
 }
 
-/* The draw's wounds into its record: the newest 4 of its model's */
+/* The draw's wounds into its record: 4 of its model's - those with the most blood about them (of two alike the newer) */
 static uint64_t wound_mask;         /* the group being drawn: its wounds (0: none) */
 static uint32_t wound_vaddr;        /* and its mesh (its vertices' address) */
 
@@ -5424,10 +5680,16 @@ static void wounds_fill(TlDraw *d) {
     if (!wound_mask)
         return;
     int n = wound_next < WOUNDS ? wound_next : WOUNDS;
-    for (int k = 0; k < n && d->wounds < 4; k++) {
-        int i = (wound_next - 1 - k) % WOUNDS;
-        if (!(wound_mask >> i & 1) || wounds[i].gone)
-            continue;
+    uint64_t left_mask = wound_mask;
+    while (d->wounds < 4) {
+        int i = -1;
+        for (int k = 0; k < n; k++)
+            if ((left_mask >> k & 1) && !wounds[k].gone &&
+                (i < 0 || wounds[k].blood > wounds[i].blood || (wounds[k].blood == wounds[i].blood && wounds[k].born > wounds[i].born)))
+                i = k;
+        if (i < 0)
+            break;
+        left_mask &= ~(1ull << i);
         const float (*q)[4] = wounds[i].key == wound_vaddr ? wounds[i].q : NULL;
         for (int pc = 0; pc < wounds[i].pieces && !q; pc++)
             if (wounds[i].piece[pc].key == wound_vaddr)
@@ -5435,19 +5697,27 @@ static void wounds_fill(TlDraw *d) {
         if (!q)
             continue;                   /* (a piece of the model it does not lie over) */
         memcpy(d->wound[3 * d->wounds], q, sizeof wounds[i].q);
-        /* how it looks: its blood's colour (as one number), how much of it is left (it fades at the end), how wet
-         * it still is, and its kind with a number of its own (no two alike) */
-        double age = rt_game_30ths() - wounds[i].born;
+        /* how it looks: its blood's colour (as one number), how much of it is left (it fades at the end, if it is
+         * set to go), how wet it still is - since the last hit that fed it - and its kind with a number of its own
+         * (no two alike) */
+        double age = rt_game_30ths() - wounds[i].born, fresh = rt_game_30ths() - wounds[i].fed;
         static double older = -1;           /* MHFU_WOUND_AGE=seconds: every wound drawn that much older (to look at one) */
         if (older < 0)
             older = getenv("MHFU_WOUND_AGE") ? atof(getenv("MHFU_WOUND_AGE")) * 30 : 0;
         age += older;
+        fresh += older;
         double life = WOUND_LIFE * WOUND_LASTS(wounds[i].depth);
-        float left = (float)((life - age) / (life * 0.25)), wet = 1.0f - (float)(age / (WOUND_FRESH * (0.5 + 1.5 * wounds[i].depth)));
+        float left = life > 0 ? (float)((life - age) / (life * 0.25)) : 1.0f;
+        float wet = 1.0f - (float)(fresh / (WOUND_FRESH * (0.5 + 1.5 * wounds[i].depth)));
         const uint8_t *blood = wound_blood(wounds[i].of.type);
-        memcpy(d->wound_run[d->wounds], wounds[i].run, sizeof wounds[i].run);
+        float *run = d->wound_run[d->wounds];
+        memcpy(run, wounds[i].run, sizeof wounds[i].run);
         if (trickles_on() && trails_mesh(wounds[i].of.addr) >= 0)       /* (its blood runs down the skin itself: trails.c) */
-            d->wound_run[d->wounds][0] = d->wound_run[d->wounds][1] = 0;
+            run[0] = run[1] = 0;
+        /* (with the cut's half length, by 1024s: how far the blood about it reaches, units; with its half width, by
+         * 256s: how deep the wound's measure is, in eighths of a unit, and by 65536s how thick the blood lies, of 63) */
+        run[2] = fminf(run[2], 1023.0f) + 1024.0f * floorf(fminf(wound_blood_reach(i), 1000.0f));
+        run[3] = fminf(run[3], 255.0f) + 256.0f * (floorf(fminf(wounds[i].deep * 8.0f, 255.0f)) + 256.0f * floorf(wound_blood_thick(i) * 63.0f));
         float *look = d->wound_look[d->wounds];
         look[0] = (float)(blood[0] | blood[1] << 8 | blood[2] << 16);
         /* (and, by twos, how far its blood has run down in a thousand steps: most of the way in a few seconds) */

@@ -64,6 +64,7 @@ static const Setting list[] = {
     {"sun_flare", "ORIGINAL SUN FLARE KEPT", S_TOGGLE, "0", 0, 0, 0, NULL, S_LIVE},
     {"wounds", "WOUNDS ON MONSTERS", S_TOGGLE, "1", 0, 0, 0, NULL, S_LIVE},
     {"wound_size", "WOUND SIZE", S_NUMBER, "1.0", 0.5f, 4, 0.25f, NULL, S_LIVE},
+    {"blood_amount", "HOW BLOODY MONSTERS GET", S_NUMBER, "1.0", 0, 4, 0.25f, NULL, S_LIVE},
     {"blood_trickles", "BLOOD RUNS DOWN MONSTERS (UNFINISHED)", S_TOGGLE, "0", 0, 0, 0, NULL, S_LIVE},
     {"blood_opacity", "BLOOD ON MONSTERS: HOW SOLID", S_NUMBER, "1.0", 0, 1, 0.05f, NULL, S_LIVE},
     {"blood_shine", "BLOOD ON MONSTERS: HOW IT SHINES", S_NUMBER, "0.6", 0, 2, 0.1f, NULL, S_LIVE},
