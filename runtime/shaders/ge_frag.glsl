@@ -829,8 +829,11 @@ void main() {
             float ss = dot(streak, streak);
             if (ss > 0.0)
                 off += streak * clamp(dot(off, -streak) / ss, 0.0, 1.0);
-            float r = max(at.w, 0.0016 * length(to));      // (no thinner than a pixel or so, far off)
-            c.rgb = mix(c.rgb, col.rgb * 0.42, 0.9 * (1.0 - smoothstep(r * 0.45, r, length(off))));
+            // (smaller the further off, as anything is - no thinner than a pixel or so, and fainter where it would
+            // be: it was held at 0.0016 of its distance, three pixels on a large screen, and the drops across an
+            // area were as big as those at hand, #83)
+            float least = 0.0006 * length(to), r = max(at.w, least);
+            c.rgb = mix(c.rgb, col.rgb * 0.42, 0.9 * min(at.w / least, 1.0) * (1.0 - smoothstep(r * 0.45, r, length(off))));
         }
     }
     if ((draw.flags & DRAW_FOG) != 0u) {      // fog: towards the fog colour as the factor falls from 1

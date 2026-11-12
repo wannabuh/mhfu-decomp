@@ -459,9 +459,13 @@ void blood_step(double now, BloodFrame *out) {
         int o = out->ndrops++;
         memcpy(out->drop_at[o], d->at, sizeof d->at);
         out->drop_at[o][3] = fminf(2.2f, fmaxf(1.0f, d->size * 0.22f));
+        /* (a streak: back to where it was a 60th of a second ago - but no longer than twice the drop is wide: a
+         * drop falling fast was drawn a long line, and read as one, #83) */
+        float fast = sqrtf(d->speed[0] * d->speed[0] + d->speed[1] * d->speed[1] + d->speed[2] * d->speed[2]) / 60.0f;
+        float most = 4.0f * out->drop_at[o][3], keep = fast > most ? most / fast : 1.0f;
         for (int k = 0; k < 3; k++) {
             out->drop_color[o][k] = (float)d->rgb[k] / 255.0f;
-            out->drop_streak[o][k] = d->speed[k] / 60.0f;       /* (a streak: back to where it was a 60th of a second ago) */
+            out->drop_streak[o][k] = d->speed[k] / 60.0f * keep;
         }
     }
     /* what is still being painted */
