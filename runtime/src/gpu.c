@@ -4856,9 +4856,10 @@ static void wounds_attach(Frame *f) {
             wounds[n].fed = rt_game_30ths();
             if (wound_pending[h].kind == WOUND_SLASH && depth > wounds[n].depth)
                 wounds[n].depth = depth;
-            /* (and it runs again: a trickle more, two from a deep one) */
-            if (wounds[n].runs_set && wounds[n].runs_left < 4) {
-                wounds[n].runs_left += depth > 0.5f ? 2 : 1;
+            /* (and it runs again, more often than not: one trickle more, if none is waiting - with one or two from
+             * every blow the part was covered in them, #93) */
+            if (wounds[n].runs_set && wounds[n].runs_left < 1 && blood_chance() < 0.6f) {
+                wounds[n].runs_left = 1;
                 wounds[n].run_due = rt_game_30ths() + 4;
             }
             wounds[n].dripped = rt_game_30ths();
@@ -5116,7 +5117,7 @@ static void wounds_frame(const Frame *f) {
             wounds[w].skin_told = 1;
             trail_skin_log(f, world);
         }
-        /* Its blood runs down the animal: from a cut one trickle or two, from a gash several, the first at once and
+        /* Its blood runs down the animal: from a cut one trickle, from a gash two or three (#93), the first at once and
          * the rest over the seconds after (MHFU_TRICKLES=n: n from each, to look at them) */
         if ((trickles_on() || bloodmap_on()) && (wounds[w].kind != WOUND_BLUNT ? wounds[w].depth >= (bloodmap_on() ? 0.4f : 0.25f) : bloodmap_on() && wounds[w].depth >= 0.45f)) {
             if (!wounds[w].runs_set) {
@@ -5125,7 +5126,7 @@ static void wounds_frame(const Frame *f) {
                     forced = getenv("MHFU_TRICKLES") ? atoi(getenv("MHFU_TRICKLES")) : 0;
                 float d = wounds[w].depth;
                 wounds[w].runs_set = 1;
-                wounds[w].runs_left = forced ? forced : wounds[w].kind == WOUND_SHOT || wounds[w].kind == WOUND_BLUNT ? 1 : d > 0.65f ? 3 + (int)(3.99f * blood_chance()) : d > 0.45f ? 2 : 1;
+                wounds[w].runs_left = forced ? forced : wounds[w].kind == WOUND_SHOT || wounds[w].kind == WOUND_BLUNT ? 1 : d > 0.65f ? 2 + (blood_chance() < 0.5f) : 1;
                 wounds[w].run_due = wounds[w].born + 4;
             }
             if (wounds[w].runs_left > 0 && now30 >= wounds[w].run_due) {
@@ -5572,10 +5573,10 @@ static int trail_corners(void *ctx, uint32_t tri, float posed[3][3], float rest[
 }
 
 /* (trails.c's skin) What a trickle ran over, painted into the skin's map */
-static void trail_stroke(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half) {
+static void trail_stroke(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half, float much) {
     const struct TrailModel *tm = ctx;
     TrailSkin skin = {(void *)tm, trail_corners, NULL, NULL, NULL};
-    bloodmap_stroke((int)(tm - trail_models), &skin, tris, ntris, a, b, half, 0.95f, (float)(rt_game_30ths() / 30.0));
+    bloodmap_stroke((int)(tm - trail_models), &skin, tris, ntris, a, b, half, much, (float)(rt_game_30ths() / 30.0));
 }
 
 static void trail_drop(void *ctx, const float *at, float size) {
@@ -5831,9 +5832,10 @@ static void paint_hits(const Frame *f, double now30) {
         float g = paint_due[k].gain, now = (float)(now30 / 30.0), big = paint_due[k].size > 0 ? fminf(fmaxf(paint_due[k].size, 0.4f), 1.5f) : 1.0f;
         float dp = paint_due[k].depth;
         int blunt = paint_due[k].kind == WOUND_BLUNT;
-        BloodSplash sp = {.radius = (5.0f + 12.0f * g * g) * big * (blunt ? 0.8f : 1.0f), .much = fminf(0.3f + 0.45f * g, 0.9f) * (blunt ? 0.75f : 1.0f),
+        /* (a third larger and thicker than it was: too little at the hits, the user's word with #93) */
+        BloodSplash sp = {.radius = (7.0f + 15.0f * g * g) * big * (blunt ? 0.8f : 1.0f), .much = fminf(0.4f + 0.5f * g, 0.95f) * (blunt ? 0.75f : 1.0f),
                           .lengthen = 1, .seed = blood_chance(), .kind = SPLASH_BLOT};
-        sp.radius = fminf(sp.radius, 38.0f);
+        sp.radius = fminf(sp.radius, 48.0f);
         memcpy(sp.at, paint_due[k].at, sizeof sp.at);
         memcpy(sp.out, paint_due[k].out, sizeof sp.out);
         memcpy(sp.along, paint_due[k].along, sizeof sp.along);
@@ -5887,7 +5889,11 @@ static void trail_from_wound(const Frame *f, int w, const float *world, double n
     if (best_d > 80.0f * 80.0f)
         return;
     float depth = wounds[w].depth;
-    float reach = (50.0f + 330.0f * depth * depth) * (0.45f + 0.9f * blood_chance()), wide = (0.7f + 1.3f * depth) * (0.7f + 0.5f * blood_chance());
+    /* (how far: most 20 to 60 units, one in four or so - of a deep wound's more - up to 120; they ran to 380, and
+     * were worms, #93. Wide at the wound: it narrows as it goes, trails.c) */
+    float reach = 20.0f + 40.0f * blood_chance(), wide = (1.1f + 1.5f * depth) * (0.8f + 0.4f * blood_chance());
+    if (blood_chance() < 0.1f + 0.3f * depth)
+        reach = 60.0f + 60.0f * blood_chance();
     trails_start(m, best, best_bc, reach, wide, wound_blood(of->type), blood_chance(), now30);
     if (getenv("MHFU_TRAIL_LOG"))
         fprintf(stderr, "trickle: wound %d, triangle %u (%.1f from it), to run %.0f, %.1f wide\n", w, best, (double)sqrtf(best_d), (double)reach, (double)wide * 2);

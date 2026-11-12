@@ -38,8 +38,9 @@ typedef struct {
      * there, not above - which, and where on it; 0 if there is none (or NULL: never) */
     int (*near)(void *ctx, const float *at, uint32_t from, uint32_t *tri, float *bc);
     /* what a trickle has just run over, if its trail is kept by the skin's keeper and not here in pieces (bloodmap.c;
-     * or NULL): from a to b, half so wide, on these triangles - its own and those across its edges */
-    void (*stroke)(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half);
+     * or NULL): from a to b, half so wide, so much of it (0 to 1), on these triangles - its own and those across its
+     * edges */
+    void (*stroke)(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half, float much);
 } TrailSkin;
 
 /* An animal's skin kept (owner: what tells it from another's): which of the RUN_MESHES it is, or -1; made - its

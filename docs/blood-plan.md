@@ -39,27 +39,27 @@ Settings (menu and env, all live): `MHFU_BLOOD_AMOUNT`, `MHFU_BLOOD_DARKNESS`, `
 `MHFU_TRAIL_LOG=1..3`, `MHFU_WOUND_LOG=1`, `MHFU_WOUND_TEST=n,far,high,hard`, `MHFU_TEST_RELAY=n`,
 `MHFU_UV_DUMP=file` (`_ALL=1`, `_AT=frame`), `MHFU_BLOOD_OVER=1`. README has each.
 
-## Next: runs look "wormy" (#93, open, under discussion)
+## Runs looked "wormy" (#93, fix-ready, awaiting the user's look)
 
-On the Congalala the runs read as worms or veins. Causes: uniform width and darkness along the whole length; up to
-about 380 units long; three to six per gash plus one or two per repeat hit; a sideways drift added on purpose; and
-"down" re-read each step, so a run bends when the monster rolls.
+On the Congalala the runs read as worms or veins: one width and darkness all along, up to 380 units long, three to
+six per gash plus one or two per repeat hit, a sideways drift, and bending when the monster rolled.
 
-Proposed, awaiting the user's answer:
+The user's answers (2026-11-12): keep blood visibly running, reshaped; the amount at the hits was **too little**; one
+look for fur and hide for now.
 
-1. Shorter and fewer: most 20-60 units, some to 120; one from a medium cut, two or three from a gash, a repeat hit
-   adds one at most. (`trail_from_wound`, `wounds_frame` `runs_left`, the fed branch in `wounds_attach`.)
-2. Tapered and fading: wide and thick at the wound, narrowing, leaving less blood further on, sometimes dashes, a
-   bead at the end. (`width_at` in `trails.c`; `much` and `half` passed to `bloodmap_stroke`.)
-3. Straighter: far less drift (`wander` in `step`), and stop when down swings well away from the starting direction.
-4. Softer on fur: wider, blotchier, soft-edged. Needs a fur/hide flag, simplest per monster type.
+Done:
 
-Alternative offered: no moving runs, fixed drips painted at the hit. Recommendation given: the list above.
+- Shorter and fewer: 20-60 units, about one in four (more from deep wounds) 60-120; one from a cut, two or three
+  from a gash; a repeat hit adds one at most, six times in ten, and only if none is waiting (`trail_from_wound`,
+  `wounds_frame`, the fed branch in `wounds_attach`).
+- Tapered and fading: widest at the wound, a third of that at the end, uneven; less blood further on, dashes in the
+  last half, a bead where it stops (`width_at`, `much_at`, `finish_` in `trails.c`; the skin's `stroke` takes `much`).
+- Straighter: drift a quarter of what it was; a run stops once its way over the skin (in the vertices' rest space)
+  has turned about 70 degrees from the way it set out.
+- More at the hit: the splash a third larger and thicker (`paint_hits`).
 
-Questions put to the user, not yet answered:
-- Keep blood visibly running, or are fixed drips at the hit enough?
-- Is the amount on the Congalala about right once the shape is fixed?
-- Different behaviour on fur than on scales, or one look for now?
+Seen headless on the Tigrex only (a splash on the cheek with short tapering drips). On the Congalala capture the
+monster leaps during the test and the planted hits land under a limb; not judged there. Not done: softer on fur.
 
 ## Tickets
 
@@ -67,7 +67,7 @@ Only the user closes tickets; set `fix-ready` with a check line (`python3 tools/
 
 | # | State | What |
 |---|---|---|
-| 93 | open | Runs look wormy. Above. |
+| 93 | fix-ready | Runs look wormy. Above. |
 | 86 | open | Pale patterned patch in ground blood. Unconfirmed; probably the same cause as #89. |
 | 89 | fix-ready | Ground blood drawn twice. Two attempts (`b26410f` layer flag, `c2b8ebb` by the surface's alpha). The first did nothing in the desert. The layer was never identified. If it persists, ask for an F7 click on a ghost blot and an F6 capture. |
 | 90 | fix-ready | Blood lost at death, and one-frame flashes. Flash: previous frame's table kept. Death: not reproduced; a model swap now re-keeps the skin and carries blood over by rest-space position. The console prints "kept anew" when it fires. |

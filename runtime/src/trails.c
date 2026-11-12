@@ -160,6 +160,8 @@ typedef struct {
      * trickle, when and how wide; ticks since it was last on it */
     struct { uint32_t tri, e; float a[3], b[3], a_s, a_t, a_w, b_s, b_t, b_w; int missed; } ov[OVER];
     int idle, hops;                 /* (hops: times it has gone from one piece of the skin on to another) */
+    float way[3];                   /* the way it set out, among the vertices as the game gave them (way_set: known) */
+    int way_set;
 } Trickle;
 
 int trails_told;                    /* (MHFU_TRAIL_LOG: what each trickle does) */
@@ -362,10 +364,35 @@ static float wander(float x) {
     return a + (b - a) * f;
 }
 
-/* How wide (half) a trickle is where it has run s: thin where it starts, thinner as it runs out */
+/* How wide (half) a trickle is where it has run s: widest at the wound, narrowing all the way to a third of that
+ * where it runs out, and uneven as it goes (of one width all along it was a worm, #93) */
 static float width_at(const Trickle *t, float s) {
-    float start = 0.45f + s / 12.0f, spent = t->reach > 0 ? 1.0f - s / t->reach : 0;
-    return t->width * (start < 1 ? start : 1) * (0.6f + 0.4f * (spent < 0 ? 0 : spent));
+    float gone = t->reach > 0 ? s / t->reach : 1;
+    gone = gone < 0 ? 0 : gone > 1 ? 1 : gone;
+    return t->width * (1.0f - 0.67f * powf(gone, 0.8f)) * (0.85f + 0.3f * wander(s * 0.12f + t->seed * 7.0f));
+}
+
+/* How much blood it leaves there (0 to 1): less the further from the wound, and in its last half broken off here and
+ * there - dashes, where little is left to run */
+static float much_at(const Trickle *t, float s) {
+    float gone = t->reach > 0 ? s / t->reach : 1;
+    gone = gone < 0 ? 0 : gone > 1 ? 1 : gone;
+    float much = 0.95f * (1.0f - 0.55f * gone);
+    if (gone > 0.45f) {
+        float gap = wander(s * 0.22f + t->seed * 17.0f), lo = 0.15f + 0.3f * (gone - 0.45f) / 0.55f;
+        much *= gap < lo ? 0 : gap < lo + 0.12f ? (gap - lo) / 0.12f : 1;
+    }
+    return much;
+}
+
+/* (the trickle's triangle and those across its edges: what a stroke about where it is may fall on) */
+static int about(const Trickle *t, const Mesh *m, uint32_t *tris) {
+    int nt = 0;
+    tris[nt++] = t->tri;
+    for (int j = 0; j < 3; j++)
+        if (m->nbr[t->tri][j] >= 0)
+            tris[nt++] = (uint32_t)m->nbr[t->tri][j];
+    return nt;
 }
 
 /* The piece a trickle is laying, as far as it has come: on its triangle (P, R: its corners now, and as given), and on
@@ -507,6 +534,12 @@ static void finish_(Trickle *t, const Mesh *m, const TrailSkin *skin, const floa
     if (fell) {
         ent_free(t->bead);
         t->bead = 0;
+    } else if (skin->stroke && t->s > 4.0f) {       /* where it stopped: a bead, wider than its end and thick */
+        float X[3];
+        uint32_t tris[4];
+        int nt = about(t, m, tris);
+        at3(P, t->bc, X);
+        skin->stroke(skin->ctx, tris, nt, X, X, fmaxf(1.7f * width_at(t, t->s), 0.5f * t->width), 1.0f);
     }
     piece(t, m, skin, P, R, now, 2);
     if (t->bead)
@@ -541,7 +574,7 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
         int level = steep < 0.12f;
         if (!level) {
             /* (and a little to either side as it goes: no trickle runs straight) */
-            float turn = (wander(t->s * 0.035f + t->seed * 31.0f) - 0.5f) * 0.5f, side[3];
+            float turn = (wander(t->s * 0.035f + t->seed * 31.0f) - 0.5f) * 0.12f, side[3];      /* (a little: with more of it they were worms, #93) */
             cross3(n, down, side);
             for (int i = 0; i < 3; i++)
                 dir[i] = (down[i] * cosf(turn) + side[i] * sinf(turn)) / steep;
@@ -604,7 +637,7 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
                 if (p < part)
                     part = p, out = i;
             }
-        float sum = 0;
+        float sum = 0, bc_was[3] = {t->bc[0], t->bc[1], t->bc[2]};
         for (int i = 0; i < 3; i++) {
             t->bc[i] += (bq[i] - t->bc[i]) * part;
             t->bc[i] = t->bc[i] < 0 ? 0 : t->bc[i];
@@ -616,14 +649,30 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
             t->bc[i] /= sum > 0 ? sum : 1;
         t->s += go * part, t->left -= go * part;
         if (skin->stroke && go * part > 0) {
-            float Xn[3];
-            uint32_t tris[4] = {t->tri};
-            int nt = 1;
-            for (int j = 0; j < 3; j++)
-                if (m->nbr[t->tri][j] >= 0)
-                    tris[nt++] = (uint32_t)m->nbr[t->tri][j];
+            float Xn[3], much = much_at(t, t->s);
+            uint32_t tris[4];
+            int nt = about(t, m, tris);
             at3(P, t->bc, Xn);
-            skin->stroke(skin->ctx, tris, nt, X, Xn, width_at(t, t->s));
+            if (much > 0)
+                skin->stroke(skin->ctx, tris, nt, X, Xn, width_at(t, t->s), much);
+        }
+        /* the way it goes over the skin itself - among the vertices as the game gave them, whatever the animal
+         * does: once it has turned well away from the way it set out (the animal rolled, or reared: down is
+         * elsewhere now) it stops there, and does not bend round (#93) */
+        if (go * part > 0.02f) {
+            float r0[3], r1[3], w[3];
+            at3(R, bc_was, r0), at3(R, t->bc, r1);
+            for (int i = 0; i < 3; i++)
+                w[i] = r1[i] - r0[i];
+            float wl = sqrtf(dot3(w, w));
+            if (wl > 0 && !t->way_set && t->s > 3.0f) {
+                for (int i = 0; i < 3; i++)
+                    t->way[i] = w[i] / wl;
+                t->way_set = 1;
+            } else if (wl > 0 && t->way_set && dot3(w, t->way) < 0.35f * wl) {
+                finish_why(t, m, skin, P, R, now, 0, "its way turned");
+                return;
+            }
         }
         t->idle = go * part > 0.02f ? 0 : t->idle + 1;
         dt -= dt * part;
@@ -655,6 +704,7 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
                 for (int i = 0; i < 3; i++)
                     t->bc[i] /= bs;
                 t->edge = -1;
+                t->way_set = 0;         /* (another piece's vertices may be given another way round) */
                 begin(t, now);
                 continue;
             }
