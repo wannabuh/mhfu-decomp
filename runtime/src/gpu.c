@@ -17,7 +17,6 @@
 #include "inspect.h"
 #include "blood.h"
 static void trail_models_clear(void);  /* (the blood run down the animals, below: all forgotten) */
-static int trail_stage_known;
 static void wound_roams_clear(void);
 
 #include <math.h>
@@ -363,9 +362,8 @@ static void shadow_frame(const float *shown) {
             sun_peak = 0;               /* (till its light is given, as strong as it was) */
             blood_clear();              /* (the ground's blood is the area's) */
             wound_roams_clear();
-            if (trail_stage_known)      /* (and the animals' - not as the first area is first seen) */
-                trail_models_clear();
-            trail_stage_known = 1;
+            /* (the animals' blood is not: one that left bloodied is bloodied where it is found again, #85 - its skin
+             * kept till the animal is another, trail_models_frame) */
         }
         static int always = -1;
         if (always < 0)
@@ -3845,6 +3843,14 @@ enum { WOUND_SLASH, WOUND_SHOT, WOUND_BLUNT };     /* (a blunt hit leaves no cut
 /* (its animal: the game's object, what it was then - its class and type - and the least health it has been seen with:
  * another animal in its place has more) */
 typedef struct { uint32_t addr, vtable; int type, health; } WoundOwner;
+
+/* Whether the game's object is no longer the animal it was: another class or type - or at full health again, having
+ * been seen well under it (another has taken its place: one killed, or left in an area and come back to). Not any
+ * rise in its health: an animal gets some back as it rests, and its wounds and blood went with that (a Giadrome's, #87) */
+static int wound_owner_gone(const WoundOwner *of, int health) {
+    int most = (int16_t)LHU(of->addr + 0x41Eu);
+    return LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || (most > 0 && health >= most - 2 && of->health < most - most / 8 - 5);
+}
 #define WOUND_PIECES 64             /* the model's pieces a wound lies over, at most */
 /* (each piece's vertices are in a space of their own - their own scale, by how they are packed - so the wound is kept
  * among each piece's: one kept among the first's alone stepped aside at every join it crossed, #63) */
@@ -5053,7 +5059,7 @@ static void wounds_frame(const Frame *f) {
         WoundOwner *of = &wounds[w].of;
         double age = now30 - wounds[w].born;
         int health = (int16_t)LHU(of->addr + 0x2E4u);
-        if (age < 0 || (WOUND_LIFE > 0 && age > WOUND_LIFE * WOUND_LASTS(wounds[w].depth)) || LW(of->addr) != of->vtable || (int)LBU(of->addr + 0x1E8u) != of->type || health > of->health + 5) {
+        if (age < 0 || (WOUND_LIFE > 0 && age > WOUND_LIFE * WOUND_LASTS(wounds[w].depth)) || wound_owner_gone(of, health)) {
             if (getenv("MHFU_WOUND_LOG"))
                 fprintf(stderr, "wound %d gone: age %.0f s, health %d (least %d), class %08X (%08X)\n", w, age / 30, health, of->health,
                         LW(of->addr), of->vtable);
@@ -5580,7 +5586,7 @@ static void trail_models_frame(const Frame *f, double now30) {
         if (!tm->used)
             continue;
         int health = (int16_t)LHU(tm->of.addr + 0x2E4u);
-        if (LW(tm->of.addr) != tm->of.vtable || (int)LBU(tm->of.addr + 0x1E8u) != tm->of.type || health > tm->of.health + 5) {
+        if (wound_owner_gone(&tm->of, health)) {
             if (getenv("MHFU_TRAIL_LOG"))
                 fprintf(stderr, "skin %d gone: health %d (least %d)\n", m, health, tm->of.health);
             trails_mesh_drop(m);

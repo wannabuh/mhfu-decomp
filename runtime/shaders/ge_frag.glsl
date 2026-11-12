@@ -432,7 +432,7 @@ void main() {
                     uint ps = BLOOD_SET_AT + 2u * uint(BLOOD_DROP_SETS) + which / 8u;
                     vec3 col = (which & 4u) == 0u ? sets[ps].dir[which & 3u].rgb : sets[ps].color[which & 3u].rgb;
                     float ground = dot(c.rgb, vec3(0.3, 0.55, 0.15)), pale = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b));
-                    float snow = smoothstep(0.5, 0.75, ground) * (1.0 - smoothstep(0.1, 0.25, pale));
+                    float snow = smoothstep(0.58, 0.78, ground) * (1.0 - smoothstep(0.1, 0.25, pale));     // (not grey ground in mist: #86)
                     float sand = smoothstep(1.2, 1.6, c.r / max(c.b, 0.05)) * smoothstep(0.25, 0.45, ground) * (1.0 - snow);
                     float n = blood_noise(in_world.xz * 0.9) * 0.6 + blood_noise(in_world.xz * 0.21) * 0.4;
                     float level = thick * (0.7 + 0.6 * n);
@@ -442,11 +442,13 @@ void main() {
                     float body = mix(0.8, 0.98, deep_of(thick)) * (0.82 + 0.18 * smoothstep(0.25, 0.6, blood_noise(in_world.xz * 0.06 + 7.3)));
                     wet *= 1.0 - 0.6 * sand;
                     vec3 dry = mix(col * 0.6, vec3(0.3, 0.1, 0.07), 0.4);         // (dried: a dark red-brown, not black)
-                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.8, smoothstep(1.0, 3.0, thick)) * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x;
-                    tint = mix(tint, col * 1.15, 0.5 * snow);
+                    vec3 tint = mix(dry, col * 0.8, wet) * mix(1.0, 0.8, smoothstep(1.0, 3.0, thick));
+                    // (on snow a little redder - it was half as light again there, and lit by the snow's own light a scarlet
+                    // that nothing else in the picture is, #88 - and all of it as dark as the settings have blood)
+                    tint = mix(tint, col * 0.85, 0.35 * snow) * sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[2].x;
                     tint = mix(tint, tint * 0.6, 0.6 * sand);
                     float deep = deep_of(thick);
-                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * (ground * 1.9 + 0.1), mix(0.7, 0.93, deep));
+                    vec3 stained = mix(c.rgb * (tint * 1.6 + 0.1), tint * min(ground * 1.9 + 0.1, 0.95), mix(0.7, 0.93, deep));
                     // (snow: a paler ring of it soaked out past the edge)
                     c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.0), col * 1.3 + 0.25, 0.5), snow * smoothstep(0.02, 0.2, level) * (1.0 - cover));
                     c.rgb = mix(c.rgb, stained, cover * body * (1.0 - 0.25 * sand));
