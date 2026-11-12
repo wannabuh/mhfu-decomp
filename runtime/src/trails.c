@@ -173,6 +173,9 @@ static Trickle trickles[TRICKLES];
 static double epoch = -1, last30;
 static float now_shown;
 static int in_pieces = 1;
+static float fast = 1;
+
+void trails_speed(float times) { fast = times > 0 ? times : 1; }
 
 void trails_pieces(int on) { in_pieces = on; }
 
@@ -571,7 +574,7 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
                 finish_why(t, m, skin, P, R, now, 0, "level skin");
             return;
         }
-        float spent = t->left / t->reach, want = (36.0f + 130.0f * steep) * (0.35f + 0.65f * spent);     /* (three times as fast as it was: the user's wish, #83) */
+        float spent = t->left / t->reach, want = (36.0f + 130.0f * steep) * (0.35f + 0.65f * spent) * fast;     /* (three times as fast as it was: the user's wish, #83) */
         t->speed += (want - t->speed) * (14.0f * dt < 1 ? 14.0f * dt : 1);
         float go = t->speed * dt;
         if (go > t->left)

@@ -3915,6 +3915,19 @@ static float blood_amount(void) {
     return amount;
 }
 
+/* How fast blood runs down a monster (0) and its drips fall (1), times the usual: MHFU_BLOOD_RUN_SPEED,
+ * MHFU_BLOOD_DRIP_SPEED, the settings' */
+static float blood_speed(int drips) {
+    static float times[2] = {1, 1};
+    static unsigned seen;
+    if (SETTING_STALE(seen)) {
+        const char *r = getenv("MHFU_BLOOD_RUN_SPEED"), *d = getenv("MHFU_BLOOD_DRIP_SPEED");
+        times[0] = r && atof(r) > 0 ? (float)atof(r) : 1.0f;
+        times[1] = d && atof(d) > 0 ? (float)atof(d) : 1.0f;
+    }
+    return times[drips];
+}
+
 /* How far a wound's blood reaches about it, units, and how thick it lies (0-1) */
 static float wound_blood_reach(int w) {
     return wounds[w].blood > 0 ? 12.0f + (wounds[w].rmax - 12.0f) * (1.0f - expf(-wounds[w].blood / 4.0f)) : 0;
@@ -4999,7 +5012,7 @@ static void blood_falls(const float *at, const float *speed, float floor_y, floa
         size *= blood_chance() < 0.13f ? 1.7f + 1.3f * c : 0.45f + 1.1f * c * c;
     }
     /* (a wound's own drips fall heavily, twice as fast as things do: a thrown drop flies as it would) */
-    blood_spawn(at, speed, floor_y, size, rgb, must ? 3.6f : 1.0f);
+    blood_spawn(at, speed, floor_y, size, rgb, must ? 3.6f * blood_speed(1) : 1.0f);
 }
 
 /* Each frame: where the eye is (the ground's blood is kept about it) */
@@ -5560,6 +5573,7 @@ static void trail_models_frame(const Frame *f, double now30) {
     uint64_t t0 = perf_ns();
     int running = 0;
     trails_pieces(!bloodmap_on());
+    trails_speed(blood_speed(0));
     bloodmap_frame((float)(now30 / 30.0));
     for (int m = 0; m < RUN_MESHES; m++) {
         struct TrailModel *tm = &trail_models[m];

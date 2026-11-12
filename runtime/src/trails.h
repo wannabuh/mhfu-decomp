@@ -57,6 +57,8 @@ void trails_start(int mesh, uint32_t tri, const float *bc, float reach, float ha
 int trails_step(int mesh, const TrailSkin *skin, double now30);
 /* Whether trails are kept in pieces here (as they are unless told): not, when the skins' strokes keep them */
 void trails_pieces(int on);
+/* How fast the trickles run, times the usual (the settings') */
+void trails_speed(float times);
 
 /* The renderer's thread: the words for the pixel stage (shared.h RUN_: all of them), and which of them changed since
  * this was last asked (from, to: none if equal); the moment the blood is at, in the seconds its pieces are timed in */
