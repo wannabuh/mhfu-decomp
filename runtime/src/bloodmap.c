@@ -167,7 +167,8 @@ float bloodmap_layout(int mesh, uint32_t ntri, const TrailSkin *skin, const uint
  * its edges): what paints them is asked for each */
 typedef float (*Paint)(void *ctx, const float *at, const float *normal);     /* how much blood there: 0 none, to 1 */
 
-static void paint_triangle(int mesh, uint32_t t, const float (*P)[3], const float *normal, Paint paint, void *ctx, uint32_t code, float thick) {
+/* (field: 0 blood - it adds, lying so thick; 1 a cut, 2 a bruise - the most there has been) */
+static void paint_triangle(int mesh, uint32_t t, const float (*P)[3], const float *normal, Paint paint, void *ctx, uint32_t code, float thick, int field) {
     const Place *p = &places[mesh][t];
     if (!p->w)
         return;
@@ -196,6 +197,15 @@ static void paint_triangle(int mesh, uint32_t t, const float (*P)[3], const floa
             if (!(much > 0.004f))
                 continue;
             uint32_t *w = &tex[y * BLOODMAP_W + x], had = *w & 255u, lay = *w >> 8 & 255u;
+            if (field) {
+                uint32_t shift = field == 1 ? 24 : 28, v = (uint32_t)((much > 1 ? 1 : much) * 15.0f + 0.5f);
+                if (v <= (*w >> shift & 15u))
+                    continue;
+                *w = (*w & ~(15u << shift)) | v << shift;
+                uint32_t aw = y * BLOODMAP_W + x;
+                lo = aw < lo ? aw : lo, hi = aw > hi ? aw : hi;
+                continue;
+            }
             /* (it adds: what is there and what comes, the skin left bare by both less) */
             float a = (float)had / 255.0f, sum = 1.0f - (1.0f - a) * (1.0f - (much > 1 ? 1 : much));
             float l = (float)lay / 255.0f + thick * much * (0.35f + 0.65f * a);
@@ -241,7 +251,27 @@ static float splash_paint(void *ctx, const float *at, const float *normal) {
         return 0;
     if (s->lengthen > 1)
         x /= s->lengthen;
-    float r = sqrtf(x * x + y * y) / s->radius, deep = fabsf(z) / (s->radius * 0.6f + 6.0f);
+    float deep = fabsf(z) / (s->radius * 0.6f + 6.0f);
+    if (s->kind == SPLASH_CUT) {
+        /* the cut: along x (as long as it was made, here 1 at its ends), tapering, its middle wandering, its width
+         * ragged - 1 down its middle, 0 at its edge */
+        float sd = s->seed * 53.0f, taper = 1.0f - x * x / (s->radius * s->radius);
+        if (taper <= 0 || deep > 1)
+            return 0;
+        taper = powf(taper, 0.6f);
+        float along = x / s->radius * s->lengthen;
+        float mid = ((noise2(along * 0.35f + sd, sd) - 0.5f) * 1.6f + (noise2(along * 1.3f, sd + 3) - 0.5f) * 0.5f) * s->radius * taper;
+        float wide = s->radius * taper * (0.65f + 0.6f * noise2(along * 0.9f + sd, 5.0f));
+        float in = 1.0f - fabsf(y - mid) / fmaxf(wide, 0.3f);
+        return in > 0 ? (0.25f + 0.75f * in) * s->much * smooth(-0.1f, 0.25f, facing) : 0;
+    }
+    float r = sqrtf(x * x + y * y) / s->radius;
+    if (s->kind == SPLASH_HOLE)
+        return deep > 1 ? 0 : (1.0f - smooth(0.5f, 1.0f, r)) * smooth(-0.1f, 0.25f, facing);
+    if (s->kind == SPLASH_BRUISE) {
+        float sd = s->seed * 47.0f, blotch = 0.6f + 0.5f * noise2(x / s->radius * 2.3f + sd, y / s->radius * 2.3f - sd);
+        return deep > 1 ? 0 : (1.0f - smooth(0.35f, 1.0f, r / blotch)) * s->much * smooth(-0.1f, 0.25f, facing);
+    }
     if (r > 2.2f || deep > 1)
         return 0;
     float ang = atan2f(y, x), sd = s->seed * 61.0f;
@@ -301,7 +331,7 @@ void bloodmap_splash(int mesh, const TrailSkin *skin, const BloodSplash *s, cons
     Splash sp = {.s = *s};
     frame_of(s->out, s->along, sp.u, sp.v);
     uint32_t code = wet_code(now);
-    float far = s->radius * 2.3f * (s->lengthen > 1 ? s->lengthen : 1);
+    float far = s->radius * 2.3f * (s->lengthen > 1 ? s->lengthen : 1) + 4.0f;
     for (uint32_t t = 0; t < nplaces[mesh]; t++) {
         float P[3][3], R[3][3], n[3];
         if (!places[mesh][t].w || !skin->corners(skin->ctx, t, P, R))
@@ -315,7 +345,8 @@ void bloodmap_splash(int mesh, const TrailSkin *skin, const BloodSplash *s, cons
             continue;
         if (flip && flip[t])
             n[0] = -n[0], n[1] = -n[1], n[2] = -n[2];
-        paint_triangle(mesh, t, (const float (*)[3])P, n, splash_paint, &sp, code, s->kind == SPLASH_CUT ? 0.9f : 0.5f);
+        paint_triangle(mesh, t, (const float (*)[3])P, n, splash_paint, &sp, code, 0.5f,
+                       s->kind == SPLASH_CUT || s->kind == SPLASH_HOLE ? 1 : s->kind == SPLASH_BRUISE ? 2 : 0);
     }
 }
 
@@ -344,7 +375,7 @@ void bloodmap_stroke(int mesh, const TrailSkin *skin, const uint32_t *tris, int 
         float P[3][3], R[3][3], n[3] = {0, 1, 0};
         if (tris[i] >= nplaces[mesh] || !skin->corners(skin->ctx, tris[i], P, R))
             continue;
-        paint_triangle(mesh, tris[i], (const float (*)[3])P, n, stroke_paint, &k, code, 0.8f);
+        paint_triangle(mesh, tris[i], (const float (*)[3])P, n, stroke_paint, &k, code, 0.8f, 0);
     }
 }
 
@@ -365,7 +396,7 @@ void bloodmap_frame(float now) {
             for (uint32_t x = 0; x < BLOODMAP_W; x++) {
                 uint32_t w = tex[y * BLOODMAP_W + x], c = w >> 16 & 255u;
                 if (c && (code + 255u - c) % 255u > 120u) {
-                    tex[y * BLOODMAP_W + x] = w & 0xFFFFu;
+                    tex[y * BLOODMAP_W + x] = w & 0xFF00FFFFu;
                     lo = y * BLOODMAP_W + x < lo ? y * BLOODMAP_W + x : lo, hi = y * BLOODMAP_W + x;
                 }
             }

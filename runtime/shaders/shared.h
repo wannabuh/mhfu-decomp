@@ -149,7 +149,8 @@
  * rows of four floats, a place among its vertices as the game gave them to its texel in the maps (x, y; all zero: it
  * has none) - and from RUN_TEXELS_AT the maps, one under another, BLOODMAP_W texels wide and BLOODMAP_H high each: a
  * texel's low 8 bits how much blood, the next 8 how thick it lies, then 8 the moment it last got wet (seconds, 1 to
- * 255 going round, as the eye's set's dir[1].w has now; 0: dry long since) */
+ * 255 going round, as the eye's set's dir[1].w has now; 0: dry long since), then 4 how open a cut is there (its lips
+ * low, its inside high) and 4 how bruised the skin */
 #define RUN_MAP_WORDS 8
 #define BLOODMAP_W 1024
 #define BLOODMAP_H 1024

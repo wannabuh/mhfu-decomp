@@ -3885,6 +3885,7 @@ static void trail_skin_log(const Frame *f, const float *world);
 static void trail_models_frame(const Frame *f, double now30);
 static void trail_from_wound(const Frame *f, int w, const float *world, double now30);
 static int trail_model_keep(const Frame *f, const WoundOwner *of, const float *world, float floor_y);
+static int bloodmap_on(void);
 static void paint_hits(const Frame *f, double now30);
 static float blood_chance(void);
 static int trickles_on(void);
@@ -4071,7 +4072,8 @@ void wound_hit(uint32_t record, uint32_t attacker, uint32_t monster, uint32_t co
          * of it, and its every wound was a scratch - #81. A cut from 25 or so, a gash at 85) */
         float hard = dealt * scale, dh = (hard - 5.0f) / (85.0f - 5.0f);
         dh = sqrtf(dh < 0 ? 0 : dh > 1 ? 1 : dh);
-        d = d > dh ? d : dh;
+        /* (by the blow alone, not the share of the animal's health it took: the same blow, the same wound, on any animal - #83) */
+        d = bloodmap_on() ? dh : d > dh ? d : dh;
         wound_pending[k].hard = hard;
         if (LBU(record + 0x74u) == 3)
             d += 0.15f;
@@ -4478,7 +4480,7 @@ static int bloodmap_on(void) {
         on = !getenv("MHFU_BLOODMAP") || atoi(getenv("MHFU_BLOODMAP")) != 0;
     return on;
 }
-static struct { WoundOwner of; const float *world; float at[3], out[3], along[3], gain, floor_y; int kind; } paint_due[8];
+static struct { WoundOwner of; const float *world; float at[3], out[3], along[3], gain, floor_y, size, depth; int kind; } paint_due[8];
 static int paint_dues;
 
 static void wounds_attach(Frame *f) {
@@ -4940,6 +4942,8 @@ static void wounds_attach(Frame *f) {
                 paint_due[paint_dues].along[k] = along[k];
             }
             paint_due[paint_dues].gain = gain;
+            paint_due[paint_dues].size = size;
+            paint_due[paint_dues].depth = depth;
             paint_due[paint_dues].floor_y = wound_pending[h].attacker[1];
             paint_due[paint_dues++].kind = wound_pending[h].kind;
         }
@@ -4995,7 +4999,7 @@ static void blood_falls(const float *at, const float *speed, float floor_y, floa
         size *= blood_chance() < 0.13f ? 1.7f + 1.3f * c : 0.45f + 1.1f * c * c;
     }
     /* (a wound's own drips fall heavily, twice as fast as things do: a thrown drop flies as it would) */
-    blood_spawn(at, speed, floor_y, size, rgb, must ? 2.2f : 1.0f);
+    blood_spawn(at, speed, floor_y, size, rgb, must ? 3.6f : 1.0f);
 }
 
 /* Each frame: where the eye is (the ground's blood is kept about it) */
@@ -5088,14 +5092,14 @@ static void wounds_frame(const Frame *f) {
         }
         /* Its blood runs down the animal: from a cut one trickle or two, from a gash several, the first at once and
          * the rest over the seconds after (MHFU_TRICKLES=n: n from each, to look at them) */
-        if ((trickles_on() || bloodmap_on()) && wounds[w].kind != WOUND_BLUNT && wounds[w].depth >= 0.25f) {
+        if ((trickles_on() || bloodmap_on()) && (wounds[w].kind != WOUND_BLUNT ? wounds[w].depth >= (bloodmap_on() ? 0.4f : 0.25f) : bloodmap_on() && wounds[w].depth >= 0.45f)) {
             if (!wounds[w].runs_set) {
                 static int forced = -1;
                 if (forced < 0)
                     forced = getenv("MHFU_TRICKLES") ? atoi(getenv("MHFU_TRICKLES")) : 0;
                 float d = wounds[w].depth;
                 wounds[w].runs_set = 1;
-                wounds[w].runs_left = forced ? forced : wounds[w].kind == WOUND_SHOT ? 1 : d > 0.65f ? 3 + (int)(3.99f * blood_chance()) : d > 0.45f ? 2 : 1;
+                wounds[w].runs_left = forced ? forced : wounds[w].kind == WOUND_SHOT || wounds[w].kind == WOUND_BLUNT ? 1 : d > 0.65f ? 3 + (int)(3.99f * blood_chance()) : d > 0.45f ? 2 : 1;
                 wounds[w].run_due = wounds[w].born + 4;
             }
             if (wounds[w].runs_left > 0 && now30 >= wounds[w].run_due) {
@@ -5726,14 +5730,27 @@ static void paint_hits(const Frame *f, double now30) {
             continue;
         struct TrailModel *tm = &trail_models[m];
         TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
-        float g = paint_due[k].gain, now = (float)(now30 / 30.0);
-        BloodSplash sp = {.radius = 12.0f + 11.0f * g, .much = paint_due[k].kind == WOUND_BLUNT ? 0.6f : 0.9f, .lengthen = 1, .seed = blood_chance(), .kind = SPLASH_BLOT};
+        /* (a light blow: a scratch and a few drops; a middling one a cut and a small splash; a hard one a gash, a
+         * splash with its arms - the cut leading, not the blood, #83. A blunt one: a bruise, and less blood) */
+        float g = paint_due[k].gain, now = (float)(now30 / 30.0), big = paint_due[k].size > 0 ? fminf(fmaxf(paint_due[k].size, 0.4f), 1.5f) : 1.0f;
+        float dp = paint_due[k].depth;
+        int blunt = paint_due[k].kind == WOUND_BLUNT;
+        BloodSplash sp = {.radius = (5.0f + 12.0f * g * g) * big * (blunt ? 0.8f : 1.0f), .much = fminf(0.3f + 0.45f * g, 0.9f) * (blunt ? 0.75f : 1.0f),
+                          .lengthen = 1, .seed = blood_chance(), .kind = SPLASH_BLOT};
+        sp.radius = fminf(sp.radius, 38.0f);
         memcpy(sp.at, paint_due[k].at, sizeof sp.at);
         memcpy(sp.out, paint_due[k].out, sizeof sp.out);
         memcpy(sp.along, paint_due[k].along, sizeof sp.along);
         bloodmap_splash(m, &skin, &sp, tm->flip, now);
-        if (paint_due[k].kind == WOUND_SLASH) {
-            sp.radius = 5.0f + 3.0f * g, sp.lengthen = 3.5f, sp.much = 1.0f, sp.kind = SPLASH_CUT, sp.seed = blood_chance();
+        if (blunt) {
+            sp.radius = (9.0f + 9.0f * g) * big, sp.much = fminf(0.45f + 0.4f * g, 1.0f), sp.kind = SPLASH_BRUISE, sp.seed = blood_chance();
+            bloodmap_splash(m, &skin, &sp, tm->flip, now);
+        } else if (paint_due[k].kind == WOUND_SLASH) {
+            /* (the cut: so long and so wide, half - a scratch 20 units by 3, a gash 70 by 10 on an animal of the usual size) */
+            sp.radius = (1.4f + 3.8f * dp) * big, sp.lengthen = (10.0f + 26.0f * dp) / (1.4f + 3.8f * dp), sp.much = 0.45f + 0.55f * dp, sp.kind = SPLASH_CUT, sp.seed = blood_chance();
+            bloodmap_splash(m, &skin, &sp, tm->flip, now);
+        } else {
+            sp.radius = 3.5f * big, sp.much = 1.0f, sp.kind = SPLASH_HOLE;
             bloodmap_splash(m, &skin, &sp, tm->flip, now);
         }
     }
@@ -5804,7 +5821,7 @@ static uint64_t wound_mask;         /* the group being drawn: its wounds (0: non
 static uint32_t wound_vaddr;        /* and its mesh (its vertices' address) */
 
 static void wounds_fill(TlDraw *d) {
-    if (!wound_mask)
+    if (!wound_mask || bloodmap_on())      /* (the cuts are in the skin's map with their blood: bloodmap.c) */
         return;
     int n = wound_next < WOUNDS ? wound_next : WOUNDS;
     uint64_t left_mask = wound_mask;

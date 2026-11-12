@@ -22,7 +22,9 @@ void bloodmap_drop(int mesh);
  * and what lies behind it less the further), so far across, as much (0 to 1; it adds to what is there); long: drawn
  * out that way (a unit vector, or zeros) by so many times. seed: a number of its own */
 typedef struct { float at[3], out[3], along[3], radius, much, lengthen, seed; int kind; } BloodSplash;
-enum { SPLASH_BLOT, SPLASH_CUT };
+/* (a cut: the wound itself, radius half its width and lengthen its length over that, much how deep - and a little
+ * blood on its lips; a shot's hole; a bruise) */
+enum { SPLASH_BLOT, SPLASH_CUT, SPLASH_HOLE, SPLASH_BRUISE };
 /* (flip: whether each triangle is wound the other way round, or NULL; now: the game's time in seconds) */
 void bloodmap_splash(int mesh, const TrailSkin *skin, const BloodSplash *s, const uint8_t *flip, float now);
 /* A stroke from a to b (a trickle's step), half so wide, on triangle tri and those given beside it */

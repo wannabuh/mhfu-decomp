@@ -571,8 +571,8 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
                 finish_why(t, m, skin, P, R, now, 0, "level skin");
             return;
         }
-        float spent = t->left / t->reach, want = (12.0f + 44.0f * steep) * (0.4f + 0.6f * spent);
-        t->speed += (want - t->speed) * (5.0f * dt < 1 ? 5.0f * dt : 1);
+        float spent = t->left / t->reach, want = (36.0f + 130.0f * steep) * (0.35f + 0.65f * spent);     /* (three times as fast as it was: the user's wish, #83) */
+        t->speed += (want - t->speed) * (14.0f * dt < 1 ? 14.0f * dt : 1);
         float go = t->speed * dt;
         if (go > t->left)
             go = t->left;

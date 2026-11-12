@@ -689,6 +689,7 @@ void main() {
             vec2 cell = floor(uv), part = uv - cell;
             uint tint = run_words[uint(RUN_MAPS_AT) + mesh];
             vec3 sum = vec3(0.0);
+            vec2 marks = vec2(0.0);     // (how open a cut is here, how bruised the skin)
             float wet = 0.0, now = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].w;
             for (int k = 0; k < 4; k++) {
                 vec2 c2 = clamp(cell + vec2(float(k & 1), float(k >> 1)), vec2(0.0), vec2(float(BLOODMAP_W - 1), float(RUN_MESHES * BLOODMAP_H - 1)));
@@ -697,7 +698,8 @@ void main() {
                 float much = float(w & 255u) / 255.0, code = float(w >> 16 & 255u);
                 // (wet for 25 seconds, then drying over 40 more)
                 float age = code > 0.0 ? mod(now - code + 255.0, 255.0) : 255.0;
-                sum += vec3(much, float(w >> 8 & 255u) / 255.0, much * (1.0 - smoothstep(25.0, 65.0, age))) * share;
+                sum += vec3(much, float(w >> 8 & 255u) / 255.0, much * (1.0 - smoothstep(12.0, 70.0, age))) * share;
+                marks += vec2(float(w >> 24 & 15u), float(w >> 28 & 15u)) / 15.0 * share;
             }
             if ((tint & (1u << 24)) != 0u) {      // (MHFU_BLOODMAP_SHOW: its texels in squares, eight to a square)
                 vec2 sq = floor((uv + 0.5) / 8.0);
@@ -705,23 +707,41 @@ void main() {
                 vec2 fine = abs(fract(uv + 0.5) - 0.5);
                 c.rgb *= 0.75 + 0.25 * step(max(fine.x, fine.y), 0.42);
             }
+            vec3 look = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xyz;
+            vec3 blood = vec3(float(tint & 255u), float(tint >> 8 & 255u), float(tint >> 16 & 255u)) / 255.0;
+            vec3 full = blood / max(max(blood.r, max(blood.g, blood.b)), 0.05);
+            // a bruise: the skin darker and duller, towards purple, mottled
+            if (marks.y > 0.0) {
+                float lum = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+                float mottle = 0.75 + 0.25 * blood_noise(uv * 0.35);
+                c.rgb = mix(c.rgb, mix(c.rgb, vec3(lum), 0.45) * vec3(0.5, 0.36, 0.56), smoothstep(0.05, 0.8, marks.y) * 0.75 * mottle);
+            }
             float cover = smoothstep(0.08, 0.5, sum.x);
+            float lit_skin = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+            float shade = clamp(lit_skin / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
+            float clot = 0.0;
+            wet = sum.x > 0.0 ? sum.z / sum.x : 0.0;
             if (cover > 0.0) {
-                vec3 look = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xyz;
-                wet = sum.x > 0.0 ? sum.z / sum.x : 0.0;
-                vec3 blood = vec3(float(tint & 255u), float(tint >> 8 & 255u), float(tint >> 16 & 255u)) / 255.0;
-                vec3 full = blood / max(max(blood.r, max(blood.g, blood.b)), 0.05);
                 vec3 under = c.rgb;
-                float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
-                vec3 stained = full * (0.1 + 1.3 * lit_under) * mix(0.62, 0.9, wet);
-                float clot = smoothstep(0.25, 0.8, sum.y) * smoothstep(0.5, 0.9, sum.x);
-                float shade = clamp(lit_under / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
-                vec3 clotted = full * mix(0.36, 0.55, wet) * max(shade, 0.4) * 0.8;
+                // (fresh: a deep red; dried, over a minute: darker and towards brown)
+                vec3 tone = mix(mix(full * 0.34, vec3(0.2, 0.09, 0.05), 0.4), full * 0.62, wet);
+                vec3 stained = tone * (0.16 + 1.25 * lit_skin);
+                clot = smoothstep(0.25, 0.8, sum.y) * smoothstep(0.5, 0.9, sum.x);
+                vec3 clotted = tone * 0.62 * max(shade, 0.4);
                 c.rgb = mix(under, mix(stained, clotted, 0.75 * clot), cover * mix(0.75, 0.95, look.x));
-                float gloss = cover * (0.25 + 0.75 * clot) * wet * look.y * 0.6;
+            }
+            // the cuts, over the blood: raw lips, lighter than the blood, and dark inside where they lie open
+            float lips = smoothstep(0.1, 0.4, marks.x), open = smoothstep(0.5, 0.8, marks.x);
+            if (lips > 0.0) {
+                vec3 raw = mix(full * vec3(1.0, 0.45, 0.4), vec3(0.75, 0.3, 0.26), 0.35) * (0.25 + 1.1 * lit_skin) * mix(0.75, 1.0, wet);
+                vec3 inside = full * 0.14 * max(shade, 0.5);
+                c.rgb = mix(c.rgb, mix(raw, inside, open), lips * 0.92);
+            }
+            float gloss = max(cover * (0.25 + 0.75 * clot), open) * max(wet, open * 0.25) * look.y * 0.6;
+            if (gloss > 0.0) {
                 vec3 n = in_normal;
                 vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
-                if (gloss > 0.0 && dot(n, n) > 0.0 && dot(view, view) > 0.0) {
+                if (dot(n, n) > 0.0 && dot(view, view) > 0.0) {
                     view = normalize(view);
                     n = normalize(n);
                     n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
