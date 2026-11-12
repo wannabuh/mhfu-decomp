@@ -60,6 +60,8 @@
 #define DRAW_FACES 131072u      /* (the GPU's vertex stage) shaded: the normals summed where corners meet, each
                                  * triangle's own where they bend more than 60 degrees from it (ge.frag) */
 #define DRAW_NO_CAST 262144u    /* far scenery (gpu.c backdrop_draw): it casts no shadows */
+#define DRAW_OVER 524288u       /* in the world but not of its solid part: a layer over it - mist, dust, a sheen - that
+                                 * writes no depth or keeps what is behind it. The ground's blood is not drawn on it */
 
 /* -- push constants ----------------------------------------------------------------------------------------------- */
 /* The GE's draws (ge.*, shadow.*, pshadow.*): the texture's size (texels) and index (~0u: none), the flags, the alpha

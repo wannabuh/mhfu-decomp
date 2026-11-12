@@ -398,7 +398,7 @@ void main() {
         // of it lies, uneven; thin blood a stain in the ground's own light, deep blood darker and its own colour;
         // wet blood redder, and shining where the sun is on it. Snow takes it up bright and wide, sand dark and dull.
         uint blood_info = BLOOD_SET_AT + uint(BLOOD_SETS) - 1u;
-        if ((draw.flags & DRAW_WORLD) != 0u && sets[blood_info].count != 0u) {
+        if ((draw.flags & (DRAW_WORLD | DRAW_OVER)) == DRAW_WORLD && sets[blood_info].count != 0u) {
             vec3 up = cross(dFdx(in_world), dFdy(in_world));
             float ul = length(up);
             vec3 eye = sets[blood_info].dir[0].xyz;

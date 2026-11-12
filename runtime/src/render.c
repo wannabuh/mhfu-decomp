@@ -923,6 +923,13 @@ void render_prim_begin(const uint32_t *reg) {
                          s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_CONSTANT_COLOR ||
                          s.eq.dstColorBlendFactor == VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
     int solid = (s.flags & DRAW_WORLD) && s.depth_write && !sheer;
+    /* (a layer over the world: the blood on the ground under it was drawn on it too, a second time and paler -
+     * under the snow's drifting mist, #89; and on such a layer its own picture showed through the blood, #86) */
+    static int over_too = -1;           /* (MHFU_BLOOD_OVER=1: on those too, as it was) */
+    if (over_too < 0)
+        over_too = getenv("MHFU_BLOOD_OVER") && atoi(getenv("MHFU_BLOOD_OVER")) != 0;
+    if ((s.flags & DRAW_WORLD) && !solid && !over_too)
+        s.flags |= DRAW_OVER;
     ao_state(s.target, solid, clear);
     if (solid) {
         scene.depth_op = s.depth_op;
