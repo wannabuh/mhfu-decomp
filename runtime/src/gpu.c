@@ -5363,10 +5363,14 @@ static struct TrailModel {
     uint32_t ntri;
     const Frame *f;                 /* the frame its groups were last found in */
     float floor_y;
+    int lost;                       /* frames in a row under half its draws were found */
 } trail_models[RUN_MESHES];
 static uint32_t *trail_bases;       /* a frame's groups': where each one's triangles' blood is kept (TlDraw runs), or 0 */
 static int trail_bases_cap;
 static const Frame *trail_bases_of;
+static uint32_t *trail_bases_was;   /* (and the frame before's) */
+static int trail_bases_was_cap;
+static const Frame *trail_bases_was_of;
 static uint32_t run_base;           /* the group being drawn's */
 
 static int trickles_on(void) {
@@ -5388,7 +5392,7 @@ static void trail_models_clear(void) {
         memset(&trail_models[m], 0, sizeof trail_models[m]);
     }
     trails_clear();
-    trail_bases_of = NULL;
+    trail_bases_of = trail_bases_was_of = NULL;
 }
 
 /* The model's place in this frame: of the draws from its first group's vertices, the one nearest its animal */
@@ -5575,6 +5579,16 @@ static void trail_drop(void *ctx, const float *at, float size) {
 
 /* Each frame recorded: the animals' skins found in it, their trickles stepped */
 static void trail_models_frame(const Frame *f, double now30) {
+    /* (the frame before's kept: the frame shown is not always the one just recorded, and for a frame or a few the
+     * animals' blood was not drawn at all - it flashed off, #90) */
+    {
+        uint32_t *b = trail_bases_was;
+        int cap = trail_bases_was_cap;
+        trail_bases_was = trail_bases, trail_bases_was_cap = trail_bases_cap, trail_bases_was_of = trail_bases_of;
+        trail_bases = b, trail_bases_cap = cap;
+        if (trail_bases_was_of == f)
+            trail_bases_was_of = NULL;
+    }
     if (f->ntlg > trail_bases_cap) {
         trail_bases_cap = f->ntlg * 2;
         trail_bases = realloc(trail_bases, sizeof *trail_bases * (size_t)trail_bases_cap);
@@ -5608,6 +5622,47 @@ static void trail_models_frame(const Frame *f, double now30) {
             tm->of.health = health;
         tm->floor_y = ((const float *)PTR(tm->of.addr + 0x200u))[1];
         trail_model_map(f, m, trail_model_world(f, tm));
+        /* The animal is drawn from another model now (as it dies; far off): under half the skin's draws found for a
+         * few frames, and a model of about as many triangles stands where the animal is - the skin is kept anew from
+         * that one, its blood with it (bloodmap_layout), #90 */
+        tm->lost = 2 * tm->found < tm->ngroups ? tm->lost + 1 : 0;
+        {
+            /* (MHFU_TEST_RELAY=n: at the nth frame a skin is kept, as if its animal's model had changed - to see its
+             * blood come through a new layout) */
+            static int relay_at = -1, relay_n;
+            if (relay_at < 0)
+                relay_at = getenv("MHFU_TEST_RELAY") ? atoi(getenv("MHFU_TEST_RELAY")) : 0;
+            if (relay_at && ++relay_n == relay_at)
+                tm->found = 0, tm->lost = 4;
+        }
+        if (tm->lost >= 4 && bloodmap_on() && wound_cams) {
+            const float *world = NULL, *place = (const float *)PTR(tm->of.addr + 0x200u);
+            float best = 150.0f * 150.0f;
+            tm->lost = -20;             /* (not again for a while, if this comes to nothing) */
+            for (int gi = 0; gi < f->ntlg; gi++) {
+                const Draw *d = &f->draws[f->tlg[gi].first];
+                const float zero[3] = {0, 0, 0};
+                float w[3], o[3];
+                if (!(d->reg[0x17] & 1) || !draw_bones(d) || d->world == world)
+                    continue;
+                mul43(d->world, zero, w);
+                mul43(wound_cam[0], w, o);
+                if (dist2(o, place) < best)
+                    best = dist2(o, place), world = d->world;
+            }
+            uint32_t tris = 0;
+            for (int gi = 0; gi < f->ntlg && world; gi++)
+                if (trail_skin_group(&f->draws[f->tlg[gi].first], world))
+                    tris += f->tlg[gi].nindex / 3;
+            if (world && 10 * tris >= 6 * tm->ntri && 10 * tris <= 16 * tm->ntri) {
+                WoundOwner of = tm->of;
+                float floor_y = tm->floor_y;
+                fprintf(stderr, "skin %d: its animal %08X is drawn from another model (%d of its %d draws found; %u triangles there, it had %u): kept anew\n", m,
+                        of.addr, tm->found, tm->ngroups, tris, tm->ntri);
+                if (trail_model_keep(f, &of, world, floor_y) != m)
+                    continue;
+            }
+        }
         TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
         running += trails_step(m, &skin, now30);
     }
@@ -6384,7 +6439,8 @@ static void tl_group_draw(const TlGroup *g) {
     static TlDraw d;
     wound_mask = wound_masks_of == latest && g >= latest->tlg && g < latest->tlg + latest->ntlg ? wound_masks[g - latest->tlg] : 0;
     wound_vaddr = wound_mask ? latest->draws[g->first].vaddr : 0;
-    run_base = trail_bases_of == latest && g >= latest->tlg && g < latest->tlg + latest->ntlg ? trail_bases[g - latest->tlg] : 0;
+    run_base = !(g >= latest->tlg && g < latest->tlg + latest->ntlg) ? 0 : trail_bases_of == latest ? trail_bases[g - latest->tlg]
+               : trail_bases_was_of == latest && g - latest->tlg < trail_bases_was_cap ? trail_bases_was[g - latest->tlg] : 0;
     int same = tl_draw_now(&d);
     int slot = (int)(latest->tl_gen % TL_SLOTS);
     tl_groups_drawn++;

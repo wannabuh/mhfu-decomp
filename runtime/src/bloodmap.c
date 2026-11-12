@@ -15,6 +15,7 @@ typedef struct { uint16_t x, y, w, h; float c[3][2]; } Place;
 
 static uint32_t store[MAPS + RUN_MESHES * TEXELS];
 static Place *places[RUN_MESHES];
+static float (*rests[RUN_MESHES])[3][3];    /* each triangle's corners as the game gave them */
 static uint32_t nplaces[RUN_MESHES];
 static float units[RUN_MESHES];     /* units of the world a texel is, in each */
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
@@ -48,6 +49,8 @@ void bloodmap_drop(int mesh) {
     if (mesh < 0 || mesh >= RUN_MESHES || !places[mesh])
         return;
     free(places[mesh]);
+    free(rests[mesh]);
+    rests[mesh] = NULL;
     places[mesh] = NULL;
     nplaces[mesh] = 0;
     memset(store + RUN_MESHES + (size_t)mesh * RUN_TRIS * RUN_MAP_WORDS, 0, sizeof(uint32_t) * RUN_TRIS * RUN_MAP_WORDS);
@@ -69,6 +72,42 @@ static int taller(const void *a, const void *b) {
 float bloodmap_layout(int mesh, uint32_t ntri, const TrailSkin *skin, const uint8_t *rgb) {
     if (mesh < 0 || mesh >= RUN_MESHES)
         return 0;
+    /* What blood the skin has is kept through a new layout - the game draws an animal from another model as it dies,
+     * or far off, and its blood went with the old one (#90): the old triangles that have any, each with its corners
+     * as given and its texels, and after the layout every new texel takes what was at its place among those */
+    typedef struct { float R[3][3], lo[3], hi[3], n[3], size; Place p; uint32_t *tex; } Kept;
+    Kept *kept = NULL;
+    uint32_t nkept = 0;
+    if (places[mesh] && rests[mesh]) {
+        kept = malloc(sizeof *kept * (nplaces[mesh] + 1));
+        const uint32_t *tex = texels(mesh);
+        for (uint32_t t = 0; t < nplaces[mesh]; t++) {
+            const Place *p = &places[mesh][t];
+            int any = 0;
+            for (uint32_t y = p->y; y < (uint32_t)p->y + p->h && !any; y++)
+                for (uint32_t x = p->x; x < (uint32_t)p->x + p->w && !any; x++)
+                    any = (tex[y * BLOODMAP_W + x] & 0xFF00FFFFu) != 0;
+            if (!p->w || !any)
+                continue;
+            Kept *k = &kept[nkept++];
+            memcpy(k->R, rests[mesh][t], sizeof k->R);
+            k->p = *p;
+            k->tex = malloc(sizeof(uint32_t) * p->w * p->h);
+            for (uint32_t y = 0; y < p->h; y++)
+                memcpy(k->tex + y * p->w, tex + (p->y + y) * BLOODMAP_W + p->x, sizeof(uint32_t) * p->w);
+            float u[3], v[3];
+            for (int i = 0; i < 3; i++) {
+                k->lo[i] = fminf(k->R[0][i], fminf(k->R[1][i], k->R[2][i]));
+                k->hi[i] = fmaxf(k->R[0][i], fmaxf(k->R[1][i], k->R[2][i]));
+                u[i] = k->R[1][i] - k->R[0][i], v[i] = k->R[2][i] - k->R[0][i];
+            }
+            k->n[0] = u[1] * v[2] - u[2] * v[1], k->n[1] = u[2] * v[0] - u[0] * v[2], k->n[2] = u[0] * v[1] - u[1] * v[0];
+            float l = len3(k->n);
+            k->size = sqrtf(l);
+            for (int i = 0; i < 3; i++)
+                k->n[i] /= l > 0 ? l : 1;
+        }
+    }
     bloodmap_drop(mesh);
     ntri = ntri < RUN_TRIS ? ntri : RUN_TRIS;
     Size *sizes = malloc(sizeof *sizes * (ntri + 1));
@@ -157,9 +196,76 @@ float bloodmap_layout(int mesh, uint32_t ntri, const TrailSkin *skin, const uint
     places[mesh] = pl;
     nplaces[mesh] = ntri;
     units[mesh] = unit;
+    rests[mesh] = rest;
+    uint32_t moved = 0;
+    for (uint32_t t = 0; t < ntri && nkept; t++) {
+        const Place *p = &pl[t];
+        if (!p->w)
+            continue;
+        const float (*R)[3] = rest[t];
+        float lo[3], hi[3];
+        for (int i = 0; i < 3; i++)
+            lo[i] = fminf(R[0][i], fminf(R[1][i], R[2][i])), hi[i] = fmaxf(R[0][i], fmaxf(R[1][i], R[2][i]));
+        uint32_t cand[24], nc = 0;
+        for (uint32_t k = 0; k < nkept && nc < 24; k++) {
+            int over = 1;
+            for (int i = 0; i < 3 && over; i++) {
+                float slack = 0.15f * kept[k].size;
+                over = lo[i] <= kept[k].hi[i] + slack && hi[i] >= kept[k].lo[i] - slack;
+            }
+            if (over)
+                cand[nc++] = k;
+        }
+        if (!nc)
+            continue;
+        uint32_t *tex = texels(mesh), first = ~0u, last = 0;
+        float ax = p->c[0][0], ay = p->c[0][1], ux = p->c[1][0] - ax, uy = p->c[1][1] - ay, vx = p->c[2][0] - ax, vy = p->c[2][1] - ay;
+        float den = ux * vy - uy * vx;
+        if (fabsf(den) < 1e-6f)
+            continue;
+        for (uint32_t y = p->y; y < (uint32_t)p->y + p->h; y++)
+            for (uint32_t x = p->x; x < (uint32_t)p->x + p->w; x++) {
+                float px = (float)x + 0.5f - ax, py = (float)y + 0.5f - ay, b1 = (px * vy - py * vx) / den, b2 = (ux * py - uy * px) / den, at[3];
+                for (int i = 0; i < 3; i++)
+                    at[i] = R[0][i] + b1 * (R[1][i] - R[0][i]) + b2 * (R[2][i] - R[0][i]);
+                float best = 0.6f;
+                uint32_t word = 0;
+                for (uint32_t c = 0; c < nc; c++) {
+                    const Kept *k = &kept[cand[c]];
+                    float u[3], v[3], w[3];
+                    for (int i = 0; i < 3; i++)
+                        u[i] = k->R[1][i] - k->R[0][i], v[i] = k->R[2][i] - k->R[0][i], w[i] = at[i] - k->R[0][i];
+                    float uu = dot3(u, u), uv = dot3(u, v), vv = dot3(v, v), wu = dot3(w, u), wv = dot3(w, v), d2 = uu * vv - uv * uv;
+                    if (!(d2 > 0))
+                        continue;
+                    float s1 = (vv * wu - uv * wv) / d2, s2 = (uu * wv - uv * wu) / d2, s0 = 1.0f - s1 - s2;
+                    /* (how far it is from being on that triangle: outside its edges, or off its plane) */
+                    float out = fmaxf(fmaxf(-s0, fmaxf(-s1, -s2)), 0.0f) + fabsf(dot3(w, k->n)) / fmaxf(k->size, 1e-9f);
+                    if (out >= best)
+                        continue;
+                    float ox = k->p.c[0][0] + s1 * (k->p.c[1][0] - k->p.c[0][0]) + s2 * (k->p.c[2][0] - k->p.c[0][0]) - (float)k->p.x;
+                    float oy = k->p.c[0][1] + s1 * (k->p.c[1][1] - k->p.c[0][1]) + s2 * (k->p.c[2][1] - k->p.c[0][1]) - (float)k->p.y;
+                    int ix = (int)ox, iy = (int)oy;
+                    ix = ix < 0 ? 0 : ix >= k->p.w ? k->p.w - 1 : ix, iy = iy < 0 ? 0 : iy >= k->p.h ? k->p.h - 1 : iy;
+                    best = out, word = k->tex[iy * k->p.w + ix];
+                }
+                if (word) {
+                    tex[y * BLOODMAP_W + x] = word;
+                    moved++;
+                    first = y * BLOODMAP_W + x < first ? y * BLOODMAP_W + x : first, last = y * BLOODMAP_W + x;
+                }
+            }
+        if (first <= last)
+            touch(MAPS + (uint32_t)mesh * TEXELS + first, MAPS + (uint32_t)mesh * TEXELS + last + 1);
+    }
+    if (kept)
+        fprintf(stderr, "bloodmap %d: laid out anew (%u triangles), %u of the old one's triangles had blood, %u texels of it kept\n", mesh, ntri, nkept, moved);
+    for (uint32_t k = 0; k < nkept; k++)
+        free(kept[k].tex);
+    free(kept);
     if (getenv("MHFU_BLOODMAP_LOG") || show)
         fprintf(stderr, "bloodmap %d: %u triangles of %u placed, a texel %.2f units\n", mesh, n, ntri, (double)unit);
-    free(sizes), free(rest);
+    free(sizes);
     return unit;
 }
 
