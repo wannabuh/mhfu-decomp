@@ -4291,7 +4291,7 @@ static void blade_find(const Frame *f, int h) {
         fprintf(stderr, "blade: fastest lately %.0f, %.2f s ago; followed %.2f s ago\n", (double)blade.swing_fast, (blade.hit_at - blade.swing_when) / 30,
                 (blade.hit_at - blade.when) / 30);
     if (blade.swing_fast > 250.0f && blade.hit_at - blade.swing_when < 0.3 * 30) {
-        int n = (int)((2.0f + 9.0f * blade.wet) * blade_much() + 0.5f);
+        int n = (int)((1.5f + 6.0f * blade.wet) * blade_much() + 0.5f);     /* (fewer, of more sizes: #80) */
         for (int i = 0; i < n; i++) {
             float along = sqrtf(blood_chance()), keep = 0.45f + 0.5f * blood_chance(), at[3], v[3];
             for (int k = 0; k < 3; k++) {
@@ -4742,7 +4742,7 @@ static void wounds_attach(Frame *f) {
         /* The blood it leaves: by how hard the blow was (a blunt one half as much). Landing in the blood about a wound
          * the animal has - near its middle, measured among the vertices of the piece hit, in that wound's measure -
          * it makes no wound of its own: that one's blood grows, wet again, and it is as deep as the deeper */
-        float gain = fmaxf(wound_pending[h].hard / 40.0f, 0.2f) * blood_amount() * (wound_pending[h].kind == WOUND_BLUNT ? 0.5f : 1.0f);
+        float gain = fmaxf(wound_pending[h].hard / 60.0f, 0.25f) * blood_amount() * (wound_pending[h].kind == WOUND_BLUNT ? 0.5f : 1.0f);
         int fed = -1;
         {
             float rest[3], near = 1e18f;
@@ -4787,7 +4787,7 @@ static void wounds_attach(Frame *f) {
         } else {
         memset(&wounds[n], 0, sizeof wounds[n]);
         wounds[n].blood = gain;
-        wounds[n].rmax = reach > 0 ? fminf(fmaxf(0.18f * reach, 35.0f), 240.0f) : 120.0f;
+        wounds[n].rmax = reach > 0 ? fminf(fmaxf(0.18f * reach, 35.0f), 210.0f) : 120.0f;
         wounds[n].deep = 1.0f / over[2];
         wounds[n].fed = rt_game_30ths();
         wounds[n].key = bd->vaddr;
@@ -4918,6 +4918,11 @@ static float blood_chance(void) {
 
 /* A drop leaves a wound, at this place and speed (blood.c has it from here: it falls, and paints the ground) */
 static void blood_falls(const float *at, const float *speed, float floor_y, float size, const uint8_t *rgb, int must) {
+    /* (no two drops a size: most smaller than usual, one in eight around twice it - about as much blood in all, #80) */
+    {
+        float c = blood_chance();
+        size *= blood_chance() < 0.13f ? 1.7f + 1.3f * c : 0.45f + 1.1f * c * c;
+    }
     /* (a wound's own drips fall heavily, twice as fast as things do: a thrown drop flies as it would) */
     blood_spawn(at, speed, floor_y, size, rgb, must ? 2.2f : 1.0f);
 }

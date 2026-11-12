@@ -535,12 +535,15 @@ void main() {
             float blots = wound_noise(from_cut.x * 0.13 + seed * 3.0) + wound_noise(from_cut.y * 0.17 + seed * 5.0) +
                           wound_noise((from_cut.x + from_cut.y) * 0.21 + seed * 17.0);
             float inward = far / max(edge, 1.0);
-            about *= smoothstep(0.0, 0.2, blots / 3.0 - (0.5 - 0.4 * lies) * smoothstep(0.45, 1.0, inward) * (below > 0.0 ? 1.0 / hangs : 1.0));
+            about *= smoothstep(0.0, 0.2, blots / 3.0 - (0.5 - 0.28 * lies) * smoothstep(0.3, 1.0, inward) * (below > 0.0 ? 1.0 / hangs : 1.0));
             about *= left * smoothstep(-0.7, -0.2, in_wound_facing[k]);     // (all but what is turned right away from it)
             if (about > 0.0) {
                 vec3 under = c.rgb;
                 float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
                 vec3 its = mix(blood * 0.6, blood * 0.92, wetness) * (1.0 - 0.3 * smoothstep(0.7, 1.0, inward)) * (1.0 - 0.25 * lies * (1.0 - inward));
+                // (not one flat colour over a whole head: darker where it has clotted, in patches)
+                its *= 0.62 + 0.38 * smoothstep(0.25, 0.6, wound_noise(from_cut.x * 0.07 + from_cut.z * 0.05 + seed * 23.0) * 0.5 +
+                                                wound_noise(from_cut.y * 0.09 - from_cut.z * 0.04 + seed * 31.0) * 0.5);
                 its = mix(its, under / max(lit_under, 0.02) * dot(its, vec3(0.3, 0.55, 0.15)), 0.2 * (1.0 - solid_shine.x));
                 // (as light as the skin is lit - its light without its picture's pattern, which would show through
                 // as if the blood were a tint: the lit colour over the picture's own - the more so the thicker it lies)

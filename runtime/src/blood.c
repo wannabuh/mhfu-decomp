@@ -215,7 +215,8 @@ static void rays(float x, float z, float r, float thick, float dx, float dz, flo
         if (chance() < 0.45f)
             paint_later(ex, ez, fmaxf(r * (0.14f + 0.16f * chance()), 0.9f), thick * 0.9f, ycode, color, now + 0.1 + 0.05 * chance());
     }
-    int specks = fan ? 1 + (int)(chance() * 3.0f) : 3 + (int)(chance() * 6.0f);
+    /* (few of them, and from a small drop none or one: a field of specks all alike was most of what was seen, #80) */
+    int specks = r < 2.0f ? (int)(chance() * 1.6f) : fan ? (int)(chance() * 2.5f) : 1 + (int)(chance() * 3.5f);
     for (int i = 0; i < specks; i++) {
         float turn = fan ? mid + (chance() - 0.5f) * 0.8f : chance() * 6.2832f, far = r * (1.4f + (2.0f + 1.2f * e) * chance());
         paint_later(x + cosf(turn) * far, z + sinf(turn) * far, 0.5f + 0.7f * chance() * chance() * fminf(r * 0.3f, 1.5f), thick * 0.9f,
@@ -238,27 +239,76 @@ static void land(const float *at, const float *speed, float size, int ycode, int
         rays(at[0], at[2], r, thick, 0, 0, 0, ycode, color, now);
         return;
     }
-    /* across the ground: a drop of it, long the way it went - round where it hit, drawn out to a point over a
-     * tenth of a second - a speck or two thrown on past the point, and now and then a ray beside it */
-    float dx = speed[0] / across, dz = speed[2] / across, e = fminf(across / 250.0f, 2.0f);
-    float length = r * (1.0f + 1.6f * e), back = r * 0.3f;
-    blot(at[0], at[2], r * 0.8f, thick * 0.6f, 0.2f, ycode, color);
-    for (int i = 0; i < 3; i++) {
-        float s0 = (float)i / 3.0f, s1 = (float)(i + 1) / 3.0f;
-        float f0 = -back + (length + back) * s0, f1 = -back + (length + back) * s1;
-        float w0 = r * (0.75f - 0.6f * s0), w1 = fmaxf(r * (0.75f - 0.6f * s1), 0.3f);
-        if (!i)
-            streak(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color);
-        else
-            streak_later(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color, now + 0.05 * i);
+    /* across the ground - and no two alike (#80: every one the same tear was what was seen). One of five marks, by
+     * chance: the drop long the way it went, round where it hit and drawn out to a point; a blot, as if it had come
+     * straight down; a long thin streak with no head; a line of dashes, shorter and thinner as they go; or a spray
+     * of fine specks thrown on ahead of a small blot */
+    float dx = speed[0] / across, dz = speed[2] / across, e = fminf(across / 250.0f, 2.0f), pick = chance();
+    if (pick < 0.3f) {
+        float length = r * (1.0f + 1.6f * e), back = r * 0.3f;
+        blot(at[0], at[2], r * 0.8f, thick * 0.6f, 0.2f, ycode, color);
+        for (int i = 0; i < 3; i++) {
+            float s0 = (float)i / 3.0f, s1 = (float)(i + 1) / 3.0f;
+            float f0 = -back + (length + back) * s0, f1 = -back + (length + back) * s1;
+            float w0 = r * (0.75f - 0.6f * s0), w1 = fmaxf(r * (0.75f - 0.6f * s1), 0.3f);
+            if (!i)
+                streak(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color);
+            else
+                streak_later(at[0] + dx * f0, at[2] + dz * f0, at[0] + dx * f1, at[2] + dz * f1, w0, w1, thick * 0.6f, ycode, color, now + 0.05 * i);
+        }
+        if (chance() < 0.5f) {
+            float far = length * (1.15f + 0.55f * chance()), aside = (chance() - 0.5f) * r * 0.5f;
+            paint_later(at[0] + dx * far - dz * aside, at[2] + dz * far + dx * aside, fmaxf(r * (0.1f + 0.12f * chance()), 0.5f), thick * 0.9f, ycode,
+                        color, now + 0.12 + 0.05 * chance());
+        }
+        if (chance() < 0.4f)
+            rays(at[0] + dx * r * 0.3f, at[2] + dz * r * 0.3f, r, thick, dx, dz, e, ycode, color, now);
+    } else if (pick < 0.5f) {
+        blot(at[0], at[2], r * (0.9f + 0.3f * chance()), thick, 0.3f + 0.25f * chance(), ycode, color);
+        if (chance() < 0.5f) {
+            float turn = chance() * 6.2832f;
+            blot(at[0] + cosf(turn) * r * 0.6f, at[2] + sinf(turn) * r * 0.6f, r * (0.3f + 0.3f * chance()), thick * 0.6f, 0.3f, ycode, color);
+        }
+        if (chance() < 0.3f)
+            rays(at[0], at[2], r, thick, dx, dz, e, ycode, color, now);
+    } else if (pick < 0.72f) {
+        float length = r * (2.5f + 3.0f * e) * (0.7f + 0.6f * chance()), w = fmaxf(r * (0.22f + 0.2f * chance()), 0.5f);
+        float bend = (chance() - 0.5f) * 0.3f, x0 = at[0], z0 = at[2];
+        for (int i = 0; i < 4; i++) {
+            float s1 = (float)(i + 1) / 4.0f, off = bend * length * s1 * s1;
+            float x1 = at[0] + dx * length * s1 - dz * off, z1 = at[2] + dz * length * s1 + dx * off;
+            float w0 = w * (1.0f - 0.2f * (float)i), w1 = fmaxf(w * (1.0f - 0.2f * (float)(i + 1)), 0.3f);
+            if (!i)
+                streak(x0, z0, x1, z1, w0, w1, thick * 0.7f, ycode, color);
+            else
+                streak_later(x0, z0, x1, z1, w0, w1, thick * 0.7f, ycode, color, now + 0.04 * i);
+            x0 = x1, z0 = z1;
+        }
+        if (chance() < 0.35f)
+            paint_later(x0 + dx * r * 0.8f, z0 + dz * r * 0.8f, fmaxf(w * 0.8f, 0.6f), thick * 0.9f, ycode, color, now + 0.2);
+    } else if (pick < 0.88f) {
+        int n = 3 + (int)(chance() * 2.99f);
+        float f = 0, w = r * (0.5f + 0.2f * chance());
+        for (int i = 0; i < n; i++) {
+            float len = r * (1.1f + 0.9f * chance()) * (1.0f - 0.15f * (float)i), aside = (chance() - 0.5f) * r * 0.25f;
+            float ax = at[0] + dx * f - dz * aside, az = at[2] + dz * f + dx * aside;
+            if (!i)
+                streak(ax, az, ax + dx * len, az + dz * len, w, w * 0.6f, thick * 0.7f, ycode, color);
+            else
+                streak_later(ax, az, ax + dx * len, az + dz * len, w, fmaxf(w * 0.6f, 0.3f), thick * 0.7f, ycode, color, now + 0.04 * i);
+            f += len + r * (0.5f + 0.9f * chance());
+            w = fmaxf(w * 0.75f, 0.4f);
+        }
+    } else {
+        blot(at[0], at[2], r * 0.55f, thick * 0.7f, 0.3f, ycode, color);
+        int n = 5 + (int)(chance() * 4.99f);
+        float mid = atan2f(dz, dx);
+        for (int i = 0; i < n; i++) {
+            float turn = mid + (chance() - 0.5f) * 0.7f, far = r * (1.0f + (2.5f + 2.0f * e) * chance());
+            paint_later(at[0] + cosf(turn) * far, at[2] + sinf(turn) * far, fmaxf(r * (0.08f + 0.14f * chance() * chance()), 0.45f), thick * 0.9f,
+                        ycode, color, now + 0.02 + 0.1 * chance());
+        }
     }
-    int specks = 1 + (int)(chance() * 2.5f);
-    for (int i = 0; i < specks; i++) {
-        float far = length * (1.15f + 0.55f * chance()), aside = (chance() - 0.5f) * r * 0.5f;
-        paint_later(at[0] + dx * far - dz * aside, at[2] + dz * far + dx * aside, fmaxf(r * (0.1f + 0.12f * chance()), 0.5f), thick * 0.9f, ycode,
-                    color, now + 0.12 + 0.05 * chance());
-    }
-    rays(at[0] + dx * r * 0.3f, at[2] + dz * r * 0.3f, r, thick, dx, dz, e, ycode, color, now);
 }
 
 /* Wet blood moves (a tile's cells, one step): what a cell cannot hold goes to its neighbours with less; on a slope
