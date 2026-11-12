@@ -5403,7 +5403,14 @@ static const float *trail_model_world(const Frame *f, const struct TrailModel *t
         return NULL;
     for (int gi = 0; gi < f->ntlg; gi++) {
         const Draw *d = &f->draws[f->tlg[gi].first];
-        if (d->vaddr != tm->g[0].vaddr || d->iaddr != tm->g[0].iaddr || !(d->reg[0x17] & 1) || d->world == world)
+        if (!(d->reg[0x17] & 1) || d->world == world)
+            continue;
+        /* (a draw of any of its pieces: by its first alone, a model whose first piece the game left out of a frame -
+         * it draws what it thinks is seen - was not found at all, and was taken for another model, #92) */
+        int its = 0;
+        for (int k = 0; k < tm->ngroups && !its; k++)
+            its = d->vaddr == tm->g[k].vaddr && d->iaddr == tm->g[k].iaddr;
+        if (!its)
             continue;
         const float zero[3] = {0, 0, 0};
         float m[3], o[3];
@@ -5625,7 +5632,9 @@ static void trail_models_frame(const Frame *f, double now30) {
         /* The animal is drawn from another model now (as it dies; far off): under half the skin's draws found for a
          * few frames, and a model of about as many triangles stands where the animal is - the skin is kept anew from
          * that one, its blood with it (bloodmap_layout), #90 */
-        tm->lost = 2 * tm->found < tm->ngroups ? tm->lost + 1 : 0;
+        /* (none of its draws found at all, for a second and more: a model with pieces left out of a frame is the same
+         * model - kept anew at every such frame, a Genprey's skin was laid out again and again, a hitch each time, #92) */
+        tm->lost = tm->found == 0 ? tm->lost + 1 : 0;
         {
             /* (MHFU_TEST_RELAY=n: at the nth frame a skin is kept, as if its animal's model had changed - to see its
              * blood come through a new layout) */
@@ -5633,12 +5642,12 @@ static void trail_models_frame(const Frame *f, double now30) {
             if (relay_at < 0)
                 relay_at = getenv("MHFU_TEST_RELAY") ? atoi(getenv("MHFU_TEST_RELAY")) : 0;
             if (relay_at && ++relay_n == relay_at)
-                tm->found = 0, tm->lost = 4;
+                tm->found = 0, tm->lost = 45;
         }
-        if (tm->lost >= 4 && bloodmap_on() && wound_cams) {
+        if (tm->lost >= 45 && bloodmap_on() && wound_cams) {
             const float *world = NULL, *place = (const float *)PTR(tm->of.addr + 0x200u);
             float best = 150.0f * 150.0f;
-            tm->lost = -20;             /* (not again for a while, if this comes to nothing) */
+            tm->lost = -450;            /* (not again for ten seconds, whatever comes of this) */
             for (int gi = 0; gi < f->ntlg; gi++) {
                 const Draw *d = &f->draws[f->tlg[gi].first];
                 const float zero[3] = {0, 0, 0};
@@ -5677,6 +5686,7 @@ static void trail_models_frame(const Frame *f, double now30) {
 /* An animal's skin kept from now, if it is not yet (or made again, if its groups are no longer what they were): which
  * of the meshes it is, -1 none */
 static int trail_model_keep(const Frame *f, const WoundOwner *of, const float *world, float floor_y) {
+    uint64_t keep_t0 = perf_ns();
     int m = trails_mesh(of->addr);
     struct TrailModel *tm = m >= 0 ? &trail_models[m] : NULL;
     static uint8_t *tm_body;
@@ -5740,7 +5750,9 @@ static int trail_model_keep(const Frame *f, const WoundOwner *of, const float *w
         }
         for (uint32_t t = 0; t < ntri; t++) {
             over_at[t] = nover;
-            for (uint32_t c = 0; c < ntri; c++) {
+            /* (not for the blood kept texel by texel, which is painted on every layer where it lands: every triangle
+             * against every other was most of the time a skin took to keep) */
+            for (uint32_t c = 0; c < ntri && !bloodmap_on(); c++) {
                 if (c == t || nbr[t][0] == (int32_t)c || nbr[t][1] == (int32_t)c || nbr[t][2] == (int32_t)c ||
                     box[c][0] > box[t][3] + 30.0f || box[c][3] < box[t][0] - 30.0f || box[c][1] > box[t][4] + 30.0f ||
                     box[c][4] < box[t][1] - 30.0f || box[c][2] > box[t][5] + 30.0f || box[c][5] < box[t][2] - 30.0f ||
@@ -5799,6 +5811,8 @@ static int trail_model_keep(const Frame *f, const WoundOwner *of, const float *w
         /* (and its blood's map: every triangle its own place, bloodmap.c) */
         TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
         bloodmap_layout(m, ntri, &skin, wound_blood(of->type));
+        if (getenv("MHFU_TRAIL_LOG") || getenv("MHFU_BLOODMAP_LOG"))
+            fprintf(stderr, "skin %d: kept in %.1f ms\n", m, (double)(perf_ns() - keep_t0) / 1e6);
     }
     return m;
 }
