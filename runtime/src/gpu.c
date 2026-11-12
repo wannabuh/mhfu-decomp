@@ -4473,6 +4473,38 @@ static void wounds_attach(Frame *f) {
     }
     unsigned long now = present_frame_number();
     wound_roams_frame(f);
+    /* (MHFU_UV_DUMP=file: once, half a second in, every lit model's triangles - mesh, texture, each corner's place
+     * in the world and in its picture - to see how a model's picture is laid over it) */
+    {
+        static int dumped, seen;
+        int lit = 0;
+        for (int gi = 0; getenv("MHFU_UV_DUMP") && !dumped && gi < f->ntlg; gi++)
+            if ((f->draws[f->tlg[gi].first].reg[0x17] & 1) && wound_roams(f->draws[f->tlg[gi].first].vaddr))
+                lit += (int)f->tlg[gi].nindex / 3;
+        if (lit > 500 && wound_cams && ++seen > 15) {
+            FILE *o = fopen(getenv("MHFU_UV_DUMP"), "w");
+            dumped = 1;
+            for (int gi = 0; o && gi < f->ntlg; gi++) {
+                const TlGroup *g = &f->tlg[gi];
+                const Draw *d = &f->draws[g->first];
+                int nb = draw_bones(d);
+                if (!(d->reg[0x17] & 1) || (d->reg[0x12] >> 23 & 1))
+                    continue;
+                for (uint32_t t = 0; t + 2 < g->nindex; t += 3) {
+                    fprintf(o, "%d %08X %u %d %d %d", gi, d->vaddr, d->tex_slot, d->tex_w, d->tex_h, wound_roams(d->vaddr));
+                    for (int c = 0; c < 3; c++) {
+                        const TlVertex *v = &f->tlv[f->tli[g->index + t + (uint32_t)c]];
+                        float w[3];
+                        wound_world(d, nb, v, v->pos, wound_cam[0], w);
+                        fprintf(o, " %.2f %.2f %.2f %.5f %.5f", (double)w[0], (double)w[1], (double)w[2], (double)v->uv[0], (double)v->uv[1]);
+                    }
+                    fprintf(o, " %08X %08X\n", d->reg[0x48], d->reg[0x49]);
+                }
+            }
+            if (o)
+                fclose(o);
+        }
+    }
     wound_test(now);
     for (int h = 0; h < 8; h++) {
         if (!wound_pending[h].used)
