@@ -501,7 +501,7 @@ void main() {
         float deep_units = mod(packed, 256.0) / 8.0, lies = floor(packed / 256.0) / 63.0;
         vec3 from_cut = vec3(q.x * run.z, q.y * run.w, q.z * deep_units);      // (units, in the cut's frame)
         bool in_cut = abs(q.z) < 1.0 && (cut_here || steep >= 0.1);
-        if (!in_cut && (reach_about <= 0.0 || dot(from_cut, from_cut) > reach_about * reach_about * 7.0))
+        if (!in_cut && (reach_about <= 0.0 || dot(from_cut, from_cut) > reach_about * reach_about * 5.0))
             continue;
         float seed = fract(look.w) * 64.0, kind = floor(look.w);
         bool hole = kind == 1.0;
@@ -511,58 +511,60 @@ void main() {
         float bleeds = smoothstep(0.15, 0.6, depth);      // (a scratch does not: the skin's colour, darker)
         // (the settings: how solid the blood that has run is - 0 as thin as it was - and how it shines)
         vec2 solid_shine = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xy;
-        // The blood about the wound, more with every hit that lands in it: a patch of it on the skin, its edge
-        // ragged, lying mostly below the cut and hanging from its lower edge in runs where the skin slopes; red
-        // still when it has dried, darker at its rim and where it lies thick. Under the cut, which is drawn on it.
-        // Measured through the skin too (the wound's frame, in units), so it goes round a limb as far as it reaches
-        // and not through to its other side.
+        // The blood about the wound, more with every hit that lands in it: not a coat of it over the skin (which on
+        // a model of few triangles hid the picture that gives it its detail and left a head looking dipped in paint,
+        // #83) but splashes of it staining the skin - the skin's own light and dark still seen through it - most at
+        // the wound, fewer outward, drawn out downward where the skin slopes, and skin between them however much
+        // there is; clotted, darker and shining a little, only in the middles of the splashes where it lies thick.
+        // Under the cut, which is drawn on it. Measured through the skin too (the wound's frame, in units), so it
+        // goes round a limb as far as it reaches and not through to its other side.
         if (reach_about > 0.0) {
             float slope = clamp(steep * 1.6, 0.0, 1.0);
             vec2 down = steep > 0.02 ? run.xy / steep : vec2(0.0, -1.0), aside = vec2(-down.y, down.x);
-            vec3 from_mid = from_cut - vec3(down * reach_about * 0.3 * slope, 0.0);
+            vec3 from_mid = from_cut - vec3(down * reach_about * 0.25 * slope, 0.0);
             float below = dot(from_mid.xy, down), beside = dot(from_mid.xy, aside);
             // (the runs: columns of it drawn out downward, each its own length)
             float column = wound_noise(beside * 0.085 + seed * 11.0);
-            float hangs = 1.0 + 2.2 * column * column * column * slope * smoothstep(0.0, reach_about * 0.25, below);
-            float far = length(vec3(beside, below > 0.0 ? below / hangs : below, from_mid.z));
-            vec2 turn = far > 0.0 ? vec2(beside, below) / max(length(vec2(beside, below)), 1e-3) : vec2(0.0);
-            float ragged = 0.5 * wound_noise(turn.x * 2.3 + seed * 7.0) + 0.3 * wound_noise(turn.y * 3.1 + seed * 13.0) +
-                           0.2 * wound_noise((turn.x - turn.y) * 6.0 + seed * 29.0);
-            float edge = reach_about * (0.55 + 0.45 * ragged);
-            float feather = max(fwidth(far) * 1.5, 1.2);
-            float about = 1.0 - smoothstep(edge - feather, edge, far);
-            // (broken up towards its edge, where it lies thin: blots of it, and skin between)
-            float blots = wound_noise(from_cut.x * 0.13 + seed * 3.0) + wound_noise(from_cut.y * 0.17 + seed * 5.0) +
-                          wound_noise((from_cut.x + from_cut.y) * 0.21 + seed * 17.0);
-            float inward = far / max(edge, 1.0);
-            about *= smoothstep(0.0, 0.2, blots / 3.0 - (0.5 - 0.28 * lies) * smoothstep(0.3, 1.0, inward) * (below > 0.0 ? 1.0 / hangs : 1.0));
-            about *= left * smoothstep(-0.7, -0.2, in_wound_facing[k]);     // (all but what is turned right away from it)
+            float hangs = 1.0 + 1.6 * column * column * column * slope * smoothstep(0.0, reach_about * 0.25, below);
+            float inward = length(vec3(beside, below > 0.0 ? below / hangs : below, from_mid.z)) / reach_about;
+            float about = 0.0, blots = 0.0, level = 1.0;
+            if (inward < 1.0) {
+                // (splashes: blots of three sizes; below the wound on a slope, drawn out into streaks)
+                vec2 on = vec2(beside, below) + from_mid.z * vec2(0.6, 0.4) + seed * 37.0;
+                blots = blood_noise(on * 0.09) * 0.5 + blood_noise(on * 0.27 + 9.0) * 0.32 + blood_noise(on * 0.7 + 3.0) * 0.18;
+                float streaks = blood_noise(vec2(beside * 0.4, below * 0.045) + seed * 5.0) * 0.7 + blood_noise(on * 0.5) * 0.3;
+                blots = mix(blots, streaks, 0.6 * slope * smoothstep(0.0, reach_about * 0.2, below));
+                // (how much of the skin they take: nearly all of it at the wound when much has been shed, about
+                // half at half its reach, none at its edge)
+                float want = (1.0 - inward * inward) * (0.7 + 0.3 * lies);
+                level = mix(0.8, 0.22, want);
+                float soft_edge = 0.03 + fwidth(blots);
+                about = smoothstep(level - soft_edge, level + soft_edge, blots);
+                about *= left * smoothstep(-0.7, -0.2, in_wound_facing[k]);     // (all but what is turned right away from it)
+            }
             if (about > 0.0) {
                 vec3 under = c.rgb;
                 float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
                 // (its colour at full strength, whatever the animal's is set to: lit as below it came out near black, #82)
                 vec3 full = blood / max(max(blood.r, max(blood.g, blood.b)), 0.05);
-                vec3 its = mix(full * 0.55, full * 0.8, wetness) * (1.0 - 0.3 * smoothstep(0.7, 1.0, inward)) * (1.0 - 0.25 * lies * (1.0 - inward));
-                // (not one flat colour over a whole head: darker where it has clotted, in patches)
-                its *= 0.62 + 0.38 * smoothstep(0.25, 0.6, wound_noise(from_cut.x * 0.07 + from_cut.z * 0.05 + seed * 23.0) * 0.5 +
-                                                wound_noise(from_cut.y * 0.09 - from_cut.z * 0.04 + seed * 31.0) * 0.5);
-                its = mix(its, under / max(lit_under, 0.02) * dot(its, vec3(0.3, 0.55, 0.15)), 0.2 * (1.0 - solid_shine.x));
-                // (as light as the skin is lit - its light without its picture's pattern, which would show through
-                // as if the blood were a tint: the lit colour over the picture's own - the more so the thicker it lies)
+                // (the stain: the blood's colour, as light and dark as the skin under it is)
+                vec3 stained = full * (0.1 + 1.3 * lit_under) * mix(0.7, 0.9, wetness);
+                // (the clot: its own darker colour, lit as the skin is without its picture's pattern)
+                float clot = smoothstep(level + 0.08, level + 0.3, blots) * lies * solid_shine.x;
                 float shade = clamp(lit_under / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
-                // (and in the shade no darker than two fifths: red still, not black)
-                float light = mix(lit_under * 1.9, max(shade, 0.4) * 0.8, solid_shine.x * mix(0.75, 1.0, lies));
-                c.rgb = mix(under, its * light, about * mix(0.7, 1.0, solid_shine.x) * mix(0.9, 1.0, lies));
-                float gloss = about * (0.3 + 0.5 * lies) * max(wetness, 0.15) * solid_shine.y;
-                vec3 n = cross(dFdx(in_world), dFdy(in_world));
+                vec3 clotted = full * mix(0.4, 0.55, wetness) * max(shade, 0.4) * 0.8;
+                c.rgb = mix(under, mix(stained, clotted, 0.7 * clot), about * mix(0.75, 0.95, solid_shine.x));
+                // (it shines where clotted and wet, by the model's own smooth normal: by each triangle's, the head
+                // showed its facets)
+                float gloss = about * clot * max(wetness, 0.1) * solid_shine.y * 0.6;
+                vec3 n = in_normal;
                 vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
                 if (gloss > 0.0 && dot(n, n) > 0.0 && dot(view, view) > 0.0) {
                     view = normalize(view);
                     n = normalize(n);
                     n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
                     vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]) + vec3(0.0, 1e-5, 0.0));
-                    c.rgb += (pow(max(dot(n, normalize(view + sun)), 0.0), 40.0) * (1.0 - 0.85 * sh) * 0.9 +
-                              pow(max(dot(n, normalize(view + vec3(0.0, 1.0, 0.0))), 0.0), 18.0) * 0.2 * (0.3 + lit_under)) * gloss;
+                    c.rgb += pow(max(dot(n, normalize(view + sun)), 0.0), 40.0) * (1.0 - 0.85 * sh) * 0.7 * gloss;
                 }
             }
         }

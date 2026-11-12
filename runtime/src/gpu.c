@@ -3912,11 +3912,11 @@ static float blood_amount(void) {
 
 /* How far a wound's blood reaches about it, units, and how thick it lies (0-1) */
 static float wound_blood_reach(int w) {
-    return wounds[w].blood > 0 ? 14.0f + (wounds[w].rmax - 14.0f) * (1.0f - expf(-wounds[w].blood / 7.0f)) : 0;
+    return wounds[w].blood > 0 ? 12.0f + (wounds[w].rmax - 12.0f) * (1.0f - expf(-wounds[w].blood / 4.0f)) : 0;
 }
 
 static float wound_blood_thick(int w) {
-    return 1.0f - expf(-wounds[w].blood / 3.0f);
+    return 1.0f - expf(-wounds[w].blood / 5.0f);
 }
 
 /* A place for a new wound: one free, or gone; else the one with the least blood about it (of two alike the older) */
@@ -4788,7 +4788,7 @@ static void wounds_attach(Frame *f) {
         } else {
         memset(&wounds[n], 0, sizeof wounds[n]);
         wounds[n].blood = gain;
-        wounds[n].rmax = reach > 0 ? fminf(fmaxf(0.18f * reach, 35.0f), 210.0f) : 120.0f;
+        wounds[n].rmax = reach > 0 ? fminf(fmaxf(0.1f * reach, 30.0f), 120.0f) : 80.0f;
         wounds[n].deep = 1.0f / over[2];
         wounds[n].fed = rt_game_30ths();
         wounds[n].key = bd->vaddr;
