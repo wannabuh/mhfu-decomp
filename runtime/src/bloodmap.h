@@ -28,6 +28,9 @@ void bloodmap_splash(int mesh, const TrailSkin *skin, const BloodSplash *s, cons
 /* A stroke from a to b (a trickle's step), half so wide, on triangle tri and those given beside it */
 void bloodmap_stroke(int mesh, const TrailSkin *skin, const uint32_t *tris, int ntris, const float *a, const float *b, float half, float much, float now);
 
+/* Each frame of the game's (now: its time in seconds): old blood marked dry */
+void bloodmap_frame(float now);
+
 /* The renderer's thread: the words from RUN_MAPS_AT on (the maps, then the texels), and which changed since last asked */
 const uint32_t *bloodmap_words(uint32_t *from, uint32_t *to);
 /* the moment it is, as the texels have when they last got wet (1 to 256) */

@@ -4828,6 +4828,11 @@ static void wounds_attach(Frame *f) {
             wounds[n].fed = rt_game_30ths();
             if (wound_pending[h].kind == WOUND_SLASH && depth > wounds[n].depth)
                 wounds[n].depth = depth;
+            /* (and it runs again: a trickle more, two from a deep one) */
+            if (wounds[n].runs_set && wounds[n].runs_left < 4) {
+                wounds[n].runs_left += depth > 0.5f ? 2 : 1;
+                wounds[n].run_due = rt_game_30ths() + 4;
+            }
             wounds[n].dripped = rt_game_30ths();
             wounds[n].drips = 0;
             wounds[n].floor_y = wound_pending[h].attacker[1];
@@ -5083,7 +5088,7 @@ static void wounds_frame(const Frame *f) {
         }
         /* Its blood runs down the animal: from a cut one trickle or two, from a gash several, the first at once and
          * the rest over the seconds after (MHFU_TRICKLES=n: n from each, to look at them) */
-        if (trickles_on() && wounds[w].kind != WOUND_BLUNT && wounds[w].depth >= 0.25f) {
+        if ((trickles_on() || bloodmap_on()) && wounds[w].kind != WOUND_BLUNT && wounds[w].depth >= 0.25f) {
             if (!wounds[w].runs_set) {
                 static int forced = -1;
                 if (forced < 0)
@@ -5525,6 +5530,13 @@ static int trail_corners(void *ctx, uint32_t tri, float posed[3][3], float rest[
     return 1;
 }
 
+/* (trails.c's skin) What a trickle ran over, painted into the skin's map */
+static void trail_stroke(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half) {
+    const struct TrailModel *tm = ctx;
+    TrailSkin skin = {(void *)tm, trail_corners, NULL, NULL, NULL};
+    bloodmap_stroke((int)(tm - trail_models), &skin, tris, ntris, a, b, half, 0.95f, (float)(rt_game_30ths() / 30.0));
+}
+
 static void trail_drop(void *ctx, const float *at, float size) {
     const struct TrailModel *tm = ctx;
     const float still[3] = {0, 0, 0};
@@ -5543,6 +5555,8 @@ static void trail_models_frame(const Frame *f, double now30) {
     static int frames;
     uint64_t t0 = perf_ns();
     int running = 0;
+    trails_pieces(!bloodmap_on());
+    bloodmap_frame((float)(now30 / 30.0));
     for (int m = 0; m < RUN_MESHES; m++) {
         struct TrailModel *tm = &trail_models[m];
         if (!tm->used)
@@ -5563,7 +5577,7 @@ static void trail_models_frame(const Frame *f, double now30) {
             tm->of.health = health;
         tm->floor_y = ((const float *)PTR(tm->of.addr + 0x200u))[1];
         trail_model_map(f, m, trail_model_world(f, tm));
-        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near};
+        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
         running += trails_step(m, &skin, now30);
     }
     spent += perf_ns() - t0;
@@ -5697,7 +5711,7 @@ static int trail_model_keep(const Frame *f, const WoundOwner *of, const float *w
             fprintf(stderr, "skin %d kept: %d draws, %u triangles in %u pieces (the largest %u), %u edges open\n", m, ngroups, ntri, st.islands, st.largest, st.open);
         trail_model_map(f, m, world);
         /* (and its blood's map: every triangle its own place, bloodmap.c) */
-        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near};
+        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
         bloodmap_layout(m, ntri, &skin, wound_blood(of->type));
     }
     return m;
@@ -5711,7 +5725,7 @@ static void paint_hits(const Frame *f, double now30) {
         if (m < 0)
             continue;
         struct TrailModel *tm = &trail_models[m];
-        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near};
+        TrailSkin skin = {tm, trail_corners, trail_drop, trail_near, bloodmap_on() ? trail_stroke : NULL};
         float g = paint_due[k].gain, now = (float)(now30 / 30.0);
         BloodSplash sp = {.radius = 12.0f + 11.0f * g, .much = paint_due[k].kind == WOUND_BLUNT ? 0.6f : 0.9f, .lengthen = 1, .seed = blood_chance(), .kind = SPLASH_BLOT};
         memcpy(sp.at, paint_due[k].at, sizeof sp.at);
@@ -5825,7 +5839,7 @@ static void wounds_fill(TlDraw *d) {
         const uint8_t *blood = wound_blood(wounds[i].of.type);
         float *run = d->wound_run[d->wounds];
         memcpy(run, wounds[i].run, sizeof wounds[i].run);
-        if (trickles_on() && trails_mesh(wounds[i].of.addr) >= 0)       /* (its blood runs down the skin itself: trails.c) */
+        if ((trickles_on() || bloodmap_on()) && trails_mesh(wounds[i].of.addr) >= 0)       /* (its blood runs down the skin itself: trails.c) */
             run[0] = run[1] = 0;
         /* (with the cut's half length, by 1024s: how far the blood about it reaches, units; with its half width, by
          * 256s: how deep the wound's measure is, in eighths of a unit, and by 65536s how thick the blood lies, of 63) */

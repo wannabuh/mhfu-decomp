@@ -350,3 +350,27 @@ void bloodmap_stroke(int mesh, const TrailSkin *skin, const uint32_t *tris, int 
 
 /* (MHFU_BLOODMAP_SHOW) */
 float bloodmap_unit(int mesh) { return mesh >= 0 && mesh < RUN_MESHES && places[mesh] ? units[mesh] : 0; }
+
+/* Each frame: a few rows of each map looked over, and what got wet two minutes ago or more marked dry for good - the
+ * moment a texel keeps goes round in 255 seconds, and it would be wet again */
+void bloodmap_frame(float now) {
+    static uint32_t row;
+    uint32_t code = (uint32_t)(1.0 + fmod(now > 0 ? now : 0, 255.0));
+    now_code = 1.0 + fmod(now > 0 ? now : 0, 255.0);
+    for (int mesh = 0; mesh < RUN_MESHES; mesh++) {
+        if (!places[mesh])
+            continue;
+        uint32_t *tex = texels(mesh), lo = ~0u, hi = 0;
+        for (uint32_t y = row; y < row + 16 && y < BLOODMAP_H; y++)
+            for (uint32_t x = 0; x < BLOODMAP_W; x++) {
+                uint32_t w = tex[y * BLOODMAP_W + x], c = w >> 16 & 255u;
+                if (c && (code + 255u - c) % 255u > 120u) {
+                    tex[y * BLOODMAP_W + x] = w & 0xFFFFu;
+                    lo = y * BLOODMAP_W + x < lo ? y * BLOODMAP_W + x : lo, hi = y * BLOODMAP_W + x;
+                }
+            }
+        if (lo <= hi)
+            touch(MAPS + (uint32_t)mesh * TEXELS + lo, MAPS + (uint32_t)mesh * TEXELS + hi + 1);
+    }
+    row = row + 16 >= BLOODMAP_H ? 0 : row + 16;
+}

@@ -37,6 +37,9 @@ typedef struct {
     /* at an edge of triangle from with nothing across it: the triangle of another piece of the skin that is just
      * there, not above - which, and where on it; 0 if there is none (or NULL: never) */
     int (*near)(void *ctx, const float *at, uint32_t from, uint32_t *tri, float *bc);
+    /* what a trickle has just run over, if its trail is kept by the skin's keeper and not here in pieces (bloodmap.c;
+     * or NULL): from a to b, half so wide, on these triangles - its own and those across its edges */
+    void (*stroke)(void *ctx, const uint32_t *tris, int ntris, const float *a, const float *b, float half);
 } TrailSkin;
 
 /* An animal's skin kept (owner: what tells it from another's): which of the RUN_MESHES it is, or -1; made - its
@@ -52,6 +55,8 @@ void trails_clear(void);
 void trails_start(int mesh, uint32_t tri, const float *bc, float reach, float half_width, const uint8_t *rgb, float seed, double now30);
 /* A step of the game's: its trickles moved. How many are still running */
 int trails_step(int mesh, const TrailSkin *skin, double now30);
+/* Whether trails are kept in pieces here (as they are unless told): not, when the skins' strokes keep them */
+void trails_pieces(int on);
 
 /* The renderer's thread: the words for the pixel stage (shared.h RUN_: all of them), and which of them changed since
  * this was last asked (from, to: none if equal); the moment the blood is at, in the seconds its pieces are timed in */

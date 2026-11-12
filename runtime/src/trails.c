@@ -172,6 +172,9 @@ static Mesh meshes[RUN_MESHES];
 static Trickle trickles[TRICKLES];
 static double epoch = -1, last30;
 static float now_shown;
+static int in_pieces = 1;
+
+void trails_pieces(int on) { in_pieces = on; }
 
 static void touch(uint32_t from, uint32_t to) {
     pthread_mutex_lock(&lock);
@@ -367,6 +370,8 @@ static float width_at(const Trickle *t, float s) {
  * piece is finished - those it does not reach let go, the rest left to be taken in their turn */
 static void piece(Trickle *t, const Mesh *m, const TrailSkin *skin, const float (*P)[3], const float (*R)[3], float now, int done) {
     float a[3], b[3], A[3], B[3], n[3], rn[3];
+    if (!in_pieces)
+        return;
     at3(R, t->a_bc, a), at3(R, t->bc, b);
     at3(P, t->a_bc, A), at3(P, t->bc, B);
     float area = normal(P, 0, n), rest = normal(R, 0, rn), scale = area > 0 ? sqrtf(rest / area) : 1.0f, bw = width_at(t, t->s);
@@ -473,6 +478,8 @@ static void begin(Trickle *t, float now) {
     memcpy(t->a_bc, t->bc, sizeof t->a_bc);
     t->a_s = t->s, t->a_t = now, t->a_w = width_at(t, t->s);
     memset(t->ent, 0, sizeof t->ent);
+    if (!in_pieces)
+        return;
     t->ent[0] = ent_new(t->mesh, t->tri);
     if (t->bead && (ent[t->bead].tri != t->tri || !ent[t->bead].used)) {
         ent_free(t->bead);
@@ -605,6 +612,16 @@ static void step(Trickle *t, const Mesh *m, const TrailSkin *skin, float dt, flo
         for (int i = 0; i < 3; i++)
             t->bc[i] /= sum > 0 ? sum : 1;
         t->s += go * part, t->left -= go * part;
+        if (skin->stroke && go * part > 0) {
+            float Xn[3];
+            uint32_t tris[4] = {t->tri};
+            int nt = 1;
+            for (int j = 0; j < 3; j++)
+                if (m->nbr[t->tri][j] >= 0)
+                    tris[nt++] = (uint32_t)m->nbr[t->tri][j];
+            at3(P, t->bc, Xn);
+            skin->stroke(skin->ctx, tris, nt, X, Xn, width_at(t, t->s));
+        }
         t->idle = go * part > 0.02f ? 0 : t->idle + 1;
         dt -= dt * part;
         if (t->left <= 0.01f || t->idle > 45) {        /* run out (or held where it cannot go on) */
