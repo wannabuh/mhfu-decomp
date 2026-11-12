@@ -676,6 +676,61 @@ void main() {
     piece += in_runs != 0u ? uint(gl_PrimitiveID) : 0u;
 #endif
 #endif
+    // The blood kept on its skin texel by texel (bloodmap.c): this triangle's place in its skin's map, the pixel's
+    // texel there read between its four neighbours - how much blood, how thick, when it last got wet. A stain: the
+    // blood's colour as light and dark as the skin under it, so the skin's own detail is still seen; where it lies
+    // thick its own darker colour, and shining while wet (by the model's smooth normal)
+    if (piece != 0u && piece <= uint(RUN_MESHES * RUN_TRIS)) {
+        uint mesh = (piece - 1u) / uint(RUN_TRIS), at = uint(RUN_MAPS_AT + RUN_MESHES) + (piece - 1u) * uint(RUN_MAP_WORDS);
+        vec4 r0 = vec4(uintBitsToFloat(run_words[at]), uintBitsToFloat(run_words[at + 1u]), uintBitsToFloat(run_words[at + 2u]), uintBitsToFloat(run_words[at + 3u]));
+        vec4 r1 = vec4(uintBitsToFloat(run_words[at + 4u]), uintBitsToFloat(run_words[at + 5u]), uintBitsToFloat(run_words[at + 6u]), uintBitsToFloat(run_words[at + 7u]));
+        if (r0 != vec4(0.0) || r1 != vec4(0.0)) {
+            vec2 uv = vec2(dot(r0.xyz, in_place) + r0.w, dot(r1.xyz, in_place) + r1.w) - 0.5;
+            vec2 cell = floor(uv), part = uv - cell;
+            uint tint = run_words[uint(RUN_MAPS_AT) + mesh];
+            vec3 sum = vec3(0.0);
+            float wet = 0.0, now = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].w;
+            for (int k = 0; k < 4; k++) {
+                vec2 c2 = clamp(cell + vec2(float(k & 1), float(k >> 1)), vec2(0.0), vec2(float(BLOODMAP_W - 1), float(RUN_MESHES * BLOODMAP_H - 1)));
+                uint w = run_words[uint(RUN_TEXELS_AT) + uint(c2.y) * uint(BLOODMAP_W) + uint(c2.x)];
+                float share = ((k & 1) != 0 ? part.x : 1.0 - part.x) * ((k >> 1) != 0 ? part.y : 1.0 - part.y);
+                float much = float(w & 255u) / 255.0, code = float(w >> 16 & 255u);
+                // (wet for 25 seconds, then drying over 40 more)
+                float age = code > 0.0 ? mod(now - code + 255.0, 255.0) : 255.0;
+                sum += vec3(much, float(w >> 8 & 255u) / 255.0, much * (1.0 - smoothstep(25.0, 65.0, age))) * share;
+            }
+            if ((tint & (1u << 24)) != 0u) {      // (MHFU_BLOODMAP_SHOW: its texels in squares, eight to a square)
+                vec2 sq = floor((uv + 0.5) / 8.0);
+                c.rgb = mix(c.rgb, mod(sq.x + sq.y, 2.0) > 0.5 ? vec3(0.9, 0.9, 0.2) : vec3(0.1, 0.2, 0.9), 0.6);
+                vec2 fine = abs(fract(uv + 0.5) - 0.5);
+                c.rgb *= 0.75 + 0.25 * step(max(fine.x, fine.y), 0.42);
+            }
+            float cover = smoothstep(0.08, 0.5, sum.x);
+            if (cover > 0.0) {
+                vec3 look = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xyz;
+                wet = sum.x > 0.0 ? sum.z / sum.x : 0.0;
+                vec3 blood = vec3(float(tint & 255u), float(tint >> 8 & 255u), float(tint >> 16 & 255u)) / 255.0;
+                vec3 full = blood / max(max(blood.r, max(blood.g, blood.b)), 0.05);
+                vec3 under = c.rgb;
+                float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
+                vec3 stained = full * (0.1 + 1.3 * lit_under) * mix(0.62, 0.9, wet);
+                float clot = smoothstep(0.25, 0.8, sum.y) * smoothstep(0.5, 0.9, sum.x);
+                float shade = clamp(lit_under / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
+                vec3 clotted = full * mix(0.36, 0.55, wet) * max(shade, 0.4) * 0.8;
+                c.rgb = mix(under, mix(stained, clotted, 0.75 * clot), cover * mix(0.75, 0.95, look.x));
+                float gloss = cover * (0.25 + 0.75 * clot) * wet * look.y * 0.6;
+                vec3 n = in_normal;
+                vec3 view = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[0].xyz - in_world;
+                if (gloss > 0.0 && dot(n, n) > 0.0 && dot(view, view) > 0.0) {
+                    view = normalize(view);
+                    n = normalize(n);
+                    n *= dot(n, view) < 0.0 ? -1.0 : 1.0;
+                    vec3 sun = -normalize(vec3(draw.light[0][2], draw.light[1][2], draw.light[2][2]) + vec3(0.0, 1e-5, 0.0));
+                    c.rgb += pow(max(dot(n, normalize(view + sun)), 0.0), 40.0) * (1.0 - 0.85 * sh) * 0.7 * gloss;
+                }
+            }
+        }
+    }
     piece = piece != 0u && piece <= uint(RUN_MESHES * RUN_TRIS) ? run_words[piece - 1u] : 0u;
     if (piece != 0u) {
         vec3 look = sets[BLOOD_SET_AT + uint(BLOOD_SETS) - 1u].dir[1].xyz;      // how solid, how it shines, the moment

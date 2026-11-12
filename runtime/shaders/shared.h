@@ -144,6 +144,18 @@
 #define RUN_TRIS 16384
 #define RUN_ENTRIES 8192
 #define RUN_WORDS 16
+/* Then the blood kept texel by texel (bloodmap.c): from RUN_MAPS_AT each skin's blood's colour (RUN_MESHES words:
+ * RGB8; bit 24: its map shown in squares, to look at), then for each triangle of each skin RUN_MAP_WORDS words - two
+ * rows of four floats, a place among its vertices as the game gave them to its texel in the maps (x, y; all zero: it
+ * has none) - and from RUN_TEXELS_AT the maps, one under another, BLOODMAP_W texels wide and BLOODMAP_H high each: a
+ * texel's low 8 bits how much blood, the next 8 how thick it lies, then 8 the moment it last got wet (seconds, 1 to
+ * 255 going round, as the eye's set's dir[1].w has now; 0: dry long since) */
+#define RUN_MAP_WORDS 8
+#define BLOODMAP_W 1024
+#define BLOODMAP_H 1024
+#define RUN_MAPS_AT (RUN_MESHES * RUN_TRIS + RUN_ENTRIES * RUN_WORDS)
+#define RUN_TEXELS_AT (RUN_MAPS_AT + RUN_MESHES + RUN_MESHES * RUN_TRIS * RUN_MAP_WORDS)
+#define RUN_ALL (RUN_TEXELS_AT + RUN_MESHES * BLOODMAP_W * BLOODMAP_H)
 
 #define LIGHT_SET                                                                                                      \
     VEC4S(dir, 4);                                                                                                     \

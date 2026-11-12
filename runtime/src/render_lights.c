@@ -9,6 +9,7 @@
 #include "blood.h"
 #include "settings.h"
 #include "trails.h"
+#include "bloodmap.h"
 
 #include "hle.h"
 
@@ -316,9 +317,37 @@ static VkBuf blood_buf;
 static float blood_eye_shown[3];
 static int blood_eye_known;
 
+/* The blood on the animals (trails.c's pieces, bloodmap.c's texels): one buffer, what has changed in it sent - at each
+ * frame's end, and whenever a primitive in the world is drawn after some has (a frame shown without an end, as a
+ * headless run's pictures are, would not have it) */
+static void runs_sync(void) {
+    /* (and the blood run down the animals, trails.c: its words, those changed since the last frame) */
+    static VkBuf runs_buf;
+    uint32_t run_from, run_to, run_words = RUN_ALL;
+    if (!runs_buf.map) {
+        runs_buf = vk_buffer((VkDeviceSize)run_words * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
+        VkDescriptorBufferInfo bi = {runs_buf.buffer, 0, VK_WHOLE_SIZE};
+        VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_RUNS, 0, 1,
+                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &bi, NULL};
+        vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
+        const uint32_t *all = trails_words(&run_from, &run_to);
+        memcpy(runs_buf.map, all, (size_t)RUN_MAPS_AT * sizeof(uint32_t));
+        memcpy((uint32_t *)runs_buf.map + RUN_MAPS_AT, bloodmap_words(&run_from, &run_to), (size_t)(RUN_ALL - RUN_MAPS_AT) * sizeof(uint32_t));
+    }
+    /* (and the blood kept texel by texel, bloodmap.c: after them) */
+    const uint32_t *maps = bloodmap_words(&run_from, &run_to);
+    if (run_to > run_from)
+        memcpy((uint32_t *)runs_buf.map + RUN_MAPS_AT + run_from, maps + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
+    const uint32_t *runs = trails_words(&run_from, &run_to);
+    if (run_to > run_from)
+        memcpy((uint32_t *)runs_buf.map + run_from, runs + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
+}
+
 void lights_blood_eye(const float *eye) {
     memcpy(blood_eye_shown, eye, sizeof blood_eye_shown);
     blood_eye_known = 1;
+    if (bloodmap_changed())
+        runs_sync();
     if (light_buf.map)
         memcpy(((LightSet *)light_buf.map + (size_t)vk.frame * LIGHT_SETS + BLOOD_SET_AT + BLOOD_SETS - 1)->dir[0], eye, sizeof(float) * 3);
 }
@@ -334,21 +363,7 @@ static void blood_sets(LightSet *l) {
         vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
         blood_init(blood_buf.map);
     }
-    /* (and the blood run down the animals, trails.c: its words, those changed since the last frame) */
-    static VkBuf runs_buf;
-    uint32_t run_from, run_to, run_words = RUN_MESHES * RUN_TRIS + RUN_ENTRIES * RUN_WORDS;
-    if (!runs_buf.map) {
-        runs_buf = vk_buffer((VkDeviceSize)run_words * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 1);
-        VkDescriptorBufferInfo bi = {runs_buf.buffer, 0, VK_WHOLE_SIZE};
-        VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ge_set, BIND_RUNS, 0, 1,
-                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, NULL, &bi, NULL};
-        vkUpdateDescriptorSets(vk.device, 1, &w, 0, NULL);
-        const uint32_t *all = trails_words(&run_from, &run_to);
-        memcpy(runs_buf.map, all, (size_t)run_words * sizeof(uint32_t));
-    }
-    const uint32_t *runs = trails_words(&run_from, &run_to);
-    if (run_to > run_from)
-        memcpy((uint32_t *)runs_buf.map + run_from, runs + run_from, (size_t)(run_to - run_from) * sizeof(uint32_t));
+    runs_sync();
     blood_step(scene_time(), &f);
     memset(l, 0, sizeof *l * BLOOD_SETS);
     for (int i = 0; i < f.ndrops; i++) {
@@ -363,7 +378,7 @@ static void blood_sets(LightSet *l) {
     memcpy(l[BLOOD_SETS - 1].dir[0], blood_eye_known ? blood_eye_shown : f.eye, 12);
     /* (and the settings' look of the blood on an animal: how solid, 0 as it was to 1; how it shines, times) */
     static unsigned seen;
-    static float look[3];
+    static float look[4];
     if (SETTING_STALE(seen)) {
         const char *o = getenv("MHFU_BLOOD_OPACITY"), *s = getenv("MHFU_BLOOD_SHINE");
         look[0] = o ? (float)atof(o) : 1.0f;
@@ -372,6 +387,7 @@ static void blood_sets(LightSet *l) {
         look[1] = look[1] < 0 ? 0 : look[1] > 4 ? 4 : look[1];
     }
     look[2] = trails_now();
+    look[3] = bloodmap_now();
     memcpy(l[BLOOD_SETS - 1].dir[1], look, sizeof look);
     l[BLOOD_SETS - 1].count = (uint32_t)f.any;
 }
