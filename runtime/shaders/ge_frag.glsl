@@ -438,6 +438,10 @@ void main() {
                     float level = thick * (0.7 + 0.6 * n);
                     float edge = max(fwidth(level), 0.015);     // (a clean edge, a pixel wide)
                     float cover = smoothstep(0.2 - edge, 0.2 + edge, level);
+                    // (not on what is see-through itself: a layer of drifting sand or snow over the ground is in the
+                    // world, writes its depth, faces up - and had the blood drawn on it again, a paler copy a little
+                    // aside of the ground's own, #89)
+                    cover *= smoothstep(0.55, 0.9, c.a);
                     // (how much of the ground shows through: little, less where it is deep - some patches thinner)
                     float body = mix(0.8, 0.98, deep_of(thick)) * (0.82 + 0.18 * smoothstep(0.25, 0.6, blood_noise(in_world.xz * 0.06 + 7.3)));
                     wet *= 1.0 - 0.6 * sand;

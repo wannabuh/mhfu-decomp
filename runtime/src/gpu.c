@@ -4519,15 +4519,22 @@ static void wounds_attach(Frame *f) {
         for (int gi = 0; getenv("MHFU_UV_DUMP") && !dumped && gi < f->ntlg; gi++)
             if ((f->draws[f->tlg[gi].first].reg[0x17] & 1) && wound_roams(f->draws[f->tlg[gi].first].vaddr))
                 lit += (int)f->tlg[gi].nindex / 3;
-        if (lit > 500 && wound_cams && ++seen > 15) {
+        /* (MHFU_UV_DUMP_AT=frame: not before that frame) */
+        if ((lit > 500 || getenv("MHFU_UV_DUMP_ALL")) && wound_cams && (!getenv("MHFU_UV_DUMP_AT") || now >= strtoul(getenv("MHFU_UV_DUMP_AT"), NULL, 10)) && ++seen > 15) {
             FILE *o = fopen(getenv("MHFU_UV_DUMP"), "w");
             dumped = 1;
             for (int gi = 0; o && gi < f->ntlg; gi++) {
                 const TlGroup *g = &f->tlg[gi];
                 const Draw *d = &f->draws[g->first];
                 int nb = draw_bones(d);
-                if (!(d->reg[0x17] & 1) || (d->reg[0x12] >> 23 & 1))
+                /* (MHFU_UV_DUMP_ALL=1: the unlit too - the scenery and what lies over it - a line before each group's
+                 * triangles with how it is drawn: lit, blended and how, depth written, vertex colours, material alpha) */
+                int all = getenv("MHFU_UV_DUMP_ALL") != NULL;
+                if ((!(d->reg[0x17] & 1) && !all) || (d->reg[0x12] >> 23 & 1))
                     continue;
+                if (all)
+                    fprintf(o, "group %d %08X lit %u blend %u func %06X nodepth %u vcol %u alpha %02X tex %u tris %u\n", gi, d->vaddr, d->reg[0x17] & 1,
+                            d->reg[0x21] & 1, d->reg[0xDF] & 0xFFFFFFu, d->reg[0xE7] & 1, d->reg[0x12] >> 2 & 7, d->reg[0x58] & 0xFF, d->tex_slot, g->nindex / 3);
                 for (uint32_t t = 0; t + 2 < g->nindex; t += 3) {
                     fprintf(o, "%d %08X %u %d %d %d", gi, d->vaddr, d->tex_slot, d->tex_w, d->tex_h, wound_roams(d->vaddr));
                     for (int c = 0; c < 3; c++) {
