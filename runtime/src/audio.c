@@ -21,8 +21,8 @@ static int audio_state;             /* 0 not tried, 1 on, -1 off */
 static int audio_on(void) {
     if (!audio_state) {
         audio_state = -1;
-        if (getenv("MHFU_HEADLESS") || getenv("MHFU_MUTE"))
-            return 0;
+        if ((getenv("MHFU_HEADLESS") && !getenv("MHFU_AUDIO_TEST")) || getenv("MHFU_MUTE"))
+            return 0;                   /* (MHFU_AUDIO_TEST: sound in a headless run - with SDL_AUDIODRIVER=dummy, heard by no one) */
         if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
             fprintf(stderr, "no sound: %s\n", SDL_GetError());
             return 0;
@@ -56,6 +56,91 @@ static void dump(int ch, uint32_t addr) {
     fwrite(PTR(addr), 1, chan[ch].samples * (chan[ch].format == 0x10 ? 2 : 4), files[ch]);
 }
 
+/* -- kept in time ---------------------------------------------------------------------------------------------------
+ *
+ * The game gives its sound by its own clock, and the host plays it by the sound card's. They part when the game is held
+ * up - a frame that takes long, the window hidden and its frames held back - for under a quarter of a second: the card
+ * runs dry and plays silence, the game's clock then catches the wall clock up (thread.c advance_to), and all the sound
+ * of the time lost is handed over at once and waits in the stream behind what plays. Nothing took it out again: the
+ * sound stayed as late as the longest such hold-up had been (up to that quarter second), until one long enough to play
+ * the stream empty; and the two clocks' own drift could add to it, slowly, without end. So a stream's wait is watched
+ * as each buffer goes in. A channel in step has two buffers at most in it, the one playing and the one behind. More
+ * than SYNC_DROP_MS over that: what waits is dropped (it is of a time gone by, and there was a gap already). More than
+ * SYNC_FAST_MS over: played SYNC_RATIO as fast until it is back within SYNC_EASE_MS. MHFU_AUDIO_SYNC=0: as it was.
+ * MHFU_AUDIO_LOG=1: every five seconds, each channel's wait (ms: now, the most since) and what was done about it. */
+
+#define SYNC_DROP_MS 80
+#define SYNC_FAST_MS 30
+#define SYNC_EASE_MS 8
+#define SYNC_RATIO 1.03f
+
+uint64_t wall_time_us(void);
+
+static struct { int fast; unsigned drops, fasts; int most_ms, puts; } sync_of[CHANNELS];
+
+static int queued_ms(int ch) {
+    int q = SDL_GetAudioStreamQueued(stream[ch]);
+    return q > 0 ? (int)((int64_t)q * 1000 / (RATE * 4)) : 0;
+}
+
+static void sync_log(void) {
+    static int on = -1;
+    static uint64_t last;
+    if (on < 0)
+        on = getenv("MHFU_AUDIO_LOG") != NULL;
+    uint64_t now = wall_time_us();
+    if (!on || now - last < 5000000)
+        return;
+    last = now;
+    for (int ch = 0; ch < CHANNELS; ch++)
+        if (stream[ch] && sync_of[ch].puts) {
+            fprintf(stderr, "audio: channel %d waits %d ms (most %d), %u dropped, %u hurried%s\n", ch, queued_ms(ch),
+                    sync_of[ch].most_ms, sync_of[ch].drops, sync_of[ch].fasts, sync_of[ch].fast ? ", hurrying" : "");
+            sync_of[ch].most_ms = sync_of[ch].puts = 0;
+        }
+}
+
+/* Before a buffer of `ms` goes into the channel's stream */
+static void sync_before(int ch, int ms) {
+    static int on = -1;
+    if (on < 0)
+        on = !getenv("MHFU_AUDIO_SYNC") || atoi(getenv("MHFU_AUDIO_SYNC")) != 0;
+    int over = queued_ms(ch) - ms;          /* (in step: the buffer playing, or less of it) */
+    sync_of[ch].puts++;
+    if (over + ms > sync_of[ch].most_ms)
+        sync_of[ch].most_ms = over + ms;
+    if (on) {
+        int fast = sync_of[ch].fast;
+        if (over > SYNC_DROP_MS) {
+            SDL_ClearAudioStream(stream[ch]);
+            sync_of[ch].drops++;
+            fast = 0;
+        } else if (over > SYNC_FAST_MS)
+            fast = 1;
+        else if (over < SYNC_EASE_MS)
+            fast = 0;
+        if (fast != sync_of[ch].fast) {
+            SDL_SetAudioStreamFrequencyRatio(stream[ch], fast ? SYNC_RATIO : 1.0f);
+            sync_of[ch].fast = fast;
+            sync_of[ch].fasts += (unsigned)fast;
+        }
+    }
+    sync_log();
+}
+
+/* MHFU_AUDIO_STALL=ms (to test the above): the game held up that long, every two seconds */
+static void test_stall(void) {
+    static int ms = -1;
+    static uint64_t last;
+    if (ms < 0)
+        ms = getenv("MHFU_AUDIO_STALL") ? atoi(getenv("MHFU_AUDIO_STALL")) : 0;
+    uint64_t now = wall_time_us();
+    if (ms <= 0 || now - last < 2000000)
+        return;
+    SDL_Delay((Uint32)ms);
+    last = wall_time_us();
+}
+
 /* A buffer to the host: scaled by the channel's volumes (0x8000 is full), mono made stereo */
 int fast_forward(void);
 
@@ -79,6 +164,8 @@ static void play(int ch, uint32_t addr, uint32_t vol_l, uint32_t vol_r) {
         buf[2 * i] = (int16_t)(l * (int32_t)vol_l / 0x8000);
         buf[2 * i + 1] = (int16_t)(r * (int32_t)vol_r / 0x8000);
     }
+    test_stall();
+    sync_before(ch, (int)(n * 1000 / RATE));
     SDL_PutAudioStreamData(stream[ch], buf, (int)(n * 4));
 }
 
