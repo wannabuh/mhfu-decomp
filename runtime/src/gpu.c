@@ -3912,7 +3912,7 @@ static float blood_amount(void) {
 
 /* How far a wound's blood reaches about it, units, and how thick it lies (0-1) */
 static float wound_blood_reach(int w) {
-    return wounds[w].blood > 0 ? 14.0f + (wounds[w].rmax - 14.0f) * (1.0f - expf(-wounds[w].blood / 3.5f)) : 0;
+    return wounds[w].blood > 0 ? 14.0f + (wounds[w].rmax - 14.0f) * (1.0f - expf(-wounds[w].blood / 7.0f)) : 0;
 }
 
 static float wound_blood_thick(int w) {
@@ -4739,10 +4739,11 @@ static void wounds_attach(Frame *f) {
         }
         sl = sqrtf(sl);
         float keep = sl > WOUND_SHIFT ? WOUND_SHIFT / sl : 1.0f;
-        /* The blood it leaves: by how hard the blow was (a blunt one half as much). Landing in the blood about a wound
+        /* The blood it leaves: by how hard the blow was - its root: one great blow is not a face covered, #82 - (a
+         * blunt one half as much). Landing in the blood about a wound
          * the animal has - near its middle, measured among the vertices of the piece hit, in that wound's measure -
          * it makes no wound of its own: that one's blood grows, wet again, and it is as deep as the deeper */
-        float gain = fmaxf(wound_pending[h].hard / 60.0f, 0.25f) * blood_amount() * (wound_pending[h].kind == WOUND_BLUNT ? 0.5f : 1.0f);
+        float gain = fmaxf(sqrtf(fmaxf(wound_pending[h].hard, 0.0f) / 60.0f), 0.3f) * blood_amount() * (wound_pending[h].kind == WOUND_BLUNT ? 0.5f : 1.0f);
         int fed = -1;
         {
             float rest[3], near = 1e18f;

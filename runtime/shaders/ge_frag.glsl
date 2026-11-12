@@ -540,7 +540,9 @@ void main() {
             if (about > 0.0) {
                 vec3 under = c.rgb;
                 float lit_under = dot(under, vec3(0.3, 0.55, 0.15));
-                vec3 its = mix(blood * 0.6, blood * 0.92, wetness) * (1.0 - 0.3 * smoothstep(0.7, 1.0, inward)) * (1.0 - 0.25 * lies * (1.0 - inward));
+                // (its colour at full strength, whatever the animal's is set to: lit as below it came out near black, #82)
+                vec3 full = blood / max(max(blood.r, max(blood.g, blood.b)), 0.05);
+                vec3 its = mix(full * 0.55, full * 0.8, wetness) * (1.0 - 0.3 * smoothstep(0.7, 1.0, inward)) * (1.0 - 0.25 * lies * (1.0 - inward));
                 // (not one flat colour over a whole head: darker where it has clotted, in patches)
                 its *= 0.62 + 0.38 * smoothstep(0.25, 0.6, wound_noise(from_cut.x * 0.07 + from_cut.z * 0.05 + seed * 23.0) * 0.5 +
                                                 wound_noise(from_cut.y * 0.09 - from_cut.z * 0.04 + seed * 31.0) * 0.5);
@@ -548,7 +550,8 @@ void main() {
                 // (as light as the skin is lit - its light without its picture's pattern, which would show through
                 // as if the blood were a tint: the lit colour over the picture's own - the more so the thicker it lies)
                 float shade = clamp(lit_under / max(dot(t.rgb, vec3(0.3, 0.55, 0.15)), 0.08), 0.0, 1.6);
-                float light = mix(lit_under * 1.9, shade * 0.62, solid_shine.x * mix(0.75, 1.0, lies));
+                // (and in the shade no darker than two fifths: red still, not black)
+                float light = mix(lit_under * 1.9, max(shade, 0.4) * 0.8, solid_shine.x * mix(0.75, 1.0, lies));
                 c.rgb = mix(under, its * light, about * mix(0.7, 1.0, solid_shine.x) * mix(0.9, 1.0, lies));
                 float gloss = about * (0.3 + 0.5 * lies) * max(wetness, 0.15) * solid_shine.y;
                 vec3 n = cross(dFdx(in_world), dFdy(in_world));
