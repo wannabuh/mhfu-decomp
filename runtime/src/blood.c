@@ -17,6 +17,7 @@
  * as uneven as what the cells hold), and on a slope (the grass's ground's) it creeps downhill, leaving a little
  * behind. It dries in most of a minute and stays, till the area is left. */
 #include "blood.h"
+#include "settings.h"
 
 #include <math.h>
 #include <pthread.h>
@@ -462,7 +463,12 @@ void blood_step(double now, BloodFrame *out) {
         /* (a streak: back to where it was a 60th of a second ago - but no longer than twice the drop is wide: a
          * drop falling fast was drawn a long line, and read as one, #83) */
         float fast = sqrtf(d->speed[0] * d->speed[0] + d->speed[1] * d->speed[1] + d->speed[2] * d->speed[2]) / 60.0f;
-        float most = 4.0f * out->drop_at[o][3], keep = fast > most ? most / fast : 1.0f;
+        /* (MHFU_BLOOD_STREAK, the settings': times that - 0 a round drop, 4 eight times as long as it is wide) */
+        static float streak = 1;
+        static unsigned seen;
+        if (SETTING_STALE(seen))
+            streak = getenv("MHFU_BLOOD_STREAK") ? fminf(fmaxf((float)atof(getenv("MHFU_BLOOD_STREAK")), 0.0f), 16.0f) : 1.0f;
+        float most = 4.0f * out->drop_at[o][3] * streak, keep = fast > most ? most / fast : 1.0f;
         for (int k = 0; k < 3; k++) {
             out->drop_color[o][k] = (float)d->rgb[k] / 255.0f;
             out->drop_streak[o][k] = d->speed[k] / 60.0f * keep;

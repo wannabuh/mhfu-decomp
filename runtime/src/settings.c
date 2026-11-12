@@ -67,6 +67,7 @@ static const Setting list[] = {
     {"blood_amount", "HOW BLOODY MONSTERS GET", S_NUMBER, "1.0", 0, 4, 0.25f, NULL, S_LIVE},
     {"blood_run_speed", "BLOOD RUNS DOWN MONSTERS THIS FAST", S_NUMBER, "1.0", 0.25f, 4, 0.25f, NULL, S_LIVE},
     {"blood_drip_speed", "BLOOD DRIPS FALL THIS FAST", S_NUMBER, "1.0", 0.25f, 4, 0.25f, NULL, S_LIVE},
+    {"blood_streak", "BLOOD DROPS IN THE AIR STREAK THIS LONG", S_NUMBER, "1.0", 0, 4, 0.25f, NULL, S_LIVE},
     {"blood_trickles", "BLOOD RUNS DOWN MONSTERS (UNFINISHED)", S_TOGGLE, "0", 0, 0, 0, NULL, S_LIVE},
     {"blood_opacity", "BLOOD ON MONSTERS: HOW SOLID", S_NUMBER, "1.0", 0, 1, 0.05f, NULL, S_LIVE},
     {"blood_shine", "BLOOD ON MONSTERS: HOW IT SHINES", S_NUMBER, "0.6", 0, 2, 0.1f, NULL, S_LIVE},
